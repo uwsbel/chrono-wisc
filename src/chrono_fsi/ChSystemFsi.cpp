@@ -2170,6 +2170,12 @@ std::vector<ChVector3d> ChSystemFsi::GetParticlePositions() const {
     return pos;
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------
+// Nevi added this
+float* ChSystemFsi::GetParticleData() {
+    return m_sysFSI->GetParticleData();
+};
+
 std::vector<ChVector3d> ChSystemFsi::GetParticleFluidProperties() const {
     thrust::host_vector<Real4> rhoPresMuH = m_sysFSI->sphMarkers_D->rhoPresMuD;
     std::vector<ChVector3d> props;
