@@ -31,6 +31,12 @@ if(ENABLE_MODULE_SENSOR AND ENABLE_MODULE_IRRLICHT)
   )
 endif()
 
+if(ENABLE_MODULE_SENSOR)
+  set(DEMOS ${DEMOS}
+      demo_ROBOT_Viper_SCM_Lunar
+  )
+endif()
+
 if(ENABLE_MODULE_FSI)
   set(DEMOS ${DEMOS}
       demo_ROBOT_Viper_SPH
