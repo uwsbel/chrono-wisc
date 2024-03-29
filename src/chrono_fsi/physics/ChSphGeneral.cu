@@ -882,6 +882,21 @@ __global__ void UpdateDensity(Real3* vis_vel,
             "type=%f\n", i_idx, sortedRhoPreMu[i_idx].w);
 }
 
+
+//----------------------------
+__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        output[6 * idx] = (float)posD[idx].x;
+        output[6 * idx + 1] = (float)posD[idx].y;
+        output[6 * idx + 2] = (float)posD[idx].z;
+        output[6 * idx + 3] = (float)velD[idx].x;
+        output[6 * idx + 4] = (float)velD[idx].y;
+        output[6 * idx + 5] = (float)velD[idx].z;
+    }
+}
+
+
 }  // namespace fsi
 }  // namespace chrono
 #endif

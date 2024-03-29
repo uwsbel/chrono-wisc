@@ -629,6 +629,47 @@ thrust::device_vector<Real4> ChSystemFsi_impl::GetParticlePositions(const thrust
     return pos;
 }
 
+
+float* ChSystemFsi_impl::GetParticleData() {
+    printf("Converting %d Real4 points to float buffer...\n", sphMarkersD2->posRadD.size());
+
+    Real4* r4_pts_d = mR4CAST(sphMarkersD2->posRadD.data());
+    Real3* vel_d = mR3CAST(sphMarkersD2->velMasD.data());
+
+    int n = sphMarkersD2->posRadD.size();
+    float* pts_d = nullptr;
+    cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));
+
+    uint nBlocks, nThreads;
+    int blockSize = 1024;
+    computeGridSize(n, blockSize, nBlocks, nThreads);
+    kernel_convert_Real4_to_float_buffer<<<nBlocks, nThreads>>>(r4_pts_d, vel_d, pts_d, n);
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA kernel launch error: %s\n", cudaGetErrorString(err));
+        // Handle the error...
+    }
+    err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA kernel execution error: %s\n", cudaGetErrorString(err));
+        // Handle the error...
+    }
+
+    float* pts_h = (float*)malloc(6 * n * sizeof(float));
+    cudaMemcpy(pts_h, pts_d, 6 * n * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // // Test conversion
+    // float* pts_h = (float*)malloc(3 * n * sizeof(float));
+    // cudaMemcpy(pts_h, pts_d, 3 * n * sizeof(float), cudaMemcpyDeviceToHost);
+    // printf("Testing %d points...\n", n);
+    // for (int i = 0; i < 3 * n; i+=3) {
+    //     printf("Point: (%f %f %f)\n", pts_h[i], pts_h[i+1], pts_h[i+2]);
+    // }
+    printf("Conversion Done!\n");
+    return pts_h;
+}
+
 // Gather velocities from particles with specified indices
 thrust::device_vector<Real3> ChSystemFsi_impl::GetParticleVelocities(const thrust::device_vector<int>& indices) {
     auto allvel = sphMarkersD2->velMasD;

@@ -424,6 +424,9 @@ class CH_FSI_API ChSystemFsi {
     /// The return value is a device thrust vector.
     thrust::device_vector<Real4> GetParticlePositions(const thrust::device_vector<int>& indices);
 
+    // Nevi added this
+    float* ChSystemFsi::GetParticleData();
+
     /// Extract velocities of all SPH particles with indices in the provided array.
     /// The return value is a device thrust vector.
     thrust::device_vector<Real3> GetParticleVelocities(const thrust::device_vector<int>& indices);
@@ -484,6 +487,27 @@ class CH_FSI_API ChSystemFsi {
     /// BCE markers are created in a number of layers corresponding to system parameters.
     /// BCE markers are created using cylinderical coordinates (polar=true), or else on a uniform Cartesian grid.
     void CreateBCE_cone(Real rad, Real height, bool solid, bool capped, bool polar, thrust::host_vector<Real4>& bce);
+
+
+   void AddWheelBCE_Grouser(std::shared_ptr<ChBody> body,
+                            const ChFrame<>& frame,
+                            double radius,
+                            double wide,
+                            double grouser_height,
+                            double grouser_wide,
+                            int grouser_num,
+                            double kernel_h,
+                            bool cartesian);
+
+void CreateBCE_On_Wheel_Grouser(thrust::host_vector<Real4>& bce,
+                                   Real wheel_rad,
+                                   Real wheel_w,
+                                   Real gro_h,
+                                   Real gro_w,
+                                   int gro_num,
+                                   std::shared_ptr<SimParams> paramsH,
+                                   Real kernel_h,
+                                   bool cartesian = true);
 
     /// Create BCE particles from a cable element.
     //// RADU TODO
