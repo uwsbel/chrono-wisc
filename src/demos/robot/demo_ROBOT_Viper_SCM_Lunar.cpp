@@ -60,7 +60,7 @@ float lag = 0.0f;
 float exposure_time = 0.0f;
 int alias_factor = 1;
 // Save camera images
-bool save = true ;
+bool save = false ;
 // Render camera images
 bool vis = true ;
 // Exposure correction filter
@@ -149,8 +149,8 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 5) {
-        std::cout << "Missing parameters: {Sun Position: 1,2,3,4} {Hapke: 0,1} {Third Rock Size: [0,1]} {Exposure Correction: 0,1}";
+    if (argc < 4) {
+        std::cout << "Missing parameters: {Sun Position: 1,2,3,4} {Hapke: 0,1} {Third Rock Size: [0,1]}";
         return 0;
     }
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
