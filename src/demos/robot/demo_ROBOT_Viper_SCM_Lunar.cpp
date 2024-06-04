@@ -48,7 +48,7 @@ bool output = false;
 // Either PINHOLE or SPHERICAL
 CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 // Update rate in Hz
-float update_rate = 30;
+float update_rate = 20;
 // Image width and height
 unsigned int image_width = 1920;
 unsigned int image_height = 1080;
@@ -60,19 +60,19 @@ float lag = 0.0f;
 float exposure_time = 0.0f;
 int alias_factor = 1;
 // Save camera images
-bool save = false ;
+bool save = true ;
 // Render camera images
-bool vis = true ;
+bool vis = false ;
 // Exposure correction filter
 bool exposure_correction_switch = false;
 
 const std::string out_dir = GetChronoOutputPath() + "SCM_DEF_SOIL";
 
 // SCM grid spacing
-double mesh_resolution = 0.02;
+double mesh_resolution = 0.04;
 
 // Enable/disable bulldozing effects
-bool enable_bulldozing = true;
+bool enable_bulldozing = false;
 
 // Number of SCM and collision threads
 int nthreads = 40;
@@ -248,7 +248,7 @@ int main(int argc, char* argv[]) {
 
         if (i == 0) {
             rock_obj_path = GetChronoDataFile("robot/curiosity/rocks/rock1.obj");
-            rock_pos = ChVector3d(2.5, -1, 0.1);
+            rock_pos = ChVector3d(2.2, -1, 0.1);
         } else if (i == 1) {
             rock_obj_path = GetChronoDataFile("robot/curiosity/rocks/new_rock_2.obj");
             rock_pos = ChVector3d(2.935, 7.3, 0.2);
@@ -339,7 +339,7 @@ int main(int argc, char* argv[]) {
         // If var_params is set to be false, these parameters will be used
         terrain.SetSoilParameters(0.2e6,  // Bekker Kphi
                                   0,      // Bekker Kc
-                                  1.1,    // Bekker n exponent
+                                  0.7,    // Bekker n exponent
                                   0,      // Mohr cohesive limit (Pa)
                                   30,     // Mohr friction limit (degrees)
                                   0.01,   // Janosi shear coefficient (m)
@@ -396,12 +396,12 @@ int main(int argc, char* argv[]) {
     expsr_a_arr = {0.29556334914850335, -0.2425751791534932, -0.9214774573420131}; // complex Hapke model, Terrain 01
     expsr_b_arr = {1.3639594220085027, -0.35420470527525494, -9.464210018888805}; // complex Hapke model, Terrain 01
 
-    chrono::ChFrame<double> wheel_poses[4] = {chrono::ChFrame<double>({-1.0, -1.5, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75})), 
+    chrono::ChFrame<double> wheel_poses[4] = {  chrono::ChFrame<double>({1.0, -0.2, 0.75}, QuatFromAngleAxis(1.9, {-0.4, 0.0, 1})),
+                                                chrono::ChFrame<double>({-1.0, -1.5, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75})), 
                                                 chrono::ChFrame<double>({1.0,-1.5,0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75})),
-                                                chrono::ChFrame<double>({1.0,1.5,0.5}, QuatFromAngleAxis(.2, {2, 3, -9.75})),
                                                 chrono::ChFrame<double>({-1.0,1.5,0.5}, QuatFromAngleAxis(.2, {2, 3, -9.75}))};
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 1; i++) {
         auto cam = chrono_types::make_shared<ChCameraSensor>(viper.GetChassis()->GetBody(),         // body camera is attached to
                                                             update_rate,   // update rate in Hz
                                                             wheel_poses[i],  // offset pose
@@ -477,13 +477,28 @@ int main(int argc, char* argv[]) {
         
         double max_steering = CH_PI / 3;
         double steering = 0;
+        std::cout << "Time: " << ch_time << std::endl;
         if (ch_time > 4 && ch_time < 45) {
             steering = max_steering * (ch_time - 4) / 4;
-        } else if (ch_time > 75 && ch_time < 80) {
-            steering = max_steering * (ch_time - 75) / 4;
+            std::cout << "First Steering: " << steering << std::endl;
+        } 
+        else if (ch_time >= 45 && ch_time < 50) { // Gradually reduce steering to zero between t=45 and t=55
+            steering = max_steering * (50 - ch_time) / 5;
+            std::cout << "Second Steering: " << steering << std::endl;
         }
+        // else if (ch_time > 75 && ch_time < 80) {
+        //     steering = max_steering * (ch_time - 75) / 4;
+        //     std::cout << "Third Steering: " << steering << std::endl;
+        // }
+        // else if (ch_time > 80 && ch_time < 85) {
+        //     steering = max_steering * (85 - ch_time) / 5;
+        //     std::cout << "Fourth Steering: " << steering << std::endl;
+        // }
 
         driver->SetSteering(steering);
+
+        // print the wheel position
+        std::cout<<"wheel pos: "<< viper.GetWheel(ViperWheelID::V_RF)->GetBody()->GetPos()<<std::endl;
 
         viper.Update();
 
