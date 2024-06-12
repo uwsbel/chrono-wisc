@@ -293,7 +293,7 @@ int main(int argc, char* argv[]) {
     sysFSI.SetBoundaries(cMin, cMax);
 
     // Set simulation data output length
-    sysFSI.SetOutputLength(0);
+    sysFSI.SetOutputLength(1);
 
     // Create an initial box for the terrain patch
     chrono::utils::ChGridSampler<> sampler(iniSpacing);
@@ -335,33 +335,34 @@ int main(int argc, char* argv[]) {
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({1, 1, 1});
+    vis_mat->SetDiffuseColor({0.29f, 0.29f, 0.235f});
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetUseHapke(true);
+    vis_mat->SetUseHapke(false);
+    vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
 
     float scal = 10.f;
-    auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(6.06f, 4.f, 0.72f, 1000,
-                                                            true);  
-    vol_bbox->SetPos({0, 0, 0});                                   
-    vol_bbox->SetFixed(true);
-    sysMBS.Add(vol_bbox);
-    {
-        auto shape = vol_bbox->GetVisualModel()->GetShapes()[0].first;
-        if (shape->GetNumMaterials() == 0) {
-            shape->AddMaterial(vis_mat);
-        } else {
-            shape->GetMaterials()[0] = vis_mat;
-        }
-    }
+    //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(6.f, 4.f,.2f, 1000,
+    //                                                        true);  
+    //vol_bbox->SetPos({0, 0, 0});                                   
+    //vol_bbox->SetFixed(true);
+    //sysMBS.Add(vol_bbox);
+    //{
+    //    auto shape = vol_bbox->GetVisualModel()->GetShapes()[0].first;
+    //    if (shape->GetNumMaterials() == 0) {
+    //        shape->AddMaterial(vis_mat);
+    //    } else {
+    //        shape->GetMaterials()[0] = vis_mat;
+    //    }
+    //}
 
-    auto box = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false);
+    auto box = chrono_types::make_shared<ChBodyEasyBox>(6,4,0.2, 1000, true, false);
     box->SetPos({0, 0, 0});
     box->SetFixed(true);
-    //sysMBS.Add(box);
+    sysMBS.Add(box);
     {
         auto shape = box->GetVisualModel()->GetShapes()[0].first;
         if (shape->GetNumMaterials() == 0) {
@@ -379,7 +380,7 @@ int main(int argc, char* argv[]) {
     // Create a Sensor manager
     float intensity = 1.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sysMBS);
-    manager->scene->AddPointLight({0, 0, 300}, {intensity, intensity, intensity}, 500);
+    manager->scene->AddPointLight({0, 0, 10}, {intensity, intensity, intensity}, 500);
     manager->scene->SetAmbientLight({.1, .1, .1});
     Background b;
     b.mode = BackgroundMode::SOLID_COLOR;
@@ -387,12 +388,12 @@ int main(int argc, char* argv[]) {
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
 
-    manager->scene->SetFSIParticles(h_points);
-    manager->scene->SetFSINumFSIParticles(n_pts);
+    //manager->scene->SetFSIParticles(h_points);
+    //manager->scene->SetFSINumFSIParticles(n_pts);
 
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
-    chrono::ChFrame<double> offset_pose1({-1,5,1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+    chrono::ChFrame<double> offset_pose1({0,5,1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -430,7 +431,7 @@ int main(int argc, char* argv[]) {
 
     if (save)
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Wheel_Cam_RealSlope/"));
-   // manager->AddSensor(cam2);
+    manager->AddSensor(cam2);
 
     chrono::ChFrame<double> offset_pose3({-2.f, 0, .5f}, QuatFromAngleAxis(.2, {0, 1, 0}));
     // chrono::ChFrame<double> offset_pose3({0, 0, 5.f}, Q_from_AngAxis(CH_PI_2, {0, 1, 0}));
@@ -451,7 +452,7 @@ int main(int argc, char* argv[]) {
 
     if (save)
         cam3->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Rear_Cam_RealSlope/"));
-    //manager->AddSensor(cam3);
+    manager->AddSensor(cam3);
 
     // chrono::ChFrame<double> offset_pose4({-2.f, 0, .5f}, Q_from_AngAxis(.2, {0, 1, 0}));
     chrono::ChFrame<double> offset_pose4({0, 0, 5.f}, QuatFromAngleAxis(CH_PI_2, {0, 1, 0}));
@@ -472,7 +473,7 @@ int main(int argc, char* argv[]) {
 
     if (save)
         cam4->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Top_Cam_RealSensor/"));
-    //manager->AddSensor(cam4);
+    manager->AddSensor(cam4);
 
     // Add NanoVDB particles
 
@@ -538,7 +539,7 @@ int main(int argc, char* argv[]) {
     float addNVDBTime = 0.0f;
 
     while (time < total_time) {
-        //std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << time/timer() <<  std::endl;
+        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << time/timer() <<  std::endl;
         auto rock_body = sysMBS.GetBodies()[rock_id];
         //std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " << rock_body->GetPos().y() << ", " << rock_body->GetPos().z() << ") "<< std::endl;
         if (rock_body->GetPos().z() < 0.31f)
@@ -550,18 +551,18 @@ int main(int argc, char* argv[]) {
             timerNVDB.stop();
             std::cout << "Adding NVDB points:" << timerNVDB.GetTimeMilliseconds() << "ms" << std::endl;
             timerNVDB.reset();*/
-            h_points = sysFSI.GetParticleData();
+           h_points = sysFSI.GetParticleData();
            n_pts = sysFSI.GetNumFluidMarkers() + sysFSI.GetNumBoundaryMarkers() + sysFSI.GetNumFlexBodyMarkers() +
                    sysFSI.GetNumRigidBodyMarkers();
-            manager->scene->SetFSIParticles(h_points);
-            manager->scene->SetFSINumFSIParticles(n_pts);
+            //manager->scene->SetFSIParticles(h_points);
+            //manager->scene->SetFSINumFSIParticles(n_pts);
         }
         manager->Update();
 
         rover->Update();
 
-        //std::cout << "  pos: " << body->GetPos() << std::endl;
-        //std::cout << "  vel: " << body->GetPos_dt() << std::endl;
+        std::cout << "  pos: " << body->GetPos() << std::endl;
+        std::cout << "  vel: " << body->GetPosDt() << std::endl;
         if (output) {
             ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
             if (current_step % output_steps == 0) {
@@ -609,9 +610,6 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
     rover->SetDriver(driver);
     rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
-    rover->SetChassisVisualization(true);
-    rover->SetWheelVisualization(true);
-    rover->SetSuspensionVisualization(true);
     
 
     rover->Initialize(ChFrame<>(init_loc, QUNIT));
@@ -727,7 +725,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             if (body->GetVisualModel()) {
                 for (auto& shape_instance : body->GetVisualModel()->GetShapes()) {
                     const auto& shape = shape_instance.first;
-                    shape->SetVisible(false);
+                    shape->SetVisible(true);
                 }
             }
         }
@@ -742,7 +740,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             vis_mat2->SetUseHapke(false);
 
             std::string rock_obj_path = GetChronoDataFile("robot/curiosity/rocks/rock3.obj");
-            ChVector3d rock_pos = ChVector3d(ChVector3d(-.4f,-.625f,.45f));
+            ChVector3d rock_pos = ChVector3d(-.4,-.625, 0.5);
 
              std::shared_ptr<ChContactMaterial> rockSufaceMaterial = ChContactMaterial::DefaultMaterial(sysMBS.GetContactMethod());
             
@@ -769,7 +767,8 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             rock_Body->SetMass(mmass * mdensity);  // mmass * mdensity
             rock_Body->SetInertiaXX(mdensity * principal_I);
 
-            rock_Body->SetFrameCOMToRef(ChFrame<>(ChVector3d(rock_pos), ChQuaternion<>(rock_rot)));
+            rock_Body->SetFrameRefToAbs(ChFrame<>(ChVector3d(rock_pos), ChQuaternion<>(rock_rot)));
+            rock_Body->SetName("Rocky");
             sysMBS.Add(rock_Body);
 
             rock_Body->SetFixed(false);
