@@ -16,11 +16,8 @@
 
 #ifdef USE_SENSOR_NVDB
 
-//#include <nanovdb/NanoVDB.h>
-//#include <nanovdb/util/cuda/CudaDeviceBuffer.h>
-//#include <nanovdb/util/GridHandle.h>
 
-#include <openvdb/tools/LevelSetSphere.h> // replace with your own dependencies for generating the OpenVDB grid
+
 #include <nanovdb/util/CreateNanoGrid.h> // converter from OpenVDB to NanoVDB (includes NanoVDB.h and GridManager.h)
 #include <nanovdb/util/cuda/CudaDeviceBuffer.h>
 #include <nanovdb/util/NodeManager.h>

@@ -25,7 +25,15 @@ if(USE_NVDB)
   message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
   # print cmake cxx standard
   message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
-  find_package(OpenVDB REQUIRED COMPONENTS nanovdb)
+  find_package(OpenVDB REQUIRED COMPONENTS openvdb nanovdb)
+
+  # set the include directories
+  message(STATUS "OpenVDB include directory: ${OpenVDB_INCLUDE_DIR}")
+  set(CH_SENSOR_INCLUDES ${CH_SENSOR_INCLUDES} ${OpenVDB_INCLUDE_DIR})
+  message(STATUS "Sensor include directories: ${CH_SENSOR_INCLUDES}")
+
+
+
 endif()
 
 
@@ -116,8 +124,6 @@ set(CH_SENSOR_INCLUDES ${CH_SENSOR_INCLUDES}
 
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -127,8 +133,13 @@ list(APPEND LIBRARIES ${CUDA_nppidei_LIBRARY})
 list(APPEND LIBRARIES ${CUDA_CUDA_LIBRARY})
 
 if(USE_NVDB)
-  list(APPEND LIBRARIES OpenVDB::openvdb)
   list(APPEND LIBRARIES OpenVDB::nanovdb)
+  #list(APPEND LIBRARIES OpenVDB::openvdb)
+  if(VDB_MSVC_RUNTIME_SELECTION)
+    message(STATUS "Setting MSVC runtime for OpenVDB")
+    set_target_properties(ChronoEngine_sensor PROPERTIES
+      MSVC_RUNTIME_LIBRARY ${VDB_MSVC_RUNTIME_SELECTION})
+  endif()
 endif()
 
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
@@ -588,6 +599,7 @@ endif()
 
 if(${USE_NVDB})
   target_compile_definitions(ChronoEngine_sensor PUBLIC -DUSE_SENSOR_NVDB)
+  #target_compile_definitions(ChronoEngine_sensor PUBLIC -DNANOVDB_USE_OPENVDB) ##??
   message(STATUS "NANO VDB Visualization enabled in Chrono::Sensor.")
 endif()
 
@@ -603,7 +615,8 @@ set_target_properties(ChronoEngine_sensor PROPERTIES
                     COMPILE_FLAGS "${CH_CXX_FLAGS}"
                     LINK_FLAGS "${CH_LINKERFLAG_LIB}")
 
-target_include_directories(ChronoEngine_sensor PUBLIC ${CH_SENSOR_INCLUDES})
+message(STATUS "Sensor include directories: ${CH_SENSOR_INCLUDES}")
+target_include_directories(ChronoEngine_sensor PUBLIC ${CH_SENSOR_INCLUDES} )
 
 target_link_libraries(ChronoEngine_sensor ChronoEngine ${LIBRARIES})
 if(${HAVE_GL})
@@ -611,6 +624,7 @@ if(${HAVE_GL})
   target_link_libraries(ChronoEngine_sensor GLEW::glew)
   target_link_libraries(ChronoEngine_sensor glfw)
 endif()
+
 
 # Make some variables available to users
 set(CH_SENSOR_INCLUDES  "${CH_SENSOR_INCLUDES}"  PARENT_SCOPE)

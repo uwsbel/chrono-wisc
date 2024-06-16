@@ -483,6 +483,7 @@ void ChOptixEngine::rigidMeshVisualization(std::shared_ptr<ChBody> body,
     }
     ChVector3d size = mesh_shape->GetScale();
 
+    printf("Rigid Mesh: %s!\n", body->GetName());
     unsigned int mat_id;
     CUdeviceptr d_vertex_buffer;  // handle will go to m_geometry
     CUdeviceptr d_index_buffer;   // handle will go to m_geometry
@@ -558,6 +559,7 @@ void ChOptixEngine::ConstructScene() {
 
                 if (!shape->IsVisible()) {
                     // std::cout << "Ignoring an asset that is set to invisible\n";
+                    printf("Body %s is invisible\n", body->GetName().c_str());
                 } else if (auto box_shape = std::dynamic_pointer_cast<ChVisualShapeBox>(shape)) {
                     boxVisualization(body, box_shape, shape_frame);
                 } 
@@ -575,6 +577,7 @@ void ChOptixEngine::ConstructScene() {
 
                 } else if (auto trimesh_shape = std::dynamic_pointer_cast<ChVisualShapeTriangleMesh>(shape)) {
                     if (!trimesh_shape->IsMutable()) {
+                        printf("Trimesh Shape: %s, Pos: %f,%f,%f\n", body->GetName().c_str(),body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
                         rigidMeshVisualization(body, trimesh_shape, shape_frame);
 
                         // added_asset_for_body = true;
@@ -777,12 +780,19 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         int n = scene->GetNumFSIParticles();
         
         printf("Creatinng NanoVDB Handle...\n");
-        using buildType = nanovdb::Point;
+        using buildType = float;
         nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = createNanoVDBGridHandle(d_pts, n);
         nanovdb::NanoGrid<buildType>* grid = handle.deviceGrid<buildType>();
         handle.deviceDownload();
         auto* grid_h = handle.grid<buildType>();
         auto* tree = grid_h->treePtr();
+        printf("############### VDB GRID INFORMATION ################\n");
+        printf("Grid Size: %d\n", grid_h->gridSize());
+        printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
+        printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
+
+        printf("############### END #############\n");
+        printf("Handle created!\n");
 
         // printf("Grid Size: %d\n", grid_h->gridSize());
         ////printf("Point Count: %d", (int)grid_h->pointCount());

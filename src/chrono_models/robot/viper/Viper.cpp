@@ -216,7 +216,8 @@ void ViperPart::Construct(ChSystem* system) {
 
     // Add visualization shape
     if (m_visualize) {
-        auto vis_mesh_file = GetChronoDataFile("robot/viper/obj/" + m_mesh_name + ".obj");
+        printf("Viper Visualization Enabled!\n");
+        auto vis_mesh_file = GetChronoDataFile("robot/viper/render/" + m_mesh_name + ".obj");
         auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
         trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
         trimesh_vis->RepairDuplicateVertexes(1e-9);                               // if meshes are not watertight
