@@ -544,7 +544,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
 
 //-------------------------------------------------------
 // Nevi added this
-__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n);
+__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n, size_t fluidStart);
 
 }  // namespace fsi
 }  // namespace chrono

@@ -877,7 +877,13 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                                                const float3& tangent,
                                                const float& ray_dist,
                                                const float3& ray_orig,
-                                               const float3& ray_dir){
+                                               const float3& ray_dir){  
+
+        
+        //printf("Distance: %.2f\n", ray_dist);
+        //prd_camera->color += make_float3(ray_dist, ray_dist, ray_dist);
+        //prd_camera->color += make_float3(1.f,1.f,1.f);
+        //return;
         //printf("Hapke Shader!\n");
         // float w = 0.32357f; // average single scattering albedo
         // float b = 0.23955f; // shape controlling parameter for the amplitude of backward and forward scatter of particles
@@ -890,158 +896,232 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
         // //float K = 1.0f;
         // float theta_p = 23.4f*(CUDART_PI_F/180);
 
-        const MaterialParameters& mat = params.material_pool[material_id]; // Assume no blended materials for now
-        float3 subsarface_albedo = mat.Kd;
-        float3 specular = mat.Ks;
 
-        // Get Hapke material parameters
-        float w = mat.w;
-        float b = mat.b;
-        float c = mat.c;
-        float B_s0 = mat.B_s0;
-        float h_s = mat.h_s;
-        float B_c0 = 0.0f;
-        float h_c = 1.0f;
-        float phi = mat.phi;
-        float theta_p = mat.theta_p;
+       const MaterialParameters& mat = params.material_pool[material_id]; // Assume no blended materials for now
+       float3 subsarface_albedo = mat.Kd;
+       float3 specular = mat.Ks;
 
-        
+       // Get Hapke material parameters
+       float w = mat.w;
+       float b = mat.b;
+       float c = mat.c;
+       float B_s0 = mat.B_s0;
+       float h_s = mat.h_s;
+       float B_c0 = 0.0f;
+       float h_c = 1.0f;
+       float phi = mat.phi;
+       float theta_p = mat.theta_p;
 
-        float3 hit_point = ray_orig + ray_dir * ray_dist;
+       
 
-        float cos_e = Dot(world_normal, -ray_dir);
+       float3 hit_point = ray_orig + ray_dir * ray_dist;
 
-        float3 reflected_color = make_float3(0.0f);
-        {
-            for (int i = 0; i < params.num_lights; i++) {
-                PointLight l = params.lights[i];
-                float dist_to_light = Length(l.pos - hit_point);
-                //printf("dist_to_light:%.4f\n", dist_to_light);
-                if (1) {//dist_to_light < 2 * l.max_range{ // Sun should have infinity range, so this condition will always be true for ths sun
-                    float3 dir_to_light = normalize(l.pos - hit_point);
-                    float cos_i = Dot(dir_to_light, world_normal);
-                    //printf("cos_i:%.2f",cos_i);
-                    if (cos_i > 0) {
+       float cos_e = Dot(world_normal, -ray_dir);
 
-                        // Cast a shadow ray to see any attenuation of light
-                        PerRayData_shadow prd_shadow = default_shadow_prd();
-                        prd_shadow.depth = prd_camera->depth + 1;
-                        prd_shadow.ramaining_dist = dist_to_light;
-                        unsigned int opt1;
-                        unsigned int opt2;
-                        pointer_as_ints(&prd_shadow, opt1, opt2);
-                        unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
-                        optixTrace(params.root, hit_point, dir_to_light, params.scene_epsilon, dist_to_light, optixGetRayTime(),
-                                OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
+       float3 reflected_color = make_float3(0.0f);
+       {
+           for (int i = 0; i < params.num_lights; i++) {
+               PointLight l = params.lights[i];
+               float dist_to_light = Length(l.pos - hit_point);
+               //printf("dist_to_light:%.4f\n", dist_to_light);
+               if (1) {//dist_to_light < 2 * l.max_range{ // Sun should have infinity range, so this condition will always be true for ths sun
+                   float3 dir_to_light = normalize(l.pos - hit_point);
+                   float cos_i = Dot(dir_to_light, world_normal);
+                   //printf("cos_i:%.2f",cos_i);
+                   if (cos_i > 0) {
 
-                        float3 light_attenuation = prd_shadow.attenuation;
+                       // Cast a shadow ray to see any attenuation of light
+                       PerRayData_shadow prd_shadow = default_shadow_prd();
+                       prd_shadow.depth = prd_camera->depth + 1;
+                       prd_shadow.ramaining_dist = dist_to_light;
+                       unsigned int opt1;
+                       unsigned int opt2;
+                       pointer_as_ints(&prd_shadow, opt1, opt2);
+                       unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+                       optixTrace(params.root, hit_point, dir_to_light, params.scene_epsilon, dist_to_light, optixGetRayTime(),
+                               OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
-                        float point_light_falloff  = 1.0f; // ??
-                        float3 incoming_light_ray = l.color * cos_i * light_attenuation; // Add attenuation later
-                        //printf("incoming_light_ray: (%.2f,%.2f,%.2f)\n", incoming_light_ray.x, incoming_light_ray.y, incoming_light_ray.z);
-                        if (fmaxf(incoming_light_ray) > 0.0f) {
-                            
-                            float cos_g = Dot(dir_to_light, -ray_dir);
-                            float sin_i = sqrt(1 - (cos_i*cos_i)); // + sqrt
-                            float sin_e = sqrt(1 - (cos_e*cos_e));
-                            float sin_g = sqrt(1 - (cos_g*cos_g));
+                       float3 light_attenuation = prd_shadow.attenuation;
 
-                            float tan_i = sin_i/cos_i;
-                            float tan_e = sin_e/cos_e;
+                       float point_light_falloff  = 1.0f; // ??
+                       float3 incoming_light_ray = l.color * cos_i * light_attenuation; // Add attenuation later
+                       //printf("incoming_light_ray: (%.2f,%.2f,%.2f)\n", incoming_light_ray.x, incoming_light_ray.y, incoming_light_ray.z);
+                       if (fmaxf(incoming_light_ray) > 0.0f) {
+                           
+                           float cos_g = Dot(dir_to_light, -ray_dir);
+                           float sin_i = sqrt(1 - (cos_i*cos_i)); // + sqrt
+                           float sin_e = sqrt(1 - (cos_e*cos_e));
+                           float sin_g = sqrt(1 - (cos_g*cos_g));
 
-                            float cot_i = 1/tan_i;
-                            float cot_e = 1/tan_e;
-                            float cot_i_sq = cot_i * cot_i;
-                            float cot_e_sq = cot_e * cot_e;
+                           float tan_i = sin_i/cos_i;
+                           float tan_e = sin_e/cos_e;
+
+                           float cot_i = 1/tan_i;
+                           float cot_e = 1/tan_e;
+                           float cot_i_sq = cot_i * cot_i;
+                           float cot_e_sq = cot_e * cot_e;
 
 
-                            // Calculate Psi
-                            float cos_psi = Dot(normalize(dir_to_light - (cos_i*world_normal)), normalize(-ray_dir - (cos_e*world_normal)));
-                            float psi = acos(cos_psi);
-                            float psi_half = psi/2;
-                            float f_psi = expf(-2 * tan(psi_half));
-                            float sin_psi_half = sin(psi_half);
-                            float sin_psi_half_sq = sin_psi_half * sin_psi_half;
-                            float psi_per_pi = psi/CUDART_PI_F; // TODO: Define 1/PI as a constant
+                           // Calculate Psi
+                           float cos_psi = Dot(normalize(dir_to_light - (cos_i*world_normal)), normalize(-ray_dir - (cos_e*world_normal)));
+                           float psi = acos(cos_psi);
+                           float psi_half = psi/2;
+                           float f_psi = expf(-2 * tan(psi_half));
+                           float sin_psi_half = sin(psi_half);
+                           float sin_psi_half_sq = sin_psi_half * sin_psi_half;
+                           float psi_per_pi = psi/CUDART_PI_F; // TODO: Define 1/PI as a constant
 
-                            float tan_theta_p = tan(theta_p);
-                            float tan_theta_p_sq = tan_theta_p * tan_theta_p;
+                           float tan_theta_p = tan(theta_p);
+                           float tan_theta_p_sq = tan_theta_p * tan_theta_p;
 
-                            float cot_theta_p = 1/tan_theta_p;
-                            float cot_theta_p_sq = cot_theta_p * cot_theta_p;
+                           float cot_theta_p = 1/tan_theta_p;
+                           float cot_theta_p_sq = cot_theta_p * cot_theta_p;
 
-                            float E_1_i = expf((-2/CUDART_PI_F) * cot_theta_p * cot_i);
-                            float E_2_i = expf((-1/CUDART_PI_F) * cot_theta_p * cot_theta_p * cot_i * cot_i);
+                           float E_1_i = expf((-2/CUDART_PI_F) * cot_theta_p * cot_i);
+                           float E_2_i = expf((-1/CUDART_PI_F) * cot_theta_p * cot_theta_p * cot_i * cot_i);
 
-                            float E_1_e = expf((-2/CUDART_PI_F) * cot_theta_p * cot_e);
-                            float E_2_e = expf((-1/CUDART_PI_F) * cot_theta_p * cot_theta_p * cot_e * cot_e);
+                           float E_1_e = expf((-2/CUDART_PI_F) * cot_theta_p * cot_e);
+                           float E_2_e = expf((-1/CUDART_PI_F) * cot_theta_p * cot_theta_p * cot_e * cot_e);
 
-                            float chi_theta_p = 1 / sqrtf(1 + CUDART_PI_F * tan_theta_p_sq);
-                            
-                            float eta_i = chi_theta_p * (cos_i + sin_i * tan_theta_p * E_2_i / (2 - E_1_i));
-                            float eta_e = chi_theta_p * (cos_e + sin_e * tan_theta_p * E_2_e / (2 - E_1_e));
+                           float chi_theta_p = 1 / sqrtf(1 + CUDART_PI_F * tan_theta_p_sq);
+                           
+                           float eta_i = chi_theta_p * (cos_i + sin_i * tan_theta_p * E_2_i / (2 - E_1_i));
+                           float eta_e = chi_theta_p * (cos_e + sin_e * tan_theta_p * E_2_e / (2 - E_1_e));
 
-                            float mu0 = cos_i;
-                            float mu = cos_e;
-                            float mu0_e = chi_theta_p;
-                            float mu_e = chi_theta_p;
-                            float S = 0.0f;
-                            if (cos_i >= cos_g) { // for x,y \in [0,pi], if x <= y => cos(x) >= cos(y)
-                                mu0_e *= cos_i + sin_i * tan_theta_p * (cos_psi * E_2_e + sin_psi_half_sq * E_2_i) / (2 - E_1_e - psi_per_pi * E_1_i);
+                           float mu0 = cos_i;
+                           float mu = cos_e;
+                           float mu0_e = chi_theta_p;
+                           float mu_e = chi_theta_p;
+                           float S = 0.0f;
+                           if (cos_i >= cos_g) { // for x,y \in [0,pi], if x <= y => cos(x) >= cos(y)
+                               mu0_e *= cos_i + sin_i * tan_theta_p * (cos_psi * E_2_e + sin_psi_half_sq * E_2_i) / (2 - E_1_e - psi_per_pi * E_1_i);
 
-                                mu_e *= cos_e + sin_e * tan_theta_p * (E_2_e - sin_psi_half_sq * E_2_i) / (2 - E_1_e - psi_per_pi * E_1_i);
+                               mu_e *= cos_e + sin_e * tan_theta_p * (E_2_e - sin_psi_half_sq * E_2_i) / (2 - E_1_e - psi_per_pi * E_1_i);
 
-                                S = mu_e / eta_e * mu0 / eta_i * chi_theta_p / (1 - f_psi + f_psi * chi_theta_p * (mu0/eta_i));
-                            }else {
-                                mu0_e *= cos_i + sin_i * tan_theta_p * (E_2_i - sin_psi_half_sq * E_2_e) / (2 - E_1_i - psi_per_pi * E_1_e);
+                               S = mu_e / eta_e * mu0 / eta_i * chi_theta_p / (1 - f_psi + f_psi * chi_theta_p * (mu0/eta_i));
+                           }else {
+                               mu0_e *= cos_i + sin_i * tan_theta_p * (E_2_i - sin_psi_half_sq * E_2_e) / (2 - E_1_i - psi_per_pi * E_1_e);
 
-                                mu_e *= cos_e + sin_e * tan_theta_p * (cos_psi * E_2_i + sin_psi_half_sq * E_2_e) / (2 - E_1_i - psi_per_pi * E_1_e);
+                               mu_e *= cos_e + sin_e * tan_theta_p * (cos_psi * E_2_i + sin_psi_half_sq * E_2_e) / (2 - E_1_i - psi_per_pi * E_1_e);
 
-                                S = mu_e / eta_e * mu0 / eta_i * chi_theta_p / (1 - f_psi + f_psi * chi_theta_p * (mu/eta_e));
-                            }
+                               S = mu_e / eta_e * mu0 / eta_i * chi_theta_p / (1 - f_psi + f_psi * chi_theta_p * (mu/eta_e));
+                           }
 
-                            float KPhi = 1.209 * pow(phi, 2.0f/3);
-                            float K = -log(1 - KPhi)/KPhi;
+                           float KPhi = 1.209 * pow(phi, 2.0f/3);
+                           float K = -log(1 - KPhi)/KPhi;
 
-                            float tan_ghalf = sin_g / (1 + cos_g);
-                            float tan_ghalf_per_hC = tan_ghalf/h_c;
+                           float tan_ghalf = sin_g / (1 + cos_g);
+                           float tan_ghalf_per_hC = tan_ghalf/h_c;
 
-                            float B_C = 0.0f;
-                            if (cos_g < 1.0f)
-                                B_C = (1 + (1 - exp(-tan_ghalf_per_hC)) / tan_ghalf_per_hC) / (2 * pow(1 + tan_ghalf_per_hC, 2));
-                            else if (cos_g == 1)
-                                B_C = 1;
-                            
-                            float r0Term = sqrt(1 - w);
-                            float r0 = (1 - r0Term)/(1 + r0Term);
+                           float B_C = 0.0f;
+                           if (cos_g < 1.0f)
+                               B_C = (1 + (1 - exp(-tan_ghalf_per_hC)) / tan_ghalf_per_hC) / (2 * pow(1 + tan_ghalf_per_hC, 2));
+                           else if (cos_g == 1)
+                               B_C = 1;
+                           
+                           float r0Term = sqrt(1 - w);
+                           float r0 = (1 - r0Term)/(1 + r0Term);
 
-                            float LS = mu0_e / (mu0_e + mu_e);
-                            float b_sq = b*b;
+                           float LS = mu0_e / (mu0_e + mu_e);
+                           float b_sq = b*b;
 
-                            float twobcos_g = 2 * b * cos_g;
+                           float twobcos_g = 2 * b * cos_g;
 
-                            float p_g = (1 + c) / 2 * (1-b_sq) / pow(1 - (2*b*cos_g) + b_sq, 1.5f) + (1 - c)/2 * (1-b_sq)/pow(1 + (2*b*cos_g) + b_sq, 1.5f);
+                           float p_g = (1 + c) / 2 * (1-b_sq) / pow(1 - (2*b*cos_g) + b_sq, 1.5f) + (1 - c)/2 * (1-b_sq)/pow(1 + (2*b*cos_g) + b_sq, 1.5f);
 
-                            float B_S = 1 / (1 + tan_ghalf / h_s);
+                           float B_S = 1 / (1 + tan_ghalf / h_s);
 
-                            float x_i = mu0_e/K;
-                            float x_e = mu_e/K;
-                            float H_i = 1/(1 - w * x_i * (r0 + (1 - 2 * r0 * x_i) / 2 * log((1+x_i)/x_i)));
-                            float H_e = 1/(1 - w * x_e * (r0 + (1 - 2 * r0 * x_e) / 2 * log((1+x_e)/x_e)));
+                           float x_i = mu0_e/K;
+                           float x_e = mu_e/K;
+                           float H_i = 1/(1 - w * x_i * (r0 + (1 - 2 * r0 * x_i) / 2 * log((1+x_i)/x_i)));
+                           float H_e = 1/(1 - w * x_e * (r0 + (1 - 2 * r0 * x_e) / 2 * log((1+x_e)/x_e)));
 
-                            float M = H_i * H_e - 1;
-                            float f_ct = LS * K * w/(4*CUDART_PI_F) * (p_g * (1 + B_s0 * B_S) + M) * (1 + B_c0 * B_C) * S /cos_i;
-                            //printf("fct:%.2f\n", f_ct);
-                            reflected_color += f_ct * incoming_light_ray * subsarface_albedo;
-                            //printf("reflected_color:(%.2f,%.2f,%.2f)\n", reflected_color.x, reflected_color.y, reflected_color.z);
-                        }
+                           float M = H_i * H_e - 1;
+                           float f_ct = LS * K * w/(4*CUDART_PI_F) * (p_g * (1 + B_s0 * B_S) + M) * (1 + B_c0 * B_C) * S /cos_i;
+                           //printf("fct:%.2f\n", f_ct);
+                           reflected_color += f_ct * incoming_light_ray * subsarface_albedo;
+                           //printf("reflected_color:(%.2f,%.2f,%.2f)\n", reflected_color.x, reflected_color.y, reflected_color.z);
+                       }
 
-                    }       
-                }
-            }
-        }
+                   }       
+               }
+           }
+       }
      //printf("reflected_color:(%.2f,%.2f,%.2f)\n", reflected_color.x, reflected_color.y, reflected_color.z);
      prd_camera->color += reflected_color;
+}
+
+
+static __device__ inline void CameraDiffuseShader(PerRayData_camera* prd_camera,
+                                               const MaterialRecordParameters* mat_params,
+                                               unsigned int& material_id,
+                                               const unsigned int& num_blended_materials,
+                                               const float3& world_normal,
+                                               const float2& uv,
+                                               const float3& tangent,
+                                               const float& ray_dist,
+                                               const float3& ray_orig,
+                                               const float3& ray_dir){ 
+
+        //printf("Diffuse Shader\n");
+
+         float3 hit_point = ray_orig + ray_dir * ray_dist;
+         float3 reflected_color = make_float3(0.0f);
+         for (int i = 0; i < params.num_lights; i++) {
+            PointLight l = params.lights[i];
+            float dist_to_light = Length(l.pos - hit_point);
+            if (dist_to_light < 2 * l.max_range) {
+                
+                float3 dir_to_light = normalize(l.pos - hit_point);
+                float NdL = Dot(world_normal, dir_to_light);
+                
+                // hitpoint, raydist, print normal, dir_to_light, and NdL
+                //printf("Hitpoint: (%f,%f,%f) | Raydist: %.4f | Normal: (%f,%f,%f) | Dir to Light: (%f,%f,%f) | NdL: %.4f\n", hit_point.x, hit_point.y, hit_point.z, ray_dist, world_normal.x, world_normal.y, world_normal.z, dir_to_light.x, dir_to_light.y, dir_to_light.z, NdL);
+                // if we think we can see the light, let's see if we are correct
+                if (NdL > 0.0f) {
+                    // check shadows
+                    PerRayData_shadow prd_shadow = default_shadow_prd();
+                    prd_shadow.depth = prd_camera->depth + 1;
+                    prd_shadow.ramaining_dist = dist_to_light;
+                    unsigned int opt1;
+                    unsigned int opt2;
+                    pointer_as_ints(&prd_shadow, opt1, opt2);
+                    unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+                    optixTrace(params.root, hit_point, dir_to_light, params.scene_epsilon, dist_to_light,
+                               optixGetRayTime(), OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2,
+                               raytype);
+
+                    float3 light_attenuation = prd_shadow.attenuation;
+
+                    float point_light_falloff =
+                        (l.max_range * l.max_range / (dist_to_light * dist_to_light + l.max_range * l.max_range));
+
+                    float3 incoming_light_ray = l.color * light_attenuation * point_light_falloff * NdL;
+
+                    if (fmaxf(incoming_light_ray) > 0.0f) {
+                        float3 halfway = normalize(dir_to_light - ray_dir);
+                        float NdV = Dot(world_normal, -ray_dir);
+                        float NdH = Dot(world_normal, halfway);
+                        float VdH = Dot(-ray_dir, halfway);
+
+                        // Add diffuse shader heer
+                        float3 diffuse = incoming_light_ray * make_float3(1, 1, 1);
+                        
+                        // print normal, incoming_light_ray, and diffuse
+                        //printf("Normal: (%f,%f,%f) | Incoming Light Ray: (%f,%f,%.2f) | Diffuse: (%f,%f,%f)\n", 
+                        //world_normal.x, world_normal.y, world_normal.z, incoming_light_ray.x, incoming_light_ray.y, incoming_light_ray.z, diffuse.x, diffuse.y, diffuse.z);
+                        // Accumulate the diffuse color
+                        reflected_color += diffuse;
+
+                    }
+                }
+            }
+
+
+        }
+
+         prd_camera->color += reflected_color;
+
 }
 
 static __device__ __inline__ void DepthShader(PerRayData_depthCamera* prd,
@@ -1099,13 +1179,21 @@ extern "C" __global__ void __closesthit__material_shader() {
             // CameraShader(getCameraPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir,
             // mat_params->num_blended_materials);
             //printf("Use Hapke: %d | Emissive Power: %.2f | Material ID: %d\n", mat.use_hapke, mat.emissive_power, material_id);
-            if (!mat.use_hapke) {
-                CameraShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
+            switch(mat.shader_select) {
+                case 0:
+                    CameraShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
                             tangent, ray_dist, ray_orig, ray_dir);
-            }else {
-                CameraHapkeShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
+                    break;
+                case 1:
+                    CameraHapkeShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
                             tangent, ray_dist, ray_orig, ray_dir);
+                    break;
+                case 2:
+                    CameraDiffuseShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
+                            tangent, ray_dist, ray_orig, ray_dir);
+                    break;
             }
+                
             break;
         case LIDAR_RAY_TYPE:
             LidarShader(getLidarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);

@@ -17,6 +17,7 @@
 
 #ifdef USE_SENSOR_NVDB
 
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -26,9 +27,9 @@
 #include <nanovdb/util/GridHandle.h>
 #include <nanovdb/util/cuda/CudaPointsToGrid.cuh>
 
-//#include <openvdb/tools/LevelSetUtil.h>
-//#include <openvdb/tools/ParticlesToLevelSet.h>
-//#include <openvdb/tools/LevelSetSphere.h> // replace with your own dependencies for generating the OpenVDB grid
+#include <openvdb/tools/LevelSetUtil.h>
+#include <openvdb/tools/ParticlesToLevelSet.h>
+#include <openvdb/tools/LevelSetSphere.h> // replace with your own dependencies for generating the OpenVDB grid
 //#include <nanovdb/util/CreateNanoGrid.h> // converter from OpenVDB to NanoVDB (includes NanoVDB.h and GridManager.h)
 #include <nanovdb/util/cuda/CudaDeviceBuffer.h>
 
@@ -142,16 +143,82 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_p
 
     // Loop over the particles and add them to MyParticleList
     MyParticleList pa;
+    const openvdb::Vec3R vel(10, 5, 1);
+   /* pa.add(openvdb::Vec3R(84.7252, 85.7946, 84.4266), 11.8569, vel);
+    pa.add(openvdb::Vec3R(47.9977, 81.2169, 47.7665), 5.45313, vel);
+    pa.add(openvdb::Vec3R(87.0087, 14.0351, 95.7155), 7.36483, vel);
+    pa.add(openvdb::Vec3R(75.8616, 53.7373, 58.202), 14.4127, vel);
+    pa.add(openvdb::Vec3R(14.9675, 32.4141, 13.5218), 4.33101, vel);
+    pa.add(openvdb::Vec3R(96.9809, 9.92804, 90.2349), 12.2613, vel);
+    pa.add(openvdb::Vec3R(63.4274, 3.84254, 32.5047), 12.1566, vel);
+    pa.add(openvdb::Vec3R(62.351, 47.4698, 41.4369), 11.637, vel);
+    pa.add(openvdb::Vec3R(62.2846, 1.35716, 66.2527), 18.9914, vel);
+    pa.add(openvdb::Vec3R(44.1711, 1.99877, 45.1159), 1.11429, vel);*/
     for (int i = 0; i < n; i++) {
-        pa.add(openvdb::Vec3R(((float*)h_points_buffer)[6 * i], ((float*)h_points_buffer)[6 * i + 1], ((float*)h_points_buffer)[6 * i + 2]), 0.01, openvdb::Vec3R(((float*)h_points_buffer)[6 * i + 3], ((float*)h_points_buffer)[6 * i] + 4, ((float*)h_points_buffer)[6 * i] + 5));
+        pa.add(openvdb::Vec3R(((float*)h_points_buffer)[6 * i], ((float*)h_points_buffer)[6 * i + 1], ((float*)h_points_buffer)[6 * i + 2]), 0.1, openvdb::Vec3R(((float*)h_points_buffer)[6 * i + 3], ((float*)h_points_buffer)[6 * i] + 4, ((float*)h_points_buffer)[6 * i] + 5));
+        //pa.add(openvdb::Vec3R(1*((float*)h_points_buffer)[6 * i], 1*((float*)h_points_buffer)[6 * i + 1], 1*((float*)h_points_buffer)[6 * i + 2]), 1, vel);
     }
 
-    //auto sdf = openvdb::createLevelSet<openvdb::FloatGrid>();
-    //openvdb::v11_0::tools::particlesToSdf<openvdb::FloatGrid, MyParticleList>(pa, *sdf);
+    // print particles in MyParticleList
+    // for (size_t n = 0, e = pa.size(); n < e; ++n) {
+    //     openvdb::Vec3R pos;
+    //     openvdb::Real rad;
+    //     openvdb::Vec3R vel;
+    //     pa.getPosRadVel(n, pos, rad, vel);
+    //     printf("Particle %d: pos = (%f, %f, %f), rad = %f, vel = (%f, %f, %f)\n", (int)n, pos[0], pos[1], pos[2], rad, vel[0], vel[1], vel[2]);
+    // }
 
-    //auto srcGrid = openvdb::tools::createLevelSetSphere<openvdb::FloatGrid>(100.0f, openvdb::Vec3f(0.0f), 1.0f);
-    //auto handle = nanovdb::createNanoGrid<openvdb::FloatGrid, float, nanovdb::CudaDeviceBuffer>(*srcGrid);
+    //auto bbox = pa.getBBox();
+    //printf("Num Parricles: %d\n", pa.size());
 
+    auto sdf = openvdb::createLevelSet<openvdb::FloatGrid>(0.1);
+    openvdb::tools::particlesToSdf<openvdb::FloatGrid, MyParticleList>(pa, *sdf);
+
+
+    //auto sdf = openvdb::tools::createLevelSetSphere<openvdb::FloatGrid>(100.0f, openvdb::Vec3f(0.0f), 1.0f);
+    auto handle1 = nanovdb::createNanoGrid<openvdb::FloatGrid, float, nanovdb::CudaDeviceBuffer>(*sdf);
+    //printf("OpenVDB to NanoVDB conversion done!\n");
+
+    if (handle1.gridMetaData()->isLevelSet() == false) {
+        throw std::runtime_error("Grid must be a level set");
+    }
+    
+    //nanovdb::build::NodeManager<nanovdb::build::Grid<float>> mgr(*grid1);
+    //nanovdb::build::sdfToLevelSet(mgr);
+
+    //auto handle = nanovdb::createNanoGrid<nanovdb::build::Grid<float>, float, nanovdb::CudaDeviceBuffer>(*grid1);
+
+    cudaStream_t stream;  // Create a CUDA stream to allow for asynchronous copy of pinned CUDA memory.
+    cudaStreamCreate(&stream);
+
+    handle1.deviceUpload(stream, false);  // Copy the NanoVDB grid to the GPU asynchronously
+    //auto* grid1 = handle1.grid<float>();  // get a (raw) pointer to a NanoVDB grid of value type float on the CPU
+
+    //nanovdb::DefaultReadAccessor<float> acc = grid1->tree().getAccessor();
+    //nanovdb::CoordBBox bbox = acc.root().bbox();
+    //nanovdb::CoordBBox IdxBbox = grid1->indexBBox();
+ 
+    
+    //printf("############### VDB GRID INFORMATION ################\n");
+    //printf("Grid Size: %d\n", grid1->gridSize());
+    //printf("Grid Class: %s\n", nanovdb::toStr(handle1.gridMetaData()->gridClass()));
+    //printf("Grid Type: %s\n", nanovdb::toStr(handle1.gridType(0)));
+    //printf("Upper Internal Nodes: %d\n", grid1->tree().nodeCount(2));
+    //printf("Lower Internal Nodes: %d\n", grid1->tree().nodeCount(1));
+    //printf("Leaf Nodes: %d\n", grid1->tree().nodeCount(0));
+    //printf("Voxel Size: %f\n", float(grid1->voxelSize()[0]));
+    //printf("Active Voxels: %d\n", grid1->activeVoxelCount());
+    //printf("World BBox: %f %f %f\n", grid1->worldBBox().dim()[0], grid1->worldBBox().dim()[1], grid1->worldBBox().dim()[2]);
+    //printf("World Bbox Max: %f %f %f | Min: %f %f %f\n", grid1->worldBBox().max()[0], grid1->worldBBox().max()[1],
+    //       grid1->worldBBox().max()[2], grid1->worldBBox().min()[0], grid1->worldBBox().min()[1],grid1->worldBBox().min()[2]);
+    //printf("BBox: min:(%d,%d,%d)| max:(%d,%d,%d)\n", bbox.min()[0], bbox.min()[1], bbox.min()[2], bbox.max()[0],bbox.max()[1],bbox.max()[2]);
+    //printf("IndexBBox: min:(%d,%d,%d)| max:(%d,%d,%d)\n", IdxBbox.min()[0], IdxBbox.min()[1], IdxBbox.min()[2],
+    //       bbox.max()[0],bbox.max()[1], bbox.max()[2]);
+    //printf("############### END #############\n");
+
+    cudaDeviceSynchronize();
+    cudaStreamDestroy(stream);
+    /*
     float* d_points_float_buffer = nullptr;
     cudaMalloc((void**)&d_points_float_buffer, sizeof(float) * 6 * n);
     cudaMemcpy(d_points_float_buffer, h_points_buffer, sizeof(float) * 6 * n, cudaMemcpyHostToDevice);
@@ -170,33 +237,32 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_p
 
 
     const double voxelSize = 0.01;
-    printf("Creating NanoVDB Grid with %d points!\n", n);
+    //printf("Creating NanoVDB Grid with %d points!\n", n);
     nanovdb::CudaPointsToGrid<BuildT> converter(voxelSize);  // unit map
     converter.setPointType(nanovdb::PointType::World32);
-    converter.setVerbose();
+    //converter.setVerbose();
     auto handle = converter.getHandle(d_points, n);
+    //*/
    
-   
-
     //nanovdb::NanoGrid<BuildT>* grid = handle.deviceGrid<BuildT>();
     //handle.deviceDownload();
     //nanovdb::NanoGrid<BuildT>* grid_h = handle.grid<BuildT>();
     //auto* tree = grid_h->treePtr();
-    ////const uint32_t maxPointsPerVoxel = converter.maxPointsPerVoxel();
-    ////const uint32_t maxPointsPerLeaf = converter.maxPointsPerLeaf();
-    //// save NanoVBD grid
+    /////const uint32_t maxPointsPerVoxel = converter.maxPointsPerVoxel();
+    //////const uint32_t maxPointsPerLeaf = converter.maxPointsPerLeaf();
+    ////// save NanoVBD grid
 
   
     //printf("############### VDB GRID INFORMATION ################\n");
     //printf("Grid Size: %d\n", grid_h->gridSize());
     //printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
     //printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
-    ////printf("Point Count: %d\n", (int)grid_h->pointCount());
+    //printf("Point Count: %d\n", (int)grid_h->pointCount());
     //printf("Upper Internal Nodes: %d\n", grid_h->tree().nodeCount(2));
     //printf("Lower Internal Nodes: %d\n", grid_h->tree().nodeCount(1));
     //printf("Leaf Nodes: %d\n", grid_h->tree().nodeCount(0));
     //printf("Active Voxels: %d\n", grid_h->activeVoxelCount());
-    //printf("Size of nanovdb::Point: %d", sizeof(BuildT));
+    //[rintf("Size of nanovdb::Point: %d", sizeof(BuildT));
   
     ////printf("maxPointsPerVoxel: %d\n maxPointsPerLeaf: %d\n", maxPointsPerVoxel, maxPointsPerLeaf);
 
@@ -227,7 +293,7 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_p
 
 
 
-   return handle;
+   return handle1;
 }
 
 }  // namespace sensor

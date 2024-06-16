@@ -884,15 +884,15 @@ __global__ void UpdateDensity(Real3* vis_vel,
 
 
 //----------------------------
-__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n) {
+__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n, size_t fluidStart) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
-        output[6 * idx] = (float)posD[idx].x;
-        output[6 * idx + 1] = (float)posD[idx].y;
-        output[6 * idx + 2] = (float)posD[idx].z;
-        output[6 * idx + 3] = (float)velD[idx].x;
-        output[6 * idx + 4] = (float)velD[idx].y;
-        output[6 * idx + 5] = (float)velD[idx].z;
+        output[6 * idx] =     (float)posD[fluidStart + idx].x;
+        output[6 * idx + 1] = (float)posD[fluidStart + idx].y;
+        output[6 * idx + 2] = (float)posD[fluidStart + idx].z;
+        output[6 * idx + 3] = (float)velD[fluidStart + idx].x;
+        output[6 * idx + 4] = (float)velD[fluidStart + idx].y;
+        output[6 * idx + 5] = (float)velD[fluidStart +  idx].z;
     }
 }
 

@@ -272,7 +272,7 @@ int main(int argc, char* argv[]) {
             rock_pos = ChVector3d(-2.0, 1.8, 0.0);
 
         rock_Body->SetFrameCOMToRef(ChFrame<>(mcog, principal_inertia_rot));
-
+        rock_Body->SetName("Rocky");
         rock_Body->SetMass(mmass * mdensity);  // mmass * mdensity
         rock_Body->SetInertiaXX(mdensity * principal_I);
 

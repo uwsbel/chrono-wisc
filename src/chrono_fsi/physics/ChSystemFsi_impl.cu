@@ -631,19 +631,26 @@ thrust::device_vector<Real4> ChSystemFsi_impl::GetParticlePositions(const thrust
 
 
 float* ChSystemFsi_impl::GetParticleData() {
-    printf("Converting %d Real4 points to float buffer...\n", sphMarkersD2->posRadD.size());
 
     Real4* r4_pts_d = mR4CAST(sphMarkersD2->posRadD.data());
     Real3* vel_d = mR3CAST(sphMarkersD2->velMasD.data());
 
-    int n = sphMarkersD2->posRadD.size();
+    thrust::host_vector<int4>& refArr = fsiGeneralData->referenceArray;
+    bool haveHelper = (refArr[0].z == -3) ? true : false;
+    bool haveGhost = (refArr[0].z == -2 || refArr[1].z == -2) ? true : false;
+
+    size_t fluidStart = refArr[haveHelper + haveGhost].x;
+    size_t fluidEnd = refArr[haveHelper + haveGhost].y;
+
+    int n = fluidEnd - fluidStart; //sphMarkersD2->posRadD.size();
+    printf("Converting %d Real4 points to float buffer...\n", n);
     float* pts_d = nullptr;
     cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));
 
     uint nBlocks, nThreads;
     int blockSize = 1024;
     computeGridSize(n, blockSize, nBlocks, nThreads);
-    kernel_convert_Real4_to_float_buffer<<<nBlocks, nThreads>>>(r4_pts_d, vel_d, pts_d, n);
+    kernel_convert_Real4_to_float_buffer<<<nBlocks, nThreads>>>(r4_pts_d, vel_d, pts_d, n, fluidStart);
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -666,7 +673,7 @@ float* ChSystemFsi_impl::GetParticleData() {
     // for (int i = 0; i < 3 * n; i+=3) {
     //     printf("Point: (%f %f %f)\n", pts_h[i], pts_h[i+1], pts_h[i+2]);
     // }
-    printf("Conversion Done!\n");
+    printf("Conversion Done: Converted %d particles!\n", n);
     return pts_h;
 }
 

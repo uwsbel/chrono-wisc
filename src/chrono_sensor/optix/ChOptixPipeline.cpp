@@ -721,6 +721,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
 
         material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
         material.emissive_power = mat->GetEmissivePower();
+        material.shader_select = mat->GetShader();
 
       
 
@@ -798,13 +799,12 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
             material.instance_id = 0;
             material.tex_scale = {1.f, 1.f};
             material.emissive_power = 0.f;
-            material.pad = {0.f, 0.f, 0.f};
+            material.pad = {0.f, 0.f};
+            material.shader_select = 0;
 
             m_material_pool.push_back(material);
             m_default_material_id = static_cast<unsigned int>(m_material_pool.size() - 1);
             m_default_material_inst = true;
-            
-           
 
         }
 

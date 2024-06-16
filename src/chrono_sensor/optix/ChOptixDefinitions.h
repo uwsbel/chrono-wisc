@@ -256,7 +256,9 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     float h_s;
     float phi; 
     float theta_p;
-    float3 pad; // padding to ensure 16 byte alignment
+    float2 pad; // padding to ensure 16 byte alignment
+
+    int shader_select; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
     
 };
 
@@ -279,7 +281,7 @@ struct ContextParameters {
     #ifdef USE_SENSOR_NVDB
     //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>* handle_ptr; // NanoVDB grid handle
     //nanovdb::NanoGrid<float>* handle_ptr;
-        nanovdb::NanoGrid<nanovdb::Point>* handle_ptr;
+        nanovdb::NanoGrid<float>* handle_ptr;
     #else
         int handle_ptr;
     #endif
