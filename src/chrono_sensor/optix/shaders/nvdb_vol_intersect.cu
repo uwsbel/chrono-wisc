@@ -82,6 +82,8 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         float dist_near = fmaxf(near);
         float dist_far = fminf(far);
 
+        
+        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x,ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z);
         // check if near is less than far
         if (dist_near <= dist_far) {
             float3 p = make_float3(0);
@@ -137,7 +139,8 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
                     reinterpret_cast<unsigned int&>(tangent_vector.z));
             }
         }
-    } else {
+    }
+    else {
         /// NanoVDB stuff
 
         using Vec3T = nanovdb::Vec3f;
@@ -145,8 +148,8 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
 
         
         // convert to nanovdb types
-        const Vec3T ray_orig_v(ray_orig.x, ray_orig.y, ray_orig.z);
-        const Vec3T ray_dir_v(ray_dir.x, ray_dir.y, ray_dir.z);
+        const Vec3T ray_orig_v(ray_orig.x*61, ray_orig.y*58, ray_orig.z*14);
+        const Vec3T ray_dir_v(ray_dir.x*61, ray_dir.y*58, ray_dir.z*14);
 
         // nanovdb::NanoGrid<nanovdb::Point>* grid = params.handle_ptr;
         nanovdb::NanoGrid<BuildT>* grid = params.handle_ptr;
@@ -174,8 +177,8 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         const Vec3T eye = grid->worldToIndex(ray_orig_v);
         const Vec3T dir = grid->worldToIndex(ray_dir_v);
 
-        /*printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: (%f,%f,%f) \n", ray_orig.x,
-               ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);*/
+        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: (%f,%f,%f) \n", ray_orig.x,
+               ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);
 
         // check if ray intersects grid
         nanovdb::Ray<float> iRay(eye, dir, ray_tmin, ray_tmax);
@@ -189,29 +192,31 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         float3 tangent_vector = make_float3(0.f, 0.f, 0.f);
        
         nanovdb::BoxStencil<nanovdb::FloatGrid> stencil(*grid);
-        if (ZeroCrossingPoint(iRay, acc, ijk, v, t0, IdxBBox)) {
-            float wT0 = t0 * float(grid->voxelSize()[0]);
-            //printf("ijk: %d %d %d, v: %f, wT0: %f\n", ijk[0], ijk[1], ijk[2], v, wT0);
-            float v100 = acc.getValue(ijk.offsetBy(1, 0, 0));
-            float v010 = acc.getValue(ijk.offsetBy(0, 1, 0));
-            nanovdb::Vec3d grad(v100 - v, v010 - v, v);
-            grad = grid->map().applyIJT(grad);
-            nanovdb::Vec3d norm = grid->indexToWorld(grad);
-            norm.normalize();
-          /*  stencil.moveTo(ijk);
-            nanovdb::Vec3d norm = stencil.gradient(ijk.asVec3s());
-            norm.normalize();*/
-            //printf("Normal: (%f,%f,%f) | v100: %f, v010: %f\n", norm[0], norm[1], norm[2], v100, v010);
-            shading_normal = make_float3((float)norm[0], (float)norm[1], (float)norm[2]);
-            optixReportIntersection(
-                t0, 0, reinterpret_cast<unsigned int&>(shading_normal.x), reinterpret_cast<unsigned int&>(shading_normal.y),
-                reinterpret_cast<unsigned int&>(shading_normal.z),
-                reinterpret_cast<unsigned int&>(texcoord.x), reinterpret_cast<unsigned int&>(texcoord.y),
-                reinterpret_cast<unsigned int&>(tangent_vector.x), reinterpret_cast<unsigned int&>(tangent_vector.y),
-                reinterpret_cast<unsigned int&>(tangent_vector.z));
-        } else {
-            //printf("ray does not intersect grid\n\n");
-        }
+        if (iRay.clip(acc.root().bbox()) && iRay.t1() > 1e20)  //! ray.clip(acc.root().bbox())
+            printf("Intersecting BBox!\n");
+        //if (ZeroCrossingPoint(iRay, acc, ijk, v, t0, IdxBBox)) {
+        //    float wT0 = t0 * float(grid->voxelSize()[0]);
+        //    //printf("ijk: %d %d %d, v: %f, wT0: %f\n", ijk[0], ijk[1], ijk[2], v, wT0);
+        //    float v100 = acc.getValue(ijk.offsetBy(1, 0, 0));
+        //    float v010 = acc.getValue(ijk.offsetBy(0, 1, 0));
+        //    nanovdb::Vec3d grad(v100 - v, v010 - v, v);
+        //    grad = grid->map().applyIJT(grad);
+        //    nanovdb::Vec3d norm = grid->indexToWorld(grad);
+        //    norm.normalize();
+        //  /*  stencil.moveTo(ijk);
+        //    nanovdb::Vec3d norm = stencil.gradient(ijk.asVec3s());
+        //    norm.normalize();*/
+        //    //printf("Normal: (%f,%f,%f) | v100: %f, v010: %f\n", norm[0], norm[1], norm[2], v100, v010);
+        //    shading_normal = make_float3((float)norm[0], (float)norm[1], (float)norm[2]);
+        //    optixReportIntersection(
+        //        t0, 0, reinterpret_cast<unsigned int&>(shading_normal.x), reinterpret_cast<unsigned int&>(shading_normal.y),
+        //        reinterpret_cast<unsigned int&>(shading_normal.z),
+        //        reinterpret_cast<unsigned int&>(texcoord.x), reinterpret_cast<unsigned int&>(texcoord.y),
+        //        reinterpret_cast<unsigned int&>(tangent_vector.x), reinterpret_cast<unsigned int&>(tangent_vector.y),
+        //        reinterpret_cast<unsigned int&>(tangent_vector.z));
+        //} else {
+        //    //printf("ray does not intersect grid\n\n");
+        //}
     }
 }
 

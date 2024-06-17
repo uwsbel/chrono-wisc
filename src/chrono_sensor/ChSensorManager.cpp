@@ -68,7 +68,7 @@ CH_SENSOR_API std::vector<unsigned int> ChSensorManager::GetDeviceList() {
 
 CH_SENSOR_API void ChSensorManager::ReconstructScenes() {
     for (auto eng : m_engines) {
-        eng->ConstructScene();
+        eng->ConstructScene(scene);
     }
 }
 

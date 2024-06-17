@@ -30,6 +30,8 @@ void cuda_convert_float_buffer_to_NVDBVec3f(void* input, void* output, int n);
 
 nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_points_buffer, int n);
 
+nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<openvdb::FloatGrid> openVDBgrid); 
+
 }  // namespace sensor
 }  // namespace chrono
 

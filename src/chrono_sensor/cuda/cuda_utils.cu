@@ -22,7 +22,7 @@
 #include <cuda_runtime.h>
 
 #include <nanovdb/NanoVDB.h>
-//#include <openvdb/openvdb.h>
+#include <openvdb/openvdb.h>
 
 #include <nanovdb/util/GridHandle.h>
 #include <nanovdb/util/cuda/CudaPointsToGrid.cuh>
@@ -294,6 +294,42 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_p
 
 
    return handle1;
+}
+
+
+nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<openvdb::FloatGrid> openVDBgrid) {
+    auto handle = nanovdb::createNanoGrid<openvdb::FloatGrid, float, nanovdb::CudaDeviceBuffer>(*openVDBgrid);
+
+    cudaStream_t stream;  // Create a CUDA stream to allow for asynchronous copy of pinned CUDA memory.
+    cudaStreamCreate(&stream);
+
+    handle.deviceUpload(stream, false); 
+
+    auto* grid = handle.grid<float>();  // get a (raw) pointer to a NanoVDB grid of value type float on the CPU
+
+    nanovdb::DefaultReadAccessor<float> acc = grid->tree().getAccessor();
+    nanovdb::CoordBBox bbox = acc.root().bbox();
+
+    printf("############### NanoVDB GRID INFORMATION ################\n");
+    printf("Grid Size: %d\n", grid->gridSize());
+    printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
+    printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
+    printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount(2));
+    printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount(1));
+    printf("Leaf Nodes: %d\n", grid->tree().nodeCount(0));
+    printf("Voxel Size: %f\n", float(grid->voxelSize()[0]));
+    printf("Active Voxels: %d\n", grid->activeVoxelCount());
+    printf("World BBox Dims: %f %f %f\n", grid->worldBBox().dim()[0], grid->worldBBox().dim()[1],
+    grid->worldBBox().dim()[2]); 
+    printf("World Bbox Max: %f %f %f | Min: %f %f %f\n", grid->worldBBox().max()[0],grid->worldBBox().max()[1],
+    grid->worldBBox().max()[2], grid->worldBBox().min()[0], grid->worldBBox().min()[1], grid->worldBBox().min()[2]);
+    printf("BBox: min:(%d,%d,%d)| max:(%d,%d,%d)\n", bbox.min()[0], bbox.min()[1], bbox.min()[2], bbox.max()[0],
+             bbox.max()[1], bbox.max()[2]);
+    printf("############### END #############\n");
+
+    cudaDeviceSynchronize();
+    cudaStreamDestroy(stream);
+    return handle;
 }
 
 }  // namespace sensor

@@ -1124,6 +1124,19 @@ static __device__ inline void CameraDiffuseShader(PerRayData_camera* prd_camera,
 
 }
 
+static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_camera,
+                                                  const MaterialRecordParameters* mat_params,
+                                                  unsigned int& material_id,
+                                                  const unsigned int& num_blended_materials,
+                                                  const float3& world_normal,
+                                                  const float2& uv,
+                                                  const float3& tangent,
+                                                  const float& ray_dist,
+                                                  const float3& ray_orig,
+                                                  const float3& ray_dir) {
+    //printf("Volumetric Shader\n");
+}
+
 static __device__ __inline__ void DepthShader(PerRayData_depthCamera* prd,
                                                  const MaterialParameters& mat,
                                                  const float3& world_normal,
@@ -1143,6 +1156,8 @@ extern "C" __global__ void __closesthit__material_shader() {
     const float3 ray_dir = normalize(optixGetWorldRayDirection());  // this may be modified by the scaling transform
     const float ray_dist = optixGetRayTmax();
 
+   printf("NVDBVolShader: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y,
+           ray_dir.z);
     float3 object_normal;
     float2 uv;
     float3 tangent;
@@ -1191,6 +1206,12 @@ extern "C" __global__ void __closesthit__material_shader() {
                 case 2:
                     CameraDiffuseShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
                             tangent, ray_dist, ray_orig, ray_dir);
+                    break;
+                case 3:
+                    CameraVolumetricShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,
+                                        world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                    break;
+                default:
                     break;
             }
                 

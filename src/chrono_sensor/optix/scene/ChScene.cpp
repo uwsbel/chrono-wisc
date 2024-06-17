@@ -43,6 +43,7 @@ CH_SENSOR_API ChScene::ChScene() {
     m_scene_epsilon = 1e-3f;
     m_dynamic_origin_threshold = 100.f;
     m_dynamic_origin_offset = false;
+    m_sprites = std::vector <std::shared_ptr<ChBody>>();
 
     //m_nvdb = nullptr;
 }
@@ -116,6 +117,12 @@ CH_SENSOR_API void ChScene::SetFogScatteringFromDistance(float distance) {
     background_changed = true;
 }
 
+
+CH_SENSOR_API void ChScene::AddSprite(std::shared_ptr<ChBody> sprite) {
+    m_sprites.push_back(sprite);
+}
+
+
 void ChScene::UpdateOriginOffset(ChVector3f sensor_pos, bool force) {
     if (force || (m_dynamic_origin_offset && (sensor_pos - m_origin_offset).Length() > m_dynamic_origin_threshold)) {
         // set the new origin offset
@@ -123,6 +130,7 @@ void ChScene::UpdateOriginOffset(ChVector3f sensor_pos, bool force) {
         m_origin_changed = true;
     }
 }
+
 
 }  // namespace sensor
 }  // namespace chrono
