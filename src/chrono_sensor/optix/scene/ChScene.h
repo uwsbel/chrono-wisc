@@ -37,6 +37,10 @@
 #include "chrono_sensor/ChApiSensor.h"
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
 
+#ifdef USE_SENSOR_NVDB
+#include <openvdb/openvdb.h>
+#endif
+
 
 namespace chrono {
 namespace sensor {
@@ -153,6 +157,11 @@ class CH_SENSOR_API ChScene {
     /// @return the scene epsilon
     float GetSceneEpsilon() { return m_scene_epsilon; }
 
+    void AddSprite(std::shared_ptr<ChBody> sprite);
+
+    std::shared_ptr<ChBody> GetSprites(int i) { return m_sprites[i]; }
+    std::vector<std::shared_ptr<ChBody>> GetSprites() { return m_sprites; }
+
     #ifdef USE_SENSOR_NVDB
     /// @brief  Allows passing in Chrono::FSI SPH markers to the scene, to be used for rendering SPH simulations. Note: Must also add a ChNVDBVolume body to the scene as well.
     /// @param fsi_points_d pointer to the FSI markers in host memory
@@ -169,6 +178,10 @@ class CH_SENSOR_API ChScene {
     /// @brief Returns the number of Chrono::FSI, SPH markers in the scene
     /// @return the number of Chrono::FSI, SPH markers in the scene (int)
     int GetNumFSIParticles() { return m_num_fsi_points;}
+
+    // TODO: Allow adding multiple grids
+    void AddVDBGrid(std::shared_ptr<openvdb::FloatGrid> grid) {m_grid = grid; };
+    std::shared_ptr<openvdb::FloatGrid> GetVDBGrid() { return m_grid; }
     #endif
 
     /// Function to change the origin offset if necessary
@@ -219,12 +232,14 @@ class CH_SENSOR_API ChScene {
     float m_fog_scattering;       ///< scattering coefficient of fog in the scene
     ChVector3f m_fog_color;  ///< color of the fog in the scene
 
+    std::vector<std::shared_ptr<ChBody>> m_sprites;  ///< list of sprites in the scene
     // nvdb::VolumeGVDB* m_gvdb;  // GVDB volume of the scene
     // int m_gvdb_chan;           // GVDB render channel
 
     #ifdef USE_SENSOR_NVDB
     float* m_fsi_points = nullptr; // Pointer to FSI particle positions in host
     int m_num_fsi_points = 0; // Number of FSI particles
+    std::shared_ptr<openvdb::FloatGrid> m_grid;
     #endif
 };
 

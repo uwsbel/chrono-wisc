@@ -87,7 +87,7 @@ class CH_SENSOR_API ChOptixEngine {
 
     /// Tells the optix manager to construct the scene from scratch, translating all objects
     /// from Chrono to Optix
-    void ConstructScene();
+    void ConstructScene(std::shared_ptr<ChScene> scene);
 
     /// Way to query the device ID on which the engine is running. CANNOT BE MODIFIED since the engine will have been
     /// already constructed
