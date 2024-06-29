@@ -68,8 +68,8 @@ bool exposure_correction_switch = false;
 
 const std::string out_dir = GetChronoOutputPath() + "SCM_DEF_SOIL";
 
-// SCM grid spacing
-double mesh_resolution = 0.04;
+// SCM grid spacing 0.04 fast, 0.005 high quality
+double mesh_resolution = 0.005;
 
 // Enable/disable bulldozing effects
 bool enable_bulldozing = false;
