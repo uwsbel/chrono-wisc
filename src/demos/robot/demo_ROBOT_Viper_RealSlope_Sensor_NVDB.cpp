@@ -78,7 +78,7 @@ double byDim = 4.0;
 double bzDim = 0.2;
 
 // Rover initial location
-ChVector3d init_loc(1.0 - bxDim / 2.0, 0, bzDim + 0.25);
+ChVector3d init_loc(1.0 - bxDim / 2.0 + .25f, 0, bzDim + 0.4);
 
 // Simulation time and stepsize
 double total_time = 20.0;
@@ -201,9 +201,10 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI);
 bool firstInst = true;
 std::vector<int> idList;
 int prevActiveVoxels = 0;
+std::vector<std::shared_ptr<ChBody>> voxelBodyList = {};
 
 // forward declarations
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys);
+void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene);
 std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts);
 
 int main(int argc, char* argv[]) {
@@ -297,8 +298,8 @@ int main(int argc, char* argv[]) {
     sysFSI.SetSPHMethod(FluidDynamics::WCSPH);
 
     // Set the periodic boundary condition
-    ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 2);
-    ChVector3d cMax(bxDim / 2 * 2, byDim / 2 + 0.5 * iniSpacing, bzDim * 2);
+    ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 10);
+    ChVector3d cMax(bxDim / 2 * 2, byDim / 2 + 0.5 * iniSpacing, bzDim * 20);
     sysFSI.SetBoundaries(cMin, cMax);
 
     // Set simulation data output length
@@ -348,7 +349,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetShader(3);
+    vis_mat->SetShader(1);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
@@ -389,12 +390,13 @@ int main(int argc, char* argv[]) {
     // Create a Sensor manager
     float intensity = 1.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sysMBS);
-    manager->scene->AddPointLight({0, 0, 10}, {intensity, intensity, intensity}, 500);
+    manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
     manager->scene->SetAmbientLight({.1, .1, .1});
     Background b;
-    b.mode = BackgroundMode::SOLID_COLOR;
-    b.color_zenith = ChVector3d(0.f, 0.f, 0.f);  // 0.1f, 0.2f, 0.4f
+    b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
     manager->scene->SetBackground(b);
+    manager->SetVerbose(false);
     manager->SetVerbose(false);
 
     //manager->scene->SetFSIParticles(h_points);
@@ -496,42 +498,6 @@ int main(int argc, char* argv[]) {
     if (output)
         ofile.open(out_dir + "./body_position.txt");
 
-    // Create a run-tme visualizer
-#ifndef CHRONO_OPENGL
-    if (vis_type == ChVisualSystem::Type::OpenGL)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::OpenGL;
-#endif
-
-#if !defined(CHRONO_OPENGL) && !defined(CHRONO_VSG)
-    render = false;
-#endif
-    std::shared_ptr<ChFsiVisualization> fsi_vis;
-    if (render) {
-        switch (vis_type) {
-            case ChVisualSystem::Type::OpenGL:
-#ifdef CHRONO_OPENGL
-                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI);
-#endif
-                break;
-            case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
-                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
-#endif
-                break;
-            }
-        }
-        fsi_vis->SetTitle("Viper on SPH terrain");
-        fsi_vis->UpdateCamera(ChVector3d(0, -3 * byDim, bzDim), ChVector3d(0, 0, 0));
-        fsi_vis->SetCameraMoveScale(1.0f);
-        fsi_vis->EnableBoundaryMarkers(false);
-        fsi_vis->EnableRigidBodyMarkers(false);
-        fsi_vis->AttachSystem(&sysMBS);
-        fsi_vis->Initialize();
-    }
 
     // Start the simulation
     unsigned int output_steps = (unsigned int)round(1 / (out_fps * dT));
@@ -548,7 +514,7 @@ int main(int argc, char* argv[]) {
     float addNVDBTime = 0.0f;
     std::vector<openvdb::Vec3R> vdbBuffer;
     while (time < total_time) {
-        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << time/timer() <<  std::endl;
+        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << timer()/time <<  std::endl;
         auto rock_body = sysMBS.GetBodies()[rock_id];
         //std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " << rock_body->GetPos().y() << ", " << rock_body->GetPos().z() << ") "<< std::endl;
         if (rock_body->GetPos().z() < 0.31f)
@@ -564,7 +530,7 @@ int main(int argc, char* argv[]) {
            n_pts = sysFSI.GetNumFluidMarkers();
 
            vdbBuffer = floatToVec3R(h_points, n_pts);
-           createVoxelGrid(vdbBuffer, sysMBS);
+           createVoxelGrid(vdbBuffer, sysMBS, manager->scene);
            manager->scene->SetFSIParticles(h_points); // remove these later
            manager->scene->SetFSINumFSIParticles(n_pts);
         }
@@ -612,12 +578,12 @@ std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts) {
     return vec3RBuffer;
 }
 
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
+void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
     std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
     openvdb::initialize();
     openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
-    float r = 0.05f;
-    int pointsPerVoxel = 10;
+    float r = 0.005f;
+    int pointsPerVoxel = 1;
     std::vector<float> radius(points.size(), r);
     float voxelSize = openvdb::points::computeVoxelSize(positionsWrapper, pointsPerVoxel);
     // Print the voxel-size to cout
@@ -677,6 +643,7 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
     int numAdds = 0;
     int numUpdates = 0;
+
     for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
         for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
             // const float value = iter.getValue();
@@ -693,7 +660,11 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                    sys.GetBodies().size() << std::endl;*/
                 numUpdates++;
                 // std::cout << voxelCount << "," << idList.size() << std::endl;
-                auto voxelBody = sys.GetBodies()[idList[voxelCount]];
+                // auto voxelBody = sys.GetBodies()[idList[voxelCount]];
+                // auto voxelBody =
+                // std::reinterpret_pointer_cast<ChBody>(sys.GetOtherPhysicsItems()[idList[voxelCount]]); auto voxelBody
+                // = scene->GetSprite(idList[voxelCount]);
+                auto voxelBody = voxelBodyList[idList[voxelCount]];
                 voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
             }
             // Create a sphere for each point
@@ -702,11 +673,18 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                      std::cout << "Adding Sphere" << std::endl;
                  }*/
                 numAdds++;
-                auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
-                // auto voxelBody = chrono_types::make_shared<ChBodyEasyBox>(r, r, r, 1000, true, false);
+                //auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+                auto voxelBody = chrono_types::make_shared<ChBodyEasyBox>(r, r, r, 1000, true, false);
                 voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
                 voxelBody->SetFixed(true);
-                sys.Add(voxelBody);
+                // sys.Add(voxelBody);
+                // int index = voxelBody->GetIndex();
+                // int index = sys.GetOtherPhysicsItems().size();
+                // int index = scene->GetSprites().size();
+                int index = voxelBodyList.size();
+                // scene->AddSprite(voxelBody);
+                // sys.AddOtherPhysicsItem(voxelBody);
+                voxelBodyList.push_back(voxelBody);
                 {
                     auto shape = voxelBody->GetVisualModel()->GetShapes()[0].first;
                     if (shape->GetNumMaterials() == 0) {
@@ -719,13 +697,14 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                 /* if (voxelCount > 500000)
                      std::cout << "BodyList: "<< sys.GetBodies().size() <<  " Adding Sphere " << sphere->GetIndex() <<
                    std::endl;*/
-                idList.emplace_back(voxelBody->GetIndex());
+                idList.emplace_back(index);
             }
             voxelCount++;
         }
     }
     prevActiveVoxels = voxelCount;
     std::wcout << "Num Voxels: " << voxelCount << std::endl;
+    scene->SetSprites(voxelBodyList);
     firstInst = false;
 }
 

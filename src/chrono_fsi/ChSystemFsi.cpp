@@ -2269,7 +2269,7 @@ std::vector<ChVector3d> ChSystemFsi::GetParticlePositions() const {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // Nevi added this
-float* ChSystemFsi::GetParticleData() {
+std::vector<float> ChSystemFsi::GetParticleData() {
     return m_sysFSI->GetParticleData();
 };
 

@@ -315,7 +315,7 @@ class ChSystemFsi_impl : public ChFsiGeneral {
     thrust::device_vector<Real4> GetParticlePositions(const thrust::device_vector<int>& indices);
 
     // Nevi added
-    float* GetParticleData();
+   std::vector<float> GetParticleData();
 
     /// Extract velocities of all SPH particles with indices in the provided array.
     /// The return value is a device thrust vector.

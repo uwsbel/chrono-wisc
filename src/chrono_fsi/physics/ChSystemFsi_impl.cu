@@ -630,7 +630,7 @@ thrust::device_vector<Real4> ChSystemFsi_impl::GetParticlePositions(const thrust
 }
 
 
-float* ChSystemFsi_impl::GetParticleData() {
+std::vector<float> ChSystemFsi_impl::GetParticleData() {
 
     Real4* r4_pts_d = mR4CAST(sphMarkersD2->posRadD.data());
     Real3* vel_d = mR3CAST(sphMarkersD2->velMasD.data());
@@ -644,7 +644,7 @@ float* ChSystemFsi_impl::GetParticleData() {
 
     int n = fluidEnd - fluidStart; //sphMarkersD2->posRadD.size();
     printf("Converting %d Real4 points to float buffer...\n", n);
-    float* pts_d = nullptr;
+    float* pts_d;
     cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));
 
     uint nBlocks, nThreads;
@@ -663,8 +663,11 @@ float* ChSystemFsi_impl::GetParticleData() {
         // Handle the error...
     }
 
-    float* pts_h = (float*)malloc(6 * n * sizeof(float));
-    cudaMemcpy(pts_h, pts_d, 6 * n * sizeof(float), cudaMemcpyDeviceToHost);
+    //float* pts_h = (float*)malloc(6 * n * sizeof(float));
+    std::vector<float> pts_h(6 * n, 0.f);
+    cudaMemcpy(pts_h.data(), pts_d, 6 * n * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaFree(pts_d);
 
     // // Test conversion
     // float* pts_h = (float*)malloc(3 * n * sizeof(float));
