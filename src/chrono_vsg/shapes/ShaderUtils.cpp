@@ -57,7 +57,6 @@ vsg::ref_ptr<vsg::ShaderSet> createPbrShaderSet(vsg::ref_ptr<const vsg::Options>
                                                 std::shared_ptr<ChVisualMaterial> material) {
 #define VIEW_DESCRIPTOR_SET 0
 #define MATERIAL_DESCRIPTOR_SET 1
-#define CUSTOM_DESCRIPTOR_SET 2
 
     // vsg::info("Local pbr_ShaderSet(", options, ")");
     bool use_embedded_shaders = true;
@@ -115,24 +114,32 @@ vsg::ref_ptr<vsg::ShaderSet> createPbrShaderSet(vsg::ref_ptr<const vsg::Options>
                                     vsg::ubvec4Array2D::create(1, 1, vsg::Data::Properties{VK_FORMAT_R8G8B8A8_UNORM}));
     shaderSet->addDescriptorBinding("PbrData", "", MATERIAL_DESCRIPTOR_SET, 10, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
                                     VK_SHADER_STAGE_FRAGMENT_BIT, vsg::PbrMaterialValue::create());
-    shaderSet->addDescriptorBinding("TexScale", "", CUSTOM_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-                                    VK_SHADER_STAGE_VERTEX_BIT, vsg::vec2Value::create());
+
+    shaderSet->addDescriptorBinding("jointMatrices", "VSG_SKINNING", MATERIAL_DESCRIPTOR_SET, 11,
+                                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT,
+                                    vsg::mat4Value::create());
+
     shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
                                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                                     vsg::vec4Array::create(64));
-    shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+    shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                                     vsg::vec4Value::create(0, 0, 1280, 1024));
     shaderSet->addDescriptorBinding("shadowMaps", "", VIEW_DESCRIPTOR_SET, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                     1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                     vsg::floatArray3D::create(1, 1, 1, vsg::Data::Properties{VK_FORMAT_R32_SFLOAT}));
+    shaderSet->addDescriptorBinding("shadowMapDirectSampler", "VSG_SHADOWS_PCSS", VIEW_DESCRIPTOR_SET, 3,
+                                    VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
+    shaderSet->addDescriptorBinding("shadowMapShadowSampler", "", VIEW_DESCRIPTOR_SET, 4, VK_DESCRIPTOR_TYPE_SAMPLER, 1,
+                                    VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
     /* Fog maybe implemeted in future
      shaderSet->addDescriptorBinding("Fog", "", CUSTOM_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
      VK_SHADER_STAGE_FRAGMENT_BIT, custom::FogValue::create());
      */
     // additional defines
     shaderSet->optionalDefines = {"VSG_GREYSCALE_DIFFUSE_MAP", "VSG_TWO_SIDED_LIGHTING", "VSG_WORKFLOW_SPECGLOSS",
-                                  "VSG_OPACITY_MAP"};
+                                  "VSG_SHADOWS_PCSS",          "VSG_SHADOWS_SOFT",       "VSG_SHADOWS_HARD",
+                                  "SHADOWMAP_DEBUG",           "VSG_ALPHA_TEST",         "VSG_OPACITY_MAP"};
 
     shaderSet->addPushConstantRange("pc", "", VK_SHADER_STAGE_VERTEX_BIT, 0, 128);
 
@@ -220,9 +227,6 @@ vsg::ref_ptr<vsg::StateGroup> createPbrStateGroup(vsg::ref_ptr<const vsg::Option
     vsg::DescriptorSetLayoutBindings descriptorBindings;
 
     auto theScale = material->GetTextureScale();
-    auto texScale = vsg::vec2Value::create();
-    texScale->value().set(material->GetTextureScale().x(), material->GetTextureScale().y());
-    graphicsPipelineConfig->assignDescriptor("TexScale", texScale);
     auto pbrMat = createPbrMaterialFromChronoMaterial(material);
     graphicsPipelineConfig->assignDescriptor("PbrData", pbrMat);
 

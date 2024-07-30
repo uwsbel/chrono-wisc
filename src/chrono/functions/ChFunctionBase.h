@@ -90,59 +90,58 @@ class ChApi ChFunction {
     /// Alias for other GetDerX functions.
     virtual double GetDerN(double x, int der_order) const;
 
-    /// Return the weight of the function (useful for
-    /// applications where you need to mix different weighted ChFunctions)
+    /// Return the weight of the function.
+    /// (useful for applications where you need to mix different weighted ChFunctions)
     virtual double GetWeight(double x) const { return 1.0; }
 
-    /// Update could be implemented by children classes, ex. to launch callbacks
+    /// Update the function at the provided value of its argument.
     virtual void Update(double x) {}
 
-    /// Estimate the maximum of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax], using
-    /// sampling method.
+    /// Estimate the maximum of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax].
+    /// The estimate is based on function evaluation at equally-spaced points.  
     virtual double GetMax(double xmin, double xmax, double sampling_step, int der_order) const;
 
-    /// Estimate the minimum of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax], using
-    /// sampling method.
+    /// Estimate the minimum of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax].
+    /// The estimate is based on function evaluation at equally-spaced points.  
     virtual double GetMin(double xmin, double xmax, double sampling_step, int der_order) const;
 
-    /// Estimate the mean of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax], using
-    /// sampling method.
+    /// Estimate the mean of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax].
+    /// The estimate is based on function evaluation at equally-spaced points.
     virtual double GetMean(double xmin, double xmax, double sampling_step, int der_order) const;
 
-    /// Estimate the squared mean of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax],
-    /// using sampling method.
+    /// Estimate the squared mean of the function (or its \a der_order derivative) in the range [\a xmin, \a xmax].
+    /// The estimate is based on function evaluation at equally-spaced points.
     virtual double GetSquaredMean(double xmin, double xmax, double sampling_step, int der_order) const;
 
-    /// Estimate the integral of the function (or its \a der_order derivative) over the range [\a xmin, \a xmax], using
-    /// sampling method.
+    /// Estimate the integral of the function (or its \a der_order derivative) over the range [\a xmin, \a xmax].
+    /// The estimate is based on function evaluation at equally-spaced points.
     virtual double GetIntegral(double xmin, double xmax, double sampling_step, int der_order) const;
 
-    /// Computes the positive acceleration coefficient (inherited classes should override this).
+    /// Compute the positive acceleration coefficient.
+    /// (derived classes should override this).
     virtual double GetPositiveAccelerationCoeff() const { return 0.0; }
 
-    /// Compute the negative acceleration coefficient (inherited classes should override this).
+    /// Compute the negative acceleration coefficient.
+    /// (derived classes should override this).
     virtual double GetNegativeAccelerationCoeff() const { return 0.0; }
 
-    /// Compute the velocity coefficient (inherited classes must override this).
+    /// Compute the velocity coefficient.
+    /// (derived classes must override this).
     virtual double GetVelocityCoefficient() const { return 0.0; }
 
     /// Store X-Y pairs to an ASCII File.
     /// Values are separated by \a delimiter (default=',').
     /// The function is sampled \a samples times, from \a xmin to \a xmax.
-    virtual int OutputToASCIIFile(std::ostream& file,
-                                  double xmin = 0,
-                                  double xmax = 1,
-                                  int samples = 200,
-                                  char delimiter = ',');
+    virtual void OutputToASCIIFile(std::ostream& file, double xmin, double xmax, int samples, char delimiter);
 
     /// Sample function on given interval [\a xmin, \a xmax], up to \a derN derivative (0 being the function ouput
     /// itself). Store interval x=[xmin:step:xmax] and function evaluations as columns into matrix.
     virtual ChMatrixDynamic<> SampleUpToDerN(double xmin, double xmax, double step, int derN = 0);
 
-    /// Alias operator of the GetVal function
+    /// Alias operator of the GetVal function.
     double operator()(double arg) const { return GetVal(arg); }
 
-    /// Method to allow serialization of transient data to archives
+    /// Method to allow serialization of transient data to archives.
     virtual void ArchiveOut(ChArchiveOut& archive_out);
 
     /// Method to allow de-serialization of transient data from archives.

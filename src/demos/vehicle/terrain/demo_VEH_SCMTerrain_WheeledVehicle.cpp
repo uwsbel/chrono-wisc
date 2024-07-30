@@ -106,10 +106,6 @@ double render_step_size = 1.0 / 100;
 // Point on chassis tracked by the camera
 ChVector3d track_point(0.0, 0.0, 1.75);
 
-// Output directories
-const std::string out_dir = GetChronoOutputPath() + "HMMWV_DEF_SOIL";
-const std::string img_dir = out_dir + "/IMG";
-
 // Visualization output
 bool img_output = false;
 
@@ -353,6 +349,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->SetLightIntensity(1.0f);
             vis_vsg->SetChaseCamera(track_point, 10.0, 0.5);
             vis_vsg->AttachVehicle(&hmmwv.GetVehicle());
+            vis_vsg->AttachTerrain(&terrain);
             vis_vsg->AddGuiColorbar("Sinkage (m)", 0.0, 0.1);
             vis_vsg->Initialize();
 
@@ -365,6 +362,9 @@ int main(int argc, char* argv[]) {
     // -----------------
     // Initialize output
     // -----------------
+    const std::string out_dir = GetChronoOutputPath() + "HMMWV_DEF_SOIL";
+    const std::string img_dir = out_dir + "/IMG";
+
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;

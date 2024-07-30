@@ -72,6 +72,9 @@ VisualizationType tire_vis_type = VisualizationType::MESH;
 // Simulation step sizes
 double step_size = 2e-3;
 
+// End time (used only if no run-time visualization)
+double t_end = 20;
+
 // =============================================================================
 
 int main(int argc, char* argv[]) {
@@ -169,6 +172,7 @@ int main(int argc, char* argv[]) {
             auto vis_vsg = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
             vis_vsg->SetWindowTitle("Gator Incline Stop");
             vis_vsg->AttachVehicle(&gator.GetVehicle());
+            vis_vsg->AttachTerrain(&terrain);
             vis_vsg->SetChaseCamera(ChVector3d(0.0, 0.0, 2.0), 9.0, 0.05);
             vis_vsg->SetWindowSize(ChVector2i(1200, 900));
             vis_vsg->SetWindowPosition(ChVector2i(100, 300));
@@ -194,15 +198,21 @@ int main(int argc, char* argv[]) {
 
     // Initialize simulation frame counters
     int step_number = 0;
-
     gator.GetVehicle().EnableRealtime(true);
-    while (vis->Run()) {
+
+    while (true) {
         double time = gator.GetSystem()->GetChTime();
 
-        // Render scene
-        vis->BeginScene();
-        vis->Render();
-        vis->EndScene();
+        if (vis) {
+            // Render scene
+            if (!vis->Run())
+                break;
+            vis->BeginScene();
+            vis->Render();
+            vis->EndScene();
+        } else if (time > t_end) {
+            break;
+        }
 
         // Get driver inputs
         DriverInputs driver_inputs = driver.GetInputs();
@@ -215,13 +225,15 @@ int main(int argc, char* argv[]) {
         driver.Synchronize(time);
         terrain.Synchronize(time);
         gator.Synchronize(time, driver_inputs, terrain);
-        vis->Synchronize(time, driver_inputs);
+        if (vis)
+            vis->Synchronize(time, driver_inputs);
 
         // Advance simulation for one timestep for all modules
         driver.Advance(step_size);
         terrain.Advance(step_size);
         gator.Advance(step_size);
-        vis->Advance(step_size);
+        if (vis)
+            vis->Advance(step_size);
 
         // Increment frame number
         step_number++;

@@ -22,16 +22,20 @@ namespace vehicle {
 ChManualTransmissionShafts::ChManualTransmissionShafts(const std::string& name) : ChManualTransmission(name) {}
 
 ChManualTransmissionShafts::~ChManualTransmissionShafts() {
+    if (!m_initialized)
+        return;
+
     auto sys = m_motorshaft->GetSystem();
-    if (sys) {
-        sys->Remove(m_motorshaft);
-        sys->Remove(m_driveshaft);
-        sys->Remove(m_transmissionblock);
-        sys->Remove(m_transmissionblock_to_body);
-        sys->Remove(m_gears);
-        sys->Remove(m_clutchShaft);
-        sys->Remove(m_clutch);
-    }
+    if (!sys)
+        return;
+
+    sys->Remove(m_motorshaft);
+    sys->Remove(m_driveshaft);
+    sys->Remove(m_transmissionblock);
+    sys->Remove(m_transmissionblock_to_body);
+    sys->Remove(m_gears);
+    sys->Remove(m_clutchShaft);
+    sys->Remove(m_clutch);
 }
 
 // -----------------------------------------------------------------------------
@@ -106,7 +110,12 @@ void ChManualTransmissionShafts::Synchronize(double time,
     m_driveshaft->SetPosDt(driveshaft_speed);
 
     // Clutch
-    m_clutch->SetModulation(1.0 - driver_inputs.m_clutch);
+    if (GetCurrentGear() == 0) {
+        m_clutch->SetModulation(0.0);
+    }
+    else {
+        m_clutch->SetModulation(1.0 - driver_inputs.m_clutch);
+    }
 }
 
 double ChManualTransmissionShafts::GetOutputDriveshaftTorque() const {

@@ -32,25 +32,26 @@ ChDeformableTire::ChDeformableTire(const std::string& name)
     : ChTire(name),
       m_connection_enabled(true),
       m_pressure_enabled(true),
-      m_contact_enabled(true),
-      m_contact_type(ContactSurfaceType::NODE_CLOUD),
-      m_contact_node_radius(0.001),
-      m_contact_face_thickness(0.0) {}
+      m_contact_enabled(true) {}
 
 ChDeformableTire::~ChDeformableTire() {
+    if (!m_initialized)
+        return;
+
     auto sys = m_mesh->GetSystem();
-    if (sys) {
-        sys->Remove(m_mesh);
-        sys->Remove(m_load_container);
-        for (size_t i = 0; i < m_connections.size(); i++) {
-            sys->Remove(m_connections[i]);
-        }
-        for (size_t i = 0; i < m_connectionsD.size(); i++) {
-            sys->Remove(m_connectionsD[i]);
-        }
-        for (size_t i = 0; i < m_connectionsF.size(); i++) {
-            sys->Remove(m_connectionsF[i]);
-        }
+    if (!sys)
+        return;
+
+    sys->Remove(m_mesh);
+    sys->Remove(m_load_container);
+    for (size_t i = 0; i < m_connections.size(); i++) {
+        sys->Remove(m_connections[i]);
+    }
+    for (size_t i = 0; i < m_connectionsD.size(); i++) {
+        sys->Remove(m_connectionsD[i]);
+    }
+    for (size_t i = 0; i < m_connectionsF.size(); i++) {
+        sys->Remove(m_connectionsF[i]);
     }
 }
 

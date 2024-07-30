@@ -532,6 +532,10 @@ void CreateBCE_On_Wheel_Grouser(thrust::host_vector<Real4>& bce,
     //// RADU TODO eliminate delta (use initspacing)
     static void CreateMeshPoints(ChTriangleMeshConnected& mesh, double delta, std::vector<ChVector3d>& point_cloud);
 
+  public:
+    std::string GetPhysicsProblemString() const;
+    std::string GetSphSolverTypeString() const;
+
   private:
     /// Initialize simulation parameters with default values.
     void InitParams();

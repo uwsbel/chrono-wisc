@@ -71,11 +71,6 @@ double render_step_size = 1.0 / 120;  // FPS = 120
 // Point on chassis tracked by the camera
 ChVector3d trackPoint(0.0, 0.0, 0.0);
 
-// Output directories
-const std::string out_dir = GetChronoOutputPath() + "Marder";
-const std::string pov_dir = out_dir + "/POVRAY";
-const std::string img_dir = out_dir + "/IMG";
-
 // Output
 bool povray_output = false;
 bool img_output = false;
@@ -119,7 +114,7 @@ int main(int argc, char* argv[]) {
     ////marder.GetDriveline()->SetGyrationMode(true);
 
     // Change collision detection system
-    ////marder.SetCollisionSystemType(ChCollisionSystemType::CHRONO);
+    ////marder.SetCollisionSystemType(ChCollisionSystem::Type::MULTICORE);
 
     // Change collision shape for road wheels, idlers, and rollers (true: cylinder; false: cylshell)
     ////marder.SetWheelCollisionType(false, false, false);
@@ -241,6 +236,10 @@ int main(int argc, char* argv[]) {
     // -----------------
     // Initialize output
     // -----------------
+
+    const std::string out_dir = GetChronoOutputPath() + "Marder";
+    const std::string pov_dir = out_dir + "/POVRAY";
+    const std::string img_dir = out_dir + "/IMG";
 
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;

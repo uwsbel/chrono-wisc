@@ -35,6 +35,9 @@
 #include "chrono_vehicle/wheeled_vehicle/tire/FialaTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/TMeasyTire.h"
 
+#include "chrono/assets/ChVisualSystem.h"
+#include "chrono_vehicle/ChVehicleVisualSystem.h"
+
 #ifdef CHRONO_IRRLICHT
     #include "chrono_vehicle/driver/ChInteractiveDriverIRR.h"
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
@@ -323,7 +326,7 @@ int main(int argc, char* argv[]) {
     // Simulation loop
     // ---------------
 
-    if (vis_type == ChVisualSystem::Type::NONE) {
+    if (!vis || vis_type == ChVisualSystem::Type::NONE) {
         double xpos;
         while ((xpos = vehicle.GetSpindlePos(0, LEFT).x()) < xend) {
             // Driver inputs

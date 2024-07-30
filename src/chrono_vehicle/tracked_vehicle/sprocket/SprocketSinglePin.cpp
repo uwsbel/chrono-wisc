@@ -39,7 +39,7 @@ SprocketSinglePin::SprocketSinglePin(const std::string& filename) : ChSprocketSi
 
     Create(d);
 
-    std::cout << "Loaded JSONL " << filename << std::endl;
+    std::cout << "Loaded JSON " << filename << std::endl;
 }
 
 SprocketSinglePin::SprocketSinglePin(const rapidjson::Document& d) : ChSprocketSinglePin(""), m_has_mesh(false) {
@@ -62,7 +62,7 @@ void SprocketSinglePin::Create(const rapidjson::Document& d) {
 
     // Read profile information
     assert(d.HasMember("Profile"));
-    m_gear_RT = d["Profile"]["Addenum Radius"].GetDouble();
+    m_gear_RT = d["Profile"]["Addendum Radius"].GetDouble();
     m_gear_R = d["Profile"]["Arc Radius"].GetDouble();
     m_gear_RC = d["Profile"]["Arc Centers Radius"].GetDouble();
     m_gear_RA = d["Profile"]["Assembly Radius"].GetDouble();

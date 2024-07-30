@@ -1,7 +1,7 @@
 // =============================================================================
 // PROJECT CHRONO - http://projectchrono.org
 //
-// Copyright (c) 2014 projectchrono.org
+// Copyright (c) 2024 projectchrono.org
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found
@@ -73,6 +73,9 @@ double step_size = 2e-3;
 // Time interval between two render frames
 double render_step_size = 1.0 / 50;  // FPS = 50
 
+// End time (used only if no run-time visualization)
+double t_end = 20;
+
 // Record vehicle output
 bool vehicle_output = false;
 
@@ -104,10 +107,9 @@ int main(int argc, char* argv[]) {
     auto vehicle_model = models[which - 1].first;
 
     // Create the vehicle model
+    vehicle_model->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     vehicle_model->Create(contact_method, ChCoordsys<>(ChVector3d(0, 0, 0.5), QUNIT));
     auto& vehicle = vehicle_model->GetVehicle();
-
-    vehicle.GetSystem()->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // Create the terrain
     RigidTerrain terrain(vehicle.GetSystem());
@@ -319,33 +321,41 @@ int main(int argc, char* argv[]) {
 
     vehicle.EnableRealtime(true);
 
-    while (vis->Run()) {
+    while (true) {
         double time = vehicle.GetSystem()->GetChTime();
 
-        if (render_frame == 142) {
-            vis->WriteImageToFile(out_dir + "/snapshot.png");  // does not work with frame == 0!
-        }
+        if (vis) {
+            if (!vis->Run())
+                break;
 
-        // Render scene and output post-processing data
-        if (step_number % render_steps == 0) {
-            vis->BeginScene();
-            vis->Render();
-            vis->EndScene();
+            // Render scene and output post-processing data
+            if (step_number % render_steps == 0) {
+                vis->BeginScene();
+                vis->Render();
+                vis->EndScene();
 
-            if (povray_output) {
-                // Zero-pad frame numbers in file names for postprocessing
-                std::ostringstream filename;
-                filename << pov_dir << "/data_" << std::setw(4) << std::setfill('0') << render_frame + 1 << ".dat";
-                utils::WriteVisualizationAssets(vehicle.GetSystem(), filename.str());
-            }
+                if (povray_output) {
+                    // Zero-pad frame numbers in file names for postprocessing
+                    std::ostringstream filename;
+                    filename << pov_dir << "/data_" << std::setw(4) << std::setfill('0') << render_frame + 1 << ".dat";
+                    utils::WriteVisualizationAssets(vehicle.GetSystem(), filename.str());
+                }
 
 #ifdef CHRONO_POSTPROCESS
-            if (blender_output) {
-                blender_exporter.ExportData();
-            }
+                if (blender_output) {
+                    blender_exporter.ExportData();
+                }
 #endif
 
-            render_frame++;
+                // Illustrate saving a snapshot to disk file
+                if (render_frame == 142) {
+                    vis->WriteImageToFile(out_dir + "/snapshot.png");
+                }
+
+                render_frame++;
+            }
+        } else if (time > t_end) {
+            break;
         }
 
         // Driver inputs
@@ -383,13 +393,15 @@ int main(int argc, char* argv[]) {
         driver->Synchronize(time);
         terrain.Synchronize(time);
         vehicle_model->Synchronize(time, driver_inputs, terrain);
-        vis->Synchronize(time, driver_inputs);
+        if (vis)
+            vis->Synchronize(time, driver_inputs);
 
         // Advance simulation for one timestep for all modules
         driver->Advance(step_size);
         terrain.Advance(step_size);
         vehicle_model->Advance(step_size);
-        vis->Advance(step_size);
+        if (vis)
+            vis->Advance(step_size);
 
         // Increment frame number
         step_number++;

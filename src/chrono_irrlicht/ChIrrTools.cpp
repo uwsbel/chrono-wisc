@@ -11,10 +11,12 @@
 // =============================================================================
 
 #include "chrono/solver/ChIterativeSolverVI.h"
+#include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/physics/ChContactContainer.h"
 #include "chrono/physics/ChLinkMate.h"
 #include "chrono/assets/ChColor.h"
 #include "chrono/utils/ChProfiler.h"
+#include "chrono/utils/ChUtils.h"
 
 #include "chrono_irrlicht/ChIrrTools.h"
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
@@ -555,39 +557,125 @@ int drawAllLinkframes(ChVisualSystemIrrlicht* vis, double scale) {
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
-void drawHUDviolation(ChVisualSystemIrrlicht* vis, int mx, int my, int sx, int sy, double spfact) {
-    auto msolver_speed = std::dynamic_pointer_cast<ChIterativeSolverVI>(vis->GetSystem(0).GetSolver());
-    if (!msolver_speed)
+void drawHUDviolation(ChVisualSystemIrrlicht* vis, int pos_x, int pos_y, int width, int height) {
+    auto solver = std::dynamic_pointer_cast<ChIterativeSolver>(vis->GetSystem(0).GetSolver());
+    if (!solver || solver->GetIterations() == 0)
         return;
 
-    msolver_speed->SetRecordViolation(true);
+    auto solver_vi = std::dynamic_pointer_cast<ChIterativeSolverVI>(solver);
 
-    irr::core::rect<s32> mrect(mx, my, mx + sx, my + sy);
-    vis->GetVideoDriver()->draw2DRectangle(irr::video::SColor(100, 200, 200, 230), mrect);
-    for (unsigned int i = 0; i < msolver_speed->GetViolationHistory().size(); i++) {
-        vis->GetVideoDriver()->draw2DRectangle(
-            irr::video::SColor(90, 255, 0, 0),
-            irr::core::rect<s32>(mx + i * 4, sy + my - (int)(spfact * msolver_speed->GetViolationHistory()[i]),
-                                 mx + (i + 1) * 4 - 1, sy + my),
-            &mrect);
+    if (solver_vi)
+        solver_vi->SetRecordViolation(true);
+
+    double solver_tol = solver->GetTolerance();
+    int tolerance_line_y = (int)(height * 0.66);
+    // the iterative solvers have a default tolerance of 0, so we need to have a guard against division by zero
+    if (solver->GetTolerance() == 0) {
+        tolerance_line_y = height - 1;
+        solver_tol = 1e-6;
     }
-    for (unsigned int i = 0; i < msolver_speed->GetDeltalambdaHistory().size(); i++) {
-        vis->GetVideoDriver()->draw2DRectangle(
-            irr::video::SColor(100, 255, 255, 0),
-            irr::core::rect<s32>(mx + i * 4, sy + my - (int)(spfact * msolver_speed->GetDeltalambdaHistory()[i]),
-                                 mx + (i + 1) * 4 - 2, sy + my),
-            &mrect);
+
+    double deltalambda_max =
+        solver_vi ? *std::max_element(solver_vi->GetDeltalambdaHistory().begin(),
+                                      solver_vi->GetDeltalambdaHistory().begin() + solver->GetIterations())
+                  : 1.0;
+
+    // WARNING: here it is assumed that non-VI solvers have no error history
+    int num_bars = solver_vi ? std::min((int)solver->GetMaxIterations(), 50) : 1;
+    double num_it_per_bar = solver_vi ? (double)solver->GetMaxIterations() / (double)num_bars : 1;
+    // width = num_spacings*spacing_width + num_bars*viol_bar_width
+    // num_spacings = num_bars + 1
+    // spacing_width = 1/4*viol_bar_width;
+    double viol_bar_width_D = 4.0 * width / (5. * num_bars + 1.0);
+    int viol_bar_width = (int)viol_bar_width_D;
+    int spacing_width = std::max((int)(viol_bar_width_D / 4.), 1);
+    int lamb_bar_width = std::min((int)(3.0 / 4.0 * viol_bar_width_D), viol_bar_width - 1);
+    int actual_width = num_bars * viol_bar_width + (num_bars + 1) * spacing_width;
+
+    irr::core::rect<s32> mrect(pos_x, pos_y, pos_x + actual_width, pos_y + height);
+    vis->GetVideoDriver()->draw2DRectangle(irr::video::SColor(100, 200, 200, 230), mrect);
+    int cur_bar = -1;
+    double cur_error = 0;
+    double cur_deltalambda = 0;
+
+    std::function<double(int)> getErrorI;
+    if (solver_vi)
+        getErrorI = [solver_vi](int i) { return solver_vi->GetViolationHistory().at(i); };
+    else
+        getErrorI = [solver](int i) { return solver->GetError(); };
+
+    for (auto i = 0; i < solver->GetIterations(); i++) {
+        cur_deltalambda = solver_vi ? std::max(cur_deltalambda, solver_vi->GetDeltalambdaHistory().at(i)) : 0;
+
+        if (i >= num_it_per_bar * (cur_bar + 1) || i == solver->GetIterations() - 1) {
+            cur_error = ChClamp(getErrorI(i), solver_tol / 10.0, solver_tol * 100.0);
+            cur_bar++;
+            int pos_rect_x_start = spacing_width + cur_bar * (viol_bar_width + spacing_width);
+            int bar_height = (int)(height * ((1.0 - std::log10(solver_tol) + std::log10(cur_error)) / 3.0));
+
+            // draw the error bar (red)
+            vis->GetVideoDriver()->draw2DRectangle(
+                irr::video::SColor(90, 255, 0, 0),
+                irr::core::rect<s32>(pos_x + pos_rect_x_start, pos_y + height - std::min(height, bar_height),
+                                     pos_x + pos_rect_x_start + viol_bar_width, pos_y + height),
+                &mrect);
+
+            // draw the tolerance line
+            vis->GetVideoDriver()->draw2DLine(
+                irr::core::position2d<s32>(pos_x, pos_y + tolerance_line_y),
+                irr::core::position2d<s32>(pos_x + actual_width, pos_y + tolerance_line_y),
+                irr::video::SColor(90, 255, 0, 20));
+
+            if (solver_vi) {
+                // draw the delta lambda bar (yellow)
+                vis->GetVideoDriver()->draw2DRectangle(
+                    irr::video::SColor(100, 255, 255, 0),
+                    irr::core::rect<s32>(
+                        pos_x + pos_rect_x_start,
+                        pos_y + height - std::min(height, (int)((double)height * (cur_deltalambda / deltalambda_max))),
+                        pos_x + pos_rect_x_start + lamb_bar_width, pos_y + height),
+                    &mrect);
+            }
+
+            // reset counters
+            cur_deltalambda = 0;
+        }
     }
 
     if (vis->GetDevice()->getGUIEnvironment()) {
         gui::IGUIFont* font = vis->GetDevice()->getGUIEnvironment()->getBuiltInFont();
         if (font) {
-            char buffer[100];
-            font->draw(L"Solver speed violation", irr::core::rect<s32>(mx + sx / 2 - 100, my, mx + sx, my + 10),
+            // print solver iterations at last solve
+            char buffer0[100];
+            snprintf(buffer0, sizeof(buffer0), "Iters: %d", solver->GetIterations());
+            font->draw(irr::core::stringw(buffer0).c_str(),
+                       irr::core::rect<s32>(pos_x, pos_y, pos_x + actual_width, pos_y + 10),
                        irr::video::SColor(200, 100, 0, 0));
-            snprintf(buffer, sizeof(buffer), "%g", sy / spfact);
-            font->draw(irr::core::stringw(buffer).c_str(), irr::core::rect<s32>(mx, my, mx + 30, my + 10),
+
+            // print solver error
+            char buffer1[100];
+            snprintf(buffer1, sizeof(buffer1), "Error %g", solver->GetError());
+            font->draw(irr::core::stringw(buffer1).c_str(),
+                       irr::core::rect<s32>(pos_x, pos_y + 10, pos_x + actual_width, pos_y + 20),
                        irr::video::SColor(200, 100, 0, 0));
+
+            // print solver tolerance
+            char buffer2[100];
+            snprintf(buffer2, sizeof(buffer2), "Tolerance: %g", solver->GetTolerance());
+            font->draw(irr::core::stringw(buffer2).c_str(),
+                       irr::core::rect<s32>(pos_x, pos_y + tolerance_line_y - 12, pos_x + actual_width,
+                                            pos_y + tolerance_line_y + 2),
+                       irr::video::SColor(200, 100, 0, 0));
+
+            // print solver delta lambda
+            if (solver_vi) {
+                char buffer3[100];
+                snprintf(buffer3, sizeof(buffer3), "DLambda %g",
+                         solver_vi->GetDeltalambdaHistory().at(solver->GetIterations() - 1));
+                font->draw(irr::core::stringw(buffer3).c_str(),
+                           irr::core::rect<s32>(pos_x, pos_y + 20, pos_x + actual_width, pos_y + 30),
+                           irr::video::SColor(200, 100, 0, 0));
+            }
         }
     }
 }
@@ -600,18 +688,18 @@ void drawChFunction(ChVisualSystemIrrlicht* vis,
                     double xmax,
                     double ymin,
                     double ymax,
-                    int mx,
-                    int my,
-                    int sx,
-                    int sy,
+                    int pos_x,
+                    int pos_y,
+                    int width,
+                    int height,
                     chrono::ChColor col,
-                    const char* title) {
+                    std::string title) {
     irr::video::IVideoDriver* driver = vis->GetDevice()->getVideoDriver();
 
     if (!fx)
         return;
 
-    irr::core::rect<s32> mrect(mx, my, mx + sx, my + sy);
+    irr::core::rect<s32> mrect(pos_x, pos_y, pos_x + width, pos_y + height);
     driver->draw2DRectangle(irr::video::SColor(100, 200, 200, 230), mrect);
 
     if (vis->GetDevice()->getGUIEnvironment()) {
@@ -619,33 +707,36 @@ void drawChFunction(ChVisualSystemIrrlicht* vis,
         if (font) {
             char buffer[100];
             snprintf(buffer, sizeof(buffer), "%g", ymax);
-            font->draw(irr::core::stringw(buffer).c_str(), irr::core::rect<s32>(mx, my, mx + sx, my + 10),
+            font->draw(irr::core::stringw(buffer).c_str(),
+                       irr::core::rect<s32>(pos_x, pos_y, pos_x + width, pos_y + 10),
                        irr::video::SColor(200, 100, 0, 0));
             snprintf(buffer, sizeof(buffer), "%g", ymin);
-            font->draw(irr::core::stringw(buffer).c_str(), irr::core::rect<s32>(mx, my + sy, mx + sx, my + sy + 10),
+            font->draw(irr::core::stringw(buffer).c_str(),
+                       irr::core::rect<s32>(pos_x, pos_y + height, pos_x + width, pos_y + height + 10),
                        irr::video::SColor(200, 100, 0, 0));
 
             if ((ymin < 0) && (ymax > 0)) {
-                int yzero = my + sy - (int)(((-ymin) / (ymax - ymin)) * (double)sy);
-                driver->draw2DLine(irr::core::position2d<s32>(mx, yzero), irr::core::position2d<s32>(mx + sx, yzero),
+                int yzero = pos_y + height - (int)(((-ymin) / (ymax - ymin)) * (double)height);
+                driver->draw2DLine(irr::core::position2d<s32>(pos_x, yzero),
+                                   irr::core::position2d<s32>(pos_x + width, yzero),
                                    irr::video::SColor(90, 255, 255, 255));
                 font->draw(irr::core::stringw(buffer).c_str(),
-                           irr::core::rect<s32>(mx, my + yzero, mx + sx, my + yzero + 10),
+                           irr::core::rect<s32>(pos_x, pos_y + yzero, pos_x + width, pos_y + yzero + 10),
                            irr::video::SColor(200, 100, 0, 0));
             }
         }
-        vis->GetDevice()->getGUIEnvironment()->addStaticText(irr::core::stringw(title).c_str(),
-                                                             irr::core::rect<s32>(mx, my - 15, mx + sx, my));
+        vis->GetDevice()->getGUIEnvironment()->addStaticText(
+            irr::core::stringw(title.c_str()).c_str(), irr::core::rect<s32>(pos_x, pos_y - 15, pos_x + width, pos_y));
     }
 
     int prevx = 0;
     int prevy = 0;
 
-    for (int ix = 0; ix < sx; ix++) {
-        double x = xmin + (xmax - xmin) * ((double)(ix)) / (double)(sx);
+    for (int ix = 0; ix < width; ix++) {
+        double x = xmin + (xmax - xmin) * ((double)(ix)) / (double)(width);
         double y = fx->GetVal(x);
-        int py = my + sy - (int)(((y - ymin) / (ymax - ymin)) * (double)sy);
-        int px = mx + ix;
+        int py = pos_y + height - (int)(((y - ymin) / (ymax - ymin)) * (double)height);
+        int px = pos_x + ix;
         if (ix > 0)
             driver->draw2DLine(irr::core::position2d<s32>(px, py), irr::core::position2d<s32>(prevx, prevy),
                                ToIrrlichtSColor(col));
@@ -958,30 +1049,30 @@ void drawProfilerRecursive(utils::ChProfileIterator* profileIterator,
 
 // Draw run-time profiler infos
 void drawProfiler(ChVisualSystemIrrlicht* vis) {
-    int mx = 230;
-    int my = 30;
-    int sx = 500;
-    int sy = 400;
+    int pos_x = 230;
+    int pos_y = 30;
+    int width = 500;
+    int height = 400;
 
     int ypos = 0;
     utils::ChProfileIterator* profileIterator = 0;
     profileIterator = chrono::utils::ChProfileManager::Get_Iterator();
 
-    drawProfilerRecursive(profileIterator, vis->GetDevice(), mx, my, sx, sy, 0, ypos);
+    drawProfilerRecursive(profileIterator, vis->GetDevice(), pos_x, pos_y, width, height, 0, ypos);
 
     utils::ChProfileManager::Release_Iterator(profileIterator);
 }
 
 // Draw RGB coordinate system
-void drawCoordsys(ChVisualSystemIrrlicht* vis, const ChCoordsys<>& coord, double scale) {
+void drawCoordsys(ChVisualSystemIrrlicht* vis, const ChCoordsys<>& coord, double scale, bool use_Zbuffer) {
     ChVector3d pos = coord.pos;
     ChQuaternion<> rot = coord.rot;
     // X axis
-    drawSegment(vis, pos, pos + rot.Rotate(VECT_X) * scale, ChColor(1, 0, 0));
+    drawSegment(vis, pos, pos + rot.Rotate(VECT_X) * scale, ChColor(1.f, 0.f, 0.f), use_Zbuffer);
     // Y axis
-    drawSegment(vis, pos, pos + rot.Rotate(VECT_Y) * scale, ChColor(0, 1, 0));
+    drawSegment(vis, pos, pos + rot.Rotate(VECT_Y) * scale, ChColor(0.f, 1.f, 0.f), use_Zbuffer);
     // Z axis
-    drawSegment(vis, pos, pos + rot.Rotate(VECT_Z) * scale, ChColor(0, 0, 1));
+    drawSegment(vis, pos, pos + rot.Rotate(VECT_Z) * scale, ChColor(0.f, 0.f, 1.f), use_Zbuffer);
 }
 
 // -----------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 // =============================================================================
 // PROJECT CHRONO - http://projectchrono.org
 //
-// Copyright (c) 2019 projectchrono.org
+// Copyright (c) 2024 projectchrono.org
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found
@@ -34,6 +34,9 @@
 #include "chrono_vehicle/utils/ChVehiclePath.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
+
+#include "chrono/assets/ChVisualSystem.h"
+#include "chrono_vehicle/ChVehicleVisualSystem.h"
 
 #ifdef CHRONO_IRRLICHT
     #include "chrono_vehicle/driver/ChInteractiveDriverIRR.h"
@@ -72,6 +75,9 @@ bool include_aero_drag = false;
 // Simulation step sizes
 double step_size = 1e-3;
 
+// End simulation time
+double t_end = 100;
+
 // Output
 bool output = false;
 
@@ -104,10 +110,9 @@ int main(int argc, char* argv[]) {
     auto vehicle_model = models[which - 1].first;
 
     // Create the vehicle model
+    vehicle_model->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     vehicle_model->Create(ChContactMethod::SMC, ChCoordsys<>(init_loc, QUNIT), false);
     auto& vehicle = vehicle_model->GetVehicle();
-
-    vehicle.GetSystem()->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // -----------------------
     // Create output directory
@@ -288,7 +293,7 @@ int main(int argc, char* argv[]) {
         last_speed = speed;
 
         // End simulation
-        if (time >= 100)
+        if (time >= t_end)
             break;
 
         // Render scene
@@ -322,13 +327,15 @@ int main(int argc, char* argv[]) {
         driver.Synchronize(time);
         terrain->Synchronize(time);
         vehicle_model->Synchronize(time, driver_inputs, *terrain);
-        vis->Synchronize(time, driver_inputs);
+        if (vis)
+            vis->Synchronize(time, driver_inputs);
 
         // Advance simulation for one timestep for all modules
         driver.Advance(step_size);
         terrain->Advance(step_size);
         vehicle_model->Advance(step_size);
-        vis->Advance(step_size);
+        if (vis)
+            vis->Advance(step_size);
     }
 
     if (output)

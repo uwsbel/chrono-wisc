@@ -25,6 +25,22 @@
 
 using namespace chrono;
 using namespace chrono::vehicle;
+using namespace chrono::fmi2;
+
+// -----------------------------------------------------------------------------
+
+// Create an instance of this FMU
+fmu_tools::fmi2::FmuComponentBase* fmu_tools::fmi2::fmi2InstantiateIMPL(fmi2String instanceName,
+                                                                        fmi2Type fmuType,
+                                                                        fmi2String fmuGUID,
+                                                                        fmi2String fmuResourceLocation,
+                                                                        const fmi2CallbackFunctions* functions,
+                                                                        fmi2Boolean visible,
+                                                                        fmi2Boolean loggingOn) {
+    return new FmuComponent(instanceName, fmuType, fmuGUID, fmuResourceLocation, functions, visible, loggingOn);
+}
+
+// -----------------------------------------------------------------------------
 
 FmuComponent::FmuComponent(fmi2String instanceName,
                            fmi2Type fmuType,
@@ -40,6 +56,14 @@ FmuComponent::FmuComponent(fmi2String instanceName,
     // Set initial/default values for FMU variables
     step_size = 1e-3;
 
+    out_path = ".";
+
+    wheel_load.point = ChVector3d(0.0);
+    wheel_load.force = ChVector3d(0.0);
+    wheel_load.moment = ChVector3d(0.0);
+
+    query_point = ChVector3d(0.0);
+
     // Get default JSON file from FMU resources
     auto resources_dir = std::string(fmuResourceLocation).erase(0, 8);
     tire_JSON = resources_dir + "/TMeasyTire.json";
@@ -50,6 +74,10 @@ FmuComponent::FmuComponent(fmi2String instanceName,
 
     AddFmuVariable(&step_size, "step_size", FmuVariable::Type::Real, "s", "integration step size",  //
                    FmuVariable::CausalityType::parameter, FmuVariable::VariabilityType::fixed);     //
+
+    // Set FIXED PARAMETERS for this FMU (I/O)
+    AddFmuVariable(&out_path, "out_path", FmuVariable::Type::String, "1", "output directory",    //
+                   FmuVariable::CausalityType::parameter, FmuVariable::VariabilityType::fixed);  //
 
     // Set CONTINOUS INPUTS for this FMU (wheel state)
     AddFmuVecVariable(wheel_state.pos, "wheel_state.pos", "m", "wheel position",                      //
@@ -62,16 +90,20 @@ FmuComponent::FmuComponent(fmi2String instanceName,
                       FmuVariable::CausalityType::input, FmuVariable::VariabilityType::continuous);   //
 
     // Set CONTINUOUS OUTPUTS for this FMU (wheel load)
-    AddFmuVecVariable(wheel_load.point, "wheel_load.point", "m", "wheel load application point",      //
-                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous);  //
-    AddFmuVecVariable(wheel_load.force, "wheel_load.force", "N", "wheel load applied force",          //
-                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous);  //
-    AddFmuVecVariable(wheel_load.moment, "wheel_load.moment", "Nm", "wheel load applied moment",      //
-                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous);  //
+    AddFmuVecVariable(wheel_load.point, "wheel_load.point", "m", "wheel load application point",     //
+                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous,  //
+                      FmuVariable::InitialType::exact);                                              //
+    AddFmuVecVariable(wheel_load.force, "wheel_load.force", "N", "wheel load applied force",         //
+                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous,  //
+                      FmuVariable::InitialType::exact);                                              //
+    AddFmuVecVariable(wheel_load.moment, "wheel_load.moment", "Nm", "wheel load applied moment",     //
+                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous,  //
+                      FmuVariable::InitialType::exact);                                              //
 
     // Set CONTINUOUS OUTPUTS for this FMU (terrain query point)
-    AddFmuVecVariable(query_point, "query_point", "m", "terrain query point",                         //
-                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous);  //
+    AddFmuVecVariable(query_point, "query_point", "m", "terrain query point",                        //
+                      FmuVariable::CausalityType::output, FmuVariable::VariabilityType::continuous,  //
+                      FmuVariable::InitialType::exact);                                              //
 
     // Set CONTINUOUS INPUTS for this FMU (terrain information)
     AddFmuVariable(&terrain_height, "terrain_height", FmuVariable::Type::Real, "m", "terrain height",        //
@@ -82,15 +114,15 @@ FmuComponent::FmuComponent(fmi2String instanceName,
                    FmuVariable::CausalityType::input, FmuVariable::VariabilityType::continuous);             //
 
     // Specify functions to process input variables (at beginning of step)
-    m_preStepCallbacks.push_back([this]() { this->SynchronizeTire(this->GetTime()); });
+    AddPreStepFunction([this]() { this->SynchronizeTire(this->GetTime()); });
 
     // Specify functions to calculate FMU outputs (at end of step)
-    m_postStepCallbacks.push_back([this]() { this->CalculateTireOutputs(); });
+    AddPostStepFunction([this]() { this->CalculateTireOutputs(); });
 }
 
-class DummyWheel : public ChWheel {
+class Wheel : public ChWheel {
   public:
-    DummyWheel() : ChWheel("tire_wheel"), m_inertia(ChVector3d(0)) {}
+    Wheel() : ChWheel("tire_wheel"), m_inertia(ChVector3d(0)) {}
     virtual double GetWheelMass() const override { return 0; }
     virtual const ChVector3d& GetWheelInertia() const override { return m_inertia; }
     virtual double GetRadius() const override { return 1; }
@@ -114,7 +146,7 @@ void FmuComponent::CreateTire() {
     auto spindle = chrono_types::make_shared<ChBody>();
     sys.AddBody(spindle);
 
-    wheel = chrono_types::make_shared<DummyWheel>();
+    wheel = chrono_types::make_shared<Wheel>();
     wheel->Initialize(nullptr, spindle, LEFT);
 
     wheel->SetTire(tire);
@@ -146,19 +178,22 @@ void FmuComponent::CalculateTireOutputs() {
     query_point = wheel_state.pos;
 }
 
-void FmuComponent::_preModelDescriptionExport() {}
+void FmuComponent::preModelDescriptionExport() {}
 
-void FmuComponent::_postModelDescriptionExport() {}
+void FmuComponent::postModelDescriptionExport() {}
 
-void FmuComponent::_enterInitializationMode() {}
-
-void FmuComponent::_exitInitializationMode() {
-    CreateTire();
+fmi2Status FmuComponent::enterInitializationModeIMPL() {
+    return fmi2Status::fmi2OK;
 }
 
-fmi2Status FmuComponent::_doStep(fmi2Real currentCommunicationPoint,
-                                 fmi2Real communicationStepSize,
-                                 fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+fmi2Status FmuComponent::exitInitializationModeIMPL() {
+    CreateTire();
+    return fmi2Status::fmi2OK;
+}
+
+fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint,
+                                    fmi2Real communicationStepSize,
+                                    fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     while (m_time < currentCommunicationPoint + communicationStepSize) {
         fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time),
                               std::min(communicationStepSize, step_size));

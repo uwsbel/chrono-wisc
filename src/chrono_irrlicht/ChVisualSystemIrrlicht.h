@@ -28,6 +28,7 @@
 #include "chrono/assets/ChVisualShapeCylinder.h"
 #include "chrono/assets/ChVisualShapeSphere.h"
 #include "chrono/assets/ChVisualShapeCapsule.h"
+#include "chrono/assets/ChVisualShapeCone.h"
 #include "chrono/assets/ChVisualShapeModelFile.h"
 #include "chrono/assets/ChVisualShape.h"
 #include "chrono/assets/ChVisualShapeTriangleMesh.h"
@@ -221,23 +222,6 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
     /// Has no effect, unless called after the visual system is initialized and attached.
     void EnableAbsCoordsysDrawing(bool val);
 
-    /// Enable modal analysis visualization (default: false).
-    /// If true, visualize an oscillatory motion of the n-th mode (only if some ChModalAssembly is found).
-    /// Otherwise, visualize the dynamic evolution of the associated system.
-    virtual void EnableModalAnalysis(bool val) override;
-
-    /// Set the mode to be shown (only if some ChModalAssembly is found).
-    virtual void SetModalModeNumber(int val) override;
-
-    /// Set the amplitude of the shown mode (only if some ChModalAssembly is found).
-    virtual void SetModalAmplitude(double val) override;
-
-    /// Set the speed of the shown mode (only if some ChModalAssembly is found).
-    virtual void SetModalSpeed(double val) override;
-
-    /// Set the maximum number of modes selectable (only if some ChModalAssembly is found).
-    virtual void SetModalModesMax(int maxModes) override;
-
     /// Show the realtime profiler in the 3D view.
     void ShowProfiler(bool val);
 
@@ -246,6 +230,9 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
 
     /// Show the info panel in the 3D view.
     void ShowInfoPanel(bool val);
+
+    /// Show the convergence plot (available only for iterative solvers).
+    void ShowConvergencePlot(bool val);
 
     /// Set the active tab on the info panel.
     /// Has no effect, unless called after the visual system is initialized and attached.
@@ -258,7 +245,10 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
     irr::gui::IGUIEnvironment* GetGUIEnvironment() { return m_device->getGUIEnvironment(); }
 
     /// Get the window ID.
-    void* GetWindowId() const { return m_device_params.WindowId; };
+    void* GetWindowId() const { return m_device_params.WindowId; }
+
+    /// Return the Irrlicht ChIrrGUI object.
+    ChIrrGUI* GetGUI() { return m_gui.get(); }
 
     /// Process all visual assets in the associated ChSystem.
     /// This function is called by default by Initialize(), but can also be called later if further modifications to
@@ -317,6 +307,10 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
     /// Return a fixed-size font for rendering GUI.
     irr::gui::IGUIFont* GetMonospaceFont() const { return m_monospace_font; }
 
+    /// Set the JPEG quality level (between 0 and 100) for saved snapshots (default: 0).
+    /// A value of 0 sets the quality to 75%.
+    void SetJPEGQuality(unsigned int quality) { m_quality = (irr::u32)quality; }
+
     /// Create a snapshot of the last rendered frame and save it to the provided file.
     /// The file extension determines the image format.
     virtual void WriteImageToFile(const std::string& filename) override;
@@ -335,7 +329,10 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
         m_device_params = device_params;
     }
 
-  private:
+    /// Get list of cameras defined for the scene
+    std::vector<std::shared_ptr<RTSCamera>> GetCameras() const { return m_cameras; }
+
+  protected:
     /// Irrlicht scene node for a visual model not associated with a physics item.
     class ChIrrNodeVisual : public irr::scene::ISceneNode {
       public:
@@ -396,14 +393,15 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
     std::unique_ptr<ChIrrGUI> m_gui;                   ///< associated Irrlicht GUI and event receiver
     std::unique_ptr<EffectHandler> m_effect_handler;   ///< effect handler for shadow maps
     bool m_use_effects;                                ///< flag to enable/disable effects
-    bool m_modal;                                      ///< visualize modal analysis
     bool m_utility_flag = false;                       ///< utility flag that may be accessed from outside
+    irr::u32 m_quality;                                ///< JPEG quality level (for saved snapshots)
 
     // shared meshes
     irr::scene::IAnimatedMesh* sphereMesh;
     irr::scene::IMesh* cubeMesh;
     irr::scene::IMesh* cylinderMesh;
     irr::scene::IMesh* capsuleMesh;
+    irr::scene::IMesh* coneMesh;
 };
 
 /// @} irrlicht_module

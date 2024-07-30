@@ -10,13 +10,32 @@ endif()
 
 # ------------------------------------------------------------------------------
 
-set(DEMOS
-    demo_ROBOT_Curiosity_Rigid
-    demo_ROBOT_Curiosity_SCM    
-    demo_ROBOT_Turtlebot_Rigid
-    demo_ROBOT_Viper_Rigid
-    demo_ROBOT_Viper_SCM
-)
+set(DEMOS "")
+
+if(ENABLE_MODULE_IRRLICHT OR ENABLE_MODULE_VSG)
+  set(DEMOS ${DEMOS}
+      demo_ROBOT_Curiosity_Rigid
+      demo_ROBOT_Curiosity_SCM    
+      demo_ROBOT_Turtlebot_Rigid
+      demo_ROBOT_Viper_Rigid
+      demo_ROBOT_Viper_SCM
+  )
+
+  if(ENABLE_MODULE_SENSOR)
+    set(DEMOS ${DEMOS}
+        demo_ROBOT_Curiosity_SCM_Sensor
+        demo_ROBOT_Viper_SCM_Sensor
+        demo_ROBOT_nvdb
+        demo_ROBOT_Viper_dust
+    )
+    if(ENABLE_MODULE_FSI)
+      set(DEMOS ${DEMOS}
+        demo_ROBOT_Viper_SPH_Lunar_noGVDB
+        demo_ROBOT_Viper_RealSlope_Sensor_NVDB
+        demo_ROBOT_CRMTerrain_Viper_Sensor
+      )
+  endif()
+endif()
 
 if(ENABLE_MODULE_IRRLICHT)
   set(DEMOS ${DEMOS}
@@ -24,23 +43,12 @@ if(ENABLE_MODULE_IRRLICHT)
   )
 endif()
 
-if(ENABLE_MODULE_SENSOR AND ENABLE_MODULE_IRRLICHT)
-  set(DEMOS ${DEMOS}
-      demo_ROBOT_Curiosity_SCM_Sensor
-      demo_ROBOT_Viper_SCM_Sensor
-      demo_ROBOT_Viper_SPH_Lunar_noGVDB
-      demo_ROBOT_Viper_RealSlope_Sensor_NVDB
-      demo_ROBOT_nvdb
-      demo_ROBOT_Viper_dust
-      demo_ROBOT_CRMTerrain_Viper_Sensor
-  )
-endif()
-
-if(ENABLE_MODULE_FSI)
-  set(DEMOS ${DEMOS}
-      demo_ROBOT_Viper_SPH
-      demo_ROBOT_Rassor_SPH
-  )
+if(ENABLE_MODULE_VSG OR ENABLE_MODULE_OPENGL)
+  if(ENABLE_MODULE_FSI)
+    set(DEMOS ${DEMOS}
+        demo_ROBOT_Viper_SPH
+    )
+  endif()
 endif()
 
 # ------------------------------------------------------------------------------

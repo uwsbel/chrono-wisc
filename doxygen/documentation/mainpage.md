@@ -37,6 +37,10 @@ Instructions on **how to set up a project** that uses Chrono.
   
   tools to import external models and to interact with other languages
 
+- [Chrono::Modal](@ref manual_modal)
+  
+  Modal reduction and eigenvalue analysis of the Chrono systems and assemblies
+
 - [PyChrono](@ref pychrono_introduction)
 
   Overview of PyChrono, the Python API to Chrono libraries
@@ -46,18 +50,20 @@ Instructions on **how to set up a project** that uses Chrono.
   Distributed agent simulation with the SynChrono module
 
 - [DEM-Engine](@ref manual_deme)
- 
+
   External GPU solver for DEM simulations
 
 - [Chrono::SolidWorks](@ref manual_chrono_solidworks)
 
   SolidWorks plugin for exporting CAD data to Chrono
-  
+
 - [Chrono::Blender](@ref introduction_chrono_blender)
 
   Add-on for importing Chrono simulations in Blender for rigging, editing and rendering
 
+- [Chrono::ROS](@ref manual_ros)
 
+  Integration with an external autonomy stack based on the Robot Operating System (ROS)
 
 ---
 

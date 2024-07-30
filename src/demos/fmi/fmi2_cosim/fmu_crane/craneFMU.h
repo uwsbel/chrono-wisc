@@ -24,7 +24,7 @@
     #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 #endif
 
-class FmuComponent : public chrono::FmuChronoComponentBase {
+class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
   public:
     FmuComponent(fmi2String instanceName,
                  fmi2Type fmuType,
@@ -36,16 +36,16 @@ class FmuComponent : public chrono::FmuChronoComponentBase {
     virtual ~FmuComponent() {}
 
     /// Advance dynamics
-    virtual fmi2Status _doStep(fmi2Real currentCommunicationPoint,
-                               fmi2Real communicationStepSize,
-                               fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
+    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint,
+                                  fmi2Real communicationStepSize,
+                                  fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
 
   protected:
-    virtual void _enterInitializationMode() override;
-    virtual void _exitInitializationMode() override;
+    virtual fmi2Status enterInitializationModeIMPL() override;
+    virtual fmi2Status exitInitializationModeIMPL() override;
 
-    virtual void _preModelDescriptionExport() override;
-    virtual void _postModelDescriptionExport() override;
+    virtual void preModelDescriptionExport() override;
+    virtual void postModelDescriptionExport() override;
 
     virtual bool is_cosimulation_available() const override { return true; }
     virtual bool is_modelexchange_available() const override { return false; }
@@ -56,7 +56,7 @@ class FmuComponent : public chrono::FmuChronoComponentBase {
     chrono::ChSystemSMC sys;
 
 #ifdef CHRONO_IRRLICHT
-    std::shared_ptr<chrono::irrlicht::ChVisualSystemIrrlicht> vissys;
+    std::shared_ptr<chrono::irrlicht::ChVisualSystemIrrlicht> vis_sys;
 #endif
 
     // Body properties (with default values)
@@ -65,7 +65,7 @@ class FmuComponent : public chrono::FmuChronoComponentBase {
     double pend_mass = 100;
     double pend_length = 0.3;
 
-    double init_crane_angle = chrono::CH_PI / 6;  // Initial crane angle (default value)
+    double init_crane_angle = chrono::CH_PI / 6;  // initial crane angle (default value)
     double init_F;                                // initial load
 
     double s;   // actuator length (FMU output)
@@ -79,14 +79,3 @@ class FmuComponent : public chrono::FmuChronoComponentBase {
     std::shared_ptr<chrono::ChBody> m_crane;
     std::shared_ptr<chrono::ChLoadBodyForce> m_external_load;
 };
-
-// Create an instance of this FMU
-FmuComponentBase* fmi2Instantiate_getPointer(fmi2String instanceName,
-                                             fmi2Type fmuType,
-                                             fmi2String fmuGUID,
-                                             fmi2String fmuResourceLocation,
-                                             const fmi2CallbackFunctions* functions,
-                                             fmi2Boolean visible,
-                                             fmi2Boolean loggingOn) {
-    return new FmuComponent(instanceName, fmuType, fmuGUID, fmuResourceLocation, functions, visible, loggingOn);
-}

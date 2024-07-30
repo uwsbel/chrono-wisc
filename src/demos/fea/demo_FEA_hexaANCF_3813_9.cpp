@@ -48,39 +48,37 @@ using namespace chrono;
 using namespace chrono::fea;
 using namespace chrono::irrlicht;
 
-void AxialDynamics();
-void BendingQuasiStatic();
-void SwingingShell();
-void SoilBin();
-void SimpleBoxContact();
-void ShellBrickContact();
-void DPCapPress();
-
-// Output directory
-const std::string out_dir = GetChronoOutputPath() + "FEA_BRICK9";
+void AxialDynamics(const std::string& out_dir);
+void BendingQuasiStatic(const std::string& out_dir);
+void SwingingShell(const std::string& out_dir);
+void SoilBin(const std::string& out_dir);
+void SimpleBoxContact(const std::string& out_dir);
+void ShellBrickContact(const std::string& out_dir);
+void DPCapPress(const std::string& out_dir);
 
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
     // Create (if needed) the output directory
+    const std::string out_dir = GetChronoOutputPath() + "FEA_BRICK9";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
 
-    // DPCapPress();
-    // ShellBrickContact();
-    // SimpleBoxContact();
-    // SoilBin();
-    // AxialDynamics();
-    // BendingQuasiStatic();
-    SwingingShell();
+    // DPCapPress(out_dir);
+    // ShellBrickContact(out_dir);
+    // SimpleBoxContact(out_dir);
+    // SoilBin(out_dir);
+    // AxialDynamics(out_dir);
+    // BendingQuasiStatic(out_dir);
+    SwingingShell(out_dir);
 
     return 0;
 }
 
 // Soil Bin case testing Drucker-Prager Cap model
-void DPCapPress() {
+void DPCapPress(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.UseMaterialProperties(false);
@@ -88,6 +86,8 @@ void DPCapPress() {
     // sys.SetContactForceModel(ChSystemSMC::ContactForceModel::PlainCoulomb);
     sys.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------------------" << std::endl;
@@ -396,13 +396,15 @@ void DPCapPress() {
 }
 
 // Test1 Case
-void ShellBrickContact() {
+void ShellBrickContact(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.UseMaterialProperties(false);
     sys.SetAdhesionForceModel(ChSystemSMC::AdhesionForceModel::Constant);
     sys.SetContactForceModel(ChSystemSMC::ContactForceModel::PlainCoulomb);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------------------" << std::endl;
@@ -782,13 +784,15 @@ void ShellBrickContact() {
 }
 
 // Test Case
-void SimpleBoxContact() {
+void SimpleBoxContact(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.UseMaterialProperties(false);
     sys.SetAdhesionForceModel(ChSystemSMC::AdhesionForceModel::Constant);
     sys.SetContactForceModel(ChSystemSMC::ContactForceModel::PlainCoulomb);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------------------" << std::endl;
@@ -1070,7 +1074,7 @@ void SimpleBoxContact() {
 }
 
 // SoilBin Dynamic
-void SoilBin() {
+void SoilBin(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.UseMaterialProperties(false);
@@ -1078,6 +1082,8 @@ void SoilBin() {
     // sys.SetContactForceModel(ChSystemSMC::ContactForceModel::PlainCoulomb);
     sys.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------------------" << std::endl;
@@ -1403,10 +1409,12 @@ void SoilBin() {
 }
 
 // Axial Dynamic
-void AxialDynamics() {
+void AxialDynamics(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------------------" << std::endl;
@@ -1650,10 +1658,12 @@ void AxialDynamics() {
 }
 
 // QuasiStatic
-void BendingQuasiStatic() {
+void BendingQuasiStatic(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     std::cout << "-----------------------------------------------------------" << std::endl;
     std::cout << "-----------------------------------------------------------" << std::endl;
@@ -1872,10 +1882,12 @@ void BendingQuasiStatic() {
 }
 
 // Swinging (Bricked) Shell
-void SwingingShell() {
+void SwingingShell(const std::string& out_dir) {
     FILE* outputfile;
     ChSystemSMC sys;
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, 0));
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     auto ground = chrono_types::make_shared<ChBody>();
     ground->SetFixed(true);

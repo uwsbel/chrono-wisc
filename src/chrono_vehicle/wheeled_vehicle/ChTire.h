@@ -44,23 +44,33 @@ namespace vehicle {
 /// moments to be applied to the wheel body.
 class CH_VEHICLE_API ChTire : public ChPart {
   public:
+    /// Collision detection type.
+    /// Used by tire models that perform their own terrain collision detection.
     enum class CollisionType { SINGLE_POINT, FOUR_POINTS, ENVELOPE };
+
+    /// Contact surface type.
+    /// Used by tire models that rely on the underlying Chrono collision detection.
+    enum class ContactSurfaceType { NODE_CLOUD, TRIANGLE_MESH };
 
     virtual ~ChTire() {}
 
-    /// Set the value of the integration step size for the underlying dynamics (if applicable).
-    /// Default value: 1ms.
+    /// Set the integration step size for the underlying dynamics (default: 1ms).
+    /// Derived classes (concrete tire models) may or may not use this setting.
     void SetStepsize(double val) { m_stepsize = val; }
 
     /// Get the current value of the integration step size.
     double GetStepsize() const { return m_stepsize; }
 
-    /// Set the collision type for tire-terrain interaction.
-    /// Default: SINGLE_POINT
+    /// Set the collision type for tire-terrain interaction (default: SINGLE_POINT).
+    /// Derived classes (concrete tire models) may or may not use this setting.
     void SetCollisionType(CollisionType collision_type) { m_collision_type = collision_type; }
 
-    /// Set the internal tire pressure [Pa].
-    /// Default value: 0.
+    /// Set the contact surface type (default: NODE_CLOUD).
+    /// 'dim' represents the radius of a collision sphere (for NODE_CLOUD) or the mesh thickness (for TRIANGLE_MESH).
+    /// Derived classes (concrete tire models) may or may not use this setting.
+    void SetContactSurfaceType(ContactSurfaceType type, double dim = 0.01, int collision_family = 13);
+
+    /// Set the internal tire pressure [Pa] (default: 0).
     /// Derived classes (concrete tire models) may or may not use this setting.
     void SetPressure(double pressure) { m_pressure = pressure; }
 
@@ -91,16 +101,17 @@ class CH_VEHICLE_API ChTire : public ChPart {
     virtual TerrainForce ReportTireForceLocal(ChTerrain* terrain, ChCoordsys<>& tire_frame) const = 0;
 
     /// Return the tire slip angle calculated based on the current state of the associated wheel body.
-    /// The return value is in radians (positive sign = left turn, negative sign = right turn).
+    /// The return value is in radians with a positive sign for a left turn and a negative sign for a right turn.
     double GetSlipAngle() const { return m_slip_angle; }
 
     /// Return the tire longitudinal slip calculated based on the current state of the associated wheel body.
-    /// (positive sign = driving, negative sign = breaking)
+    /// A positive value corresponds to a driving wheel, while a negative sign indicates braking.
     double GetLongitudinalSlip() const { return m_longitudinal_slip; }
 
-    /// Return the tire camber angle calculated based on the current state of the associated
-    /// wheel body. The return value is in radians.
-    /// (positive sign = upper side tipping to the left, negative sign = upper side tipping to the right)
+    /// Return the tire camber angle calculated based on the current state of the associated wheel body.
+    /// Note that this is a "dynamic" or "effective" camber angle, defined as the angle of the wheel from a plane normal
+    /// to the current tire contact patch. The return value is in radians. A positive value corresponds to the upper
+    /// side tipping to the left, while a negative value indicates the upper side tipping to the right.
     double GetCamberAngle() const { return m_camber_angle; }
 
     /// Utility function for estimating the tire moments of inertia.
@@ -119,6 +130,10 @@ class CH_VEHICLE_API ChTire : public ChPart {
     /// Get the name of the Wavefront file with tire visualization mesh.
     /// An empty string is returned if no mesh was specified.
     const std::string& GetMeshFilename() const { return m_vis_mesh_file; }
+
+    /// Get the associated wheel.
+    /// Note that a tire is associated with a wheel only during initialization.
+    std::shared_ptr<ChWheel> GetWheel() const { return m_wheel; }
 
   public:
     // NOTE: Typically, users should not directly call these functions. They are public for use in special cases and to
@@ -242,11 +257,14 @@ class CH_VEHICLE_API ChTire : public ChPart {
         float& mu                         ///< [out] coefficient of friction at contact
     );
 
-    std::shared_ptr<ChWheel> m_wheel;  ///< associated wheel subsystem
-    double m_stepsize;                 ///< tire integration step size (if applicable)
-    double m_pressure;                 ///< internal tire pressure
-    CollisionType m_collision_type;    ///< method used for tire-terrain collision
-    std::string m_vis_mesh_file;       ///< name of OBJ file for visualization of this tire (may be empty)
+    std::shared_ptr<ChWheel> m_wheel;           ///< associated wheel subsystem
+    double m_stepsize;                          ///< tire integration step size (if applicable)
+    double m_pressure;                          ///< internal tire pressure
+    CollisionType m_collision_type;             ///< method used for tire-terrain collision
+    ContactSurfaceType m_contact_surface_type;  ///< type of contact surface model (node cloud or mesh)
+    double m_contact_surface_dim;               ///< contact surface dimension (node radius or mesh thickness)
+    int m_collision_family;                     ///< collision family for this tire
+    std::string m_vis_mesh_file;                ///< name of OBJ file for visualization of this tire (may be empty)
 
     double m_slip_angle;
     double m_longitudinal_slip;

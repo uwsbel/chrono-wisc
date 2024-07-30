@@ -36,9 +36,6 @@ using namespace chrono;
 using namespace chrono::fea;
 using namespace chrono::irrlicht;
 
-// Output directory
-const std::string out_dir = GetChronoOutputPath() + "BEAM_BUCKLING";
-
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
     /*
@@ -73,6 +70,8 @@ int main(int argc, char* argv[]) {
      */
     // Create a Chrono::Engine physical system
     ChSystemSMC sys;
+
+    sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
     double L = 1;
     double H = 0.25;
@@ -277,6 +276,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Output data
+    const std::string out_dir = GetChronoOutputPath() + "BEAM_BUCKLING";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;

@@ -110,14 +110,15 @@ void ChWheeledVehicle::Advance(double step) {
         m_powertrain_assembly->Advance(step);
     }
 
-    // Advance state of all vehicle tires.
-    // This is done before advancing the state of the multibody system in order to use
-    // wheel states corresponding to current time.
+    // Advance state of all axles and vehicle tires.
+    // This is done before advancing the state of the multibody system in order to use wheel states corresponding to
+    // current time.
     for (auto& axle : m_axles) {
         for (auto& wheel : axle->GetWheels()) {
             if (wheel->m_tire)
                 wheel->m_tire->Advance(step);
         }
+        axle->Advance(step);
     }
 
     // Invoke base class function to advance state of underlying Chrono system.
@@ -376,6 +377,21 @@ ChVector3d ChWheeledVehicle::GetSpindleAngVel(int axle, VehicleSide side) const 
 
 double ChWheeledVehicle::GetSpindleOmega(int axle, VehicleSide side) const {
     return m_axles[axle]->m_suspension->GetAxleSpeed(side);
+}
+
+// Note that this function cannot be a member function of ChWheel or ChTire since it requires the frames of both the
+// wheel and the chassis.
+double ChWheeledVehicle::GetSteeringAngle(int axle, VehicleSide side) const {
+    // Spindle body
+    auto spindle = m_axles[axle]->m_suspension->GetSpindle(side);
+    // Spindle body frame expressed in chassis frame
+    auto spindle_loc = m_chassis->GetBody()->TransformParentToLocal(*spindle);
+    // Use projection of the spindle_loc Y axis onto the XY plane
+    auto y_axis = spindle_loc.GetRotMat().GetAxisY();
+    // Calculate steering angle (positive for turning to the left)
+    double angle = -std::atan2(y_axis[0], y_axis[1]);
+
+    return angle;
 }
 
 // -----------------------------------------------------------------------------
