@@ -27,6 +27,7 @@
 #include <optix_function_table_definition.h>
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/optix/ChOptixUtils.h"
@@ -48,7 +49,9 @@
 
 #include "chrono_sensor/cuda/cuda_utils.cuh"
 
+#ifdef USE_SENSOR_NVDB
 #include <openvdb/openvdb.h>
+#endif
 
 namespace chrono {
 namespace sensor {
@@ -105,6 +108,7 @@ void ChOptixEngine::Initialize() {
     m_params.scene_epsilon = 1.e-3f;    // TODO: determine a good value for this
     m_params.importance_cutoff = .01f;  /// TODO: determine a good value for this
 
+    m_params.transient_buffer = {};
     #ifdef USE_SENSOR_NVDB
         m_params.handle_ptr = nullptr;
     #else
@@ -156,6 +160,16 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
                 opx_filter->m_denoiser = chrono_types::make_shared<ChOptixDenoiser>(m_context);
                 //opx_filter->m_denoiser = nullptr;
             }
+            
+        }
+
+        // if transient cameram, populate the transient buffer
+        if (auto trans_sensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
+              // allocate memory for transient samples
+            size_t size = trans_sensor->GetWidth() * trans_sensor->GetHeight()* m_params.max_depth * sizeof(TransientSample); // Possible numerical error here
+            std::cout << "Allocating " << size << " bytes for transient buffer\n";
+            cudaMalloc(reinterpret_cast<void**>(&m_params.transient_buffer),size);
+            cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
         }
 
         m_assignedRenderers.push_back(opx_filter);
@@ -843,6 +857,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         printf("Creatinng NanoVDB Handle...\n");
         using buildType = float;
         nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = createNanoVDBGridHandle(d_pts, n);
+        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = addVDBVolume(nullptr);
         nanovdb::NanoGrid<buildType>* grid = handle.deviceGrid<buildType>();
         handle.deviceDownload();
         auto* grid_h = handle.grid<buildType>();
@@ -893,14 +908,37 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
 
     if (std::shared_ptr<openvdb::FloatGrid> grid = scene->GetVDBGrid()) {
         printf("Adding VDB Volume Grid to Scene\n");
-        auto handle = addVDBVolume(grid);
+        nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = addVDBVolume(grid);
+        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = createNanoVDBGridHandle(nullptr, 10);
         nanovdb::NanoGrid<float>* nanoGrid = handle.deviceGrid<float>();
+        handle.deviceDownload();
+        auto* nanoGrid_h = handle.grid<float>();
+
         cudaMalloc((void**)&m_params.handle_ptr, handle.gridSize());
         cudaMemcpy((void*)m_params.handle_ptr, nanoGrid, handle.gridSize(), cudaMemcpyDeviceToDevice);
       
+        nanovdb::DefaultReadAccessor<float> acc = nanoGrid_h->tree().getAccessor();
+        nanovdb::CoordBBox bbox = acc.root().bbox();
+        
+    printf("############### NanoVDB GRID INFORMATION ################\n");
+        printf("Grid Size: %d\n", nanoGrid_h->gridSize());
+        printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
+        printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
+        printf("Upper Internal Nodes: %d\n", nanoGrid_h->tree().nodeCount(2));
+        printf("Lower Internal Nodes: %d\n", nanoGrid_h->tree().nodeCount(1));
+        printf("Leaf Nodes: %d\n", nanoGrid_h->tree().nodeCount(0));
+        printf("Voxel Size: %f\n", float(nanoGrid_h->voxelSize()[0]));
+        printf("Active Voxels: %d\n", nanoGrid_h->activeVoxelCount());
+        printf("World BBox Dims: %f %f %f\n", nanoGrid_h->worldBBox().dim()[0], nanoGrid_h->worldBBox().dim()[1],
+               nanoGrid_h->worldBBox().dim()[2]);
+        printf("World Bbox Max: %f %f %f | Min: %f %f %f\n", nanoGrid_h->worldBBox().max()[0],
+               nanoGrid_h->worldBBox().max()[1], nanoGrid_h->worldBBox().max()[2], nanoGrid_h->worldBBox().min()[0],
+               nanoGrid_h->worldBBox().min()[1], nanoGrid_h->worldBBox().min()[2]);
+        printf("BBox: min:(%d,%d,%d)| max:(%d,%d,%d)\n", bbox.min()[0], bbox.min()[1], bbox.min()[2], bbox.max()[0],
+               bbox.max()[1], bbox.max()[2]);
+        printf("############### END #############\n");
 
         cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
-        printf("Added VDB Volume Grid to Scene\n");
     }
     #endif
     }

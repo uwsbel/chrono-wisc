@@ -18,6 +18,7 @@
 #include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
+#include "chrono_sensor/sensors/ChTransientSensor.h"
 
 #include "chrono_thirdparty/stb/stb_image_write.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -52,10 +53,37 @@ CH_SENSOR_API void ChFilterSave::Apply() {
                         m_rgba8_in->Width * m_rgba8_in->Height * sizeof(PixelRGBA8), cudaMemcpyDeviceToHost,
                         m_cuda_stream);
         cudaStreamSynchronize(m_cuda_stream);
-        // write an rgba png
-        if (!stbi_write_png(filename.c_str(), m_host_rgba8->Width, m_host_rgba8->Height, sizeof(PixelRGBA8),
-                            m_host_rgba8->Buffer.get(), sizeof(PixelRGBA8) * m_host_rgba8->Width)) {
-            std::cerr << "Failed to write RGBA8 image: " << filename << "\n";
+        if (m_is_transient) {
+            int w = m_host_rgba8->Width/m_num_bins;
+            int h = m_host_rgba8->Height;
+            for (int bin = 0; bin < m_num_bins; bin++) {
+                std::string binname =
+                    m_path + "frame_" + std::to_string(m_frame_number) + "_bin" + std::to_string(bin) + ".png";
+                
+                PixelRGBA8* bin_data = m_host_rgba8->Buffer.get() + bin*w*h;
+                // to verify loop over the bin image values
+                //int activePixels = 0;
+                //for (int i = 0; i < w; i++) {
+                //    for (int j = 0; j < h; j++) {
+                //        PixelRGBA8 p = bin_data[i*h + j];
+                //        if (p.R != 0 || p.G != 0 || p.B != 0) {
+                //             //std::cout << "bin: " << bin << " i: " << i << " j: " << j << " r: " << (int)p.R << " g: " << (int)p.G << " b: " << (int)p.B << " a: " << (int)p.A << std::endl;
+                //            activePixels++;
+                //        }
+                //    }
+                //}
+                //std::cout << "Bin " << bin << " " << "Active Pixels: " << activePixels << std::endl;
+                if (!stbi_write_png(binname.c_str(),w,h, sizeof(PixelRGBA8),
+                                    m_host_rgba8->Buffer.get() + bin*w*h, sizeof(PixelRGBA8) * w)) {
+                    std::cerr << "Failed to write RGBA8 image: " << filename << "\n";
+                }
+            }
+        } else {
+            // write an rgba png
+            if (!stbi_write_png(filename.c_str(), m_host_rgba8->Width, m_host_rgba8->Height, sizeof(PixelRGBA8),
+                                m_host_rgba8->Buffer.get(), sizeof(PixelRGBA8) * m_host_rgba8->Width)) {
+                std::cerr << "Failed to write RGBA8 image: " << filename << "\n";
+            }
         }
     } else if (m_semantic_in) {
         cudaMemcpyAsync(m_host_semantic->Buffer.get(), m_semantic_in->Buffer.get(),
@@ -89,6 +117,11 @@ CH_SENSOR_API void ChFilterSave::Initialize(std::shared_ptr<ChSensor> pSensor,
         std::shared_ptr<PixelRGBA8[]> b(cudaHostMallocHelper<PixelRGBA8>(m_rgba8_in->Width * m_rgba8_in->Height),
                                         cudaHostFreeHelper<PixelRGBA8>);
         m_host_rgba8->Buffer = std::move(b);
+
+        if (auto cam = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
+            m_is_transient = true;
+            m_num_bins = (unsigned int)cam->GetNumBins();
+        }
         m_host_rgba8->Width = m_rgba8_in->Width;
         m_host_rgba8->Height = m_rgba8_in->Height;
     } else if (auto pSemantic = std::dynamic_pointer_cast<SensorDeviceSemanticBuffer>(bufferInOut)) {

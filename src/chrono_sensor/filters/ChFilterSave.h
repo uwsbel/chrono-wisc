@@ -64,6 +64,9 @@ class CH_SENSOR_API ChFilterSave : public ChFilter {
     std::shared_ptr<SensorHostSemanticBuffer> m_host_semantic;  ///< host buffer for semantic image
 
     CUstream m_cuda_stream;  ///< reference to the cuda stream
+
+    bool m_is_transient = false;  ///< flag to determine if the sensor is transient
+    unsigned int m_num_bins = 1;
 };
 
 /// @}

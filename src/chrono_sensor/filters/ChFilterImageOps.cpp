@@ -16,6 +16,7 @@
 
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 #include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/cuda/image_ops.cuh"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
 
@@ -43,6 +44,7 @@ CH_SENSOR_API void ChFilterImageHalf4ToRGBA8::Initialize(std::shared_ptr<ChSenso
         m_buffer_out->Buffer = std::move(b);
         m_buffer_out->Width = m_buffer_in->Width;
         m_buffer_out->Height = m_buffer_in->Height;
+        std::cout << "imageopes buffer in width: " << m_buffer_in->Width << " height: " << m_buffer_in->Height << std::endl;
         bufferInOut = m_buffer_out;
     } else {
         InvalidFilterGraphBufferTypeMismatch(pSensor);
@@ -167,9 +169,14 @@ CH_SENSOR_API void ChFilterImgAlias::Initialize(std::shared_ptr<ChSensor> pSenso
         // m_cuda_stream = {};
         // m_cuda_stream.hStream = pCam->GetCudaStream();
         // m_cuda_stream.nCudaDeviceId = 0;  // TODO: allow multiple GPU usage
+    } else if (auto pTrans = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
+        m_cuda_stream = pTrans->GetCudaStream();
+        m_is_transient = true;
+        m_num_bins = (unsigned int)pTrans->GetNumBins();
     } else {
         InvalidFilterGraphSensorTypeMismatch(pSensor);
     }
+     
     unsigned int width_out = bufferInOut->Width / m_factor;
     unsigned int height_out = bufferInOut->Height / m_factor;
 
@@ -231,9 +238,21 @@ CH_SENSOR_API void ChFilterImgAlias::Apply() {
     if (m_buffer_rgba8_in) {
         // cuda_image_gauss_blur_char(m_buffer_rgba8_in->Buffer.get(), (int)m_buffer_rgba8_in->Width,
         // (int)m_buffer_rgba8_in->Height, sizeof(PixelRGBA8), m_factor,m_cuda_stream);
-        cuda_image_alias(m_buffer_rgba8_in->Buffer.get(), m_buffer_rgba8_out->Buffer.get(),
-                         (int)m_buffer_rgba8_out->Width, (int)m_buffer_rgba8_out->Height, m_factor, sizeof(PixelRGBA8),
-                         m_cuda_stream);
+        if (m_is_transient) {
+            int w_out = m_buffer_rgba8_out->Width / m_num_bins;
+            int h_out = m_buffer_rgba8_out->Height;
+            int w_in = m_buffer_rgba8_in->Width / m_num_bins;
+            int h_in = m_buffer_rgba8_in->Height;
+            for (int bin = 0; bin < m_num_bins; bin++) {
+                cuda_image_alias(m_buffer_rgba8_in->Buffer.get() + bin * w_in * h_in,
+                                m_buffer_rgba8_out->Buffer.get() + bin * w_out * h_out, w_out, h_out, m_factor,
+                                sizeof(PixelRGBA8), m_cuda_stream);
+            }
+        }else {
+            cuda_image_alias(m_buffer_rgba8_in->Buffer.get(), m_buffer_rgba8_out->Buffer.get(),
+                            (int)m_buffer_rgba8_out->Width, (int)m_buffer_rgba8_out->Height, m_factor, sizeof(PixelRGBA8),
+                            m_cuda_stream);
+        } 
         m_buffer_rgba8_out->LaunchedCount = m_buffer_rgba8_in->LaunchedCount;
         m_buffer_rgba8_out->TimeStamp = m_buffer_rgba8_in->TimeStamp;
 

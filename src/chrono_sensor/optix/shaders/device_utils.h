@@ -88,6 +88,12 @@ __device__ __inline__ PerRayData_depthCamera* getDepthCameraPRD() {
     return reinterpret_cast<PerRayData_depthCamera*>(ints_as_pointer(opt0, opt1));
 }
 
+__device__ __inline__ PerRayData_transientCamera* getTransientCameraPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
+}
+
 
 __device__ __inline__ PerRayData_lidar* getLidarPRD() {
     unsigned int opt0 = optixGetPayload_0();
@@ -117,6 +123,7 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
     prd.albedo = make_float3(0.f, 0.f, 0.f);
     prd.normal = make_float3(0.f, 0.f, 0.f);
     prd.use_fog = true;
+    prd.transparency = 1.f;
     return prd;
 };
 
@@ -124,6 +131,24 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
 __device__ __inline__ PerRayData_depthCamera default_depthCamera_prd() {
     PerRayData_depthCamera prd = {};
     prd.depth = 0.f;
+    return prd;
+};
+
+__device__ __inline__ PerRayData_transientCamera default_transientCamera_prd(int pixel_index) {
+    PerRayData_transientCamera prd = {};
+    prd.color = make_float3(0.f, 0.f, 0.f);
+    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
+    prd.rng = curandState_t();
+    prd.depth = 1;
+    prd.use_gi = false;
+    prd.albedo = make_float3(0.f, 0.f, 0.f);
+    prd.normal = make_float3(0.f, 0.f, 0.f);
+    prd.use_fog = true;
+    prd.transparency = 1.f;
+    prd.current_pixel = pixel_index;
+    prd.depth_reached = 0;
+    prd.path_length = 0.f;
+    //prd.transient_buffer = {0, make_float3(0.f, 0.f, 0.f)};
     return prd;
 };
 

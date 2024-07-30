@@ -39,6 +39,7 @@
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 
 #include <openvdb/openvdb.h>
+#include <filesystem>
 
 using namespace chrono;
 using namespace chrono::sensor;
@@ -63,8 +64,8 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 float update_rate = 30.f;
 
 // Image width and height
-unsigned int image_width = 1;// 1920;
-unsigned int image_height = 1;//780;
+unsigned int image_width = 1920;
+unsigned int image_height = 780;
 
 // Camera's horizontal field of view
 float fov = (float)CH_PI / 3.;
@@ -90,7 +91,7 @@ double step_size = 1e-2;
 float end_time = 200.0f;
 
 // Save camera images
-bool save = false;
+bool save = true;
 
 // Render camera images
 bool vis = true;
@@ -98,7 +99,7 @@ bool vis = true;
 // Output directory
 const std::string out_dir = "SENSOR_OUTPUT/VDB_DUST/";
 openvdb::Vec3d volDims(0);
-
+std::vector<std::shared_ptr<openvdb::FloatGrid>> gridVec;
 std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
     openvdb::initialize();
     openvdb::io::File file(fileName);
@@ -142,6 +143,30 @@ std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
 
     return grid;
 
+}
+
+void processVDBFiles(const std::string& directory) {
+    std::vector<std::string> vdbFiles;
+
+    // Iterate over the directory and collect .vdb files
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".vdb") {
+            vdbFiles.push_back(entry.path().string());
+        }
+    }
+    // Call readVDB on each .vdb file
+    int i = 0;
+    int fromRange = 0;
+    int toRange = fromRange + 2;
+    for (const auto& file : vdbFiles) {
+        if (++i < fromRange)
+            continue;
+        gridVec.push_back(readVDBGrid(file));
+
+       /* if (i >= toRange)
+            break;*/
+        
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -190,14 +215,16 @@ int main(int argc, char* argv[]) {
     sys.Add(ground_body);
 
     // Make VDB Grid
-    std::string vdbGridPath = "D:\\workspace\\SBEL\\Research\\NASA Phase II\\data\\DustImpact\\DustImpactVDB\\dust_impact_0003.vdb";
-    std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
+    std::string vdbGridsDir = "C:\\workspace\\data\\VDBFIles\\DustShockwaveVDB";
+    processVDBFiles(vdbGridsDir);
+    //std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
 
 
 
     //(float)volDims[0], (float)volDims[1], (float)volDims[2]
     std::cout << "Vol Dims: " << (float)volDims[0] << "," << (float)volDims[1] << "," << (float)volDims[2] << std::endl;
-     auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>((float)volDims[0], (float)volDims[1], (float)volDims[2], 1000,true);
+     //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>((float)volDims[0]*10, (float)volDims[1]*10, (float)volDims[2]*10, 1000,true);
+     auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400,400,400, 1000,true);
      vol_bbox->SetPos({0, 0, 0});
      vol_bbox->SetFixed(true);
      sys.Add(vol_bbox);
@@ -215,19 +242,25 @@ int main(int argc, char* argv[]) {
     // -----------------------
     float intensity = 1.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
-    manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500);
-    manager->scene->SetAmbientLight({0.1f, 0.1f, 0.1f});
+    manager->scene->AddPointLight({50, 50, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({100, 50, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({0, 50, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({50, 100, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({50, 0, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->SetAmbientLight({1.f, 1.f, 1.f});
     Background b;
-    b.mode = BackgroundMode::ENVIRONMENT_MAP;
-    b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = ChVector3f(0,0,0);  //0.1f, 0.2f, 0.4f
+   /* b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");*/
     manager->scene->SetBackground(b);
-
     // ------------------------------------------------
     // Create a camera and add it to the sensor manager
     // ------------------------------------------------
     //-800, 0, 50
-    chrono::ChFrame<double> offset_pose1({-80, 1, 1}, QuatFromAngleAxis(0, {0, 1, 0}));
-    auto cam = chrono_types::make_shared<ChCameraSensor>(ground_body,   // body camera is attached to
+    //-50,45,15
+    chrono::ChFrame<double> offset_pose1({50, 50, 180}, QuatFromAngleAxis(90 * (CH_PI / 180), {0, 1, 0}));
+    auto cam = chrono_types::make_shared<ChCameraSensor>(vol_bbox,   // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
                                                          image_width,   // image width
@@ -241,37 +274,39 @@ int main(int argc, char* argv[]) {
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
 
-    // --------------------------------------------------------------------
-    // Create a filter graph for post-processing the images from the camera
-    // --------------------------------------------------------------------
-
-    // Add a noise model filter to the camera sensor
-    switch (noise_model) {
-        case CONST_NORMAL:
-            cam->PushFilter(chrono_types::make_shared<ChFilterCameraNoiseConstNormal>(0.f, .0004f));
-            break;
-        case PIXEL_DEPENDENT:
-            cam->PushFilter(chrono_types::make_shared<ChFilterCameraNoisePixDep>(.0004f, .0004f));
-            break;
-        case NONE:
-            // Don't add any noise models
-            break;
-    }
-
     // Renders the image at current point in the filter graph
     if (vis)
         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Global Illumination"));
 
     if (save)
         // Save the current image to a png file at the specified path
-        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "rgb/"));
+        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "top/"));
 
-
-    // add sensor to the manager
     manager->AddSensor(cam);
 
-    manager->Update();
+     chrono::ChFrame<double> offset_pose2({-50, 50, 50}, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
+    auto cam2 = chrono_types::make_shared<ChCameraSensor>(vol_bbox,      // body camera is attached to
+                                                         update_rate,   // update rate in Hz
+                                                         offset_pose2,  // offset pose
+                                                         image_width,   // image width
+                                                         image_height,  // image height
+                                                         fov,           // camera's horizontal field of view
+                                                         alias_factor,  // super sampling factor
+                                                         lens_model,    // lens model type
+                                                         use_gi, 2.2);
+    cam2->SetName("Camera Sensor");
+    cam2->SetLag(lag);
+    cam2->SetCollectionWindow(exposure_time);
 
+    // Renders the image at current point in the filter graph
+    if (vis)
+        cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Global Illumination"));
+
+    if (save)
+        // Save the current image to a png file at the specified path
+        cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "side/"));
+
+    manager->AddSensor(cam2);
 
     // ---------------
     // Simulate system
@@ -291,16 +326,20 @@ int main(int argc, char* argv[]) {
     int current_step = 0;
     unsigned int render_steps = (unsigned int)round(1 / (update_rate * step_size));
 
-    while (ch_time < end_time) {
+    int currentFrame = 0;
+    while (currentFrame < gridVec.size()) { //ch_time < end_time
         // Rotate the cameras around the mesh at a fixed rate
        /* cam->SetOffsetPose(chrono::ChFrame<double>(
             {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
             QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));*/
 
-         
+         std::cout << "Current Frame: " << currentFrame << std::endl;
         if (current_step % render_steps == 0) {
             //timerNVDB.start();
-            manager->scene->AddVDBGrid(grid);
+            if (currentFrame > 0)
+                gridVec[currentFrame - 1] = nullptr;
+            manager->scene->AddVDBGrid(gridVec[currentFrame]);
+            currentFrame++;
             //timerNVDB.stop();
             //std::cout << "Making VDB Voxel Grid:" << timerNVDB.GetTimeMilliseconds() << "ms" << std::endl;
             //timerNVDB.reset();
@@ -311,7 +350,7 @@ int main(int argc, char* argv[]) {
 
         // Perform step of dynamics
         sys.DoStepDynamics(step_size);
-
+        current_step++;
         // Get the current time of the simulation
         ch_time = (float)sys.GetChTime();
     }
