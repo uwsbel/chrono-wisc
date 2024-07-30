@@ -93,8 +93,12 @@ class CH_SENSOR_API ChFilterOptixRender : public ChFilter {
     std::shared_ptr<OptixShaderBindingTable> m_optix_sbt;
     std::shared_ptr<Record<RaygenParameters>> m_raygen_record;  ///< ray generation record
     float m_time_stamp;                                         ///< time stamp for when the data (render) was launched
+    
+    bool m_is_transient = false;  ///< flag to indicate if the sensor is transient
+    unsigned int m_num_bins = 1;           ///< number of bins for the histogram
 
     friend class ChOptixEngine;  ///< ChOptixEngine is allowed to set and use the private members
+
 };
 
 /// @}

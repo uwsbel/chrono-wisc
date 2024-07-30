@@ -120,6 +120,8 @@ class CH_SENSOR_API ChFilterImgAlias : public ChFilter {
     CUstream m_cuda_stream;                                         ///< reference to the cuda stream
     // NppStreamContext m_cuda_stream;
     int m_factor;  ///< reduction factor for antialiasing
+    bool m_is_transient = false;
+    int m_num_bins = 1;
 };
 
 /// @}

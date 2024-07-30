@@ -54,7 +54,8 @@ enum class PipelineType {
     // SEGMENTATION_FOV_LENS,  ///< FOV lens segmentation camera
     LIDAR_SINGLE,  ///< single sample lidar
     LIDAR_MULTI,   ///< multi sample lidar
-    RADAR          ///< radar model
+    RADAR,         ///< radar model
+    TANSIENT,      ///< transient camera model
 
 };
 // TODO: how do we allow custom ray gen programs? (Is that ever going to be a thing?)
@@ -215,7 +216,11 @@ class CH_SENSOR_API ChOptixPipeline {
     // OptixProgramGroup m_camera_fov_lens_raygen_group = 0;
     OptixProgramGroup m_segmentation_raygen_group = 0;
 
+    OptixProgramGroup m_tranientCamera_raygen_group = 0;
+
     OptixProgramGroup m_depthCamera_raygen_group = 0;
+
+    OptixProgramGroup m_transientCamera_raygen_group = 0;
     
     // OptixProgramGroup m_segmentation_fov_lens_raygen_group = 0;
     OptixProgramGroup m_lidar_single_raygen_group = 0;

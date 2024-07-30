@@ -57,6 +57,39 @@ extern "C" __global__ void __miss__shader() {
 
             break;
         }
+
+        case TRANSIENT_RAY_TYPE: {
+            const CameraMissParameters& camera_miss = miss->camera_miss;
+            PerRayData_transientCamera* prd = getTransientCameraPRD();
+
+            if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
+                // evironment map assumes z up
+                float3 ray_dir = optixGetWorldRayDirection();
+                float theta = atan2f(ray_dir.x, ray_dir.y);
+                float phi = asinf(ray_dir.z);
+                float tex_x = theta / (2 * CUDART_PI_F);
+                float tex_y = phi / CUDART_PI_F + 0.5;
+                float4 tex = tex2D<float4>(camera_miss.env_map, tex_x, tex_y);
+                // Gamma Correction
+                prd->color = Pow(make_float3(tex.x, tex.y, tex.z), 2.2) * prd->contrib_to_pixel;
+            } else if (camera_miss.mode == BackgroundMode::GRADIENT) {  // gradient
+                // gradient assumes z=up
+                float3 ray_dir = optixGetWorldRayDirection();
+                float mix = max(0.f, ray_dir.z);
+                prd->color =
+                    (mix * camera_miss.color_zenith + (1 - mix) * camera_miss.color_horizon) * prd->contrib_to_pixel;
+            } else {  // default to solid color
+                prd->color = camera_miss.color_zenith * prd->contrib_to_pixel;
+            }
+
+            // apply fog model
+            if (prd->use_fog && params.fog_scattering > 0.f) {
+                float blend_alpha = expf(-params.fog_scattering * optixGetRayTmax());
+                prd->color = blend_alpha * prd->color + (1 - blend_alpha) * params.fog_color * prd->contrib_to_pixel;
+            }
+            prd->depth_reached = prd->depth;
+            break;
+        }
         case LIDAR_RAY_TYPE: {
             // leave as default values
             break;
