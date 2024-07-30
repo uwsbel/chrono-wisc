@@ -83,7 +83,7 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         float dist_far = fminf(far);
 
         
-        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x,ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z);
+        //printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x,ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z);
         // check if near is less than far
         if (dist_near <= dist_far) {
             float3 p = make_float3(0);
@@ -146,11 +146,9 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         using Vec3T = nanovdb::Vec3f;
         using BuildT = float;
 
-        
-        // convert to nanovdb types
-        const Vec3T ray_orig_v(ray_orig.x*61, ray_orig.y*58, ray_orig.z*14);
-        const Vec3T ray_dir_v(ray_dir.x*61, ray_dir.y*58, ray_dir.z*14);
-
+      
+        /*const Vec3T ray_orig_v(ray_orig.x, ray_orig.y, ray_orig.z);
+        const Vec3T ray_dir_v(ray_dir.x, ray_dir.y, ray_dir.z);*/
         // nanovdb::NanoGrid<nanovdb::Point>* grid = params.handle_ptr;
         nanovdb::NanoGrid<BuildT>* grid = params.handle_ptr;
 
@@ -158,9 +156,17 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
 
         nanovdb::DefaultReadAccessor<BuildT> acc = grid->tree().getAccessor();
         // nanovdb::PointAccessor<Vec3T, BuildT> pacc(*grid);
+        float wBBoxDimX = 400.f;//(float)grid->worldBBox().dim()[0]*10;
+        float wBBoxDimY = 400.f;//(float)grid->worldBBox().dim()[1]*10;
+        float wBBoxDimZ = 400.f;//(float)grid->worldBBox().dim()[2]*10;
+
+         // convert to nanovdb types
+        const Vec3T ray_orig_v(ray_orig.x * wBBoxDimX, ray_orig.y * wBBoxDimY, ray_orig.z * wBBoxDimZ);
+        const Vec3T ray_dir_v(ray_dir.x * wBBoxDimX, ray_dir.y * wBBoxDimY, ray_dir.z * wBBoxDimZ);
+
 
         // nanovdb::DefaultReadAccessor<BuildT>::ValueType v1;
-        float wBBoxDimZ = (float)grid->worldBBox().dim()[2] * 2;
+    
         nanovdb::Vec3d wMax = grid->indexToWorld(grid->worldBBox().max());
         nanovdb::Vec3d wMin = grid->indexToWorld(grid->worldBBox().min());
         nanovdb::Coord wMinCoord(static_cast<int32_t>(wMin[0]), static_cast<int32_t>(wMin[1]), static_cast<int32_t>(wMin[2]));
@@ -171,14 +177,12 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         
         //printf("wMax: %f %f %f | wMin: %f %f %f\n",wMax[0], wMax[1], wMax[2], wMin[0], wMin[1], wMin[2]);
         //printf("wMaxCoord: %f %f %f | wMinCoord: %f %f %f\n", wMaxCoord[0], wMaxCoord[1], wMaxCoord[2], wMinCoord[0],wMinCoord[1], wMinCoord[2]);
-        nanovdb::CoordBBox IdxBBox(nanovdb::Coord(-43, -32, -15), nanovdb::Coord(43, 33, 17));
+        //nanovdb::CoordBBox IdxBBox(nanovdb::Coord(-43, -32, -15), nanovdb::Coord(43, 33, 17));
         //printf("IdxBBox: min:(%d,%d,%d)| max:(%d,%d,%d)\n", IdxBBox.min()[0], IdxBBox.min()[1], IdxBBox.min()[2], IdxBBox.max()[0],IdxBBox.max()[1], IdxBBox.max()[2]);
         // Get ray origin in grid space
         const Vec3T eye = grid->worldToIndex(ray_orig_v);
         const Vec3T dir = grid->worldToIndex(ray_dir_v);
-
-        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: (%f,%f,%f) \n", ray_orig.x,
-               ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);
+        
 
         // check if ray intersects grid
         nanovdb::Ray<float> iRay(eye, dir, ray_tmin, ray_tmax);
@@ -186,14 +190,36 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         nanovdb::Coord ijk;
         nanovdb::DefaultReadAccessor<BuildT>::ValueType v;
 
+       
+  
+
         // Implement ZeroCrossing for PointType
         float3 shading_normal = make_float3(0.f, 0.f, 1.f);
         float2 texcoord = make_float2(0.f, 0.f);
         float3 tangent_vector = make_float3(0.f, 0.f, 0.f);
        
         nanovdb::BoxStencil<nanovdb::FloatGrid> stencil(*grid);
-        if (iRay.clip(acc.root().bbox()) && iRay.t1() > 1e20)  //! ray.clip(acc.root().bbox())
-            printf("Intersecting BBox!\n");
+        bool hitting = iRay.clip(acc.root().bbox());
+        if (hitting && iRay.t1() < 1e20) {
+            nanovdb::Vec3f rayStart = iRay.start();
+            nanovdb::Vec3f rayDir = iRay.dir();
+            /*printf("VolIS: rayStart: %f,%f,%f, rayDir: %f,%f,%f\n", rayStart[0], rayStart[1], rayStart[2], rayDir[0],
+                   rayDir[1], rayDir[2]);*/
+            float t0 = iRay.t0();
+            float wT0 = t0*float(grid->voxelSize()[0]);
+            //nanovdb::Coord ijk = nanovdb::RoundDown<nanovdb::Coord>(iRay.start());
+            optixReportIntersection(
+                    t0, 0, reinterpret_cast<unsigned int&>(shading_normal.x), reinterpret_cast<unsigned
+                int&>(shading_normal.y), reinterpret_cast<unsigned int&>(shading_normal.z),
+                reinterpret_cast<unsigned int&>(texcoord.x), reinterpret_cast<unsigned int&>(texcoord.y),
+                reinterpret_cast<unsigned int&>(tangent_vector.x), reinterpret_cast<unsigned
+                int&>(tangent_vector.y), reinterpret_cast<unsigned int&>(tangent_vector.z));
+    /*printf(
+                "Hit: %d, t1: %f | NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: "
+                "(%f,%f,%f)\n",
+                hitting, iRay.t1(), ray_orig_v[0], ray_orig_v[1], ray_orig_v[2], ray_dir_v[0], ray_dir_v[1],
+                ray_dir_v[2], eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);*/
+        }
         //if (ZeroCrossingPoint(iRay, acc, ijk, v, t0, IdxBBox)) {
         //    float wT0 = t0 * float(grid->voxelSize()[0]);
         //    //printf("ijk: %d %d %d, v: %f, wT0: %f\n", ijk[0], ijk[1], ijk[2], v, wT0);

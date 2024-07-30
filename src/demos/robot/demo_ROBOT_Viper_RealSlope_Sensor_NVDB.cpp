@@ -43,16 +43,11 @@
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 #include "chrono_sensor/optix/ChNVDBVolume.h"
 
-
-
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/LevelSetUtil.h>
 #include <openvdb/tools/ParticlesToLevelSet.h>
 #include <openvdb/points/PointConversion.h>
 #include <openvdb/points/PointCount.h>
-
-
-
 
 // Chrono namespaces
 using namespace chrono;
@@ -112,7 +107,7 @@ std::shared_ptr<Viper> rover;
 // Pointer to store the VIPER driver
 std::shared_ptr<ViperSpeedDriver> driver;
 
-//std::shared_ptr<ChBodyAuxRef> rock_Body;
+// std::shared_ptr<ChBodyAuxRef> rock_Body;
 int rock_id = -1;
 
 // Sensor params
@@ -130,8 +125,8 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 // Update rate in Hz
 float update_rate = 30;
 // Image width and height
-unsigned int image_width = 1280;
-unsigned int image_height = 720;
+unsigned int image_width = 1;   // 1280;
+unsigned int image_height = 1;  // 720;
 // 720;
 // Camera's horizontal field of view
 float fov = (float)CH_PI / 2.;
@@ -154,9 +149,7 @@ const std::string sensor_out_dir = "SENSOR_OUTPUT/";
 bool use_gi = false;
 
 // NANO VDB
-//nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> nvdb_handle;
-
-
+// nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> nvdb_handle;
 
 std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_method) {
     float mu = 0.4f;   // coefficient of friction
@@ -191,7 +184,6 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
             return std::shared_ptr<ChContactMaterial>();
     }
 }
-   
 
 // Forward declaration of helper functions
 void SaveParaViewFiles(ChSystemFsi& sysFSI, ChSystemNSC& sysMBS, double mTime);
@@ -203,8 +195,53 @@ std::vector<int> idList;
 int prevActiveVoxels = 0;
 
 // forward declarations
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys);
+void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene);
 std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts);
+
+openvdb::Vec3d volDims(0);
+std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
+    openvdb::initialize();
+    openvdb::io::File file(fileName);
+    // Open the file.  This reads the file header, but not any grids.
+    openvdb::GridBase::Ptr baseGrid;
+    file.open();
+    baseGrid = file.readGrid("density");
+
+    openvdb::FloatGrid::Ptr grid = openvdb::gridPtrCast<openvdb::FloatGrid>(baseGrid);
+    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(0.1);
+    grid->setTransform(linearTransform);
+    // Print Grid information
+    openvdb::Vec3d minBBox = grid->evalActiveVoxelBoundingBox().min().asVec3d();
+    openvdb::Vec3d maxBBox = grid->evalActiveVoxelBoundingBox().max().asVec3d();
+
+    openvdb::Vec3d minBBoxWS = grid->indexToWorld(minBBox);
+    openvdb::Vec3d maxBBoxWS = grid->indexToWorld(maxBBox);
+
+    volDims = openvdb::Vec3d(maxBBoxWS[0] - minBBoxWS[0], maxBBoxWS[1] - minBBoxWS[1], maxBBoxWS[2] - minBBoxWS[2]);
+    int activeVoxels = grid->activeVoxelCount();
+
+    // Save Grid
+    openvdb::io::File("dustGrid.vdb").write({grid});
+    std::cout << "VDB Grid Written\n" << std::endl;
+
+    // Print Grid information
+    printf("############### VDB POINT GRID INFORMATION ################\n");
+    printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
+    printf("Grid Class: %d\n", grid->getGridClass());
+    printf("Grid Type: %s\n", grid->gridType().c_str());
+    printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
+    printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
+    printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
+    printf("Active Voxels: %d\n", grid->activeVoxelCount());
+    printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
+    printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
+    printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
+    printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
+    printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
+    printf("############### END #############\n");
+
+    return grid;
+}
 
 int main(int argc, char* argv[]) {
     // The path to the Chrono data directory
@@ -252,14 +289,14 @@ int main(int argc, char* argv[]) {
 
     sysFSI.ReadParametersFromFile(inputJson);
 
-    double gravity_G = sysFSI.GetGravitationalAcceleration().z(); // Is g already set?
+    double gravity_G = sysFSI.GetGravitationalAcceleration().z();  // Is g already set?
     ChVector3d gravity = ChVector3d(gravity_G * sin(slope_angle), 0, gravity_G * cos(slope_angle));
     sysMBS.SetGravitationalAcceleration(gravity);
     sysFSI.SetGravitationalAcceleration(gravity);
-  
+
     // Get the simulation stepsize
     dT = sysFSI.GetStepSize();
-    
+
     // Get the initial particle spacing
     iniSpacing = sysFSI.GetInitialSpacing();
 
@@ -329,7 +366,7 @@ int main(int argc, char* argv[]) {
     sysFSI.Initialize();
     float* h_points = sysFSI.GetParticleData();
     int n_pts = sysFSI.GetNumFluidMarkers();
-    
+
     //
     // SENSOR SIMULATION BEGIN
     //
@@ -354,24 +391,27 @@ int main(int argc, char* argv[]) {
     vis_mat->SetInstanceID(20000);
 
     float scal = 10.f;
-    //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(6.f, 4.f,.2f, 1000,
-    //                                                        true);  
-    //vol_bbox->SetPos({0, 0, 0});                                   
-    //vol_bbox->SetFixed(true);
-    //sysMBS.Add(vol_bbox);
-    //{
-    //    auto shape = vol_bbox->GetVisualModel()->GetShapes()[0].first;
-    //    if (shape->GetNumMaterials() == 0) {
-    //        shape->AddMaterial(vis_mat);
-    //    } else {
-    //        shape->GetMaterials()[0] = vis_mat;
-    //    }
-    //}
+    auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(6.f, 4.f, .2f, 1000, true);
+    vol_bbox->SetPos({0, 0, 0});
+    vol_bbox->SetFixed(true);
+    sysMBS.Add(vol_bbox);
+    {
+        auto shape = vol_bbox->GetVisualModel()->GetShapes()[0].first;
+        if (shape->GetNumMaterials() == 0) {
+            shape->AddMaterial(vis_mat);
+        } else {
+            shape->GetMaterials()[0] = vis_mat;
+        }
+    }
 
-    //auto box = chrono_types::make_shared<ChBodyEasyBox>(6,4,0.2, 1000, true, false);
-    //box->SetPos({0, 0, 0});
-    //box->SetFixed(true);
-    //sysMBS.Add(box);
+    // Make VDB dust Grid
+    std::string vdbGridPath = "C:\\workspace\\data\\VDBFIles\\DustImpactVDB\\dust_impact_0010.vdb";
+    std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
+
+    // auto box = chrono_types::make_shared<ChBodyEasyBox>(6,4,0.2, 1000, true, false);
+    // box->SetPos({0, 0, 0});
+    // box->SetFixed(true);
+    // sysMBS.Add(box);
     //{
     //    auto shape = box->GetVisualModel()->GetShapes()[0].first;
     //    if (shape->GetNumMaterials() == 0) {
@@ -397,12 +437,12 @@ int main(int argc, char* argv[]) {
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
 
-    //manager->scene->SetFSIParticles(h_points);
-    //manager->scene->SetFSINumFSIParticles(n_pts);
-
+    // manager->scene->SetFSIParticles(h_points);
+    // manager->scene->SetFSINumFSIParticles(n_pts);
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
-    chrono::ChFrame<double> offset_pose1({0,5,1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+    chrono::ChFrame<double> offset_pose1(
+        {0, 5, 1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -419,7 +459,8 @@ int main(int argc, char* argv[]) {
         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Third Person Camera"));
 
     if (save)
-        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "CRM_DEMO_THIRD_PERSON_VIEW_RealSlope/"));
+        cam->PushFilter(
+            chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "CRM_DEMO_THIRD_PERSON_VIEW_RealSlope/"));
     manager->AddSensor(cam);
 
     chrono::ChFrame<double> offset_pose2({-0.f, -1.7, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75}));
@@ -486,17 +527,16 @@ int main(int argc, char* argv[]) {
 
     // Add NanoVDB particles
 
-
     //
     //  SENSOR SIMULATION END
-    // 
+    //
 
     // Write position and velocity to file
     std::ofstream ofile;
     if (output)
         ofile.open(out_dir + "./body_position.txt");
 
-    // Create a run-tme visualizer
+        // Create a run-tme visualizer
 #ifndef CHRONO_OPENGL
     if (vis_type == ChVisualSystem::Type::OpenGL)
         vis_type = ChVisualSystem::Type::VSG;
@@ -548,25 +588,27 @@ int main(int argc, char* argv[]) {
     float addNVDBTime = 0.0f;
     std::vector<openvdb::Vec3R> vdbBuffer;
     while (time < total_time) {
-        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << time/timer() <<  std::endl;
+        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << timer() / time
+                  << std::endl;
         auto rock_body = sysMBS.GetBodies()[rock_id];
-        //std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " << rock_body->GetPos().y() << ", " << rock_body->GetPos().z() << ") "<< std::endl;
+        // std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " << rock_body->GetPos().y()
+        // << ", " << rock_body->GetPos().z() << ") "<< std::endl;
         if (rock_body->GetPos().z() < 0.31f)
             rock_body->SetFixed(true);
-        
-        if (current_step % render_steps == 0) {
-           /* timerNVDB.start();
-            createNanoVDBGrid(sysMBS, sysFSI, vol_bbox->GetId());
-            timerNVDB.stop();
-            std::cout << "Adding NVDB points:" << timerNVDB.GetTimeMilliseconds() << "ms" << std::endl;
-            timerNVDB.reset();*/
-           h_points = sysFSI.GetParticleData();
-           n_pts = sysFSI.GetNumFluidMarkers();
 
-           vdbBuffer = floatToVec3R(h_points, n_pts);
-           createVoxelGrid(vdbBuffer, sysMBS);
-           manager->scene->SetFSIParticles(h_points); // remove these later
-           manager->scene->SetFSINumFSIParticles(n_pts);
+        if (current_step % render_steps == 0) {
+            timerNVDB.start();
+            h_points = sysFSI.GetParticleData();
+            n_pts = sysFSI.GetNumFluidMarkers();
+
+            // vdbBuffer = floatToVec3R(h_points, n_pts);
+            // createVoxelGrid(vdbBuffer, sysMBS, manager->scene);
+            timerNVDB.stop();
+            std::cout << "Making VDB Voxel Grid:" << timerNVDB.GetTimeMilliseconds() << "ms" << std::endl;
+            timerNVDB.reset();
+            manager->scene->AddVDBGrid(grid);
+            // manager->scene->SetFSIParticles(h_points); // remove these later
+            // manager->scene->SetFSINumFSIParticles(n_pts);
         }
         manager->Update();
 
@@ -603,7 +645,6 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-
 std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts) {
     std::vector<openvdb::Vec3R> vec3RBuffer;
     for (size_t i = 0; i < npts; i++) {
@@ -612,7 +653,7 @@ std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts) {
     return vec3RBuffer;
 }
 
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
+void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
     std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
     openvdb::initialize();
     openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
@@ -677,6 +718,7 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
     int numAdds = 0;
     int numUpdates = 0;
+    std::cout << "Adding Voxels" << std::endl;
     for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
         for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
             // const float value = iter.getValue();
@@ -693,7 +735,8 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                    sys.GetBodies().size() << std::endl;*/
                 numUpdates++;
                 // std::cout << voxelCount << "," << idList.size() << std::endl;
-                auto voxelBody = sys.GetBodies()[idList[voxelCount]];
+                // auto voxelBody = sys.GetBodies()[idList[voxelCount]];
+                auto voxelBody = scene->GetSprites()[idList[voxelCount]];
                 voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
             }
             // Create a sphere for each point
@@ -706,7 +749,9 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                 // auto voxelBody = chrono_types::make_shared<ChBodyEasyBox>(r, r, r, 1000, true, false);
                 voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
                 voxelBody->SetFixed(true);
-                sys.Add(voxelBody);
+                // sys.Add(voxelBody);
+                int index = scene->GetSprites().size();
+                scene->AddSprite(voxelBody);
                 {
                     auto shape = voxelBody->GetVisualModel()->GetShapes()[0].first;
                     if (shape->GetNumMaterials() == 0) {
@@ -716,10 +761,15 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys) {
                     }
                 }
 
+                /*    auto voxelBody = chrono_types::make_shared<ChPhysicsItem>();
+                    auto vshape = chrono_types::make_shared<ChVisualShapeSphere>(r);
+                    voxelBody->AddVisualShape(vshape);*/
+
                 /* if (voxelCount > 500000)
                      std::cout << "BodyList: "<< sys.GetBodies().size() <<  " Adding Sphere " << sphere->GetIndex() <<
                    std::endl;*/
-                idList.emplace_back(voxelBody->GetIndex());
+                idList.emplace_back(index);
+                // idList.emplace_back(voxelBody->GetIndex());
             }
             voxelCount++;
         }
@@ -747,11 +797,9 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
     rover->SetDriver(driver);
     rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
-    
 
     rover->Initialize(ChFrame<>(init_loc, QUNIT));
 
-  
     // // Create the wheel's BCE particles
     // auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
     // double scale_ratio = 1.0;
@@ -770,7 +818,6 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         ChVector3d part_inertia = viper_part->GetInertiaXX();
         viper_part->SetMass(part_mass * mass_scale);
         viper_part->SetInertiaXX(part_inertia * mass_scale);
-        
     }
 
     // Add BCE particles and mesh of wheels to the system
@@ -799,7 +846,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         sysFSI.AddWheelBCE_Grouser(wheel_body, ChFrame<>(), inner_radius, wheel_wide - iniSpacing, grouser_height,
                                    grouser_wide, grouser_num, kernelLength, false);
 
-        //wheel_body->GetCollisionModel()->AddCylinder();
+        // wheel_body->GetCollisionModel()->AddCylinder();
     }
 
     {
@@ -811,11 +858,12 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         chassis->SetFixed(false);
 
         // Add geometry of the chassis.
-        //chassis->GetCollisionModel()->Clear();
+        // chassis->GetCollisionModel()->Clear();
         chrono::utils::AddBoxGeometry(chassis.get(), CustomWheelMaterial(ChContactMethod::NSC),
-                                      ChVector3d(0.1, 0.1, 0.1), ChVector3d(0, 0, 0), ChQuaternion<>(1,0,0,0), false);
-        //chassis->GetCollisionModel()->BuildModel();
-        
+                                      ChVector3d(0.1, 0.1, 0.1), ChVector3d(0, 0, 0), ChQuaternion<>(1, 0, 0, 0),
+                                      false);
+        // chassis->GetCollisionModel()->BuildModel();
+
         sysMBS.AddBody(chassis);
 
         // // Create the axle
@@ -843,7 +891,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         // actuator->SetName("actuator");
         // actuator->SetDistanceOffset(1);
         // actuator->SetActuatorFunction(actuator_fun);
-        //sysMBS.AddLink(actuator);
+        // sysMBS.AddLink(actuator);
 
         // Connect the axle to the chassis through a vertical translational joint.
         auto prismatic2 = chrono_types::make_shared<ChLinkLockPrismatic>();
@@ -857,7 +905,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         // auto rover_body = rover->GetChassis()->GetBody();
         // lock_link->SetName("rover_axle_lock");
         // lock_link->Initialize(axle, rover_body, ChCoordsys<>(chassis->GetPos(), QUNIT));
-        //sysMBS.AddLink(lock_link);
+        // sysMBS.AddLink(lock_link);
         for (auto body : sysMBS.GetBodies()) {
             if (body->GetVisualModel()) {
                 for (auto& shape_instance : body->GetVisualModel()->GetShapes()) {
@@ -877,10 +925,11 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             vis_mat2->SetUseHapke(false);
 
             std::string rock_obj_path = GetChronoDataFile("robot/curiosity/rocks/rock3.obj");
-            ChVector3d rock_pos = ChVector3d(-.4,-.625, 0.5);
+            ChVector3d rock_pos = ChVector3d(-.4, -.625, 0.5);
 
-             std::shared_ptr<ChContactMaterial> rockSufaceMaterial = ChContactMaterial::DefaultMaterial(sysMBS.GetContactMethod());
-            
+            std::shared_ptr<ChContactMaterial> rockSufaceMaterial =
+                ChContactMaterial::DefaultMaterial(sysMBS.GetContactMethod());
+
             double scale_ratio = .5;
             auto rock_mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(rock_obj_path, false, true);
             rock_mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
@@ -910,9 +959,9 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
 
             rock_Body->SetFixed(false);
 
-
-            //rock_Body->GetCollisionModel()->Clear();
-            auto rock1_ct_shape = chrono_types::make_shared<ChCollisionShapeTriangleMesh>(rockSufaceMaterial, rock_mmesh, false, false, 0.005);
+            // rock_Body->GetCollisionModel()->Clear();
+            auto rock1_ct_shape = chrono_types::make_shared<ChCollisionShapeTriangleMesh>(
+                rockSufaceMaterial, rock_mmesh, false, false, 0.005);
             rock_Body->EnableCollision(true);
 
             std::vector<ChVector3d> BCE_Rock;
@@ -920,7 +969,6 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             sysFSI.CreateMeshPoints(*rock_mmesh, initSpace0, BCE_Rock);
             sysFSI.AddFsiBody(rock_Body);
             sysFSI.AddPointsBCE(rock_Body, BCE_Rock, ChFrame<>(mcog, QUNIT), true);
-
 
             auto rock_mesh = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
             rock_mesh->SetMesh(rock_mmesh);
@@ -934,11 +982,8 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
             }
             rock_Body->AddVisualShape(rock_mesh);
             rock_id = rock_Body->GetIndex();
-
         }
     }
-
-
 }
 
 //------------------------------------------------------------------

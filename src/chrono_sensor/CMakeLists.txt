@@ -349,6 +349,7 @@ set(ChronoEngine_sensor_SENSORS_SOURCES
     sensors/ChGPSSensor.cpp
     sensors/ChTachometerSensor.cpp
     sensors/Sensor.cpp
+    sensors/ChTransientSensor.cpp
 )
 
 set(ChronoEngine_sensor_SENSORS_HEADERS
@@ -365,6 +366,7 @@ set(ChronoEngine_sensor_SENSORS_HEADERS
     sensors/ChTachometerSensor.h
   	sensors/ChSensorBuffer.h
     sensors/Sensor.h
+    sensors/ChTransientSensor.h
 )
 
 source_group("Source" FILES

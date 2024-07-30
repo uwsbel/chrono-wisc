@@ -51,6 +51,7 @@ enum RayType {
     RADAR_RAY_TYPE = 3,        /// radar rays
     SEGMENTATION_RAY_TYPE = 4, /// semantic camera rays 
     DEPTH_RAY_TYPE = 5,        /// depth camera rays
+    TRANSIENT_RAY_TYPE = 6,
 };
 
 /// The type of lens model that camera can use for rendering
@@ -133,6 +134,34 @@ struct CameraParameters {
     curandState_t* rng_buffer;  ///< The random number generator object. Only initialized if using global illumination
 };
 
+struct TransientSample {
+    float pathlength;
+    float3 color;
+};
+
+struct TransientSampleNode {
+    TransientSample sample;
+    TransientSample* next;
+};
+struct TransientCameraParameters {
+    float hFOV;                        ///< horizontal field of view
+    CameraLensModelType lens_model;    ///< lens model to use
+    LensParams lens_parameters;        ///< lens fitting parameters (if applicable)
+    unsigned int super_sample_factor;  ///< number of samples per pixel in each dimension
+    float gamma;                       ///< camera's gamma value
+    bool use_gi;                       ///< whether to use global illumination
+    bool use_fog;                      ///< whether to use the scene fog model
+    half4* frame_buffer;               ///< buffer of camera pixels
+    half4* albedo_buffer;  ///< the material color of the first hit. Only initialized if using global illumination
+    half4* normal_buffer;  ///< The screen-space normal of the first hit. Only initialized if using global illumination
+                           ///< (screenspace normal)
+    curandState_t* rng_buffer;  ///< The random number generator object. Only initialized if using global illumination
+    float tmin;
+    float tmax;
+    float tbins;
+};
+
+
 // Parameters for specifying a depth camera
 struct DepthCameraParameters {
     float hFOV;                      ///< horizontal field of view
@@ -203,6 +232,7 @@ struct RaygenParameters {
         LidarParameters lidar;                  ///< the specific data when modeling a lidar
         RadarParameters radar;                  ///< the specific data when modeling a radar
         DepthCameraParameters depthCamera;      /// < the specific data when modeling a depth camera
+        TransientCameraParameters transientCamera; /// < the specific data when modeling a transient camera
     } specific;                                 ///< the data for the specific sensor
 };
 
@@ -278,6 +308,7 @@ struct ContextParameters {
     MaterialParameters* material_pool;  ///< device pointer to list of materials to use for shading
     MeshParameters* mesh_pool;          ///< device pointer to list of meshes for instancing
     
+    TransientSample* transient_buffer; 
     #ifdef USE_SENSOR_NVDB
     //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>* handle_ptr; // NanoVDB grid handle
     //nanovdb::NanoGrid<float>* handle_ptr;
@@ -308,6 +339,23 @@ struct PerRayData_camera {
     float3 albedo;            ///< the albed of the first hit
     float3 normal;            ///< the global normal of the first hit
     bool use_fog;             ///< whether to use fog on this prd
+    float transparency;      ///< the transparency of the pixel
+};
+
+struct PerRayData_transientCamera {
+    float3 color;             ///< color packed on the ray
+    float3 contrib_to_pixel;  ///< the current contribution to the pixel
+    curandState_t rng;        ///< a random number generator. Only valid if use_gi is true
+    int depth;                ///< the current depth of the ray
+    bool use_gi;              ///< whether global illumination is on
+    float3 albedo;            ///< the albed of the first hit
+    float3 normal;            ///< the global normal of the first hit
+    bool use_fog;             ///< whether to use fog on this prd
+    float transparency;      ///< the transparency of the pixel
+    int current_pixel; // the current pixel index
+    int depth_reached;
+    float path_length;
+    //TransientSample* transient_buffer; // TODO: Keep it as as a single sample for now, later we can change it to a buffer
 };
 
 struct PerRayData_depthCamera {

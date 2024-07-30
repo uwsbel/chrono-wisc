@@ -31,6 +31,7 @@ if(ENABLE_MODULE_SENSOR AND ENABLE_MODULE_IRRLICHT)
       demo_ROBOT_Viper_SPH_Lunar_noGVDB
       demo_ROBOT_Viper_RealSlope_Sensor_NVDB
       demo_ROBOT_nvdb
+      demo_ROBOT_Viper_dust
   )
 endif()
 
