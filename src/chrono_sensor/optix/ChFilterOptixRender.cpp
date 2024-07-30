@@ -37,7 +37,7 @@ ChFilterOptixRender::ChFilterOptixRender() : ChFilter("OptixRenderer") {}
 ChFilterOptixRender::~ChFilterOptixRender() {}
 
 CH_SENSOR_API void ChFilterOptixRender::Apply() {
-    // std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
     auto pOptixSensor = m_optixSensor.lock();
     m_bufferOut->LaunchedCount = pOptixSensor->GetNumLaunches();
@@ -59,12 +59,12 @@ CH_SENSOR_API void ChFilterOptixRender::Apply() {
     }
 
     // below is only needed when timing the ray tracing operation
-    // cudaStreamSynchronize(
-    //     m_cuda_stream);  // TODO: let the stream by synchronized by the optix engine at the end of
-    // //                                       // processing, or by filters that require synchronization
-    // std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    // std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
+     cudaStreamSynchronize(
+         m_cuda_stream);  // TODO: let the stream by synchronized by the optix engine at the end of
+     //                                       // processing, or by filters that require synchronization
+     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+     std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+     std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
 }
 
 CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSensor,

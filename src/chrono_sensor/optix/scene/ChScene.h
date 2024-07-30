@@ -158,9 +158,11 @@ class CH_SENSOR_API ChScene {
     float GetSceneEpsilon() { return m_scene_epsilon; }
 
     void AddSprite(std::shared_ptr<ChBody> sprite);
+    void SetSprites(std::vector<std::shared_ptr<ChBody>> sprites) {m_sprites = sprites;}
 
-    std::shared_ptr<ChBody> GetSprites(int i) { return m_sprites[i]; }
+    std::shared_ptr<ChBody> GetSprite(int i) { return m_sprites[i]; }
     std::vector<std::shared_ptr<ChBody>> GetSprites() { return m_sprites; }
+
 
     #ifdef USE_SENSOR_NVDB
     /// @brief  Allows passing in Chrono::FSI SPH markers to the scene, to be used for rendering SPH simulations. Note: Must also add a ChNVDBVolume body to the scene as well.

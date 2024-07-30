@@ -117,7 +117,7 @@ extern "C" __global__ void __raygen__camera() {
     unsigned int opt2;
     pointer_as_ints(&prd, opt1, opt2);
     unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
-    printf("CameraRayGen: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_origin.x,ray_origin.y,ray_origin.z, ray_direction.x, ray_direction.y, ray_direction.z);
+    //printf("CameraRayGen: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_origin.x,ray_origin.y,ray_origin.z, ray_direction.x, ray_direction.y, ray_direction.z);
     optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse, OptixVisibilityMask(1),
                OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 

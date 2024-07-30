@@ -121,24 +121,24 @@ std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
     int activeVoxels = grid->activeVoxelCount();
 
     // Save Grid
-    openvdb::io::File("dustGrid.vdb").write({ grid });
-    std::cout << "VDB Grid Written\n" << std::endl;
+    //openvdb::io::File("dustGrid.vdb").write({ grid });
+    //std::cout << "VDB Grid Written\n" << std::endl;
 
     // Print Grid information
-    printf("############### VDB POINT GRID INFORMATION ################\n");
-    printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
-    printf("Grid Class: %d\n", grid->getGridClass());
-    printf("Grid Type: %s\n", grid->gridType().c_str());
-    printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
-    printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
-    printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
-    printf("Active Voxels: %d\n", grid->activeVoxelCount());
-    printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
-    printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
-    printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
-    printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
-    printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
-    printf("############### END #############\n");
+    //printf("############### VDB POINT GRID INFORMATION ################\n");
+    //printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
+    //printf("Grid Class: %d\n", grid->getGridClass());
+    //printf("Grid Type: %s\n", grid->gridType().c_str());
+    //printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
+    //printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
+    //printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
+    //printf("Active Voxels: %d\n", grid->activeVoxelCount());
+    //printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
+    //printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
+    //printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
+    //printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
+    //printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
+    //printf("############### END #############\n");
 
     return grid;
 
@@ -190,8 +190,9 @@ int main(int argc, char* argv[]) {
     sys.Add(ground_body);
 
     // Make VDB Grid
-    std::string vdbGridPath = "C:\\workspace\\data\\VDBFIles\\DustImpactVDB\\dust_impact_0010.vdb";
+    std::string vdbGridPath = "D:\\workspace\\SBEL\\Research\\NASA Phase II\\data\\DustImpact\\DustImpactVDB\\dust_impact_0003.vdb";
     std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
+
 
 
     //(float)volDims[0], (float)volDims[1], (float)volDims[2]

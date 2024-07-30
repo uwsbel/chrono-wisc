@@ -1156,8 +1156,7 @@ extern "C" __global__ void __closesthit__material_shader() {
     const float3 ray_dir = normalize(optixGetWorldRayDirection());  // this may be modified by the scaling transform
     const float ray_dist = optixGetRayTmax();
 
-   printf("NVDBVolShader: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y,
-           ray_dir.z);
+    //printf("NVDBVolShader: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y,ray_dir.z);
     float3 object_normal;
     float2 uv;
     float3 tangent;

@@ -83,7 +83,7 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         float dist_far = fminf(far);
 
         
-        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x,ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z);
+        //printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x,ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z);
         // check if near is less than far
         if (dist_near <= dist_far) {
             float3 p = make_float3(0);
@@ -177,8 +177,8 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
         const Vec3T eye = grid->worldToIndex(ray_orig_v);
         const Vec3T dir = grid->worldToIndex(ray_dir_v);
 
-        printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: (%f,%f,%f) \n", ray_orig.x,
-               ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);
+        /*printf("NVDBVolIS: orig: (%f,%f,%f), dir:(%f,%f,%f), IdxEye:(%f,%f,%f), IdxDir: (%f,%f,%f) \n", ray_orig.x,
+               ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, eye[0], eye[1], eye[2], dir[0], dir[1], dir[2]);*/
 
         // check if ray intersects grid
         nanovdb::Ray<float> iRay(eye, dir, ray_tmin, ray_tmax);

@@ -298,10 +298,26 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> createNanoVDBGridHandle(void* h_p
 
 
 nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<openvdb::FloatGrid> openVDBgrid) {
-    auto handle = nanovdb::createNanoGrid<openvdb::FloatGrid, float, nanovdb::CudaDeviceBuffer>(*openVDBgrid);
-
+    printf("############### VDB POINT GRID INFORMATION ################\n");
+    printf("Voxel Size: %f %f %f\n", openVDBgrid->voxelSize()[0], openVDBgrid->voxelSize()[1], openVDBgrid->voxelSize()[2]);
+    printf("Grid Class: %d\n", openVDBgrid->getGridClass());
+    printf("Grid Type: %s\n", openVDBgrid->gridType().c_str());
+    printf("Upper Internal Nodes: %d\n", openVDBgrid->tree().nodeCount()[2]);
+    printf("Lower Internal Nodes: %d\n", openVDBgrid->tree().nodeCount()[1]);
+    printf("Leaf Nodes: %d\n", openVDBgrid->tree().nodeCount()[0]);
+    printf("Active Voxels: %d\n", openVDBgrid->activeVoxelCount());
+    // printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
+    // printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
+    // printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
+    // printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
+    //printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
+    printf("############### END #############\n");
+    cudaDeviceSynchronize();
     cudaStream_t stream;  // Create a CUDA stream to allow for asynchronous copy of pinned CUDA memory.
     cudaStreamCreate(&stream);
+    auto handle = nanovdb::createNanoGrid<openvdb::FloatGrid, float, nanovdb::CudaDeviceBuffer>(*openVDBgrid);
+
+
 
     handle.deviceUpload(stream, false); 
 
