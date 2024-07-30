@@ -34,6 +34,7 @@ if(ENABLE_MODULE_IRRLICHT OR ENABLE_MODULE_VSG)
         demo_ROBOT_Viper_RealSlope_Sensor_NVDB
         demo_ROBOT_CRMTerrain_Viper_Sensor
       )
+    endif()
   endif()
 endif()
 

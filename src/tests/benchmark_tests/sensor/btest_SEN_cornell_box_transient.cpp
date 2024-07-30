@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
        manager->SetRayRecursions(4);
        float tmin = 6;
        float tmax = 25;
-       float tBins = 256;
+       float tBins = 1000;
        auto cam = chrono_types::make_shared<ChTransientSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose2,  // offset pose

@@ -47,7 +47,6 @@ extern "C" __global__ void __intersection__sphere_intersect() {
                 float3 p = ray_orig + ray_dir * dist_near;
                 float3 tangent_vector = make_float3(p.y, -p.x, 0);
                 float2 texcoord = make_float2(atan2(p.x, p.y) / (2 * CUDART_PI_F) + 0.5, p.z * 0.5 + 0.5);
-
                 optixReportIntersection(dist_near,                             //
                                         0,                                     //
                                         reinterpret_cast<unsigned int&>(p.x),  //
