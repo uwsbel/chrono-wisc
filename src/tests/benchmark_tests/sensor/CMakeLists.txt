@@ -23,6 +23,7 @@ set(TESTS
     btest_SEN_camera_lens
     btest_SEN_cornell_box_transient
     btest_SEN_benchmark
+    btest_SEN_NLOS
     )
 
 # ------------------------------------------------------------------------------

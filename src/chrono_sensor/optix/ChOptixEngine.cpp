@@ -657,7 +657,7 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
     // Add sprites to the scene
     for (auto sprite : scene->GetSprites()) {
         if (sprite->GetVisualModel()) {
-            for (auto& shape_instance : sprite->GetVisualModel()->GetShapes()) {
+            for (auto& shape_instance : sprite->GetVisualModel()->GetShapeInstances()) {
                 const auto& shape = shape_instance.first;
                 const auto& shape_frame = shape_instance.second;
                 // check if the asset is a ChVisualShape

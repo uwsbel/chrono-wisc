@@ -25,7 +25,16 @@ if(ENABLE_MODULE_IRRLICHT OR ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_ROBOT_Curiosity_SCM_Sensor
         demo_ROBOT_Viper_SCM_Sensor
+        demo_ROBOT_nvdb
+        demo_ROBOT_Viper_dust
     )
+    if(ENABLE_MODULE_FSI)
+      set(DEMOS ${DEMOS}
+        demo_ROBOT_Viper_SPH_Lunar_noGVDB
+        demo_ROBOT_Viper_RealSlope_Sensor_NVDB
+        demo_ROBOT_CRMTerrain_Viper_Sensor
+      )
+    endif()
   endif()
 endif()
 
