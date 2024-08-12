@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
     sys.Add(mesh_body);
 
     for (auto mat : trimesh_shape->GetMaterials()) {
-        mat->SetShader(0);
+        mat->SetBSDF(2);
     }
 
     auto vis_mat3 = chrono_types::make_shared<ChVisualMaterial>();
@@ -148,8 +148,9 @@ int main(int argc, char* argv[]) {
     vis_mat3->SetUseSpecularWorkflow(true);
     vis_mat3->SetClassID(30000);
     vis_mat3->SetInstanceID(30000);
+    vis_mat3->SetBSDF(2);
     
-     auto floor = chrono_types::make_shared<ChBodyEasyBox>(200, 200, .1, 1000, true, false);
+    auto floor = chrono_types::make_shared<ChBodyEasyBox>(200, 200, .1, 1000, true, false);
     floor->SetPos({0, 0, -40});
     floor->SetFixed(true);
     sys.Add(floor);
@@ -168,7 +169,12 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
-    manager->scene->AddPointLight({0.0f, 0.0f, 200.f}, {2.0f / 2, 1.8902f / 2, 1.7568f / 2}, 1000.0f);
+    Background b;
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_horizon = {1,1,1};
+    manager->scene->SetBackground(b);
+    //manager->scene->AddPointLight({0.0f, 0.0f, 200.f}, {2.0f / 2, 1.8902f / 2, 1.7568f / 2}, 1000.0f);
+    manager->scene->AddSpotLight({0.0f, 0.0f, 200.f}, {0,0,-1}, {1.f,1.f,1.f}, 1000.0f, CH_PI/3, CH_PI/6);
     //manager->scene->AddAreaLight({0.0f, 0.0f, 200.f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 1000.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager

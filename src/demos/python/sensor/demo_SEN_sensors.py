@@ -59,6 +59,7 @@ def main():
     vis_mat.SetAmbientColor(chrono.ChColor(0, 0, 0))
     vis_mat.SetDiffuseColor(chrono.ChColor(.2,.2,.9))
     vis_mat.SetSpecularColor(chrono.ChColor(.9,.9,.9))
+    vis_mat.SetBSDF(sens.BSDFType_DIFFUSE)
     sphere.GetVisualShape(0).SetMaterial(0, vis_mat)
 
 
@@ -85,6 +86,8 @@ def main():
     cam.SetName("Camera Sensor")
     cam.SetLag(cam_lag)
     cam.SetCollectionWindow(cam_collection_time)
+    cam.SetUseGI(False)
+    cam.SetIntegrator(sens.Integrator_PATH)
 
     # ------------------------------------------------------------------
     # Create a filter graph for post-processing the data from the camera

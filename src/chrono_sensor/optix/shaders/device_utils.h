@@ -29,6 +29,27 @@ typedef unsigned int		uint;
 typedef unsigned long		ulong;
 typedef unsigned long long	uint64;
 
+#define INV_PI 1/CUDART_PI
+
+struct __device__ LightSample {
+    float3 L;
+    float3 dir;  // wi
+    float3 wo;
+    float3 n;
+    float3 hitpoint;
+    float dist;
+    float pdf;
+};
+
+struct __device__ BSDFSample {
+    float3 wo;
+    float3 wi;
+    float3 n;
+    float3 f;
+    float pdf;
+};
+
+
 extern "C" {
     __constant__ ContextParameters params;
 }
@@ -124,6 +145,7 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
     prd.normal = make_float3(0.f, 0.f, 0.f);
     prd.use_fog = true;
     prd.transparency = 1.f;
+    prd.integrator = Integrator::PATH;
     return prd;
 };
 
@@ -149,6 +171,8 @@ __device__ __inline__ PerRayData_transientCamera default_transientCamera_prd(int
     prd.current_pixel = pixel_index;
     prd.depth_reached = 0;
     prd.path_length = 0.f;
+    prd.fromNLOSHit = false;
+    prd.integrator = Integrator::PATH;
     //prd.transient_buffer = {0, make_float3(0.f, 0.f, 0.f)};
     return prd;
 };

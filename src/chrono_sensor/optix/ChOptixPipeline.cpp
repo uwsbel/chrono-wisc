@@ -472,6 +472,7 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             raygen_record->data.specific.camera.gamma = 2.2f;          // default value
             raygen_record->data.specific.camera.lens_model = PINHOLE;  // default value
             raygen_record->data.specific.camera.lens_parameters = {};
+            raygen_record->data.specific.camera.integrator = Integrator::PATH;
             break;
         }
 
@@ -520,6 +521,7 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             raygen_record->data.specific.transientCamera.tmin = 0.f;          // default value
             raygen_record->data.specific.transientCamera.tmax = 1.f;          // default value
             raygen_record->data.specific.transientCamera.tbins = 1.f;          // default value
+            raygen_record->data.specific.transientCamera.integrator = Integrator::PATH;
             break;
         }
 
@@ -747,7 +749,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
 
         material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
         material.emissive_power = mat->GetEmissivePower();
-        material.shader_select = mat->GetShader();
+        material.BSDFType = mat->GetBSDF();
 
       
 
@@ -826,7 +828,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
             material.tex_scale = {1.f, 1.f};
             material.emissive_power = 0.f;
             material.pad = {0.f, 0.f};
-            material.shader_select = 0;
+            material.BSDFType = 0;
 
             m_material_pool.push_back(material);
             m_default_material_id = static_cast<unsigned int>(m_material_pool.size() - 1);

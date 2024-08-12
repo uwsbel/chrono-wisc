@@ -49,7 +49,6 @@ CH_SENSOR_API void ChSensorManager::Update() {
     for (auto pEngine : m_engines) {
         pEngine->UpdateSensors(scene);
     }
-
     // have the sensormanager update all of the non-optix sensor (IMU and GPS).
     // TODO: perhaps create a thread that takes care of this? Tradeoff since IMU should require some data from EVERY
     // step

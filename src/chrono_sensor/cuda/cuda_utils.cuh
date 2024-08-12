@@ -14,6 +14,8 @@
 //
 // =============================================================================
 
+#include <cuda_fp16.h>
+
 #ifdef USE_SENSOR_NVDB
 
 
@@ -37,3 +39,6 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<open
 
 #endif
 
+
+void initializeBuffer(void* frame, int w, int h);
+void initializeBuffer(void* frame, void* albedo, void* normal, int w, int h);

@@ -238,10 +238,11 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // super sampling factor
                                                          lens_model,    // lens model type
-                                                         use_gi, 2.2);
+                                                         use_gi);
     cam->SetName("Camera Sensor");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
+    cam->SetIntegrator(Integrator::LEGACY);
 
     // --------------------------------------------------------------------
     // Create a filter graph for post-processing the images from the camera
@@ -303,7 +304,10 @@ int main(int argc, char* argv[]) {
                                                           image_height,  // image height
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // supersample factor for antialiasing
-                                                          lens_model, false, 2.2);  // FOV
+                                                          lens_model, 
+                                                          false, 
+                                                          Integrator::LEGACY,
+                                                          2.2);  // FOV
     cam2->SetName("Antialiasing Camera Sensor");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);
@@ -372,7 +376,7 @@ int main(int argc, char* argv[]) {
     seg->PushFilter(chrono_types::make_shared<ChFilterSemanticAccess>());
 
     // Add the second camera to the sensor manager
-    // manager->AddSensor(seg);
+    manager->AddSensor(seg);
 
     manager->Update();
 

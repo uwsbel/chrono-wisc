@@ -78,6 +78,7 @@ def main():
     cam.SetName("Camera Sensor")
     cam.SetLag(lag)
     cam.SetCollectionWindow(exposure_time)
+    cam.SetIntegrator(sens.Integrator_LEGACY)
 
     # ------------------------------------------------------------------
     # Create a filter graph for post-processing the data from the camera
@@ -202,7 +203,7 @@ step_size = 1e-3
 end_time = 20.0
 
 # Save camera images
-save = False
+save = True
 
 # Render camera images
 vis = True

@@ -30,6 +30,7 @@
 #include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
+#include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/optix/ChOptixUtils.h"
 
 #include "chrono/assets/ChVisualShapeBox.h"
@@ -100,8 +101,8 @@ void ChOptixEngine::Initialize() {
 
     // defaults to no lights
     m_params.lights = {};
-    m_params.arealights = {};
-    m_params.arealights = 0;
+    /*m_params.arealights = {};
+    m_params.arealights = 0;*/
     m_params.num_lights = 0;
     m_params.ambient_light_color = make_float3(0.0f, 0.0f, 0.0f);  // make_float3(0.1f, 0.1f, 0.1f);  // default value
     m_params.max_depth = m_recursions;
@@ -222,6 +223,7 @@ void ChOptixEngine::UpdateSensors(std::shared_ptr<ChScene> scene) {
             to_be_updated.push_back(i);
         }
     }
+    
 
     if (to_be_updated.size() > 0) {
         {
@@ -237,7 +239,7 @@ void ChOptixEngine::UpdateSensors(std::shared_ptr<ChScene> scene) {
             UpdateCameraTransforms(to_be_updated, scene);
 
             m_geometry->UpdateBodyTransformsEnd((float)m_system->GetChTime());
-
+            
             // m_renderThreads
             UpdateSceneDescription(scene);
             UpdateDeformableMeshes();
@@ -749,6 +751,26 @@ void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std:
             m_pipeline->UpdateObjectVelocity();
         }
 
+        // Clear transient sensor frame buffer
+        if (auto transientSensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
+            int w = transientSensor->GetWidth();
+            int h = transientSensor->GetHeight();
+             initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+                                w, h);
+            //if (transientSensor->GetUseGI()) {  
+            //    /*initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+            //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.albedo_buffer,
+            //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.normal_buffer,
+            //                     w, h);*/ // GI is enabled for transient camera but not the denoiser
+
+            // } else {
+            //    initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+            //                     w, h);
+            // }
+        }
+
+ 
+           
         ChFrame<double> f_offset = sensor->GetOffsetPose();
         ChFrame<double> f_body_0 = m_cameraStartFrames[i];
         m_cameraStartFrames_set[i] = false;  // reset this camera frame so that we know it should be packed again
@@ -782,6 +804,7 @@ void ChOptixEngine::UpdateDeformableMeshes() {
 }
 
 void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
+
     if (scene->GetBackgroundChanged()) {
         m_pipeline->UpdateBackground(scene->GetBackground());
 
@@ -793,39 +816,15 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         scene->ResetBackgroundChanged();
     }
 
-    if (scene->GetLightsChanged() || scene->GetOriginChanged() || scene->GetAreaLightsChanged()) {
+    if (scene->GetLightsChanged() || scene->GetOriginChanged()) {
 
-        // Handling changes to area lights
-
-        std::vector<AreaLight> a = scene->GetAreaLights();
-        
-       
-        if (a.size() != m_params.num_arealights) {  // need new memory in this case
-            if (m_params.arealights)
-                CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.arealights)));
-
-            cudaMalloc(reinterpret_cast<void**>(&m_params.arealights), a.size() * sizeof(AreaLight));
-        }
-
-        
-        for (unsigned int i = 0; i < a.size(); i++) {
-            a[i].pos = make_float3(a[i].pos.x - scene->GetOriginOffset().x(), a[i].pos.y - scene->GetOriginOffset().y(),
-                                   a[i].pos.z - scene->GetOriginOffset().z());
-        }
-
-        cudaMemcpy(reinterpret_cast<void*>(m_params.arealights), a.data(), a.size() * sizeof(AreaLight),
-                   cudaMemcpyHostToDevice);
-
-        m_params.num_arealights = static_cast<int>(a.size());
-        
-        // Handling changes for point lights
-
-        std::vector<PointLight> l = scene->GetPointLights();
+        // Handling changes to all lights
+        std::vector<Light> l = scene->GetLights();
         if (l.size() != m_params.num_lights) {  // need new memory in this case
             if (m_params.lights)
                 CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
 
-            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(PointLight));
+            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(Light));
         }
 
         for (unsigned int i = 0; i < l.size(); i++) {
@@ -833,9 +832,46 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
                                    l[i].pos.z - scene->GetOriginOffset().z());
         }
 
-        cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(PointLight),
-                   cudaMemcpyHostToDevice);
+        cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(Light), cudaMemcpyHostToDevice);
         m_params.num_lights = static_cast<int>(l.size());
+        // // Handling changes to area light
+        // std::vector<AreaLight> a = scene->GetAreaLights();
+        // if (a.size() != m_params.num_arealights) {  // need new memory in this case
+        //     if (m_params.arealights)
+        //         CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.arealights)));
+
+        //     cudaMalloc(reinterpret_cast<void**>(&m_params.arealights), a.size() * sizeof(AreaLight));
+        // }
+
+        
+        // for (unsigned int i = 0; i < a.size(); i++) {
+        //     a[i].pos = make_float3(a[i].pos.x - scene->GetOriginOffset().x(), a[i].pos.y - scene->GetOriginOffset().y(),
+        //                            a[i].pos.z - scene->GetOriginOffset().z());
+        // }
+
+        // cudaMemcpy(reinterpret_cast<void*>(m_params.arealights), a.data(), a.size() * sizeof(AreaLight),
+        //            cudaMemcpyHostToDevice);
+
+        // m_params.num_arealights = static_cast<int>(a.size());
+        
+        // // Handling changes for point lights
+
+        // std::vector<PointLight> l = scene->GetPointLights();
+        // if (l.size() != m_params.num_lights) {  // need new memory in this case
+        //     if (m_params.lights)
+        //         CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
+
+        //     cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(PointLight));
+        // }
+
+        // for (unsigned int i = 0; i < l.size(); i++) {
+        //     l[i].pos = make_float3(l[i].pos.x - scene->GetOriginOffset().x(), l[i].pos.y - scene->GetOriginOffset().y(),
+        //                            l[i].pos.z - scene->GetOriginOffset().z());
+        // }
+
+        // cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(PointLight),
+        //            cudaMemcpyHostToDevice);
+      
         
         // Handling changes in origin
 
@@ -846,7 +882,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
 
         m_geometry->SetOriginOffset(scene->GetOriginOffset());
         scene->ResetLightsChanged();
-        scene->ResetAreaLightsChanged();
+        //scene->ResetAreaLightsChanged();
         scene->ResetOriginChanged();
     }
 
