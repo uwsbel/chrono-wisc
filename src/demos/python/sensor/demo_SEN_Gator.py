@@ -185,6 +185,8 @@ cam = sens.ChCameraSensor(
     fov
 )
 cam.SetName("First Person POV")
+cam.SetIntegrator(sens.Integrator_LEGACY)
+cam.SetUseFog(False)
 
 # Renders the image at current point in the filter graph
 if vis:
@@ -202,6 +204,8 @@ cam1 = sens.ChCameraSensor(
     fov
 )
 cam1.SetName("Third Person POV")
+cam1.SetIntegrator(sens.Integrator_LEGACY)
+cam1.SetUseFog(False)
 
 # Renders the image at current point in the filter graph
 if vis:

@@ -65,21 +65,84 @@ enum CameraLensModelType {
 }
 */
 
+
+enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE};
+
+
+enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, LEGACY};
+
+enum class LightType { POINT_LIGHT, AREA_LIGHT, SPOT_LIGHT };
+
+struct Light {
+    
+    Light() {}
+    Light(float3 pos, float3 color, float max_range) : type(LightType::POINT_LIGHT), delta(true), pos(pos), color(color), max_range(max_range) {}
+    Light(float3 pos, float3 color, float max_range, float3 du, float3 dv)
+        : type(LightType::AREA_LIGHT),
+          delta(false),
+          pos(pos),
+          color(color),
+          max_range(max_range),
+          du(du), dv(dv) {}
+    Light(float3 pos, float3 to, float3 color, float max_range, float cos_total_width, float cos_falloff_start)
+        : type(LightType::SPOT_LIGHT),
+          delta(true),
+          pos(pos),
+          to(to),
+          color(color), 
+          max_range(max_range), 
+          cos_total_width(cos_total_width),
+          cos_falloff_start(cos_falloff_start) {}
+
+    virtual ~Light() = default;
+
+    LightType type;
+    bool delta;
+    float3 pos;
+    float3 to;
+    float3 color;
+    float max_range;
+
+    // Area light members
+    float3 du;
+    float3 dv;
+
+    // Spot light members
+    float cos_total_width;
+    float cos_falloff_start;
+};
 /// Parameters for an area light
-struct AreaLight {
-    float3 pos;         ///< the centre position of the area light from a global perspective
-    float3 color;       ///< the light's color and intensity
-    float max_range;    ///< the range at which 10% of the light's intensity remains
-    float3 du;          ///< the vector signifying the length of the area light
-    float3 dv;          ///< The vector signifying the width of the area light
+struct AreaLight : public Light {
+
+    AreaLight()
+        : Light(make_float3(0.f, 0.f, 0.f),
+                make_float3(0.f, 0.f, 0.f),
+                0.f,
+                make_float3(0.f, 0.f, 0.f),
+                make_float3(0.f, 0.f, 0.f)) {}
+    AreaLight(float3 pos, float3 color, float max_range, float3 du, float3 dv)
+        : Light(pos, color, max_range, du,dv) {}
+
 };
 
 /// Packed parameters of a point light
-struct PointLight {
-    float3 pos;       ///< the light's global position
-    float3 color;     ///< the light's color and intensity
-    float max_range;  ///< the range at which 10% of the light's intensity remains
+struct PointLight : public Light {
+
+    PointLight() : Light(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 0.f, 0.f), 0.f) {}
+    PointLight(float3 pos, float3 color, float max_range)
+        : Light(pos, color, max_range) {}
 };
+
+
+//class Light {
+//
+//    public:
+//        __host__ __device__ Light(LightType type) : m_type(type) {}
+//
+//        __device__ float3 SampleLi(float3 hitpoint, float2 sample, float3* wi) {}
+//
+//        LightType m_type;
+//};
 
 /// Type of background to be spherically mapped when rays miss all objects in the scene
 enum class BackgroundMode {
@@ -128,6 +191,7 @@ struct CameraParameters {
     half4* normal_buffer;  ///< The screen-space normal of the first hit. Only initialized if using global illumination
                            ///< (screenspace normal)
     curandState_t* rng_buffer;  ///< The random number generator object. Only initialized if using global illumination
+    Integrator integrator;
 };
 
 struct TransientSample {
@@ -155,6 +219,7 @@ struct TransientCameraParameters {
     float tmin;
     float tmax;
     float tbins;
+    Integrator integrator;
 };
 
 
@@ -285,15 +350,16 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     float theta_p;
     float2 pad; // padding to ensure 16 byte alignment
 
-    int shader_select; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
+    int BSDFType; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
     
 };
 
 /// Parameters associated with the entire optix scene
 struct ContextParameters {
-    AreaLight* arealights;              ///< device pointer to the set of area lights in the scene
-    PointLight* lights;                 ///< device pointer to set of point lights in the scene
-    int num_arealights;                ///< the number of area lights in the scene
+    // AreaLight* arealights;              ///< device pointer to the set of area lights in the scene
+    // PointLight* lights;                 ///< device pointer to set of point lights in the scene
+    Light* lights;                      ///< device pointer to set of lights in the scene
+    //int num_arealights;                ///< the number of area lights in the scene
     int num_lights;                     ///< the number of point lights in the scene
     float3 ambient_light_color;         ///< the ambient light color and intensity
     float3 fog_color;                   ///< color of fog in the scene
@@ -337,6 +403,7 @@ struct PerRayData_camera {
     float3 normal;            ///< the global normal of the first hit
     bool use_fog;             ///< whether to use fog on this prd
     float transparency;      ///< the transparency of the pixel
+    Integrator integrator;
 };
 
 struct PerRayData_transientCamera {
@@ -352,6 +419,8 @@ struct PerRayData_transientCamera {
     int current_pixel; // the current pixel index
     int depth_reached;
     float path_length;
+    bool fromNLOSHit;
+    Integrator integrator;
     //TransientSample* transient_buffer; // TODO: Keep it as as a single sample for now, later we can change it to a buffer
 };
 

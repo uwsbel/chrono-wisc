@@ -45,12 +45,16 @@ class CH_SENSOR_API ChOptixSensor : public ChSensor {
                   float updateRate,
                   chrono::ChFrame<double> offsetPose,
                   unsigned int w,
-                  unsigned int h);
+                  unsigned int h,
+                  Integrator integrator = Integrator::PATH);
 
     /// camera class destructor
     virtual ~ChOptixSensor();
 
     PipelineType GetPipelineType() { return m_pipeline_type; }
+
+    Integrator GetIntegrator() {return m_integrator;}
+    void SetIntegrator(Integrator integrator) {m_integrator = integrator;};
 
     unsigned int GetWidth() { return m_width; }
     unsigned int GetHeight() { return m_height; }
@@ -63,6 +67,7 @@ class CH_SENSOR_API ChOptixSensor : public ChSensor {
     unsigned int m_width;    ///< to hold reference to the width for rendering
     unsigned int m_height;   ///< to hold reference to the height for rendering
     CUstream m_cuda_stream;  ///< cuda stream for this buffer when applicable
+    Integrator m_integrator;
 };
 
 /// @} sensor_sensors

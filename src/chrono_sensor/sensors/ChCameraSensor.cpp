@@ -36,8 +36,9 @@ CH_SENSOR_API ChCameraSensor::ChCameraSensor(std::shared_ptr<chrono::ChBody> par
                                              unsigned int supersample_factor,  // super sampling factor
                                              CameraLensModelType lens_model,   // lens model to use
                                              bool use_gi,                      // 1 to use Global Illumination
+                                             Integrator integrator,
                                              float gamma,                      // 1 for linear color space, 2.2 for sRGB
-                                             bool use_fog                      // whether to use fog on this camera
+                                             bool use_fog                     // whether to use fog on this camera
                                              )
     : m_hFOV(hFOV),
       m_supersample_factor(supersample_factor),
@@ -48,7 +49,7 @@ CH_SENSOR_API ChCameraSensor::ChCameraSensor(std::shared_ptr<chrono::ChBody> par
       m_lens_parameters({}),
       m_width(w),
       m_height(h),
-      ChOptixSensor(parent, updateRate, offsetPose, w * supersample_factor, h * supersample_factor) {
+      ChOptixSensor(parent, updateRate, offsetPose, w, h, integrator) {
     // set the program to match the model requested
     // switch (lens_model) {
     //     case CameraLensModelType::FOV_LENS:
@@ -62,10 +63,10 @@ CH_SENSOR_API ChCameraSensor::ChCameraSensor(std::shared_ptr<chrono::ChBody> par
 
     m_filters.push_back(chrono_types::make_shared<ChFilterImageHalf4ToRGBA8>());
 
-    if (m_supersample_factor > 1) {
+    /*if (m_supersample_factor > 1) {
         m_filters.push_back(
             chrono_types::make_shared<ChFilterImgAlias>(m_supersample_factor, "Image antialias filter"));
-    }
+    }*/
 
     SetCollectionWindow(0.f);
     SetLag(1.f / updateRate);

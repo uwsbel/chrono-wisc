@@ -55,14 +55,15 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
                    float tbins,
                    unsigned int supersample_factor = 1,     // number of samples per pixel for antialiasing
                    CameraLensModelType lens_model = CameraLensModelType::PINHOLE,
-                   bool use_gi = false,   // camera model to use for rendering
+                   Integrator integrator = Integrator::TRANSIENT,
                    float gamma = 2.2,     // gamma correction value
-                   bool use_fog = true);  // whether to use fog
+                   bool use_fog = true   // whether to use fog
+                   ); 
 
     /// camera class destructor
     ~ChTransientSensor();
 
-    /// returns the camera's horizontal field of view. Vertical field of view is determined by the image aspect
+   /// returns the camera's horizontal field of view. Vertical field of view is determined by the image aspect
     /// ratio and the lens model
     /// @return The horizontal field of view of the camera lens
     float GetHFOV() const { return m_hFOV; }
@@ -70,6 +71,7 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     /// returns the lens model type used for rendering
     /// @return An enum specifying which lens model is being used. (0: PINHOLE, 1: FOV, 2: Radial)
     CameraLensModelType GetLensModelType() const { return m_lens_model_type; }
+    void SetLensModelType(CameraLensModelType lens_model) { m_lens_model_type = lens_model; }
 
     /// returns the lens model parameters
     /// @return LensParams struct of lens parameters. Will default to zeros for any terms not used. These are coverted
@@ -85,21 +87,24 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     /// returns if the cemera requesting global illumination
     /// @return True if it does request
     bool GetUseGI() { return m_use_gi; }
+    void SetUseGI(bool use_gi) { m_use_gi = use_gi; }
 
     /// returns the gamma correction value of this camera.
     /// 1 means no correction and the image is in linear color space. Useful for other ML applications
     /// 2.2 means the image is in sRGB color space. Useful for display
     /// @return Gamma value of the image
     float GetGamma() { return m_gamma; }
+    void SetGamm(float gamma) { m_gamma = gamma; }
 
     /// Gets the number of samples per pixels in each direction used for super sampling
     /// @return the number of samples per pixel
     unsigned int GetSampleFactor() { return m_supersample_factor; }
+    void SetSampleFactor(unsigned int sample_factor) { m_supersample_factor = sample_factor; }
 
     /// returns if the cemera should use fog as dictated by the scene
     /// @return True if it does request
     bool GetUseFog() { return m_use_fog; }
-
+    void SetUseFog(bool use_fog) { m_use_fog = use_fog; }
     /// returns the  3x3 Intrinsic Matrix(K) of the camera
     /// @return 3x3 ChMatrix33<flaot> Intrinsic Matrix(K) of the camera
     ChMatrix33<float> GetCameraIntrinsicMatrix();
@@ -107,7 +112,6 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     /// returns the camera distortion coefficients k1, k2, k3
     /// @return ChVector3f of the camera distortion coefficients k1, k2, k3
     ChVector3f GetCameraDistortionCoefficients() { return m_distortion_params; }
-
 
     /// calculate the parameters for the inverse polynomial model
     static LensParams CalcInvRadialModel(ChVector3f params);

@@ -58,8 +58,8 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 float update_rate = 30;
 
 // Image width and height
-unsigned int image_width = 1280;
-unsigned int image_height = 720;
+unsigned int image_width = 1920;
+unsigned int image_height = 780;
 
 // Camera's horizontal field of view
 float fov = (float)CH_PI / 2.;
@@ -83,7 +83,7 @@ double step_size = 1e-2;
 float end_time = 20.0f;
 
 // Save camera images
-bool save = false;
+bool save = true;
 
 // Render camera images
 bool vis = true;
@@ -115,6 +115,10 @@ int main(int argc, char* argv[]) {
     mesh_body->AddVisualShape(trimesh_shape);
     mesh_body->SetFixed(true);
     sys.Add(mesh_body);
+
+    for (auto mat : mesh_body->GetVisualShape(0)->GetMaterials()) {
+        mat->SetBSDF((int)BSDFType::DIFFUSE);
+    }
 
     // auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false);
     // // auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
@@ -190,8 +194,15 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
-    //manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {2.0f / 2, 1.8902f / 2, 1.7568f / 2}, 5.0f);
-    manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
+    Background b;
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = {0,0,0};
+    manager->scene->SetBackground(b);
+    manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {1.f,1.f,1.f}, 5.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {1.f, 1.f, 1.f}, 5.0f, CH_PI/6, CH_PI/12)
+    //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));
+    //manager->SetRayRecursions(4);
+    //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
@@ -205,7 +216,8 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // supersample factor for antialiasing
                                                          lens_model,    // FOV
-                                                         true);         // use global illumination or not
+                                                         true,  // use global illumination or not
+                                                         Integrator::PATH);         
     cam->SetName("Global Illum Camera");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);

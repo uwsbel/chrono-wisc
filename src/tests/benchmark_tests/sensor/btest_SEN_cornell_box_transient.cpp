@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
     sys.Add(mesh_body);
 
     for (auto mat : trimesh_shape->GetMaterials()) {
-        mat->SetShader(2);
+        mat->SetBSDF((int)BSDFType::DIFFUSE);
     }
 
 
@@ -132,35 +132,41 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
+    Background b;
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = {0, 0, 0};
+    manager->scene->SetBackground(b);
     manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {1.f,1.f,1.f}, 5.0f); //{2.0f / 2, 1.8902f / 2, 1.7568f / 2}
     //manager->scene->SetAmbientLight({.1,.1,.1});
     //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
-    chrono::ChFrame<double> offset_pose2({-7, 0, 2}, QUNIT);
-    // chrono::ChFrame<double> offset_pose2({-3, 0, 0}, QUNIT);
-    //auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
-    //                                                     update_rate,   // update rate in Hz
-    //                                                     offset_pose2,  // offset pose
-    //                                                     image_width,   // image width
-    //                                                     image_height,  // image height
-    //                                                     fov,           // camera's horizontal field of view
-    //                                                     alias_factor,  // supersample factor for antialiasing
-    //                                                     lens_model,    // FOV
-    //                                                     true);         // use global illumination or not
-    //cam->SetName("Transient Camera");
-    //cam->SetLag(lag);
-    //cam->SetCollectionWindow(exposure_time);
-    //if (vis)
-    //    cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera"));
-    //if (save)
-    //    cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience/"));
-    //manager->AddSensor(cam);
+       chrono::ChFrame<double> offset_pose2({-7, 0, 2}, QUNIT);
+     //chrono::ChFrame<double> offset_pose2({-3, 0, 0}, QUNIT);
+        auto cam1 = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
+                                                             update_rate,   // update rate in Hz
+                                                             offset_pose2,  // offset pose
+                                                             image_width,   // image width
+                                                             image_height,  // image height
+                                                             fov,           // camera's horizontal field of view
+                                                             alias_factor,  // supersample factor for antialiasing
+                                                             lens_model,    // FOV
+                                                             true,
+                                                             Integrator::PATH);         // use global illumination or not
+        cam1->SetName("Transient Camera");
+        cam1->SetLag(lag);
+        cam1->SetCollectionWindow(exposure_time);
+        if (vis)
+            cam1->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Camera"));
+        if (save)
+            cam1->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience_steady_state/"));
+        //manager->AddSensor(cam1);
+
        manager->SetRayRecursions(4);
        float tmin = 6;
        float tmax = 25;
-       float tBins = 1000;
+       float tBins = 128;
        auto cam = chrono_types::make_shared<ChTransientSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose2,  // offset pose
@@ -172,7 +178,8 @@ int main(int argc, char* argv[]) {
                                                          tBins,
                                                          alias_factor,  // supersample factor for antialiasing
                                                          lens_model,    // FOV
-                                                         true);         // use global illumination or not
+                                                         Integrator::TRANSIENT
+                                                         ); 
         cam->SetName("Transient Camera");
         cam->SetLag(lag);
         cam->SetCollectionWindow(exposure_time);

@@ -73,11 +73,14 @@ class ChApi ChVisualMaterial {
     /// @brief Enable or disable the use of the Hapke material model. We implement the modern hapke model descried in  https://doi.org/10.1002/2013JE004580
     void SetUseHapke(bool h) {use_hapke = h;}
     /// @brief  Set the shader to be used for rendering the material. 
-    /// 0 - Disney Principled BRDF
-    /// 1 - Hapke
-    /// 3 Diffuse
+    /// 0 - Diffuse
+    /// 1 - Specular
+    /// 2 - Dielectric
+    /// 3 - Glossy
+    /// 4 - Disney
+    /// 5 - Hapke
     /// @param s 
-    void SetShader(int s) {shader_select = s;}
+    void SetBSDF(int s) {BSDFType = s;}
 
     void SetClassID(unsigned short int id) { class_id = id; }
     void SetInstanceID(unsigned short int id) { instance_id = id; }
@@ -132,7 +135,7 @@ class ChApi ChVisualMaterial {
     float GetHapkePhi() const {return hapke_phi;}
     float GetHapkeRoughness() const {return hapke_theta_p;}
 
-    int GetShader() const {return shader_select;}
+    int GetBSDF() const {return BSDFType;}
 
     unsigned short int GetClassID() const { return class_id; }
     unsigned short int GetInstanceID() const { return instance_id; }
@@ -168,7 +171,7 @@ class ChApi ChVisualMaterial {
 
     bool use_specular_workflow;
     bool use_hapke;
-    int shader_select;
+    int BSDFType;
 
     ChTexture kd_texture;         ///< diffuse texture map
     ChTexture ks_texture;         ///< specular texture map

@@ -86,18 +86,22 @@ class CH_SENSOR_API ChScene {
     /// @return the index of the light that has been added
     unsigned int AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv);
 
+    unsigned int AddSpotLight(ChVector3f pos, ChVector3f to, ChColor color, float max_range, float total_width, float falloff_start);
+
     /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
     /// @return m_pointlights A vector of point lights in the scene currently
-    std::vector<PointLight> GetPointLights() { return m_pointlights; }
+    //std::vector<PointLight> GetPointLights() { return m_pointlights; }
 
     /// Function for gaining access to the vector of area lights and can be used to modify lighting dynamically.
     /// @return m_arealights A vector of area lights in the scene currently
-    std::vector<AreaLight> GetAreaLights() { return m_arealights; }
+    //std::vector<AreaLight> GetAreaLights() { return m_arealights; }
 
-    /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
-    /// @param id the index of the point light to be modified
-    /// @param p the new point light that will replace the values at the given index
-    void ModifyPointLight(unsigned int id, PointLight p);
+    std::vector<Light> GetLights(){return m_lights;}
+
+    // /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
+    // /// @param id the index of the point light to be modified
+    // /// @param p the new point light that will replace the values at the given index
+    // void ModifyPointLight(unsigned int id, PointLight p);
 
     /// Function for gaining access to the background. Can be used to dynamically change the background color, or
     /// texture
@@ -121,13 +125,15 @@ class CH_SENSOR_API ChScene {
     void ResetLightsChanged() { lights_changed = false; }
 
     /// Function for resetting the area lights changed variable
-    void ResetAreaLightsChanged() { arealights_changed = false; }
+    //void ResetAreaLightsChanged() { arealights_changed = false; }
 
     /// Function for getting the lights changed variable
     bool GetLightsChanged() { return lights_changed; }
 
+    size_t GetLightsSize() { return m_num_pointlights*sizeof(PointLight) + m_num_arealights*sizeof(AreaLight); } // Possibly buggy
+
     /// Function for getting the area lights changed variable
-    bool GetAreaLightsChanged() { return arealights_changed; }
+    //bool GetAreaLightsChanged() { return arealights_changed; }
 
     /// Function for resetting the background changed variable
     void ResetBackgroundChanged() { background_changed = false; }
@@ -162,6 +168,7 @@ class CH_SENSOR_API ChScene {
 
     std::shared_ptr<ChBody> GetSprite(int i) { return m_sprites[i]; }
     std::vector<std::shared_ptr<ChBody>> GetSprites() { return m_sprites; }
+
 
 
     #ifdef USE_SENSOR_NVDB
@@ -214,13 +221,17 @@ class CH_SENSOR_API ChScene {
     // int GetGVDBChan() { return m_gvdb_chan; }
 
   private:
-    std::vector<PointLight> m_pointlights;  //< list of point lights in the scene
-    std::vector<AreaLight> m_arealights;  //< list of area lights in the scene
+    // std::vector<PointLight> m_pointlights;  //< list of point lights in the scene
+    // std::vector<AreaLight> m_arealights;  //< list of area lights in the scene
+
+    std::vector<Light> m_lights;  //< list of all lights in the scene
+    int m_num_pointlights;         //< number of point lights in the scene
+    int m_num_arealights;          //< number of area lights in the scene
+
     
     Background m_background;                ///< The background object
     ChVector3f m_ambient_light;        ///< ambient light color used in the scene
 
-    bool arealights_changed;  ////< for detecting if area lights changed
     bool lights_changed;      ///< for detecting if lights changed
     bool background_changed;  ///< for detecting if background changed
 

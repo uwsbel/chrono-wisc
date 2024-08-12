@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetDiffuseColor({0.0, 1.0, 0.0});
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
     vis_mat->SetUseSpecularWorkflow(true);
-    vis_mat->SetShader(3);
+    vis_mat->SetBSDF(3);
     vis_mat->SetRoughness(.5f);
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(50000);

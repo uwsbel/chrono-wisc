@@ -30,20 +30,25 @@ CH_SENSOR_API ChScene::ChScene() {
     m_background.env_tex = "";
 
     m_ambient_light = ChVector3f({.2f, .2f, .2f});
-    m_pointlights = std::vector<PointLight>();
-    m_arealights = std::vector<AreaLight>();
+    //m_pointlights = std::vector<PointLight>();
+    //m_arealights = std::vector<AreaLight>();
+    m_lights = std::vector<Light>();
+    m_num_pointlights = 0;
+    m_num_arealights = 0;
 
-    arealights_changed = true;
     lights_changed = true;
     background_changed = true;
 
     m_fog_color = ChVector3f(1.f, 1.f, 1.f);
     m_fog_scattering = 0.f;
+    
 
     m_scene_epsilon = 1e-3f;
     m_dynamic_origin_threshold = 100.f;
     m_dynamic_origin_offset = false;
     m_sprites = std::vector <std::shared_ptr<ChBody>>();
+
+
 
     //m_nvdb = nullptr;
 }
@@ -51,13 +56,15 @@ CH_SENSOR_API ChScene::ChScene() {
 CH_SENSOR_API ChScene::~ChScene() {}
 
 CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range) {
-    PointLight p;
-    p.pos = {pos.x(), pos.y(), pos.z()};
+    PointLight p({pos.x(), pos.y(), pos.z()}, {color.R, color.G, color.B}, max_range);
+  /*  p.pos = {pos.x(), pos.y(), pos.z()};
     p.color = {color.R, color.G, color.B};
-    p.max_range = max_range;
-    m_pointlights.push_back(p);
-    lights_changed = true;
-    return static_cast<unsigned int>(m_pointlights.size() - 1);
+    p.max_range = max_range;*/
+    //m_pointlights.push_back(p);
+    m_lights.push_back(p);
+    lights_changed = true,
+    m_num_pointlights++;
+    return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
 CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv) {
@@ -69,24 +76,51 @@ CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, 
 
     a.color = {color.R, color.G, color.B};
     a.max_range = max_range;
-    
-    m_arealights.push_back(a);
-    arealights_changed = true;
-    return static_cast<unsigned int>(m_arealights.size() - 1);
+    lights_changed = true;
+    //m_arealights.push_back(a);
+    m_num_arealights++;
+    m_lights.push_back(a);
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
 CH_SENSOR_API unsigned int ChScene::AddPointLight(const PointLight& p) {
-    m_pointlights.push_back(p);
+    //m_pointlights.push_back(p);
+    m_lights.push_back(p);
     lights_changed = true;
-    return static_cast<unsigned int>(m_pointlights.size() - 1);
+    m_num_pointlights++;
+    return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
-CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, PointLight p) {
-    if (id <= m_pointlights.size()) {
-        m_pointlights[id] = p;
-        lights_changed = true;
-    }
+CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChVector3f pos,
+    ChVector3f to,
+    ChColor color,
+    float max_range,
+    float total_width,
+    float falloff_start) {
+
+    Light spot;
+    spot.type = LightType::SPOT_LIGHT;
+    spot.pos = {pos.x(), pos.y(), pos.z()};
+    spot.to = {to.x(), to.y(), to.z()};
+    spot.color = {color.R, color.G, color.B};
+    spot.max_range = max_range;
+    spot.cos_total_width = cosf(total_width);
+    spot.cos_falloff_start = cosf(falloff_start);
+
+    lights_changed = true;
+    m_lights.push_back(spot);
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
 }
+
+// TODO: Add a Modify Light function
+// CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, PointLight p) {
+//     if (id <= m_pointlights.size()) {
+//         m_pointlights[id] = p;
+//         lights_changed = true;
+//     }
+// }
 
 CH_SENSOR_API void ChScene::SetBackground(Background b) {
     m_background = b;

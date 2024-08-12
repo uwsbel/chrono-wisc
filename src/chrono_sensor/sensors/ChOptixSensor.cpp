@@ -28,8 +28,9 @@ CH_SENSOR_API ChOptixSensor::ChOptixSensor(std::shared_ptr<chrono::ChBody> paren
                                            float updateRate,
                                            chrono::ChFrame<double> offsetPose,
                                            unsigned int w,
-                                           unsigned int h)
-    : m_width(w), m_height(h), ChSensor(parent, updateRate, offsetPose) {
+                                           unsigned int h,
+                                           Integrator integrator)
+    : m_width(w), m_height(h), m_integrator(integrator), ChSensor(parent, updateRate, offsetPose) {
     // Camera sensor get rendered by Optix, so they must has as their first filter an optix renderer.
     cudaStreamCreate(&m_cuda_stream);  // all gpu operations will happen on this stream
 

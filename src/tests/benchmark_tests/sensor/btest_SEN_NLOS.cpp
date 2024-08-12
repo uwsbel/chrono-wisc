@@ -59,11 +59,11 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 float update_rate = 30;
 
 // Image width and height
-unsigned int image_width = 1280;
-unsigned int image_height = 720;
+unsigned int image_width = 500;
+unsigned int image_height = 500;
 
 // Camera's horizontal field of view
-float fov = (float)CH_PI / 2.;
+float fov = (19.5)* (CH_PI/180) ; //(float)CH_PI / 2.;
 
 // Lag (in seconds) between sensing and when data becomes accessible
 float lag = .05f;
@@ -71,7 +71,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 2;
+int alias_factor = 16;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -111,40 +111,46 @@ int main(int argc, char* argv[]) {
     //floor->SetFixed(true);
     //sys.Add(floor);
 
+    enum Shader {DISNEY, HAPKE, DIFFUSE, VOLUME};
+    Shader shader = DIFFUSE;
+
     auto red = chrono_types::make_shared<ChVisualMaterial>();
     red->SetDiffuseColor({1, 0, 0});
     red->SetSpecularColor({1.f, 1.f, 1.f});
+    red->SetBSDF(shader);
 
     auto green = chrono_types::make_shared<ChVisualMaterial>();
     green->SetDiffuseColor({0, 1, 0});
     green->SetSpecularColor({1.f, 1.f, 1.f});
+    green->SetBSDF(shader);
 
     auto grey = chrono_types::make_shared<ChVisualMaterial>();
     grey->SetDiffuseColor({.5, .5, .5});
     grey->SetSpecularColor({.5f, .5f, .5f});
+    grey->SetBSDF(shader);
 
-    auto floor = chrono_types::make_shared<ChBodyEasyBox>(10, 10, .1, 1000, true, false);
+    auto floor = chrono_types::make_shared<ChBodyEasyBox>(10, 10, .1, 1000, false, false);
     floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sys.Add(floor);
-    floor->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
+    //floor->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
 
     auto ceiling = chrono_types::make_shared<ChBodyEasyBox>(10, 10, .1, 1000, true, false);
     ceiling->SetPos({0, 0, 5});
     ceiling->SetFixed(true);
-    sys.Add(ceiling);
+    //sys.Add(ceiling);
     ceiling->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
 
     auto left_wall = chrono_types::make_shared<ChBodyEasyBox>(10, .1, 5, 1000, true, false);
     left_wall->SetPos({0, 5, 2.5});
     left_wall->SetFixed(true);
-    sys.Add(left_wall);
-    left_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
+    //sys.Add(left_wall);
+    left_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
 
     auto right_wall = chrono_types::make_shared<ChBodyEasyBox>(10, .1, 5, 1000, true, false);
     right_wall->SetPos({0, -5, 2.5});
     right_wall->SetFixed(true);
-    sys.Add(right_wall);
+    //sys.Add(right_wall);
     right_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
 
     auto back_wall = chrono_types::make_shared<ChBodyEasyBox>(.1, 10, 5, 1000, true, false);
@@ -153,17 +159,24 @@ int main(int argc, char* argv[]) {
     sys.Add(back_wall);
     back_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
 
-    auto mid_wall = chrono_types::make_shared<ChBodyEasyBox>(8, .1, 5, 1000, true, false);
-    mid_wall->SetPos({-1, 0, 2.5});
+    auto mid_wall = chrono_types::make_shared<ChBodyEasyBox>(5, .1, 5, 1000, true, false);
+    mid_wall->SetPos({-2.5, 0, 2.5});
     mid_wall->SetFixed(true);
-    sys.Add(mid_wall);
-    mid_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
+    //sys.Add(mid_wall);
+    mid_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
 
-    auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
-    box_body->SetPos({0, 2.5, .5});
+    auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false); 
+    //auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
+    box_body->SetPos({-1, 2.5, 3});
     box_body->SetFixed(true);
     sys.Add(box_body);
     box_body->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
+
+    auto box_body1 = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
+    box_body1->SetPos({2, -2.5, .5});
+    box_body1->SetFixed(true);
+    //sys.Add(box_body1);
+    box_body1->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
 
   /*  auto rod = chrono_types::make_shared<ChBodyEasyBox>(2, .1, .2, 1000, true, false);
     rod->SetPos({4, -.5, .1});
@@ -176,12 +189,19 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
-    //manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {2.0f / 2, 1.8902f / 2, 1.7568f / 2}, 5.0f);
-    manager->scene->AddAreaLight({0.0f, -2.5, 4.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
+    manager->SetRayRecursions(4);
+    Background b;
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = {0,0,0};
+    manager->scene->SetBackground(b);
+    //manager->scene->AddPointLight({0, -2.5, 2}, {.1f,.1f,.1f}, 5.0f); // 0.0f, -2.5f, 4.8f// 2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    //manager->scene->AddAreaLight({0.0f, -2.5, 4.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
+    float rotX = 40 * (CH_PI / 180);
+    manager->scene->AddSpotLight({0, -2.5, 2}, {5, 1.5, 2.5}, {1e4,1e4,1e4}, 5.0f, 2e-1*(CH_PI/180), 1e-1*(CH_PI/180));
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
-    chrono::ChFrame<double> offset_pose2({-5, -2.5, 2}, QUNIT);
+    chrono::ChFrame<double> offset_pose2({0, -2.5, 2}, QuatFromAngleZ(rotX));
     //chrono::ChFrame<double> offset_pose2({0, -10, 2}, QuatFromAngleZ(CH_PI_2));
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
@@ -198,8 +218,31 @@ int main(int argc, char* argv[]) {
     if (vis)
         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "NLOS Camera"));
     if (save)
-        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "NLOS/"));
+        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "NLOS_SteadyState/"));
     manager->AddSensor(cam);
+
+    float tmin = 2;
+    float tmax = 30;
+    float tBins = 256;
+    auto tcam = chrono_types::make_shared<ChTransientSensor>(floor,         // body camera is attached to
+                                                            update_rate,   // update rate in Hz
+                                                            offset_pose2,  // offset pose
+                                                            image_width,   // image width
+                                                            image_height,  // image height
+                                                            fov,           // camera's horizontal field of view
+                                                            tmin, tmax, tBins,
+                                                            alias_factor,  // supersample factor for antialiasing
+                                                            lens_model,    // FOV
+                                                            true);         // use global illumination or not
+    tcam->SetName("Transient Camera");
+    tcam->SetLag(lag);
+    tcam->SetCollectionWindow(exposure_time);
+    /* if (vis)
+         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera"));
+     */
+    if (save)
+        tcam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "NLOS/"));
+    manager->AddSensor(tcam);
 
  
 
@@ -213,8 +256,8 @@ int main(int argc, char* argv[]) {
     float ch_time = 0.0;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-
-    while (ch_time < end_time) {
+    int i = 0;
+    while (i < 6) { //ch_time < end_time
         // Update sensor manager
         // Will render/save/filter automatically
         manager->Update();
@@ -224,6 +267,7 @@ int main(int argc, char* argv[]) {
 
         // Get the current time of the simulation
         ch_time = (float)sys.GetChTime();
+        i++;
     }
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);

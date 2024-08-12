@@ -37,7 +37,7 @@ ChVisualMaterial::ChVisualMaterial()
       instance_id(0),
       use_hapke(false),
       emissive_power(0.f),
-      shader_select(0) {}
+      BSDFType(0) {}
 
 void ChVisualMaterial::SetKdTexture(const std::string& filename) {
     kd_texture.SetFilename(filename);

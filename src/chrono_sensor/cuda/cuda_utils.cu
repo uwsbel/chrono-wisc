@@ -15,11 +15,15 @@
 //
 // =============================================================================
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <vector>
+#include "cuda_utils.cuh"
+
 #ifdef USE_SENSOR_NVDB
 
 
-#include <cuda.h>
-#include <cuda_runtime.h>
+
 
 #include <nanovdb/NanoVDB.h>
 #include <openvdb/openvdb.h>
@@ -33,10 +37,7 @@
 //#include <nanovdb/util/CreateNanoGrid.h> // converter from OpenVDB to NanoVDB (includes NanoVDB.h and GridManager.h)
 #include <nanovdb/util/cuda/CudaDeviceBuffer.h>
 
-#include <vector>
 
-
-#include "cuda_utils.cuh"
 
 namespace chrono {
 namespace sensor {
@@ -334,3 +335,33 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<open
 }  // namespace chrono
 #endif
 
+
+__global__ void initializeBufferKernel(__half* buffer, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) {
+        buffer[idx] = __float2half(1e-5);
+        //printf("Buffer[%d]: %f\n", idx, __half2float(buffer[idx]));
+    }
+}
+
+__global__ void initializeBufferKernel(__half* frame, __half* albedo, __half* normal, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) {
+        frame[idx] = __float2half(1e-5);
+        albedo[idx] = __float2half(1e-5);
+        normal[idx] = __float2half(1e-5);
+        // printf("Buffer[%d]: %f\n", idx, __half2float(buffer[idx]));
+    }
+}
+
+void initializeBuffer(void* frame, int w, int h) {
+    int threadsPerBlock = 512;
+    int blocksPerGrid = (w * h * 4 + threadsPerBlock - 1) / threadsPerBlock;
+    initializeBufferKernel<<<blocksPerGrid, threadsPerBlock>>>((__half*)frame, w * h * 4);
+}
+
+void initializeBuffer(void* frame, void* albedo, void* normal, int w, int h) {
+    int threadsPerBlock = 512;
+    int blocksPerGrid = (w * h * 4 + threadsPerBlock - 1) / threadsPerBlock;
+    initializeBufferKernel<<<blocksPerGrid, threadsPerBlock>>>((__half*)frame, (__half*)albedo, (__half*)normal, w * h * 4);
+}
