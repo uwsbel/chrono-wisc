@@ -230,10 +230,14 @@ int main(int argc, char* argv[]) {
                                                             image_width,   // image width
                                                             image_height,  // image height
                                                             fov,           // camera's horizontal field of view
-                                                            tmin, tmax, tBins,
                                                             alias_factor,  // supersample factor for antialiasing
                                                             lens_model,    // FOV
-                                                            true);         // use global illumination or not
+                                                            true,
+                                                            Integrator::TRANSIENT,
+                                                            tmin,
+                                                            tmax,
+                                                            tBins
+                                                            );         // use global illumination or not
     tcam->SetName("Transient Camera");
     tcam->SetLag(lag);
     tcam->SetCollectionWindow(exposure_time);

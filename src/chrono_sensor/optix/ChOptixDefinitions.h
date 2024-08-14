@@ -65,11 +65,12 @@ enum CameraLensModelType {
 }
 */
 
+enum class TIMEGATED_MODE {BOX,TENT,COS,SIN,EXPONENTIAL};
 
 enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE};
 
 
-enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, LEGACY};
+enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, LEGACY};
 
 enum class LightType { POINT_LIGHT, AREA_LIGHT, SPOT_LIGHT };
 
@@ -372,6 +373,10 @@ struct ContextParameters {
     MeshParameters* mesh_pool;          ///< device pointer to list of meshes for instancing
     
     TransientSample* transient_buffer; 
+    //Integrator integrator;
+    float window_size;
+    float target_dist;
+    TIMEGATED_MODE timegated_mode;
     #ifdef USE_SENSOR_NVDB
     //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>* handle_ptr; // NanoVDB grid handle
     //nanovdb::NanoGrid<float>* handle_ptr;
@@ -421,7 +426,6 @@ struct PerRayData_transientCamera {
     float path_length;
     bool fromNLOSHit;
     Integrator integrator;
-    //TransientSample* transient_buffer; // TODO: Keep it as as a single sample for now, later we can change it to a buffer
 };
 
 struct PerRayData_depthCamera {

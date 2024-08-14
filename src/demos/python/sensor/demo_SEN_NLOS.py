@@ -27,7 +27,7 @@ lens_model = sens.PINHOLE
 
 # Update rate in Hz
 update_rate = 30
-transCam_update_rate = 1
+transCam_update_rate = 30
 
 # Image width and height
 image_width = 500
@@ -53,13 +53,15 @@ step_size = 1e-3
 end_time = 20.0
 
 # Save camera images
-save = True
+save = False
 
 # Render camera images
 vis = True
 
 # Output directory
 out_dir = "SENSOR_OUTPUT/NLOS/"
+
+alias_factor = 16
 
 
 # -----------------
@@ -124,7 +126,7 @@ def main():
     cam.SetLag(lag)
     cam.SetCollectionWindow(exposure_time)
     cam.SetIntegrator(sens.Integrator_PATH)
-    cam.SetUseGI(True)
+    cam.SetUseDenoiser(True)
 
     if vis:
         cam.PushFilter(sens.ChFilterVisualize(
@@ -145,21 +147,55 @@ def main():
         offset_pose,            # offset pose
         image_width,            # image width
         image_height,           # image height
-        fov,                   # camera's horizontal field of view
-        tmin,
-        tmax,
-        tbins
+        fov                 # camera's horizontal field of view
     )
     transCam.SetIntegrator(sens.Integrator_TRANSIENT)
-    transCam.SetSampleFactor(64)
+    transCam.SetSampleFactor(alias_factor)
+    transCam.SetTmin(tmin)
+    transCam.SetTmax(tmax)
+    transCam.SetNumBins(tbins)
+    transCam.SetUseDenoiser(False)
+    transCam.SetName("Transient Camera Sensor")
+    transCam.SetLag(lag)
+    transCam.SetCollectionWindow(exposure_time)
     
 
     if save:
         transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
 
     transCam.PushFilter(sens.ChFilterRGBA8Access()) # Get access to transience buffer
-
     manager.AddSensor(transCam)
+
+        # Add time gated camera
+    window_size = .1
+    target_dist = 25
+    tof_mode = sens.TIMEGATED_MODE_EXPONENTIAL
+    timegateCam = sens.ChTransientSensor(
+        floor,              # body camera is attached to
+        transCam_update_rate,            # update rate in Hz
+        offset_pose,            # offset pose
+        image_width,            # image width
+        image_height,           # image height
+        fov                 # camera's horizontal field of view
+    )
+    timegateCam.SetSampleFactor(alias_factor)
+    timegateCam.SetTargetDist(target_dist)
+    timegateCam.SetWindowSize(window_size)
+    timegateCam.SetTimeGatedMode(tof_mode)
+    timegateCam.SetUseDenoiser(False)
+    timegateCam.SetIntegrator(sens.Integrator_TIMEGATED)
+    timegateCam.SetName("Time Gated Camera Sensor")
+    timegateCam.SetLag(lag)
+    timegateCam.SetCollectionWindow(exposure_time)
+    
+    if vis:
+        timegateCam.PushFilter(sens.ChFilterVisualize(
+            image_width, image_height, "Time Gated Image"))
+    if save:
+        timegateCam.PushFilter(sens.ChFilterSave(out_dir + "timegate/"))
+    timegateCam.PushFilter(sens.ChFilterRGBA8Access())
+    manager.AddSensor(timegateCam)
+
     ch_time = 0.0
     end_time = 1.0
     t1 = time.time()

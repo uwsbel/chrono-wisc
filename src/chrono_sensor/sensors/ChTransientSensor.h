@@ -50,12 +50,16 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
                    unsigned int w,                          // image width
                    unsigned int h,                          // image height
                    float hFOV,                              // horizontal field of view,
-                   float tmin,
-                   float tmax,
-                   float tbins,
-                   unsigned int supersample_factor = 1,     // number of samples per pixel for antialiasing
+                   unsigned int supersample_factor = 1,  // number of samples per pixel for antialiasing
                    CameraLensModelType lens_model = CameraLensModelType::PINHOLE,
+                   bool use_denoiser = false,
                    Integrator integrator = Integrator::TRANSIENT,
+                   float tmin = 0.f,
+                   float tmax = 1.f,
+                   float tbins = 1.f,
+                   float window_size = 1.f,
+                   float target_dist = 1.f,
+                   TIMEGATED_MODE mode = TIMEGATED_MODE::BOX,
                    float gamma = 2.2,     // gamma correction value
                    bool use_fog = true   // whether to use fog
                    ); 
@@ -86,15 +90,15 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
 
     /// returns if the cemera requesting global illumination
     /// @return True if it does request
-    bool GetUseGI() { return m_use_gi; }
-    void SetUseGI(bool use_gi) { m_use_gi = use_gi; }
+    bool GetUseDenoiser() { return m_use_gi; }
+    void SetUseDenoiser(bool use_gi) { m_use_gi = use_gi; }
 
     /// returns the gamma correction value of this camera.
     /// 1 means no correction and the image is in linear color space. Useful for other ML applications
     /// 2.2 means the image is in sRGB color space. Useful for display
     /// @return Gamma value of the image
     float GetGamma() { return m_gamma; }
-    void SetGamm(float gamma) { m_gamma = gamma; }
+    void SetGamma(float gamma) { m_gamma = gamma; }
 
     /// Gets the number of samples per pixels in each direction used for super sampling
     /// @return the number of samples per pixel
@@ -117,10 +121,35 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     static LensParams CalcInvRadialModel(ChVector3f params);
 
     float GetNumBins() { return m_tbins; }
+    void SetNumBins(float tbins) { 
+        if (this->GetIntegrator() == Integrator::TIMEGATED && tbins > 1.f) {
+            std::cout << "for TIMEGATED Integrator number of bins cannot be > 1! Setting to tbins to 1." << std::endl;
+            m_tbins = 1.f;
+        }
+
+        m_tbins = tbins; 
+    }
+    
     float GetTmin() { return m_tmin; }
+    void SetTmin(float tmin) { m_tmin = tmin; }
+
     float GetTmax() { return m_tmax; }
+    void SetTmax(float tmax) { m_tmax = tmax; }
 
+    float GetWindowSize() { return m_window_size; }
+    void SetWindowSize(float window_size) { m_window_size = window_size; }
 
+    float GetTargetDist() { return m_target_dist; }
+    void SetTargetDist(float target_dist) { m_target_dist = target_dist; }
+
+    TIMEGATED_MODE GetTimeGatedMode() { return m_mode; }
+    void SetTimeGatedMode(TIMEGATED_MODE mode) { m_mode = mode; }
+
+   void SetIntegrator(Integrator integrator) override { 
+       if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED)
+           throw std::runtime_error("Transient Sensor integrator must be TRANSIENT or TIMEGATED!");
+       ChOptixSensor::SetIntegrator(integrator);
+   };
 
 
   private:
@@ -137,6 +166,9 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     float m_tmin;
     float m_tmax;
     float m_tbins;
+    float m_target_dist;
+    float m_window_size;
+    TIMEGATED_MODE m_mode;
 };
 
 /// @} sensor_sensors

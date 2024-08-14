@@ -33,19 +33,23 @@ CH_SENSOR_API ChTransientSensor::ChTransientSensor(std::shared_ptr<chrono::ChBod
                                              unsigned int w,                   // image width
                                              unsigned int h,                   // image height
                                              float hFOV,                       // horizontal field of view
+                                             unsigned int supersample_factor,  // super sampling factor
+                                             CameraLensModelType lens_model,   // lens model to use
+                                             bool use_denoiser,
+                                             Integrator integrator,
                                              float tmin,
                                              float tmax,
                                              float tbins,
-                                             unsigned int supersample_factor,  // super sampling factor
-                                             CameraLensModelType lens_model,   // lens model to use
-                                             Integrator integrator,
+                                             float window_size,
+                                             float target_dist,
+                                             TIMEGATED_MODE mode,
                                              float gamma,                      // 1 for linear color space, 2.2 for sRGB
                                              bool use_fog                      // whether to use fog on this camera
                                              )
     : m_hFOV(hFOV),
       m_supersample_factor(supersample_factor),
       m_lens_model_type(lens_model),
-      m_use_gi(true),
+      m_use_gi(use_denoiser),
       m_gamma(gamma),
       m_use_fog(use_fog),
       m_lens_parameters({}),
@@ -54,13 +58,18 @@ CH_SENSOR_API ChTransientSensor::ChTransientSensor(std::shared_ptr<chrono::ChBod
       m_tmin(tmin),
       m_tmax(tmax),
       m_tbins(tbins),
+      m_window_size(window_size),
+      m_target_dist(target_dist),
+      m_mode(mode),
       ChOptixSensor(parent, updateRate, offsetPose, w, h, integrator) {
 
     m_pipeline_type = PipelineType::TANSIENT;
 
-    if (integrator != Integrator::TRANSIENT)
-        throw std::runtime_error("Transient sensor must use the TRANSIENT integrator");
+    if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED)
+        throw std::runtime_error("Transient Sensor integrator must be TRANSIENT or TIMEGATED!");
 
+    if (integrator == Integrator::TIMEGATED)
+        m_tbins = 1.f;
     m_filters.push_back(chrono_types::make_shared<ChFilterImageHalf4ToRGBA8>());
 
     // if (m_supersample_factor > 1) {

@@ -555,7 +555,6 @@ static __device__ __inline__ float3 CalculateContributionToPixel(
             PerRayData_camera prd_reflection = default_camera_prd();
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
-
             prd_reflection.rng = prd_camera->rng;
             prd_reflection.depth = prd_camera->depth + 1;
             prd_reflection.use_gi = prd_camera->use_gi;
@@ -1614,6 +1613,8 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
                                                         const float& ray_dist,
                                                         const float3& ray_orig,
                                                         const float3& ray_dir) {
+
+    //printf("PATH Integrator!\n");
     const MaterialParameters& mat = params.material_pool[material_id];
     BSDFType bsdfType = (BSDFType)mat.BSDFType;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
@@ -1644,8 +1645,8 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
         Ld = prd_camera->contrib_to_pixel * ComputeDirectLight(l,ls,mat,prd_camera->depth);
     }
     L += Ld;
-    // If using GI, find next direction to sample
-    if (prd_camera->use_gi && prd_camera->depth + 1 < params.max_depth) {
+    
+    if (prd_camera->depth + 1 < params.max_depth) {
         BSDFSample sample;
         sample.wo = wo;
         sample.n = world_normal;
@@ -1653,7 +1654,7 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
         float z2 = curand_uniform(&prd_camera->rng);
         SampleBSDF(bsdfType, sample, mat, false, z1, z2);
 
-        if (fmaxf(sample.f) > 0 && sample.pdf > 0) {
+        if (luminance(sample.f) > params.importance_cutoff && sample.pdf > 0) {
             float NdL = Dot(sample.n, sample.wi);
             float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf; 
             
@@ -1698,6 +1699,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
                                                           const float3& ray_orig,
                                                           const float3& ray_dir) {
 
+    //printf("TRANSIENT Integrator!\n");
     const MaterialParameters& mat = params.material_pool[material_id];
     BSDFType bsdfType = (BSDFType)mat.BSDFType;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
@@ -1750,7 +1752,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
         float z2 = curand_uniform(&prd_camera->rng);
         SampleBSDF(bsdfType, sample, mat, false, z1, z2);
 
-        if (fmaxf(sample.f) > 0 && sample.pdf > 0) {
+        if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
             float NdL = Dot(sample.n, sample.wi);
             float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
 
@@ -1772,7 +1774,6 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
             prd_reflection.depth = prd_camera->depth + 1;
             prd_reflection.use_gi = prd_camera->use_gi;
             prd_reflection.path_length = prd_camera->path_length;
-            prd_reflection.integrator = prd_camera->integrator;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
             unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
@@ -1790,6 +1791,129 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
     prd_camera->normal = world_normal;
 }
 
+static __device__ __inline__ float ComputePathLengthImportance(float path_length) {
+    float importance = 1.f;
+    float v = (path_length - params.target_dist) / params.window_size;
+    switch (params.timegated_mode) {
+        case TIMEGATED_MODE::BOX: {
+            importance = fabsf(v) < .5f ? 1.f : 0.f;
+            break;
+        } case TIMEGATED_MODE::TENT :{
+            importance = fmaxf(1 - fabsf(v),0.f);
+            break;
+        }
+        case TIMEGATED_MODE::COS :{
+            importance = cosf(2*CUDART_PI*v);
+            break;
+        }
+        case TIMEGATED_MODE::SIN: {
+            importance = sinf(2 * CUDART_PI * v);
+            break;
+        }
+        case TIMEGATED_MODE::EXPONENTIAL: {
+            importance = path_length > params.target_dist ? 0.f : expf(v);
+            break;
+        }
+    }
+    return importance;
+}
+
+static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera* prd_camera,
+                                                          const MaterialRecordParameters* mat_params,
+                                                          unsigned int& material_id,
+                                                          const unsigned int& num_blended_materials,
+                                                          const float3& world_normal,
+                                                          const float2& uv,
+                                                          const float3& tangent,
+                                                          const float& ray_dist,
+                                                          const float3& ray_orig,
+                                                          const float3& ray_dir) {
+    //printf("TIMEGATED Integrator!\n");
+    const MaterialParameters& mat = params.material_pool[material_id];
+    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    float3 hit_point = ray_orig + ray_dir * ray_dist;
+    float3 L = make_float3(0.0f);
+
+    float3 wo = -ray_dir;
+
+    prd_camera->path_length += ray_dist;
+
+    // Add ambient light
+    // prd_camera->color += params.ambient_light_color * prd_camera->contrib_to_pixel;  // ?
+
+    float3 Le = make_float3(0.f);
+    // TODO: Add Emisions from Area Lights
+
+    // Direct light contributions
+    float3 Ld = make_float3(0.f);
+
+    if (params.num_lights > 0 && bsdfType != BSDFType::SPECULAR) {
+        // Uniform sample light
+        unsigned int sample_light_index =
+            (unsigned int)(curand_uniform(&prd_camera->rng) *
+                           params.num_lights);  // TODO: Won't work for whitted as no GI, have a global sampler instead?
+        Light l = params.lights[sample_light_index];
+        LightSample ls;
+        ls.hitpoint = hit_point;
+        ls.wo = wo;
+        ls.n = world_normal;
+
+        // Compute direct lighting
+        Ld = prd_camera->contrib_to_pixel * ComputeDirectLight(l, ls, mat, prd_camera->depth);
+
+        if (fmaxf(Ld) > 0) {
+            float path_importance = ComputePathLengthImportance(prd_camera->path_length + ls.dist);
+            L += (Ld * path_importance);
+        }
+    }
+
+
+    if (prd_camera->depth + 1 < params.max_depth) {
+        BSDFSample sample;
+        sample.wo = wo;
+        sample.n = world_normal;
+        float z1 = curand_uniform(&prd_camera->rng);
+        float z2 = curand_uniform(&prd_camera->rng);
+        SampleBSDF(bsdfType, sample, mat, false, z1, z2);
+
+        if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
+            float NdL = Dot(sample.n, sample.wi);
+            float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
+
+            // Check possible rr termination
+            float rr_thresh = .1f;
+            if (fmaxf(next_contrib_to_pixel) < rr_thresh && prd_camera->depth > 3) {
+                float q = fmaxf((float).05, 1 - fmaxf(next_contrib_to_pixel));
+                float p = curand_uniform(&prd_camera->rng);
+                if (p < q)
+                    return;
+                next_contrib_to_pixel = next_contrib_to_pixel / (1 - q);
+            }
+
+            // Trace next ray
+            PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+            prd_reflection.integrator = prd_camera->integrator;
+            prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
+            prd_reflection.rng = prd_camera->rng;
+            prd_reflection.depth = prd_camera->depth + 1;
+            prd_reflection.use_gi = prd_camera->use_gi;
+            prd_reflection.path_length = prd_camera->path_length;
+            unsigned int opt1, opt2;
+            pointer_as_ints(&prd_reflection, opt1, opt2);
+            unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+            optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
+                       OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
+            L += prd_reflection.color;
+            prd_camera->depth_reached = prd_reflection.depth_reached;
+        }
+    } else {
+        prd_camera->depth_reached = prd_camera->depth;
+    }
+
+    prd_camera->color += L;
+    prd_camera->albedo = mat.Kd;  // Might change
+    prd_camera->normal = world_normal;
+}
 
 extern "C" __global__ void __closesthit__material_shader() {
     //printf("Material Shader!\n");
@@ -1882,9 +2006,14 @@ extern "C" __global__ void __closesthit__material_shader() {
                     TransientPathIntegrator(transCam_prd, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
                         tangent, ray_dist, ray_orig, ray_dir);
                     break;
+                case Integrator::TIMEGATED:
+                   TimeGatedIntegrator(transCam_prd, mat_params, material_id, mat_params->num_blended_materials,
+                                            world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                   break;
                 default:
                     break;
             }
+            break;
         case LIDAR_RAY_TYPE:
             LidarShader(getLidarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;

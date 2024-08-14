@@ -60,7 +60,7 @@ extern "C" __global__ void __raygen__camera() {
     float3 normal_result = make_float3(0.f);
     float3 albedo_result = make_float3(0.f);
     float tranparency = 1.f;
-
+    float gamma = camera.gamma;
     camera.frame_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
     //if (camera.frame_buffer[image_index].x > __float2half(0.f) || 
     //    camera.frame_buffer[image_index]. y> __float2half(0.f) ||
@@ -179,7 +179,8 @@ extern "C" __global__ void __raygen__camera() {
 
 
     color_result = color_result * inv_nsamples;
-    float gamma = camera.gamma;
+    //printf("C Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
+
     half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma),
                                        pow(color_result.z, 1.0f / gamma), 1.f);
 
@@ -215,9 +216,12 @@ extern "C" __global__ void __raygen__transientcamera() {
     unsigned int nsamples = camera.super_sample_factor * camera.super_sample_factor;
 
     float inv_nsamples = 1 / static_cast<float>(nsamples);
+    float gamma = camera.gamma;
+    const unsigned int image_index = screen.x * idx.y + idx.x;
 
+    float3 accum_color = make_float3(0.f);
     for (unsigned int sample = 0; sample < nsamples; sample++) {
-        const unsigned int image_index = screen.x * idx.y + idx.x;
+     
 
         float2 jitter = make_float2(curand_uniform(&camera.rng_buffer[image_index]),
                                     curand_uniform(&camera.rng_buffer[image_index]));
@@ -242,23 +246,7 @@ extern "C" __global__ void __raygen__transientcamera() {
             d = d_normalized * distortion_ratio * focal;
         }
 
-        // if (camera.super_sample_factor > 1) {
-        //    unsigned int local_idx = idx.x % camera.super_sample_factor;
-        //    unsigned int local_idy = idx.y % camera.super_sample_factor;
-
-        //    float d_local_x = (local_idx + .5) / camera.super_sample_factor - (camera.super_sample_factor / 2);
-        //    float d_local_y = (local_idy + .5) / camera.super_sample_factor - (camera.super_sample_factor / 2);
-
-        //    float2 dir_change = make_float2(-d_local_y, d_local_x);
-        //    float2 pixel_dist =
-        //        make_float2(2 * camera.super_sample_factor / screen.x, 2 * camera.super_sample_factor / screen.y);
-        //    float2 dist_change =
-        //        pixel_dist *
-        //        sin(.4636);  // * sin(.4636);  // approximately a 26.6 degree roation about the center of the pixel
-
-        //    d = d + make_float2(dist_change.x * dir_change.x, dist_change.y * dir_change.y);
-        //}
-
+       
         float t_frac = 0.f;
         if (camera.rng_buffer)
             t_frac = curand_uniform(&camera.rng_buffer[image_index]);  // 0-1 between start and end time of the camera (chosen here)
@@ -266,8 +254,7 @@ extern "C" __global__ void __raygen__transientcamera() {
 
         float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
         float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
-        // float3 ray_origin = raygen->pos0;
-        // float4 ray_quat = raygen->rot0;
+
         const float h_factor = camera.hFOV / CUDART_PI_F * 2.0;
         float3 forward;
         float3 left;
@@ -279,84 +266,85 @@ extern "C" __global__ void __raygen__transientcamera() {
         PerRayData_transientCamera prd = default_transientCamera_prd(image_index);
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
-        if (camera.use_gi) {
+        if (true) {
             prd.rng = camera.rng_buffer[image_index];
         }
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
         unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
-        /*  printf("TransCameraRayGen: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_origin.x,ray_origin.y,ray_origin.z,
-          ray_direction.x, ray_direction.y, ray_direction.z);*/
+
         optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse,
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-        // printf("Tracing don!\n");
-        // Gamma correct the output color into sRGB color space
-        float gamma = camera.gamma;
-       /* half4 corrected_color = make_half4(pow(prd.color.x, 1.0f / gamma), pow(prd.color.y, 1.0f / gamma),
-                                           pow(prd.color.z, 1.0f / gamma), prd.transparency);*/
+        accum_color += prd.color;
+ 
 
         // loop over all transient sample
-        int stride = screen.x * screen.y;  // Does not account for multiple spp! (super sampling factor)
+        int stride = screen.x * screen.y;  
+        if (camera.integrator == Integrator::TRANSIENT) {
+        
+             for (int i = 0; i < prd.depth_reached; i++) {
+                TransientSample sample = params.transient_buffer[params.max_depth * image_index + i];
 
-        for (int i = 0; i < prd.depth_reached; i++) {
-            TransientSample sample = params.transient_buffer[params.max_depth * image_index + i];
+                float r = ((sample.pathlength - camera.tmin) / (camera.tmax - camera.tmin)) * camera.tbins;
 
-            float r = ((sample.pathlength - camera.tmin) / (camera.tmax - camera.tmin)) * camera.tbins;
-
-            unsigned int idx = static_cast<unsigned int>(r);
+                unsigned int idx = static_cast<unsigned int>(r);
            
-            // Check if index is valid
-            float idx_valid = (sample.pathlength >= camera.tmin) && (sample.pathlength < camera.tmax) ? 1.0f : 0.0f;
+                // Check if index is valid
+                float idx_valid = (sample.pathlength >= camera.tmin) && (sample.pathlength < camera.tmax) ? 1.0f : 0.0f;
+                // Clamp indices
+                unsigned int curr_idx = clamp(idx, 0, camera.tbins - 1);
+                unsigned int next_idx = clamp(idx + 1, 0, camera.tbins - 1);
 
-         /*  if (prd.depth_reached > 0 && sample.pathlength < 6.f && idx_valid) {
-                printf("path length: %f, r: %f, idx: %d, dr: %d, d: %d, c: (%f,%f,%f)\n",
-                       sample.pathlength, r, idx, prd.depth_reached, prd.depth,
-                       sample.color.x, sample.color.y, sample.color.z);
-            }*/
-            // Clamp indices
-            unsigned int curr_idx = clamp(idx, 0, camera.tbins - 1);
-            unsigned int next_idx = clamp(idx + 1, 0, camera.tbins - 1);
-
-            // Calculate remainder
-            float remainder = r - curr_idx;
+                // Calculate remainder
+                float remainder = r - curr_idx;
 
 
-            float3 L1 = (sample.color * (1 - remainder) * idx_valid) * inv_nsamples;
-            float3 L2 = (sample.color * remainder * idx_valid) * inv_nsamples;
+                float3 L1 = (sample.color * (1 - remainder) * idx_valid) * inv_nsamples;
+                float3 L2 = (sample.color * remainder * idx_valid) * inv_nsamples;
 
-            half4 L1_corrected =
-                make_half4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
-            half4 L2_corrected =
-                make_half4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
+                half4 L1_corrected =
+                    make_half4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
+                half4 L2_corrected =
+                    make_half4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
 
-              /* if (sample.pathlength > 0.f) {
-                printf("path length: %f, color: (%f,%f,%f), tmin:%f, tmax:%f, tbins:%f, r: %f , curridx: %d, nextidx: %d, remainer: %f, idxvalid: %f| Adding to buffer idx: %d, L1: (%f,%f,%f)\n",
-                 sample.pathlength,
-               sample.color.x, sample.color.y, sample.color.z, camera.tmin, camera.tmax, camera.tbins, r, curr_idx,
-               next_idx, remainder, idx_valid, stride * curr_idx + image_index, L1.x, L1.y, L1.z);
-               }*/
+                  /* if (sample.pathlength > 0.f) {
+                    printf("path length: %f, color: (%f,%f,%f), tmin:%f, tmax:%f, tbins:%f, r: %f , curridx: %d, nextidx: %d, remainer: %f, idxvalid: %f| Adding to buffer idx: %d, L1: (%f,%f,%f)\n",
+                     sample.pathlength,
+                   sample.color.x, sample.color.y, sample.color.z, camera.tmin, camera.tmax, camera.tbins, r, curr_idx,
+                   next_idx, remainder, idx_valid, stride * curr_idx + image_index, L1.x, L1.y, L1.z);
+                   }*/
 
-            //if (i == 0) {
-            //    /*camera.frame_buffer[stride * curr_idx + image_index] = make_half4(0.f,0.f,0.f,1.f);
-            //    camera.frame_buffer[stride * next_idx + image_index] = make_half4(0.f, 0.f, 0.f, 1.f);*/
-            //    printf("buff: (%f,%f,%f)\n", __half2float(camera.frame_buffer[stride * curr_idx + image_index].x),
-            //            __half2float(camera.frame_buffer[stride * curr_idx + image_index].y),
-            //            __half2float(camera.frame_buffer[stride * curr_idx + image_index].z));
-            //}
 
-            camera.frame_buffer[stride * curr_idx + image_index].x += L1_corrected.x;
-            camera.frame_buffer[stride * curr_idx + image_index].y += L1_corrected.y;
-            camera.frame_buffer[stride * curr_idx + image_index].z += L1_corrected.z;
-            camera.frame_buffer[stride * curr_idx + image_index].w = L1_corrected.w;
+                camera.frame_buffer[stride * curr_idx + image_index].x += L1_corrected.x;
+                camera.frame_buffer[stride * curr_idx + image_index].y += L1_corrected.y;
+                camera.frame_buffer[stride * curr_idx + image_index].z += L1_corrected.z;
+                camera.frame_buffer[stride * curr_idx + image_index].w = L1_corrected.w;
 
-            camera.frame_buffer[stride * next_idx + image_index].x += L2_corrected.x;
-            camera.frame_buffer[stride * next_idx + image_index].y += L2_corrected.y;
-            camera.frame_buffer[stride * next_idx + image_index].z += L2_corrected.z;
-            camera.frame_buffer[stride * next_idx + image_index].w = L2_corrected.w;
-        }
-    }
-    
+                camera.frame_buffer[stride * next_idx + image_index].x += L2_corrected.x;
+                camera.frame_buffer[stride * next_idx + image_index].y += L2_corrected.y;
+                camera.frame_buffer[stride * next_idx + image_index].z += L2_corrected.z;
+                camera.frame_buffer[stride * next_idx + image_index].w = L2_corrected.w;
+            }
+        } /*else if (params.integrator == Integrator::TIMEGATED) {
+            float3 color = prd.color * inv_nsamples;
+            half4 corrected_color = make_half4(pow(color.x, 1.0f / gamma), pow(color.y, 1.0f / gamma),
+                                               pow(color.z, 1.0f / gamma), 1.f);
+
+            camera.frame_buffer[image_index].x += corrected_color.x;
+            camera.frame_buffer[image_index].y += corrected_color.y;
+            camera.frame_buffer[image_index].z += corrected_color.z;
+            camera.frame_buffer[image_index].w = 1.f;
+        }*/
+     }
+
+     if (camera.integrator == Integrator::TIMEGATED) {
+         accum_color = accum_color * inv_nsamples;
+         //printf("T Color: (%f,%f,%f)\n", accum_color.x, accum_color.y, accum_color.z);
+         half4 corrected_color = make_half4(pow(accum_color.x, 1.0f / gamma), pow(accum_color.y, 1.0f / gamma),
+                                           pow(accum_color.z, 1.0f / gamma), 1.f);
+        camera.frame_buffer[image_index] = corrected_color;
+     }
 
 }
 

@@ -110,6 +110,10 @@ void ChOptixEngine::Initialize() {
     m_params.importance_cutoff = .01f;  /// TODO: determine a good value for this
 
     m_params.transient_buffer = {};
+    //m_params.integrator = Integrator::PATH;
+    m_params.window_size = 1.f;
+    m_params.timegated_mode = TIMEGATED_MODE::BOX;
+    m_params.target_dist = 1.f;
     #ifdef USE_SENSOR_NVDB
         m_params.handle_ptr = nullptr;
     #else
@@ -154,9 +158,11 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
         opx_filter->m_optix_sbt = m_pipeline->GetSBT(id);
         opx_filter->m_raygen_record = m_pipeline->GetRayGenRecord(id);
 
+        //m_params.integrator = sensor->GetIntegrator();
+
         // add a denoiser to the optix render filter if its a camera and global illumination is enabled
-        if (auto cam = std::dynamic_pointer_cast<ChCameraSensor>(sensor)) {
-            if (cam->GetUseGI()) {
+        if (auto cam = std::dynamic_pointer_cast<ChCameraSensor>(sensor)) { // TODO: Maybe set this up for TransientSensor as well?
+            if (cam->GetUseDenoiser()) {
                 std::cout << "Sensor: " << cam->GetName() << " requested global illumination\n";
                 opx_filter->m_denoiser = chrono_types::make_shared<ChOptixDenoiser>(m_context);
                 //opx_filter->m_denoiser = nullptr;
@@ -171,6 +177,10 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
             std::cout << "Allocating " << size << " bytes for transient buffer\n";
             cudaMalloc(reinterpret_cast<void**>(&m_params.transient_buffer),size);
             cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
+
+            m_params.window_size = trans_sensor->GetWindowSize();
+            m_params.timegated_mode = trans_sensor->GetTimeGatedMode();
+            m_params.target_dist = trans_sensor->GetTargetDist();
         }
 
         m_assignedRenderers.push_back(opx_filter);
