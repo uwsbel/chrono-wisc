@@ -426,10 +426,11 @@ ChVector3d ChBezierCurve::EvalDer2(size_t i, double t) const {
 
 // -----------------------------------------------------------------------------
 // ChBezierCurve::Eval()
+// ChBezierCurve::EvalDer()
 //
-// This function evaluates the value of this Bezier curve at the specified value.
-// A value t=0 returns the first point of the Bezier curve.
-// A value t=1 returns the last point of the Bezier curve.
+// These functions evaluate the value of this Bezier curve at the specified value.
+// A value t=0 returns the first point/tangent vector of the Bezier curve.
+// A value t=1 returns the last point/tangent vector of the Bezier curve.
 // -----------------------------------------------------------------------------
 ChVector3d ChBezierCurve::Eval(double t) const {
     double par = ChClamp(t, 0.0, 1.0);
@@ -439,6 +440,16 @@ ChVector3d ChBezierCurve::Eval(double t) const {
     ChClampValue(i, size_t(0), numIntervals - 1);
 
     return Eval(i, epar - (double)i);
+}
+
+ChVector3d ChBezierCurve::EvalDer(double t) const {
+    double par = ChClamp(t, 0.0, 1.0);
+    size_t numIntervals = GetNumPoints() - 1;
+    double epar = par * numIntervals;
+    size_t i = static_cast<size_t>(std::floor(par * numIntervals));
+    ChClampValue(i, size_t(0), numIntervals - 1);
+
+    return EvalDer(i, epar - (double)i);
 }
 
 // -----------------------------------------------------------------------------
