@@ -54,7 +54,7 @@ class CH_SENSOR_API ChOptixSensor : public ChSensor {
     PipelineType GetPipelineType() { return m_pipeline_type; }
 
     Integrator GetIntegrator() {return m_integrator;}
-    void SetIntegrator(Integrator integrator) {m_integrator = integrator;};
+    virtual void SetIntegrator(Integrator integrator) {m_integrator = integrator;};
 
     unsigned int GetWidth() { return m_width; }
     unsigned int GetHeight() { return m_height; }

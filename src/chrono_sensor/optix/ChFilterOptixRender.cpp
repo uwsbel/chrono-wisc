@@ -94,11 +94,11 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         m_raygen_record->data.specific.camera.gamma = cam->GetGamma();
         m_raygen_record->data.specific.camera.super_sample_factor = cam->GetSampleFactor();
         m_raygen_record->data.specific.camera.frame_buffer = reinterpret_cast<half4*>(bufferOut->Buffer.get());
-        m_raygen_record->data.specific.camera.use_gi = cam->GetUseGI();
+        m_raygen_record->data.specific.camera.use_gi = cam->GetUseDenoiser();
         m_raygen_record->data.specific.camera.use_fog = cam->GetUseFog();
         m_raygen_record->data.specific.camera.lens_model = cam->GetLensModelType();
         m_raygen_record->data.specific.camera.lens_parameters = cam->GetLensParameters();
-        m_raygen_record->data.specific.camera.integrator = pOptixSensor->GetIntegrator();
+        m_raygen_record->data.specific.camera.integrator = cam->GetIntegrator();
         // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
         m_bufferOut = bufferOut;
 
@@ -113,7 +113,7 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
             m_raygen_record->data.specific.camera.rng_buffer = m_rng.get();
         }
 
-        if (cam->GetUseGI() && m_denoiser) {
+        if (cam->GetUseDenoiser() && m_denoiser) {
             half4* frame_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
             half4* albedo_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
             half4* normal_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
@@ -137,14 +137,15 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         m_raygen_record->data.specific.transientCamera.gamma = transientCamera->GetGamma();
         m_raygen_record->data.specific.transientCamera.super_sample_factor = transientCamera->GetSampleFactor();
         m_raygen_record->data.specific.transientCamera.frame_buffer = reinterpret_cast<half4*>(bufferOut->Buffer.get());
-        m_raygen_record->data.specific.transientCamera.use_gi = transientCamera->GetUseGI();
+        m_raygen_record->data.specific.transientCamera.use_gi = transientCamera->GetUseDenoiser();
         m_raygen_record->data.specific.transientCamera.use_fog = transientCamera->GetUseFog();
         m_raygen_record->data.specific.transientCamera.lens_model = transientCamera->GetLensModelType();
         m_raygen_record->data.specific.transientCamera.lens_parameters = transientCamera->GetLensParameters();
         m_raygen_record->data.specific.transientCamera.tmin = transientCamera->GetTmin();
         m_raygen_record->data.specific.transientCamera.tmax = transientCamera->GetTmax();
         m_raygen_record->data.specific.transientCamera.tbins = transientCamera->GetNumBins();
-        m_raygen_record->data.specific.transientCamera.integrator = pOptixSensor->GetIntegrator();
+        m_raygen_record->data.specific.transientCamera.integrator = transientCamera->GetIntegrator();
+
         // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
         m_bufferOut = bufferOut;
 

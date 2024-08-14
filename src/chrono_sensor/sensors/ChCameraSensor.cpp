@@ -35,7 +35,7 @@ CH_SENSOR_API ChCameraSensor::ChCameraSensor(std::shared_ptr<chrono::ChBody> par
                                              float hFOV,                       // horizontal field of view
                                              unsigned int supersample_factor,  // super sampling factor
                                              CameraLensModelType lens_model,   // lens model to use
-                                             bool use_gi,                      // 1 to use Global Illumination
+                                             bool use_denoiser,                      // 1 to use Global Illumination
                                              Integrator integrator,
                                              float gamma,                      // 1 for linear color space, 2.2 for sRGB
                                              bool use_fog                     // whether to use fog on this camera
@@ -43,7 +43,7 @@ CH_SENSOR_API ChCameraSensor::ChCameraSensor(std::shared_ptr<chrono::ChBody> par
     : m_hFOV(hFOV),
       m_supersample_factor(supersample_factor),
       m_lens_model_type(lens_model),
-      m_use_gi(use_gi),
+      m_use_gi(use_denoiser),
       m_gamma(gamma),
       m_use_fog(use_fog),
       m_lens_parameters({}),

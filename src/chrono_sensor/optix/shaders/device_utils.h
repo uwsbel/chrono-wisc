@@ -166,7 +166,7 @@ __device__ __inline__ PerRayData_transientCamera default_transientCamera_prd(int
     prd.use_gi = false;
     prd.albedo = make_float3(0.f, 0.f, 0.f);
     prd.normal = make_float3(0.f, 0.f, 0.f);
-    prd.use_fog = true;
+    prd.use_fog = false;
     prd.transparency = 1.f;
     prd.current_pixel = pixel_index;
     prd.depth_reached = 0;

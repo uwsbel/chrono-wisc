@@ -71,7 +71,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 64;
+int alias_factor = 4;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -137,6 +137,7 @@ int main(int argc, char* argv[]) {
     b.color_zenith = {0, 0, 0};
     manager->scene->SetBackground(b);
     manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {1.f,1.f,1.f}, 5.0f); //{2.0f / 2, 1.8902f / 2, 1.7568f / 2}
+    manager->SetRayRecursions(4);
     //manager->scene->SetAmbientLight({.1,.1,.1});
     //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
@@ -154,16 +155,16 @@ int main(int argc, char* argv[]) {
                                                              lens_model,    // FOV
                                                              true,
                                                              Integrator::PATH);         // use global illumination or not
-        cam1->SetName("Transient Camera");
+        cam1->SetName("Camera");
         cam1->SetLag(lag);
         cam1->SetCollectionWindow(exposure_time);
         if (vis)
             cam1->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Camera"));
         if (save)
             cam1->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience_steady_state/"));
-        //manager->AddSensor(cam1);
+        manager->AddSensor(cam1);
 
-       manager->SetRayRecursions(4);
+   
        float tmin = 6;
        float tmax = 25;
        float tBins = 128;
@@ -173,21 +174,46 @@ int main(int argc, char* argv[]) {
                                                          image_width,   // image width
                                                          image_height,  // image height
                                                          fov,           // camera's horizontal field of view
+                                                         alias_factor,
+                                                         lens_model,
+                                                         false,
+                                                         Integrator::TRANSIENT,
                                                          tmin,
                                                          tmax,
-                                                         tBins,
-                                                         alias_factor,  // supersample factor for antialiasing
-                                                         lens_model,    // FOV
-                                                         Integrator::TRANSIENT
+                                                         tBins
                                                          ); 
         cam->SetName("Transient Camera");
         cam->SetLag(lag);
         cam->SetCollectionWindow(exposure_time);
-       /* if (vis)
+       /*if (vis)
             cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera")); */
         if (save)
             cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience/"));
         manager->AddSensor(cam);
+
+       auto cam2 = chrono_types::make_shared<ChTransientSensor>(floor,         // body camera is attached to
+                                                                update_rate,   // update rate in Hz
+                                                                offset_pose2,  // offset pose
+                                                                image_width,   // image width
+                                                                image_height,  // image height
+                                                                fov,           // camera's horizontal field of view
+                                                                alias_factor,
+                                                                lens_model,
+                                                                false,
+                                                                Integrator::TIMEGATED
+                                                                );
+        cam2->SetName("Time Gated Camera");
+        cam2->SetLag(lag);
+        cam2->SetCollectionWindow(exposure_time);
+        cam2->SetWindowSize(.1f);
+        cam2->SetTimeGatedMode(TIMEGATED_MODE::BOX);
+        cam2->SetSampleFactor(4);
+        cam2->SetTargetDist(10.f);
+        if (vis)
+             cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "TimeGated Camera")); 
+        if (save)
+            cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "timegated/"));
+        manager->AddSensor(cam2);
 
 
 

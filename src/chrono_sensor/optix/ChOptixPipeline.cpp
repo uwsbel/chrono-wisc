@@ -521,7 +521,7 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             raygen_record->data.specific.transientCamera.tmin = 0.f;          // default value
             raygen_record->data.specific.transientCamera.tmax = 1.f;          // default value
             raygen_record->data.specific.transientCamera.tbins = 1.f;          // default value
-            raygen_record->data.specific.transientCamera.integrator = Integrator::PATH;
+             raygen_record->data.specific.transientCamera.integrator = Integrator::PATH;
             break;
         }
 

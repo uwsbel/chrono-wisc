@@ -42,6 +42,8 @@ lag = 0
 # Exposure (in seconds) of each image
 exposure_time = 0
 
+alias_factor = 16
+
 # ---------------------
 # Simulation parameters
 # ---------------------
@@ -56,7 +58,7 @@ end_time = 20.0
 save = True
 
 # Render camera images
-vis = False
+vis = True
 
 # Output directory
 out_dir = "SENSOR_OUTPUT/CornellBoxTransientPychrono/"
@@ -108,7 +110,7 @@ def main():
     cam.SetLag(lag)
     cam.SetCollectionWindow(exposure_time)
     cam.SetIntegrator(sens.Integrator_PATH)
-    cam.SetUseGI(True)
+    cam.SetUseDenoiser(True)
 
     if vis:
         cam.PushFilter(sens.ChFilterVisualize(
@@ -131,21 +133,57 @@ def main():
         offset_pose,            # offset pose
         image_width,            # image width
         image_height,           # image height
-        fov,                   # camera's horizontal field of view
-        tmin,
-        tmax,
-        tbins
+        fov                 # camera's horizontal field of view
     )
+    transCam.SetSampleFactor(alias_factor)
+    transCam.SetTmin(tmin)
+    transCam.SetTmax(tmax)
+    transCam.SetNumBins(tbins)
+    transCam.SetUseDenoiser(False)
     transCam.SetIntegrator(sens.Integrator_TRANSIENT)
-    transCam.SetSampleFactor(64)
+    transCam.SetName("Transient Camera Sensor")
+    transCam.SetLag(lag)
+    transCam.SetCollectionWindow(exposure_time)
     
-
     if save:
         transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
 
     transCam.PushFilter(sens.ChFilterRGBA8Access()) # Get access to transience buffer
-
     manager.AddSensor(transCam)
+
+    # Add time gated camera
+    window_size = 0.1
+    target_dist = 10
+    tof_mode = sens.TIMEGATED_MODE_EXPONENTIAL
+    offset_pose = chrono.ChFramed(
+        chrono.ChVector3d(-7, 0, 2), chrono.QuatFromAngleAxis(0, chrono.ChVector3d(0, 1, 0)))
+    timegateCam = sens.ChTransientSensor(
+        mesh_body,              # body camera is attached to
+        transCam_update_rate,            # update rate in Hz
+        offset_pose,            # offset pose
+        image_width,            # image width
+        image_height,           # image height
+        fov                 # camera's horizontal field of view
+    )
+    timegateCam.SetSampleFactor(alias_factor)
+    timegateCam.SetTargetDist(target_dist)
+    timegateCam.SetWindowSize(window_size)
+    timegateCam.SetTimeGatedMode(tof_mode)
+    timegateCam.SetUseDenoiser(False)
+    timegateCam.SetIntegrator(sens.Integrator_TIMEGATED)
+    timegateCam.SetName("Time Gated Camera Sensor")
+    timegateCam.SetLag(lag)
+    timegateCam.SetCollectionWindow(exposure_time)
+    
+    if vis:
+        timegateCam.PushFilter(sens.ChFilterVisualize(
+            image_width, image_height, "Time Gated Image"))
+    if save:
+        timegateCam.PushFilter(sens.ChFilterSave(out_dir + "timegate/"))
+
+    timegateCam.PushFilter(sens.ChFilterRGBA8Access()) # Get access to transience buffer
+    manager.AddSensor(timegateCam)
+
     ch_time = 0.0
     end_time = 1.0
     t1 = time.time()
@@ -163,7 +201,6 @@ def main():
     print("Sim time:", end_time, "Wall time:", time.time() - t1)
 
     # processing transient buffer
-    print(rgba8_buffer)
     if (rgba8_buffer.HasData()):
             rgba8_data = rgba8_buffer.GetRGBA8Data()
             rgba8_data = np.array(rgba8_data)

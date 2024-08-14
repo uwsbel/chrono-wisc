@@ -84,15 +84,15 @@ class CH_SENSOR_API ChCameraSensor : public ChOptixSensor {
 
     /// returns if the cemera requesting global illumination
     /// @return True if it does request
-    bool GetUseGI() { return m_use_gi; }
-    void SetUseGI(bool use_gi) {m_use_gi = use_gi;}
+    bool GetUseDenoiser() { return m_use_gi; }
+    void SetUseDenoiser(bool use_gi) {m_use_gi = use_gi;}
 
     /// returns the gamma correction value of this camera.
     /// 1 means no correction and the image is in linear color space. Useful for other ML applications
     /// 2.2 means the image is in sRGB color space. Useful for display
     /// @return Gamma value of the image
     float GetGamma() { return m_gamma; }
-    void SetGamm(float gamma) {m_gamma = gamma;}
+    void SetGamma(float gamma) {m_gamma = gamma;}
 
     /// Gets the number of samples per pixels in each direction used for super sampling
     /// @return the number of samples per pixel
