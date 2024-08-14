@@ -119,6 +119,13 @@ class ChApi ChBezierCurve {
 
     /// Evaluate the tangent vector to the Bezier curve.
     /// This function calculates and returns the first derivative (tangent vector)
+    /// to the curve at the given curve parameter (assumed to be in [0,1]).
+    /// A value t=0 returns the tangent vector at the first point on the curve.
+    /// A value t=1 returns the tangent vector at the last point on the curve.
+    ChVector3d EvalDer(double t) const;
+
+    /// Evaluate the tangent vector to the Bezier curve.
+    /// This function calculates and returns the first derivative (tangent vector)
     /// to the curve in the specified interval between two knot points and at the
     /// given curve parameter (assumed to be in [0,1]). It uses the Bernstein
     /// polynomial representation of a Bezier curve.
