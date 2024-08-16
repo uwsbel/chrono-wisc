@@ -27,11 +27,11 @@ lens_model = sens.PINHOLE
 
 # Update rate in Hz
 update_rate = 30
-transCam_update_rate = 30
+transCam_update_rate = 1
 
 # Image width and height
-image_width = 500
-image_height = 500
+image_width = 32
+image_height = 32
 
 # Camera's horizontal field of view
 fov = 1.408
@@ -61,9 +61,10 @@ vis = True
 # Output directory
 out_dir = "SENSOR_OUTPUT/NLOS/"
 
-alias_factor = 16
+alias_factor = 2048
 
-
+def rgb_to_grayscale(image):
+    return np.dot(image[..., :3], [0.30, 0.59, 0.11]).astype(np.uint8)
 # -----------------
 def main():
     mphysicalSystem = chrono.ChSystemNSC()
@@ -109,7 +110,7 @@ def main():
 
     manager.SetRayRecursions(4)
 
-    intensity = 1e4
+    intensity = 1e5
     manager.scene.AddSpotLight(chrono.ChVector3f(0, -2.5, 2), chrono.ChVector3f(5, 1.5, 2.5), chrono.ChColor(intensity,intensity,intensity), 5, 1*(np.pi/180), .5*(np.pi/180)) # (position, lookat, intensity, range, beam width, beam fall off)
 
     offset_pose = chrono.ChFramed(
@@ -135,12 +136,12 @@ def main():
     if save:
         cam.PushFilter(sens.ChFilterSave(out_dir + "steady_state/"))
     cam.PushFilter(sens.ChFilterRGBA8Access()) 
-    manager.AddSensor(cam)
+    #manager.AddSensor(cam)
 
     # Add transient camera
     tmin = 2
     tmax = 30
-    tbins = 256
+    tbins = 512
     transCam = sens.ChTransientSensor(
         floor,              # body camera is attached to
         transCam_update_rate,            # update rate in Hz
@@ -194,7 +195,7 @@ def main():
     if save:
         timegateCam.PushFilter(sens.ChFilterSave(out_dir + "timegate/"))
     timegateCam.PushFilter(sens.ChFilterRGBA8Access())
-    manager.AddSensor(timegateCam)
+    #manager.AddSensor(timegateCam)
 
     ch_time = 0.0
     end_time = 1.0
@@ -221,14 +222,40 @@ def main():
             rgba8_data = rgba8_data.reshape((tbins, image_width, image_height, 4))
             rgba8_data = rgba8_data[:, :, :, :3]
             rgba8_data = np.flip(rgba8_data, 1)
+
+            gray_data = rgb_to_grayscale(rgba8_data)
      
             print(f"Buffer Size: {rgba8_data.shape}") # Buffer size: (H, W * Tbins, 4)
+            print(f"Gray Buffer Size: {gray_data.shape}")
     
             # write to video
             out = cv2.VideoWriter(out_dir + 'nlos.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30, (image_width, image_height))
             for i in range(tbins):
                 out.write(cv2.cvtColor(rgba8_data[i], cv2.COLOR_RGB2BGR))
             out.release()
+
+            # write gray buffer to video
+            out = cv2.VideoWriter(out_dir + 'nlos_gray.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30, (image_width, image_height))
+            for i in range(tbins):
+                out.write(cv2.cvtColor(gray_data[i], cv2.COLOR_GRAY2BGR))
+            out.release()
+
+            bin_labels =  np.linspace(tmin, tmax, tbins)
+            label_indices = np.linspace(0, tbins - 1, 10, dtype=int)
+            for i in range(0, image_width, 1):
+                for j in range(0, image_height, 1):
+                    if np.sum(gray_data[:, i, j]) == 0:
+                        continue
+                    plt.figure()
+                    plt.plot(bin_labels,gray_data[:, i, j])
+                    plt.xlabel('Path Length (m)')
+                    #plt.xticks(label_indices, [f"{bin_labels[i]:.2f}" for i in label_indices], rotation=45)
+                    plt.ylabel('Intensity')
+                    plt.yscale('log')
+                    plt.title(f'Transience at Pixel {i}, {j}')
+                    plt.savefig(out_dir + 'histograms/' + f'pixel_{i}_{j}.png')
+                    plt.close()
+                    print(f'Pixel {i * image_height + j}/{image_width*image_height} done', end='\r')
 
 if __name__ == "__main__":
     main()
