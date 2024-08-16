@@ -86,7 +86,7 @@ def main():
     cam.SetName("Camera Sensor")
     cam.SetLag(cam_lag)
     cam.SetCollectionWindow(cam_collection_time)
-    cam.SetUseGI(False)
+    cam.SetUseDenoiser(False)
     cam.SetIntegrator(sens.Integrator_PATH)
 
     # ------------------------------------------------------------------
