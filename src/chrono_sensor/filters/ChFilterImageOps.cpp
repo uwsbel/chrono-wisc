@@ -60,6 +60,44 @@ CH_SENSOR_API void ChFilterImageHalf4ToRGBA8::Apply() {
 }
 
 
+CH_SENSOR_API ChFilterImageFloat4ToRGBA8::ChFilterImageFloat4ToRGBA8(std::string name) : ChFilter(name) {}
+CH_SENSOR_API void ChFilterImageFloat4ToRGBA8::Initialize(std::shared_ptr<ChSensor> pSensor,
+                                                         std::shared_ptr<SensorBuffer>& bufferInOut) {
+    if (!bufferInOut)
+        InvalidFilterGraphNullBuffer(pSensor);
+
+    if (auto pOpx = std::dynamic_pointer_cast<ChOptixSensor>(pSensor)) {
+        m_cuda_stream = pOpx->GetCudaStream();
+
+    } else {
+        InvalidFilterGraphSensorTypeMismatch(pSensor);
+    }
+
+    m_buffer_in = std::dynamic_pointer_cast<SensorDeviceFloat4Buffer>(bufferInOut);
+    if (m_buffer_in) {
+        m_buffer_out = chrono_types::make_shared<SensorDeviceRGBA8Buffer>();
+        DeviceRGBA8BufferPtr b(cudaMallocHelper<PixelRGBA8>(m_buffer_in->Width * m_buffer_in->Height),
+                               cudaFreeHelper<PixelRGBA8>);
+        m_buffer_out->Buffer = std::move(b);
+        m_buffer_out->Width = m_buffer_in->Width;
+        m_buffer_out->Height = m_buffer_in->Height;
+        std::cout << "imageopes buffer in width: " << m_buffer_in->Width << " height: " << m_buffer_in->Height
+                  << std::endl;
+        bufferInOut = m_buffer_out;
+    } else {
+        InvalidFilterGraphBufferTypeMismatch(pSensor);
+    }
+}
+
+CH_SENSOR_API void ChFilterImageFloat4ToRGBA8::Apply() {
+    cuda_image_float4_to_uchar4(m_buffer_in->Buffer.get(), m_buffer_out->Buffer.get(), m_buffer_out->Width,
+                               m_buffer_out->Height, m_cuda_stream);
+
+    m_buffer_out->LaunchedCount = m_buffer_in->LaunchedCount;
+    m_buffer_out->TimeStamp = m_buffer_in->TimeStamp;
+}
+
+
 CH_SENSOR_API ChFilterDepthToRGBA8::ChFilterDepthToRGBA8(std::string name) : ChFilter(name) {}
 CH_SENSOR_API void ChFilterDepthToRGBA8::Initialize(std::shared_ptr<ChSensor> pSensor,
                                                          std::shared_ptr<SensorBuffer>& bufferInOut) {

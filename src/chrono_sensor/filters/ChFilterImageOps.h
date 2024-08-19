@@ -51,6 +51,26 @@ class CH_SENSOR_API ChFilterImageHalf4ToRGBA8 : public ChFilter {
     CUstream m_cuda_stream;                                 ///< reference to the cuda stream
 };
 
+class CH_SENSOR_API ChFilterImageFloat4ToRGBA8 : public ChFilter {
+  public:
+    /// Class constructor
+    /// @param name String name of the filter.
+    ChFilterImageFloat4ToRGBA8(std::string name = {});
+
+    /// Apply function. Applies the resize operation to the image.
+    virtual void Apply();
+
+    /// Initializes all data needed by the filter access apply function.
+    /// @param pSensor A pointer to the sensor on which the filter is attached.
+    /// @param bufferInOut A buffer that is passed into the filter.
+    virtual void Initialize(std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut);
+
+  private:
+    std::shared_ptr<SensorDeviceFloat4Buffer> m_buffer_in;   ///< holder of the output RGBA8 image
+    std::shared_ptr<SensorDeviceRGBA8Buffer> m_buffer_out;  ///< holder of the intput RGBA float image
+    CUstream m_cuda_stream;                                 ///< reference to the cuda stream
+};
+
 
 /// A filter that converts Depth values to RGBA8
 class CH_SENSOR_API ChFilterDepthToRGBA8 : public ChFilter {

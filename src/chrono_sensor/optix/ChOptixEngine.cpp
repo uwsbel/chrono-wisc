@@ -181,6 +181,10 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
             m_params.window_size = trans_sensor->GetWindowSize();
             m_params.timegated_mode = trans_sensor->GetTimeGatedMode();
             m_params.target_dist = trans_sensor->GetTargetDist();
+            m_params.nlos_hidden_geometry_sampling = trans_sensor->GetNLOSHiddenGeometrySampling();
+            m_params.nlos_laser_sampling = trans_sensor->GetNLOSLaserSamples();
+            m_params.filter_bounces = trans_sensor->GetFilterBounces();
+            m_params.discard_direct_paths = trans_sensor->GetDiscardDirectPaths();
         }
 
         m_assignedRenderers.push_back(opx_filter);
@@ -458,12 +462,11 @@ void ChOptixEngine::boxVisualization(std::shared_ptr<ChBody> body,
                                      std::shared_ptr<ChVisualShapeBox> box_shape,
                                      ChFrame<> asset_frame) {
     ChVector3d size = box_shape->GetLengths();
-
     unsigned int mat_id;
     if (box_shape->GetNumMaterials() == 0) {
-        mat_id = m_pipeline->GetBoxMaterial();
+        mat_id = m_pipeline->GetBoxMaterial(body, box_shape);
     } else {
-        mat_id = m_pipeline->GetBoxMaterial(box_shape->GetMaterials());
+        mat_id = m_pipeline->GetBoxMaterial(body , box_shape, box_shape->GetMaterials());
     }
     m_geometry->AddBox(body, asset_frame, size, mat_id);
     m_pipeline->AddBody(body);
@@ -473,12 +476,11 @@ void ChOptixEngine::sphereVisualization(std::shared_ptr<ChBody> body,
                                         std::shared_ptr<ChVisualShapeSphere> sphere_shape,
                                         ChFrame<> asset_frame) {
     ChVector3d size(sphere_shape->GetRadius());
-
     unsigned int mat_id;
     if (sphere_shape->GetNumMaterials() == 0) {
-        mat_id = m_pipeline->GetSphereMaterial();
+        mat_id = m_pipeline->GetSphereMaterial(body, sphere_shape);
     } else {
-        mat_id = m_pipeline->GetSphereMaterial(sphere_shape->GetMaterials());
+        mat_id = m_pipeline->GetSphereMaterial(body, sphere_shape, sphere_shape->GetMaterials());
     }
     m_geometry->AddSphere(body, asset_frame, size, mat_id);
     m_pipeline->AddBody(body);
@@ -725,11 +727,22 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
             }
         }
     }
+    
+    // Process shapes and surface area distribution
+    m_params.total_object_area = m_pipeline->GetTotalSurfaceArea();
+    m_params.num_hidden_geometry = m_pipeline->GetNumHidddenShapes();
+
     m_params.root = m_geometry->CreateRootStructure();
     m_pipeline->UpdateAllSBTs();
     m_pipeline->UpdateAllPipelines();
     m_params.mesh_pool = reinterpret_cast<MeshParameters*>(m_pipeline->GetMeshPool());
     m_params.material_pool = reinterpret_cast<MaterialParameters*>(m_pipeline->GetMaterialPool());
+    m_params.shape_info = reinterpret_cast<Shape*>(m_pipeline->GetShapeList());
+    m_params.sphere_data = reinterpret_cast<SphereParameters*>(m_pipeline->GetSphereList());
+    m_params.box_data = reinterpret_cast<BoxParameters*>(m_pipeline->GetBoxList());
+    m_params.surface_area_buffer = reinterpret_cast<float*>(m_pipeline->GetSurfaceAreaPMF());
+    m_params.surface_area_cdf_buffer = reinterpret_cast<float*>(m_pipeline->GetSurfaceAreaCDF());
+
     cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
 }
 

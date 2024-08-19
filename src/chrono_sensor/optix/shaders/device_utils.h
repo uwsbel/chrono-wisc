@@ -20,6 +20,7 @@
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
 
 #include <math_constants.h>
+#include <assert.h>
 #include <optix.h>
 
 typedef uchar3				bool3;
@@ -115,6 +116,13 @@ __device__ __inline__ PerRayData_transientCamera* getTransientCameraPRD() {
     return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
 }
 
+__device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
+}
+
+
 
 __device__ __inline__ PerRayData_lidar* getLidarPRD() {
     unsigned int opt0 = optixGetPayload_0();
@@ -173,9 +181,21 @@ __device__ __inline__ PerRayData_transientCamera default_transientCamera_prd(int
     prd.path_length = 0.f;
     prd.fromNLOSHit = false;
     prd.integrator = Integrator::PATH;
+    prd.laser_focus_point = make_float3(0,0,0);
     //prd.transient_buffer = {0, make_float3(0.f, 0.f, 0.f)};
     return prd;
 };
+
+__device__ __inline__ PerRayData_laserSampleRay default_laserSampleRay_prd() {
+    PerRayData_laserSampleRay prd = {};
+    prd.laser_hitpoint = make_float3(1e10,1e10,1e10);
+    prd.contribution = make_float3(1.f, 1.f, 1.f);
+    prd.Lr = make_float3(0.f, 0.f, 0.f);
+    prd.path_length = 0.f;
+    prd.bsdf_pdf = 0.f;
+    prd.sample_laser = false;
+    prd.depth = 0;
+}
 
 __device__ __inline__ PerRayData_semantic default_semantic_prd() {
     PerRayData_semantic prd = {};

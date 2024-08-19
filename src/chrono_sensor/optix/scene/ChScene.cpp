@@ -102,7 +102,11 @@ CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChVector3f pos,
     Light spot;
     spot.type = LightType::SPOT_LIGHT;
     spot.pos = {pos.x(), pos.y(), pos.z()};
-    spot.to = {to.x(), to.y(), to.z()};
+
+    ChVector3f dir = {to.x() - pos.x(), to.y() - pos.y(), to.z() - pos.z()};
+    dir = dir / dir.Length();
+    std::cout << "Dir: " << dir << std::endl;
+    spot.spot_dir = {dir.x(), dir.y(), dir.z()};
     spot.color = {color.R, color.G, color.B};
     spot.max_range = max_range;
     spot.cos_total_width = cosf(total_width);

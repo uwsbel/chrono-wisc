@@ -220,6 +220,31 @@ extern "C" __global__ void __raygen__transientcamera() {
     const unsigned int image_index = screen.x * idx.y + idx.x;
 
     float3 accum_color = make_float3(0.f);
+    float3 laser_focus_point;
+
+    if (camera.integrator == Integrator::MITRANSIENT) {
+        // trace laser ray to find laster focusing point
+        assert(params.num_lights > 0);
+        Light l = params.lights[0];
+        assert(l.type == LightType::SPOT_LIGHT); // MITRANSIENT assumes only one light source and it should be a Spot Light/Projector (TODO)
+
+
+        PerRayData_laserSampleRay prd = default_laserSampleRay_prd();
+        unsigned int opt1;
+        unsigned int opt2;
+        pointer_as_ints(&prd, opt1, opt2);
+        unsigned int raytype = (unsigned int)LASER_SAMPLE_RAY_TYPE;
+
+        optixTrace(params.root, l.pos, l.spot_dir, params.scene_epsilon, 1e16f, 0,
+                   OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype); // Should a ray time be set?
+        assert(prd.laser_hitpoint.x != 1e10 && prd.laser_hitpoint.y != 1e10 && prd.laser_hitpoint.z != 1e10);
+        laser_focus_point = prd.laser_hitpoint;
+        /*printf("Lp: (%f,%f,%f) | Ld: (%f,%f,%f) | Lt: (%f,%f,%f)\n", 
+               l.pos.x, l.pos.y, l.pos.z,
+               l.spot_dir.x, l.spot_dir.y, l.spot_dir.z,
+               laser_focus_point.x, laser_focus_point.y, laser_focus_point.z);*/
+    }
+
     for (unsigned int sample = 0; sample < nsamples; sample++) {
      
 
@@ -266,6 +291,7 @@ extern "C" __global__ void __raygen__transientcamera() {
         PerRayData_transientCamera prd = default_transientCamera_prd(image_index);
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
+        prd.laser_focus_point = laser_focus_point;
         if (true) {
             prd.rng = camera.rng_buffer[image_index];
         }
@@ -281,7 +307,7 @@ extern "C" __global__ void __raygen__transientcamera() {
 
         // loop over all transient sample
         int stride = screen.x * screen.y;  
-        if (camera.integrator == Integrator::TRANSIENT) {
+        if (camera.integrator == Integrator::TRANSIENT || camera.integrator == Integrator::MITRANSIENT) {
         
              for (int i = 0; i < prd.depth_reached; i++) {
                 TransientSample sample = params.transient_buffer[params.max_depth * image_index + i];
@@ -303,10 +329,10 @@ extern "C" __global__ void __raygen__transientcamera() {
                 float3 L1 = (sample.color * (1 - remainder) * idx_valid) * inv_nsamples;
                 float3 L2 = (sample.color * remainder * idx_valid) * inv_nsamples;
 
-                half4 L1_corrected =
-                    make_half4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
-                half4 L2_corrected =
-                    make_half4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
+                float4 L1_corrected =
+                    make_float4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
+                float4 L2_corrected =
+                    make_float4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
 
                   /* if (sample.pathlength > 0.f) {
                     printf("path length: %f, color: (%f,%f,%f), tmin:%f, tmax:%f, tbins:%f, r: %f , curridx: %d, nextidx: %d, remainer: %f, idxvalid: %f| Adding to buffer idx: %d, L1: (%f,%f,%f)\n",
@@ -341,7 +367,7 @@ extern "C" __global__ void __raygen__transientcamera() {
      if (camera.integrator == Integrator::TIMEGATED) {
          accum_color = accum_color * inv_nsamples;
          //printf("T Color: (%f,%f,%f)\n", accum_color.x, accum_color.y, accum_color.z);
-         half4 corrected_color = make_half4(pow(accum_color.x, 1.0f / gamma), pow(accum_color.y, 1.0f / gamma),
+         float4 corrected_color = make_float4(pow(accum_color.x, 1.0f / gamma), pow(accum_color.y, 1.0f / gamma),
                                            pow(accum_color.z, 1.0f / gamma), 1.f);
         camera.frame_buffer[image_index] = corrected_color;
      }

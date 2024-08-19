@@ -19,6 +19,7 @@
 #include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/optix/ChFilterOptixRender.h"
 #include "chrono_sensor/filters/ChFilterImageOps.h"
+#include "chrono_sensor/filters/ChFilterAccess.h"
 
 
 namespace chrono {
@@ -43,6 +44,10 @@ CH_SENSOR_API ChTransientSensor::ChTransientSensor(std::shared_ptr<chrono::ChBod
                                              float window_size,
                                              float target_dist,
                                              TIMEGATED_MODE mode,
+                                             bool nlos_laser_sampling,
+                                             int filter_bounces,
+                                             bool nlos_hidden_geometry_sampling,
+                                             bool discard_direct_paths,
                                              float gamma,                      // 1 for linear color space, 2.2 for sRGB
                                              bool use_fog                      // whether to use fog on this camera
                                              )
@@ -61,16 +66,22 @@ CH_SENSOR_API ChTransientSensor::ChTransientSensor(std::shared_ptr<chrono::ChBod
       m_window_size(window_size),
       m_target_dist(target_dist),
       m_mode(mode),
+      m_nlos_laser_sampling(nlos_laser_sampling),
+      m_filter_bounces(filter_bounces),
+      m_nlos_hidden_geometry_sampling(nlos_hidden_geometry_sampling),
+      m_discard_direct_paths(discard_direct_paths),
       ChOptixSensor(parent, updateRate, offsetPose, w, h, integrator) {
 
     m_pipeline_type = PipelineType::TANSIENT;
 
-    if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED)
-        throw std::runtime_error("Transient Sensor integrator must be TRANSIENT or TIMEGATED!");
+    if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED && integrator != Integrator::MITRANSIENT)
+        throw std::runtime_error("Transient Sensor integrator must be TRANSIENT, TIMEGATED or MITRANSIENT!");
 
     if (integrator == Integrator::TIMEGATED)
         m_tbins = 1.f;
-    m_filters.push_back(chrono_types::make_shared<ChFilterImageHalf4ToRGBA8>());
+
+    m_filters.push_back(chrono_types::make_shared<ChFilterFloat4Access>());
+    m_filters.push_back(chrono_types::make_shared<ChFilterImageFloat4ToRGBA8>());
 
     // if (m_supersample_factor > 1) {
     //     m_filters.push_back(

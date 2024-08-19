@@ -161,6 +161,8 @@ using ChFilterTachometerAccess = ChFilterAccess<SensorHostTachometerBuffer, User
 /// Access to depth camera data
 using ChFilterDepthAccess = ChFilterAccess<SensorHostDepthBuffer, UserDepthBufferPtr>;
 
+using ChFilterFloat4Access = ChFilterAccess<SensorHostFloat4Buffer, UserFloat4BufferPtr>;
+
 /// @}
 
 }  // namespace sensor

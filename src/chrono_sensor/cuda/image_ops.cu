@@ -157,7 +157,13 @@ __global__ void image_half4_to_uchar4_kernel(__half* bufIn, unsigned char* bufOu
     }
 }
 
+__global__ void image_float4_to_uchar4_kernel(float* bufIn, unsigned char* bufOut, int N) {
+    int idx = (blockDim.x * blockIdx.x + threadIdx.x);  // index into output buffer
+    if (idx < N) {
+        bufOut[idx] = (unsigned char)(clamp(bufIn[idx], 0.f, 1.f) * 255.f);
+    }
 
+ }
 //__global__ void minmax_kernel_2d(float* input,
 //                                 float* min_output,
 //                                 float* max_output,
@@ -265,6 +271,12 @@ void cuda_image_half4_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstrea
     const int nThreads = 512;
     int nBlocks = (w * h * 4 + nThreads - 1) / nThreads;
     image_half4_to_uchar4_kernel<<<nBlocks, nThreads, 0, stream>>>((__half*)bufIn, (unsigned char*)bufOut, w * h * 4);
+}
+
+void cuda_image_float4_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& stream) {
+    const int nThreads = 512;
+    int nBlocks = (w * h * 4 + nThreads - 1) / nThreads;
+    image_float4_to_uchar4_kernel<<<nBlocks, nThreads, 0, stream>>>((float*)bufIn, (unsigned char*)bufOut, w * h * 4);
 }
 
 void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& stream) {
