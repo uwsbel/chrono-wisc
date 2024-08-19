@@ -166,6 +166,10 @@ class CH_SENSOR_API ChOptixEngine {
 
     CUdeviceptr md_lights;  ///< lights on the gpu
 
+    std::vector<Shape> m_shapes;
+    CUdeviceptr md_shapes;
+    
+
     // information that belongs to the rendering concept of this engine
     OptixDeviceContext m_context;  ///< the optix context we use for everything
     ContextParameters m_params;

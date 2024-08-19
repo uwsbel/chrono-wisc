@@ -42,7 +42,7 @@ lag = 0
 # Exposure (in seconds) of each image
 exposure_time = 0
 
-alias_factor = 16
+alias_factor = 64
 
 # ---------------------
 # Simulation parameters
@@ -145,15 +145,15 @@ def main():
     transCam.SetLag(lag)
     transCam.SetCollectionWindow(exposure_time)
     
-    if save:
-        transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
+    # if save:
+    #     transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
 
     transCam.PushFilter(sens.ChFilterRGBA8Access()) # Get access to transience buffer
     manager.AddSensor(transCam)
 
     # Add time gated camera
     window_size = 0.1
-    target_dist = 10
+    target_dist = 12
     tof_mode = sens.TIMEGATED_MODE_EXPONENTIAL
     offset_pose = chrono.ChFramed(
         chrono.ChVector3d(-7, 0, 2), chrono.QuatFromAngleAxis(0, chrono.ChVector3d(0, 1, 0)))

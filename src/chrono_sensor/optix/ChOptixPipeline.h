@@ -26,6 +26,8 @@
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
 #include "chrono/assets/ChVisualMaterial.h"
 #include "chrono/assets/ChVisualShapeTriangleMesh.h"
+#include "chrono/assets/ChVisualShapeBox.h"
+#include "chrono/assets/ChVisualShapeSphere.h"
 #include "chrono_sensor/optix/scene/ChScene.h"
 
 #include "chrono_sensor/ChApiSensor.h"
@@ -82,12 +84,16 @@ class CH_SENSOR_API ChOptixPipeline {
     /// Creates a new box material
     /// @param mat_list the chrono material from which to create an optix material
     /// @returns an id pointing to the material that was created
-    unsigned int GetBoxMaterial(std::vector<std::shared_ptr<ChVisualMaterial>> mat_list = {});
+    unsigned int GetBoxMaterial(std::shared_ptr<ChBody> body,
+                                std::shared_ptr<ChVisualShapeBox> box_shape,
+                                std::vector<std::shared_ptr<ChVisualMaterial>> mat_list = {});
 
     /// Creates a new sphere material
     /// @param mat_list the chrono material from which to create an optix material
     /// @returns an id pointing to the material that was created
-    unsigned int GetSphereMaterial(std::vector<std::shared_ptr<ChVisualMaterial>> mat_list = {});
+    unsigned int GetSphereMaterial(std::shared_ptr<ChBody> body,
+                                   std::shared_ptr<ChVisualShapeSphere> sphere_shape,
+                                   std::vector<std::shared_ptr<ChVisualMaterial>> mat_list = {});
 
     /// Creates a new cylinder material
     /// @param mat_list the chrono material from which to create an optix material
@@ -139,6 +145,14 @@ class CH_SENSOR_API ChOptixPipeline {
     /// Function to access the material pool on the device
     /// @returns a device pointer to the collection of materials
     CUdeviceptr GetMaterialPool();
+
+    CUdeviceptr GetShapeList();
+    CUdeviceptr GetSphereList();
+    CUdeviceptr GetBoxList();
+    CUdeviceptr GetSurfaceAreaPMF();
+    CUdeviceptr GetSurfaceAreaCDF();
+    int GetNumHidddenShapes() { return m_shapes.size(); }
+    float GetTotalSurfaceArea() {return m_total_shape_area;}
 
     /// Add a new body to the optix scene based on a chrono body
     /// @param body the Chrono body from which to create an optix object
@@ -259,6 +273,23 @@ class CH_SENSOR_API ChOptixPipeline {
     std::vector<MeshParameters> m_mesh_pool;        ///< mesh pool on the device
     CUdeviceptr md_mesh_pool = {};                  ///< struct to know which buffers make up which meshes
     std::vector<CUdeviceptr> m_mesh_buffers_dptrs;  ///< for keeping a handle to free later
+
+    // Sphere data pool
+    std::vector<SphereParameters> m_spheres;
+    CUdeviceptr md_spheres = {};
+
+    // Box data pool
+    std::vector<BoxParameters> m_boxes;
+    CUdeviceptr md_boxes = {};
+
+    std::vector<Shape> m_shapes;
+    float m_total_shape_area = 0.f;
+    std::vector<float> m_shape_areas;
+    std::vector<float> m_shape_areas_cdf;
+    CUdeviceptr md_shapes = {};
+    CUdeviceptr md_shape_areas = {};
+    CUdeviceptr md_shape_areas_cdf = {};
+
 
     // texture and image handles
     std::unordered_map<std::string, cudaTextureObject_t> m_texture_samplers;  ///< for keeping a handle to free later

@@ -692,6 +692,114 @@ CUdeviceptr ChOptixPipeline::GetMeshPool() {
     return md_mesh_pool;
 }
 
+CUdeviceptr ChOptixPipeline::GetShapeList() {
+    assert(m_shape_areas.size() > 0);
+    assert(!(m_total_shape_area < std::numeric_limits<float>::epsilon()));
+    assert(m_shapes.size() == m_shape_areas.size());
+    assert(m_shape_areas.size() == m_shape_areas_cdf.size());
+
+    std::cout << "Getting List of Shapes..." << std::endl;
+    if (md_shapes) {
+        CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_shapes)));
+        md_shapes = {};
+    }
+
+    // allocate memory for new pool
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_shapes), m_shapes.size() * sizeof(Shape)));
+    // move the material pool to the device
+    CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(md_shapes), m_shapes.data(),
+                                m_shapes.size() * sizeof(Shape), cudaMemcpyHostToDevice));
+
+    for (int i = 0; i < m_shapes.size(); i++) {
+        Shape s = m_shapes[i];
+        std::cout << "Shape: " << i << ", area: "<< m_shape_areas[i] <<  " pmf: " << m_shape_areas[i]/m_total_shape_area << " cdf: " << m_shape_areas_cdf[i]/m_total_shape_area;
+        switch (s.type) {
+            case ShapeType::SPHERE: {
+                SphereParameters sphere = m_spheres[s.index];
+                std::cout << " |Sphere area: " << sphere.area << " radius: " << sphere.radius << std::endl;
+                break;
+            }
+            case ShapeType::BOX: {
+                BoxParameters box = m_boxes[s.index];
+                std::cout << " |Box area: " << box.area << " dimensions: " << box.lengths.x << " " << box.lengths.y << " " << box.lengths.z <<  std::endl;
+                break;
+            }
+            case ShapeType::MESH: {
+                MeshParameters mesh = m_mesh_pool[s.index];
+                std::cout << " |Mesh area: " << mesh.area << std::endl;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    std::cout << "Total Area: " << m_total_shape_area << std::endl;
+
+    return md_shapes;
+}
+
+
+CUdeviceptr ChOptixPipeline::GetSphereList() {
+    if (md_spheres) {
+        CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_spheres)));
+        md_spheres = {};
+    }
+
+    // allocate memory for new pool
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_spheres), m_spheres.size() * sizeof(SphereParameters)));
+    // move the material pool to the device
+    CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(md_spheres), m_spheres.data(), m_spheres.size() * sizeof(SphereParameters),
+                                cudaMemcpyHostToDevice));
+
+
+    return md_spheres;
+}
+
+CUdeviceptr ChOptixPipeline::GetBoxList() {
+    if (md_boxes) {
+        CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_boxes)));
+        md_boxes = {};
+    }
+
+    // allocate memory for new pool
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_boxes), m_boxes.size() * sizeof(BoxParameters)));
+    // move the material pool to the device
+    CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(md_boxes), m_boxes.data(),
+                                m_boxes.size() * sizeof(BoxParameters), cudaMemcpyHostToDevice));
+
+    return md_boxes;
+}
+
+CUdeviceptr ChOptixPipeline::GetSurfaceAreaPMF() {
+    if (md_shape_areas) {
+        CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_shape_areas)));
+        md_shape_areas = {};
+    }
+
+    // allocate memory for new pool
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_shape_areas), m_shape_areas.size() * sizeof(float)));
+    // move the material pool to the device
+    CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(md_shape_areas), m_shape_areas.data(),
+                                m_shape_areas.size() * sizeof(float), cudaMemcpyHostToDevice));
+
+    return md_shape_areas;
+}
+
+CUdeviceptr ChOptixPipeline::GetSurfaceAreaCDF() {
+    if (md_shape_areas_cdf) {
+        CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_shape_areas_cdf)));
+        md_shape_areas_cdf = {};
+    }
+
+    // allocate memory for new pool
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_shape_areas_cdf), m_shape_areas_cdf.size() * sizeof(float)));
+    // move the material pool to the device
+    CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(md_shape_areas_cdf), m_shape_areas_cdf.data(),
+                                m_shape_areas_cdf.size() * sizeof(float), cudaMemcpyHostToDevice));
+
+    return md_shape_areas_cdf;
+}
+
 // move the material pool to the device and return the point to the pool
 CUdeviceptr ChOptixPipeline::GetMaterialPool() {
     // clear out the old pool
@@ -710,6 +818,8 @@ CUdeviceptr ChOptixPipeline::GetMaterialPool() {
 
     return md_material_pool;
 }
+
+
 
 unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat) {
     if (mat) {
@@ -840,20 +950,44 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
     }
 }
 
-unsigned int ChOptixPipeline::GetBoxMaterial(std::vector<std::shared_ptr<ChVisualMaterial>> mat_list) {
+unsigned int ChOptixPipeline::GetBoxMaterial(std::shared_ptr<ChBody> body,
+                                             std::shared_ptr<ChVisualShapeBox> box_shape,
+                                             std::vector<std::shared_ptr<ChVisualMaterial>> mat_list) {
     unsigned int material_id;
     // if (mat) {
     //     material_id = GetMaterial(mat);
     // } else {
     //     material_id = GetMaterial();
     // }
+    bool is_hidden_object = true;
     if (mat_list.size() > 0) {
         material_id = GetMaterial(mat_list[0]);
+        if (!mat_list[0]->IsHiddenObject()) 
+            is_hidden_object = false;
         for (int i = 1; i < mat_list.size(); i++) {
             GetMaterial(mat_list[i]);
+            if (is_hidden_object && !mat_list[i]->IsHiddenObject())
+                is_hidden_object = false;
         }
     } else {
         material_id = GetMaterial();
+    }
+    
+    if (is_hidden_object) {
+        // Add Box Shape if its a hidden object
+        BoxParameters box;
+        box.pos = make_float3(body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
+        box.lengths =
+            make_float3(box_shape->GetLengths().x(), box_shape->GetLengths().y(), box_shape->GetLengths().z());
+        box.area = 2 * (box.lengths.x * box.lengths.y + box.lengths.x * box.lengths.z + box.lengths.y * box.lengths.z);
+
+        m_boxes.push_back(box);
+
+        m_shapes.push_back({ShapeType::BOX, static_cast<unsigned int>(m_boxes.size() - 1)});
+
+        m_total_shape_area += box.area;
+        m_shape_areas.push_back(box.area);
+        m_shape_areas_cdf.push_back(m_total_shape_area);
     }
     // record when hit by any ray type
     Record<MaterialRecordParameters> mat_record;
@@ -865,20 +999,44 @@ unsigned int ChOptixPipeline::GetBoxMaterial(std::vector<std::shared_ptr<ChVisua
     return static_cast<unsigned int>(m_material_records.size() - 1);
 }
 
-unsigned int ChOptixPipeline::GetSphereMaterial(std::vector<std::shared_ptr<ChVisualMaterial>> mat_list) {
+unsigned int ChOptixPipeline::GetSphereMaterial(std::shared_ptr<ChBody> body,
+                                                std::shared_ptr<ChVisualShapeSphere> sphere_shape,
+                                                std::vector<std::shared_ptr<ChVisualMaterial>> mat_list) {
+
     unsigned int material_id;
     // if (mat) {
     //     material_id = GetMaterial(mat);
     // } else {
     //     material_id = GetMaterial();
     // }
+    bool is_hidden_object = true;
     if (mat_list.size() > 0) {
         material_id = GetMaterial(mat_list[0]);
+        if (!mat_list[0]->IsHiddenObject())
+            is_hidden_object = false;
         for (int i = 1; i < mat_list.size(); i++) {
             GetMaterial(mat_list[i]);
+            if (is_hidden_object && !mat_list[i]->IsHiddenObject())
+                is_hidden_object = false;
         }
     } else {
         material_id = GetMaterial();
+    }
+
+    if (is_hidden_object) {
+        // Add Sphere Shape
+        SphereParameters sphere;
+        sphere.pos = make_float3(body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
+        sphere.radius = sphere_shape->GetRadius();
+        sphere.area = 4 * CH_PI * sphere.radius * sphere.radius;
+
+        m_spheres.push_back(sphere);
+        m_shapes.push_back({ShapeType::SPHERE, static_cast<unsigned int>(m_spheres.size() - 1)});
+
+        m_total_shape_area += sphere.area;
+        m_shape_areas.push_back(sphere.area);
+        m_shape_areas_cdf.push_back(m_total_shape_area);
+
     }
     // record when hit by any ray type
     Record<MaterialRecordParameters> mat_record;
@@ -935,6 +1093,7 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
         }
     }
 
+    float mesh_area = 0.f;
     if (!mesh_found) {
         // make sure chrono mesh is setup as expected
         if (mesh->GetIndicesMaterials().size() == 0) {
@@ -950,12 +1109,43 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
         std::vector<float4> normal_buffer = std::vector<float4>(mesh->GetCoordsNormals().size());
         std::vector<float2> uv_buffer = std::vector<float2>(mesh->GetCoordsUV().size());
 
+        float totalArea = 0.f;
+        std::vector<float> triangleAreas;
+        std::vector<float> triangleAreasCDF;
+
+        for (int i = 0; i < mesh->GetNumTriangles(); i++) {
+            ChTriangle tri = mesh->GetTriangle(i);
+            ChVector3f p1p2 = tri.p2 - tri.p1;
+            ChVector3f p1p3 = tri.p3 - tri.p1;
+            float area = 0.5 * (p1p2.Cross(p1p3)).Length();
+            totalArea += area;
+            triangleAreas.push_back(area);  
+            triangleAreasCDF.push_back(totalArea);
+        }
+        std::cout << "Total Area of Mesh: " << totalArea << std::endl;
+        assert(triangleAreas.size() > 0);
+
+
         // not optional for vertex indices
         for (int i = 0; i < mesh->GetIndicesVertexes().size(); i++) {
             vertex_index_buffer[i] = make_uint4((unsigned int)mesh->GetIndicesVertexes()[i].x(),  //
                                                 (unsigned int)mesh->GetIndicesVertexes()[i].y(),  //
                                                 (unsigned int)mesh->GetIndicesVertexes()[i].z(), 0);
         }
+
+        float* d_triangleAreas_buffer = {};
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_triangleAreas_buffer), sizeof(float) * triangleAreas.size()));
+        CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_triangleAreas_buffer), triangleAreas.data(),
+                                    sizeof(float) * triangleAreas.size(), cudaMemcpyHostToDevice));
+        m_mesh_buffers_dptrs.push_back(reinterpret_cast<CUdeviceptr>(d_triangleAreas_buffer));
+
+        float* d_triangleAreasCDF_buffer = {};
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_triangleAreasCDF_buffer), sizeof(float) * triangleAreasCDF.size()));
+        CUDA_ERROR_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_triangleAreasCDF_buffer), triangleAreasCDF.data(),
+                                    sizeof(float) * triangleAreasCDF.size(), cudaMemcpyHostToDevice));
+        m_mesh_buffers_dptrs.push_back(reinterpret_cast<CUdeviceptr>(d_triangleAreasCDF_buffer));
+
+                                    
         uint4* d_vertex_index_buffer = {};
         CUDA_ERROR_CHECK(
             cudaMalloc(reinterpret_cast<void**>(&d_vertex_index_buffer), sizeof(uint4) * vertex_index_buffer.size()));
@@ -1052,6 +1242,12 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
         mesh_data.normal_index_buffer = d_normal_index_buffer;
         mesh_data.uv_index_buffer = d_uv_index_buffer;
         mesh_data.mat_index_buffer = d_mat_index_buffer;
+        mesh_data.triangleAreaBuffer = d_triangleAreas_buffer;
+        mesh_data.triangleAreaCDFBuffer = d_triangleAreasCDF_buffer;
+        mesh_data.area = totalArea;
+
+        mesh_area = mesh_data.area;
+
 
         // special case where SCM has uv coordinates, but no uv indices
         // TODO: can we make these changes in SCM directly?
@@ -1061,6 +1257,7 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
 
         m_mesh_pool.push_back(mesh_data);
 
+
         mesh_id = static_cast<unsigned int>(m_mesh_pool.size() - 1);
 
         // push this mesh to our known meshes
@@ -1068,13 +1265,25 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
     }
 
     unsigned int material_id;
+    bool is_hidden_object = true;
     if (mat_list.size() > 0) {
         material_id = GetMaterial(mat_list[0]);
+        if (!mat_list[0]->IsHiddenObject())
+            is_hidden_object = false;
         for (int i = 1; i < mat_list.size(); i++) {
             GetMaterial(mat_list[i]);
+            if (is_hidden_object && !mat_list[i]->IsHiddenObject())
+                is_hidden_object = false;
         }
     } else {
         material_id = GetMaterial();
+    }
+
+    if (is_hidden_object) {
+        m_shapes.push_back({ShapeType::MESH, static_cast<unsigned int>(m_mesh_pool.size() - 1)});
+        m_total_shape_area += mesh_area; // What happens if mesh not found and the area is 0?
+        m_shape_areas.push_back(mesh_area);
+        m_shape_areas_cdf.push_back(m_total_shape_area);
     }
     // record when hit by any ray type
     Record<MaterialRecordParameters> mat_record;

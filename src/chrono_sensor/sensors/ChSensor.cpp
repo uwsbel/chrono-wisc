@@ -91,6 +91,13 @@ CH_SENSOR_API UserRGBA8BufferPtr ChSensor::GetMostRecentBuffer() {
     return GetMostRecentBufferHelper<UserRGBA8BufferPtr, ChFilterRGBA8Access, ChFilterRGBA8AccessName>();
 }
 
+// retriever function for image data in RGBA half format
+// -----------------------------------------------------------------------------
+template <>
+CH_SENSOR_API UserFloat4BufferPtr ChSensor::GetMostRecentBuffer() {
+    // call the templated helper function
+    return GetMostRecentBufferHelper<UserFloat4BufferPtr, ChFilterFloat4Access, ChFilterFloat4AccessName>();
+}
 
 // -----------------------------------------------------------------------------
 // retriever function for image depth data as float values

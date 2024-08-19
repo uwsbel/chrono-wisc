@@ -71,7 +71,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 4;
+int alias_factor = 64;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters

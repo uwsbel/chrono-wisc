@@ -30,11 +30,11 @@ update_rate = 30
 transCam_update_rate = 1
 
 # Image width and height
-image_width = 32
-image_height = 32
+image_width = 640
+image_height = 640
 
 # Camera's horizontal field of view
-fov = 1.408
+fov = 90 * (np.pi / 180)
 
 # Lag (in seconds) between sensing and when data becomes accessible
 lag = 0
@@ -53,7 +53,7 @@ step_size = 1e-3
 end_time = 20.0
 
 # Save camera images
-save = False
+save = True
 
 # Render camera images
 vis = True
@@ -61,7 +61,7 @@ vis = True
 # Output directory
 out_dir = "SENSOR_OUTPUT/NLOS/"
 
-alias_factor = 2048
+alias_factor = 2
 
 def rgb_to_grayscale(image):
     return np.dot(image[..., :3], [0.30, 0.59, 0.11]).astype(np.uint8)
@@ -99,22 +99,39 @@ def main():
     separator_wall.SetPos(chrono.ChVector3d(-2.5, 0, 2.5))
     separator_wall.SetFixed(True)
     separator_wall.GetVisualShape(0).SetMaterial(0, white)
-    mphysicalSystem.Add(separator_wall)
+    #mphysicalSystem.Add(separator_wall)
 
     obj = chrono.ChBodyEasyBox(1,1,1,1000,True,False,phys_mat)
     obj.SetPos(chrono.ChVector3d(-1, 2.5, 3))
     obj.SetFixed(True)
     obj.GetVisualShape(0).SetMaterial(0, green)
-    mphysicalSystem.Add(obj)
+    #mphysicalSystem.Add(obj)
+
+
+    mmesh = chrono.ChTriangleMeshConnected()
+    mmesh.LoadWavefrontMesh(chrono.GetChronoDataFile("sensor/geometries/Z.obj"), False, True)
+    
+
+    trimesh_shape = chrono.ChVisualShapeTriangleMesh()
+    trimesh_shape.SetMesh(mmesh)
+    trimesh_shape.SetName("Z")
+    trimesh_shape.SetMutable(False)
+
+    mesh_body = chrono.ChBody()
+    mesh_body.SetRot(chrono.QuatFromAngleZ(np.pi/2)*chrono.QuatFromAngleX(np.pi/2))
+    mesh_body.SetPos(chrono.ChVector3d(0, 2.5, 2))
+    mesh_body.AddVisualShape(trimesh_shape)
+    mesh_body.SetFixed(True)
+    mphysicalSystem.Add(mesh_body)
     
 
     manager.SetRayRecursions(4)
 
     intensity = 1e5
-    manager.scene.AddSpotLight(chrono.ChVector3f(0, -2.5, 2), chrono.ChVector3f(5, 1.5, 2.5), chrono.ChColor(intensity,intensity,intensity), 5, 1*(np.pi/180), .5*(np.pi/180)) # (position, lookat, intensity, range, beam width, beam fall off)
-
+    manager.scene.AddSpotLight(chrono.ChVector3f(0, -2.5, 2), chrono.ChVector3f(5, 1.7, 2), chrono.ChColor(intensity,intensity,intensity), 5, 1*(np.pi/180), .5*(np.pi/180)) # (position, lookat, intensity, range, beam width, beam fall off)
+    #manager.scene.AddPointLight(chrono.ChVector3f(0,0, 100), chrono.ChColor(10,10,10), 500.0)
     offset_pose = chrono.ChFramed(
-        chrono.ChVector3d(0, -2.5, 2), chrono.QuatFromAngleAxis(40 * (np.pi / 180), chrono.ChVector3d(0,0,1)))
+        chrono.ChVector3d(0,-2.5,2), chrono.QuatFromAngleAxis(40 * (np.pi / 180), chrono.ChVector3d(0,0,1)))
     cam = sens.ChCameraSensor(
         floor,              # body camera is attached to
         update_rate,            # update rate in Hz
@@ -128,6 +145,7 @@ def main():
     cam.SetCollectionWindow(exposure_time)
     cam.SetIntegrator(sens.Integrator_PATH)
     cam.SetUseDenoiser(True)
+    cam.SetSampleFactor(4)
 
     if vis:
         cam.PushFilter(sens.ChFilterVisualize(
@@ -136,12 +154,12 @@ def main():
     if save:
         cam.PushFilter(sens.ChFilterSave(out_dir + "steady_state/"))
     cam.PushFilter(sens.ChFilterRGBA8Access()) 
-    #manager.AddSensor(cam)
+    manager.AddSensor(cam)
 
     # Add transient camera
     tmin = 2
     tmax = 30
-    tbins = 512
+    tbins = 300
     transCam = sens.ChTransientSensor(
         floor,              # body camera is attached to
         transCam_update_rate,            # update rate in Hz
@@ -150,7 +168,7 @@ def main():
         image_height,           # image height
         fov                 # camera's horizontal field of view
     )
-    transCam.SetIntegrator(sens.Integrator_TRANSIENT)
+    transCam.SetIntegrator(sens.Integrator_MITRANSIENT)
     transCam.SetSampleFactor(alias_factor)
     transCam.SetTmin(tmin)
     transCam.SetTmax(tmax)
@@ -158,11 +176,15 @@ def main():
     transCam.SetUseDenoiser(False)
     transCam.SetName("Transient Camera Sensor")
     transCam.SetLag(lag)
+    transCam.SetNLOSaserSamples(True)
+    transCam.SetDiscardDirectPaths(False)
+    transCam.SetNLOSHiddenGeometrySampling(True)
+    transCam.SetFilterBounces(-1)
     transCam.SetCollectionWindow(exposure_time)
     
 
-    if save:
-        transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
+    # if save:
+    #     transCam.PushFilter(sens.ChFilterSave(out_dir + "transience/"))
 
     transCam.PushFilter(sens.ChFilterRGBA8Access()) # Get access to transience buffer
     manager.AddSensor(transCam)
@@ -194,13 +216,13 @@ def main():
             image_width, image_height, "Time Gated Image"))
     if save:
         timegateCam.PushFilter(sens.ChFilterSave(out_dir + "timegate/"))
-    timegateCam.PushFilter(sens.ChFilterRGBA8Access())
+    #timegateCam.PushFilter(sens.ChFilterRGBA8Access())
     #manager.AddSensor(timegateCam)
 
     ch_time = 0.0
     end_time = 1.0
     t1 = time.time()
-    rgba8_buffer = None
+    transient_buffer = None
     while (ch_time < end_time):
         
        
@@ -208,46 +230,51 @@ def main():
 
         mphysicalSystem.DoStepDynamics(step_size)
 
-        rgba8_buffer = transCam.GetMostRecentRGBA8Buffer()
+        #transient_buffer_rgb = transCam.GetMostRecentRGBA8Buffer()
+        transient_buffer = transCam.GetMostRecentFloat4Buffer()
+
         ch_time = mphysicalSystem.GetChTime()
 
     print("Sim time:", end_time, "Wall time:", time.time() - t1)
 
-    # processing transient buffer
-    print(rgba8_buffer)
-    if (rgba8_buffer.HasData()):
-            rgba8_data = rgba8_buffer.GetRGBA8Data()
-            rgba8_data = np.array(rgba8_data)
-            rgba8_data = rgba8_data.ravel()
-            rgba8_data = rgba8_data.reshape((tbins, image_width, image_height, 4))
-            rgba8_data = rgba8_data[:, :, :, :3]
-            rgba8_data = np.flip(rgba8_data, 1)
+    print(transient_buffer)
+    if (transient_buffer.HasData()):
+            transient_data = transient_buffer.GetFloat4Data()
+            transient_data = np.array(transient_data)
+            print(f"Buffer Size: {transient_data.shape}") # Buffer size: (H, W * Tbins, 4)
+            transient_data = transient_data.ravel()
+            transient_data = transient_data.reshape((tbins, image_width, image_height, 4))
+            transient_data = transient_data[:, :, :, :3]
+            transient_data = np.flip(transient_data, 1)
+            print(f"Buffer Size: {transient_data.shape}") # Buffer size: (H, W * Tbins, 4)
+            transient_data_uint8 = (transient_data * 255).astype(np.uint8)
 
-            gray_data = rgb_to_grayscale(rgba8_data)
-     
-            print(f"Buffer Size: {rgba8_data.shape}") # Buffer size: (H, W * Tbins, 4)
-            print(f"Gray Buffer Size: {gray_data.shape}")
+      
     
             # write to video
             out = cv2.VideoWriter(out_dir + 'nlos.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30, (image_width, image_height))
             for i in range(tbins):
-                out.write(cv2.cvtColor(rgba8_data[i], cv2.COLOR_RGB2BGR))
+                out.write(cv2.cvtColor(transient_data_uint8[i], cv2.COLOR_RGB2BGR))
             out.release()
 
-            # write gray buffer to video
-            out = cv2.VideoWriter(out_dir + 'nlos_gray.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30, (image_width, image_height))
-            for i in range(tbins):
-                out.write(cv2.cvtColor(gray_data[i], cv2.COLOR_GRAY2BGR))
-            out.release()
+            # gray_data = rgb_to_grayscale(transient_data_uint8)
+     
+            # print(f"Buffer Size: {transient_data.shape}") # Buffer size: (H, W * Tbins, 4)
+            # print(f"Gray Buffer Size: {gray_data.shape}")
+            # # write gray buffer to video
+            # out = cv2.VideoWriter(out_dir + 'nlos_gray.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30, (image_width, image_height))
+            # for i in range(tbins):
+            #     out.write(cv2.cvtColor(gray_data[i], cv2.COLOR_GRAY2BGR))
+            # out.release()
 
             bin_labels =  np.linspace(tmin, tmax, tbins)
             label_indices = np.linspace(0, tbins - 1, 10, dtype=int)
             for i in range(0, image_width, 1):
                 for j in range(0, image_height, 1):
-                    if np.sum(gray_data[:, i, j]) == 0:
+                    if np.sum(transient_data[:, i, j]) == 0:
                         continue
                     plt.figure()
-                    plt.plot(bin_labels,gray_data[:, i, j])
+                    plt.plot(bin_labels,transient_data[:, i, j])
                     plt.xlabel('Path Length (m)')
                     #plt.xticks(label_indices, [f"{bin_labels[i]:.2f}" for i in label_indices], rotation=45)
                     plt.ylabel('Intensity')

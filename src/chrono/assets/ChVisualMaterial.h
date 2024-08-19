@@ -81,6 +81,7 @@ class ChApi ChVisualMaterial {
     /// 5 - Hapke
     /// @param s 
     void SetBSDF(int s) {BSDFType = s;}
+    void SetIsHiddenObject(bool hidden) {is_hidden_object = hidden;}
 
     void SetClassID(unsigned short int id) { class_id = id; }
     void SetInstanceID(unsigned short int id) { instance_id = id; }
@@ -136,6 +137,7 @@ class ChApi ChVisualMaterial {
     float GetHapkeRoughness() const {return hapke_theta_p;}
 
     int GetBSDF() const {return BSDFType;}
+    bool IsHiddenObject() const {return is_hidden_object;}
 
     unsigned short int GetClassID() const { return class_id; }
     unsigned short int GetInstanceID() const { return instance_id; }
@@ -196,6 +198,9 @@ class ChApi ChVisualMaterial {
     float hapke_h_s;
     float hapke_phi;
     float hapke_theta_p;
+
+    // For NLOS rendering
+    bool is_hidden_object; // All objects will be hiddden objects by default
     
 };
 

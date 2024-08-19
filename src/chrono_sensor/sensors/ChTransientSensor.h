@@ -60,6 +60,10 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
                    float window_size = 1.f,
                    float target_dist = 1.f,
                    TIMEGATED_MODE mode = TIMEGATED_MODE::BOX,
+                   bool nlos_laser_sampling = true,
+                   int filter_bounces = -1,
+                   bool nlos_hidden_geometry_sampling = true,
+                   bool discard_direct_paths = false,
                    float gamma = 2.2,     // gamma correction value
                    bool use_fog = true   // whether to use fog
                    ); 
@@ -146,10 +150,22 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     void SetTimeGatedMode(TIMEGATED_MODE mode) { m_mode = mode; }
 
    void SetIntegrator(Integrator integrator) override { 
-       if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED)
-           throw std::runtime_error("Transient Sensor integrator must be TRANSIENT or TIMEGATED!");
+       if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED && integrator != Integrator::MITRANSIENT)
+           throw std::runtime_error("Transient Sensor integrator must be TRANSIENT, TIMEGATED or MITRANSIENT!");
        ChOptixSensor::SetIntegrator(integrator);
    };
+
+   void SetNLOSaserSamples(bool nlos_laser_sampling) { m_nlos_laser_sampling = nlos_laser_sampling; }
+   bool GetNLOSLaserSamples() { return m_nlos_laser_sampling; }
+
+   void SetFilterBounces(int filter_bounces) { m_filter_bounces = filter_bounces; }
+   int GetFilterBounces() { return m_filter_bounces; }
+
+   void SetNLOSHiddenGeometrySampling(bool nlos_hidden_geometry_sampling) { m_nlos_hidden_geometry_sampling = nlos_hidden_geometry_sampling; }
+   bool GetNLOSHiddenGeometrySampling() { return m_nlos_hidden_geometry_sampling; }
+
+   void SetDiscardDirectPaths(bool discard_direct_paths) { m_discard_direct_paths = discard_direct_paths; }
+   bool GetDiscardDirectPaths() { return m_discard_direct_paths; }
 
 
   private:
@@ -169,6 +185,11 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     float m_target_dist;
     float m_window_size;
     TIMEGATED_MODE m_mode;
+    bool m_nlos_laser_sampling;
+    int m_filter_bounces;
+    bool m_nlos_hidden_geometry_sampling;
+    bool m_discard_direct_paths;
+
 };
 
 /// @} sensor_sensors

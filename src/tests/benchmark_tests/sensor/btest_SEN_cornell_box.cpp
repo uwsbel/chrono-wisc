@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
     b.color_zenith = {0,0,0};
     manager->scene->SetBackground(b);
     manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {1.f,1.f,1.f}, 5.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
-    //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {1.f, 1.f, 1.f}, 5.0f, CH_PI/6, CH_PI/12)
+    //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {1.f, 1.f, 1.f}, 5.0f, CH_PI/6, CH_PI/12);
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));
     //manager->SetRayRecursions(4);
     //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
@@ -235,7 +235,8 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // supersample factor for antialiasing
                                                           lens_model,    // FOV
-                                                          false);        // use global illumination or not
+                                                          true,
+                                                          Integrator::LEGACY);        // use global illumination or not
     cam2->SetName("Whitted Camera");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);

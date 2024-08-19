@@ -71,7 +71,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 16;
+int alias_factor = 2;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -111,9 +111,7 @@ int main(int argc, char* argv[]) {
     //floor->SetFixed(true);
     //sys.Add(floor);
 
-    enum Shader {DISNEY, HAPKE, DIFFUSE, VOLUME};
-    Shader shader = DIFFUSE;
-
+    unsigned int shader = (unsigned int)BSDFType::DIFFUSE;
     auto red = chrono_types::make_shared<ChVisualMaterial>();
     red->SetDiffuseColor({1, 0, 0});
     red->SetSpecularColor({1.f, 1.f, 1.f});
@@ -197,7 +195,7 @@ int main(int argc, char* argv[]) {
     //manager->scene->AddPointLight({0, -2.5, 2}, {.1f,.1f,.1f}, 5.0f); // 0.0f, -2.5f, 4.8f// 2.0f / 2, 1.8902f / 2, 1.7568f / 2
     //manager->scene->AddAreaLight({0.0f, -2.5, 4.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     float rotX = 40 * (CH_PI / 180);
-    manager->scene->AddSpotLight({0, -2.5, 2}, {5, 1.5, 2.5}, {1e4,1e4,1e4}, 5.0f, 2e-1*(CH_PI/180), 1e-1*(CH_PI/180));
+    manager->scene->AddSpotLight({0, -2.5, 2}, {5, 1.5, 2.5}, {1e4,1e4,1e4}, 5.0f, 1*(CH_PI/180), .5*(CH_PI/180));
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
@@ -212,14 +210,15 @@ int main(int argc, char* argv[]) {
                                                          alias_factor,  // supersample factor for antialiasing
                                                          lens_model,    // FOV
                                                          true);         // use global illumination or not
-    cam->SetName("NLOS Camera");
+    cam->SetName("Camera");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
+    cam->SetIntegrator(Integrator::PATH);
     if (vis)
         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "NLOS Camera"));
     if (save)
         cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "NLOS_SteadyState/"));
-    manager->AddSensor(cam);
+    //manager->AddSensor(cam);
 
     float tmin = 2;
     float tmax = 30;
@@ -241,6 +240,10 @@ int main(int argc, char* argv[]) {
     tcam->SetName("Transient Camera");
     tcam->SetLag(lag);
     tcam->SetCollectionWindow(exposure_time);
+    tcam->SetNLOSaserSamples(false);
+    tcam->SetDiscardDirectPaths(false);
+    tcam->SetFilterBounces(-1);
+    tcam->SetNLOSHiddenGeometrySampling(true);
     /* if (vis)
          cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera"));
      */
@@ -249,7 +252,7 @@ int main(int argc, char* argv[]) {
     manager->AddSensor(tcam);
 
  
-
+    UserFloat4BufferPtr buffPtr;
     // ---------------
     // Simulate system
     // ---------------
@@ -273,6 +276,8 @@ int main(int argc, char* argv[]) {
         ch_time = (float)sys.GetChTime();
         i++;
     }
+
+    buffPtr = tcam->GetMostRecentBuffer<UserFloat4BufferPtr>();
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << "Simulation time: " << ch_time << "s, wall time: " << wall_time.count() << "s.\n";

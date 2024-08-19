@@ -48,6 +48,7 @@ enum RayType {
     SEGMENTATION_RAY_TYPE = 4, /// semantic camera rays 
     DEPTH_RAY_TYPE = 5,        /// depth camera rays
     TRANSIENT_RAY_TYPE = 6,
+    LASER_SAMPLE_RAY_TYPE = 7
 };
 
 /// The type of lens model that camera can use for rendering
@@ -70,7 +71,7 @@ enum class TIMEGATED_MODE {BOX,TENT,COS,SIN,EXPONENTIAL};
 enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE};
 
 
-enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, LEGACY};
+enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
 
 enum class LightType { POINT_LIGHT, AREA_LIGHT, SPOT_LIGHT };
 
@@ -89,7 +90,7 @@ struct Light {
         : type(LightType::SPOT_LIGHT),
           delta(true),
           pos(pos),
-          to(to),
+          spot_dir(to),
           color(color), 
           max_range(max_range), 
           cos_total_width(cos_total_width),
@@ -100,7 +101,7 @@ struct Light {
     LightType type;
     bool delta;
     float3 pos;
-    float3 to;
+    float3 spot_dir;
     float3 color;
     float max_range;
 
@@ -212,7 +213,7 @@ struct TransientCameraParameters {
     float gamma;                       ///< camera's gamma value
     bool use_gi;                       ///< whether to use global illumination
     bool use_fog;                      ///< whether to use the scene fog model
-    half4* frame_buffer;               ///< buffer of camera pixels
+    float4* frame_buffer;               ///< buffer of camera pixels
     half4* albedo_buffer;  ///< the material color of the first hit. Only initialized if using global illumination
     half4* normal_buffer;  ///< The screen-space normal of the first hit. Only initialized if using global illumination
                            ///< (screenspace normal)
@@ -299,6 +300,12 @@ struct RaygenParameters {
     } specific;                                 ///< the data for the specific sensor
 };
 
+enum class ShapeType {SPHERE, BOX, MESH};
+struct Shape {
+    ShapeType type;
+    unsigned int index;
+};
+
 /// All the data to specific a triangle mesh
 struct MeshParameters {              // pad to align 16 (swig doesn't support explicit alignment calls)
     float4* vertex_buffer;           ///< a device pointer to the mesh's vertices // size 8
@@ -308,8 +315,37 @@ struct MeshParameters {              // pad to align 16 (swig doesn't support ex
     uint4* normal_index_buffer;      ///< a device pointer to the mesh's normal indices // size 8
     uint4* uv_index_buffer;          ///< a device pointer to the mesh's uv indices // size 8
     unsigned int* mat_index_buffer;  ///< a device pointer to the mesh's materials on a per face basis // size 8
-    double pad;                      ///< padding to ensure 16 byte alignment // size 8
+    float* triangleAreaBuffer;       ///< a device pointer to the mesh's triangle areas // size 8
+    float* triangleAreaCDFBuffer;   ///< a device pointer to the mesh's triangle area CDF // size 8
+    float area;                     // 4 bytes
+    float pad;                      ///< padding to ensure 16 byte alignment // size 4
 };
+
+/// All data relevant to a Sphere object
+struct SphereParameters{ // pad to align 16
+    float3 pos; // world center pos of sphere 12 bytes
+    float radius; // 4 bytes
+    float area; // 4 bytes
+    float3 pad; // 12 bytes
+};
+
+// All data relevant to a box object
+struct BoxParameters{ // Pad to align 16
+    float3 pos; // world pos 12 bytes
+    float3 lengths; // side length 12 bytes
+    float area;  // 4 bytes
+    float pad; // 4 byres
+
+};
+
+//// All the scene objects in the environment
+//struct SceneObjects {
+//    SphereParameters* spheres; // 8 bytes
+//    BoxParameters* boxes; // 8 bytes
+//    MeshParameters* meshes; // 8 bytes
+//
+//    //double pad; // 8 bytes (need to pad?)
+//};
 
 /// All parameters for specifying a material in optix
 struct MaterialParameters {      // pad to align 16 (swig doesn't support explicit alignment calls)
@@ -372,11 +408,25 @@ struct ContextParameters {
     MaterialParameters* material_pool;  ///< device pointer to list of materials to use for shading
     MeshParameters* mesh_pool;          ///< device pointer to list of meshes for instancing
     
+    // Transient rendering parameters
     TransientSample* transient_buffer; 
-    //Integrator integrator;
     float window_size;
     float target_dist;
     TIMEGATED_MODE timegated_mode;
+    bool nlos_laser_sampling;
+    int filter_bounces;
+    bool nlos_hidden_geometry_sampling;
+    bool discard_direct_paths;
+
+    // scene objects
+    Shape* shape_info;
+    SphereParameters* sphere_data;
+    BoxParameters* box_data;
+    float* surface_area_buffer; // TODO: Make a 1D distribution class?
+    float* surface_area_cdf_buffer;
+    float total_object_area;
+    int num_hidden_geometry;
+
     #ifdef USE_SENSOR_NVDB
     //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>* handle_ptr; // NanoVDB grid handle
     //nanovdb::NanoGrid<float>* handle_ptr;
@@ -426,6 +476,17 @@ struct PerRayData_transientCamera {
     float path_length;
     bool fromNLOSHit;
     Integrator integrator;
+    float3 laser_focus_point;
+};
+
+struct PerRayData_laserSampleRay {
+    float3 laser_hitpoint;
+    float3 contribution;
+    float3 Lr;
+    float bsdf_pdf;
+    float path_length;
+    float depth;
+    bool sample_laser;
 };
 
 struct PerRayData_depthCamera {

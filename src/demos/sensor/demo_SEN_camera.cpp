@@ -116,6 +116,7 @@ int main(int argc, char* argv[]) {
     trimesh_shape->SetName("Audi Chassis Mesh");
     trimesh_shape->SetMutable(false);
 
+
     auto mesh_body = chrono_types::make_shared<ChBody>();
     mesh_body->SetPos({-6, 0, 0});
     mesh_body->AddVisualShape(trimesh_shape, ChFrame<>(ChVector3d(0, 0, 0)));
@@ -164,6 +165,7 @@ int main(int argc, char* argv[]) {
             shape->GetMaterials()[0] = vis_mat;
         }
     }
+    
 
     auto vis_mat2 = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat2->SetAmbientColor({0.f, 0.f, 0.f});

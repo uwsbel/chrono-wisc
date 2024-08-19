@@ -839,6 +839,7 @@ static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
                                                const float& ray_dist,
                                                const float3& ray_orig,
                                                const float3& ray_dir) {
+
     float transparency = mat.transparency;
     if (mat.kd_tex) {
         const float4 tex = tex2D<float4>(mat.kd_tex, uv.x*mat.tex_scale.x, uv.y*mat.tex_scale.y);
@@ -849,6 +850,7 @@ static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
         transparency = tex2D<float>(mat.opacity_tex, uv.x*mat.tex_scale.x, uv.y*mat.tex_scale.y);
     }
     float3 hit_point = ray_orig + ray_dir * ray_dist;
+    //printf("Hit Point SH: (%f,%f,%f)\n", hit_point.x, hit_point.y, hit_point.z);
     float atten = 1.f - transparency;  // TODO: figure out the attenuation from the material transparency
 
     // if the occlusion amount is below the
@@ -1084,8 +1086,7 @@ static __device__ inline void SampleSpotLight(Light spot, LightSample* ls) {
     ls->dist = dist;
     ls->pdf = 1.f;
 
-    float3 spot_dir = normalize(spot.to - spot.pos);
-    float cos_theta = Dot(spot_dir, -1*ls->dir);
+    float cos_theta = Dot(spot.spot_dir, -1*ls->dir);
     
     // Replace max range with a high intensity
     //float point_light_falloff = (spot.max_range * spot.max_range / (dist * dist + spot.max_range * spot.max_range));
@@ -1413,7 +1414,9 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
             outScattering = scatteringCoeff * v;
 
             for (int i = 0; i < params.num_lights; i++) {
-                PointLight l = params.lights[i];
+                Light l = params.lights[i];
+                if (l.type != LightType::POINT_LIGHT)
+                    continue;
                 float dist_to_light = Length(l.pos - volPnt);
                 if (dist_to_light < 2 * l.max_range) {
                     float3 dir_to_light = normalize(l.pos - volPnt);
@@ -1587,7 +1590,7 @@ static __device__ __inline__ float3 ComputeDirectLight(Light& l, LightSample& ls
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
             // light contribution
-            float3 light_contrib = bsdf.f * NdL * prd_shadow.attenuation;
+            float3 light_contrib = bsdf.f * NdL * (prd_shadow.attenuation);
 
             if (l.delta) {
                 Ld += light_contrib * ls.L / ls.pdf;
@@ -1915,6 +1918,286 @@ static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera
     prd_camera->normal = world_normal;
 }
 
+static __device__  __inline__ int binary_search_cdf(const float* cdf, int num_elements, float value) {
+    int low = 0;
+    int high = num_elements - 1;
+
+    while (low < high) {
+        int mid = (low + high) / 2;
+        if (cdf[mid] < value) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    return low;
+}
+
+static __device__ __inline__ void sample_reuse_kernel(const float* cdf,
+                                    const float* pmf,
+                                    int num_elements,
+                                    float* random_samples,
+                                    int* sampled_indices,
+                                    float* rescaled_samples) {
+
+    //float value = random_samples[idx];
+
+    //// Find the index corresponding to the CDF
+    //int index = binary_search_cdf(cdf, num_elements, value);
+
+    //// Compute the PMF and CDF values at the index
+    //float pmf_value = pmf[index];
+    //float cdf_value = (index > 0) ? cdf[index - 1] : 0.0f;
+
+    //// Rescale the sample for reuse
+    //float rescaled_value = (value - cdf_value) / pmf_value;
+
+    //// Store the results
+    //sampled_indices[idx] = index;
+    //rescaled_samples[idx] = rescaled_value;
+}
+
+static __device__ __inline__ float3 EmitterLaserSample() {
+
+}
+
+static __device__ __inline__ void SampleHiddenGeometryPos() {
+
+}
+
+static __device__ __inline__ void HiddenGeometrySample() {
+
+}
+
+static __device__ __inline__ void LaserNEEE(PerRayData_laserSampleRay* prd,
+                                            const MaterialRecordParameters* mat_params,
+                                            unsigned int& material_id,
+                                            const unsigned int& num_blended_materials,
+                                            const float3& world_normal,
+                                            const float2& uv,
+                                            const float3& tangent,
+                                            const float& ray_dist,
+                                            const float3& ray_orig,
+                                            const float3& ray_dir) {
+
+    const MaterialParameters& mat = params.material_pool[material_id];
+    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    // Set the hit point manually as the laser focus point to account for floating point errors in optix
+    // Since the original hitpoint with error is somehere around the focus point this pobs won't be a bad approximation?
+    float3 hit_point = prd->laser_hitpoint ; //
+    float3 Lr = make_float3(0.0f);
+
+    float3 wo = -ray_dir;
+
+    float3 Ld = make_float3(0.f);
+
+    if (params.num_lights > 0 && bsdfType != BSDFType::SPECULAR) {
+        // Uniform sample light
+        unsigned int sample_light_index = 0; // NLOS scenes assume there is only one light source in the scene
+        Light l = params.lights[sample_light_index];
+        LightSample ls;
+        ls.hitpoint = hit_point;
+        ls.wo = wo;
+        ls.n = world_normal;
+
+        // Compute direct lighting
+        float3 dl = ComputeDirectLight(l, ls, mat, prd->depth);
+        Ld = prd->contribution * dl;
+      
+   /*      if (fmaxf(Ld) < 0) {
+            
+            printf("Hit Point LS: (%f,%f,%f) | t: %f | contr: (%f,%f,%f) | dl: (%f,%f,%f), Ld: (%f,%f,%f)\n",  
+                hit_point.x, hit_point.y, hit_point.z, optixGetRayTime(), 
+                prd->contribution.x,prd->contribution.y,prd->contribution.z,
+                dl.x,dl.y,dl.z,
+                Ld.x,Ld.y,Ld.z);
+         }*/
+        prd->path_length += ls.dist;
+        prd->Lr = Ld;
+    }
+
+}
+
+static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCamera* prd_camera,
+                                                      const MaterialRecordParameters* mat_params,
+                                                      unsigned int& material_id,
+                                                      const unsigned int& num_blended_materials,
+                                                      const float3& world_normal,
+                                                      const float2& uv,
+                                                      const float3& tangent,
+                                                      const float& ray_dist,
+                                                      const float3& ray_orig,
+                                                      const float3& ray_dir) {
+    // printf("TIMEGATED Integrator!\n");
+    const MaterialParameters& mat = params.material_pool[material_id];
+    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    float3 hit_point = ray_orig + ray_dir * ray_dist;
+   
+    float3 L = make_float3(0.0f);
+
+    float3 wo = -ray_dir;
+
+    prd_camera->path_length += ray_dist;
+
+    // Direct emission
+    {
+
+    }
+
+    // Laser sampling
+    float3 Lr = make_float3(0.f);
+    if (params.nlos_laser_sampling) {
+        /*printf("NLOS Laser Sampling: hp: (%f,%f,%f), lp: (%f,%f,%f)\n", 
+            hit_point.x,hit_point.y,hit_point.z, 
+            prd_camera->laser_focus_point.x,prd_camera->laser_focus_point.y,prd_camera->laser_focus_point.z);*/
+        float laser_dist = Length(prd_camera->laser_focus_point - hit_point);
+        float3 laser_dir = (prd_camera->laser_focus_point - hit_point) / laser_dist;
+        // Shoot shadow ray to test visibility to laser target
+        PerRayData_shadow prd_shadow = default_shadow_prd();
+        prd_shadow.depth = prd_camera->depth + 1;
+        prd_shadow.ramaining_dist = laser_dist;
+        unsigned int opt1;
+        unsigned int opt2;
+        pointer_as_ints(&prd_shadow, opt1, opt2);
+        unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+        optixTrace(params.root, hit_point, laser_dir, params.scene_epsilon, laser_dist, optixGetRayTime(),
+                   OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
+
+
+        if (!fmaxf(prd_shadow.attenuation) &&  laser_dist > 1e-8) {  // 
+            BSDFSample laser_dir_bsdf;
+            laser_dir_bsdf.wo = wo;
+            laser_dir_bsdf.wi  = laser_dir;
+            laser_dir_bsdf.n = world_normal;
+            SampleBSDF(bsdfType,laser_dir_bsdf,mat,true);
+            float NdLaser = Dot(world_normal, -1*laser_dir);
+            if (NdLaser > 0) {
+                float pdf_ls = (laser_dist * laser_dist) / NdLaser;
+                laser_dir_bsdf.pdf /= pdf_ls;
+            }
+            
+            // Shoot laser ray towards laser focus point
+            PerRayData_laserSampleRay prd = default_laserSampleRay_prd();
+            prd.sample_laser = true;
+            prd.path_length = prd_camera->path_length + laser_dist;
+            prd.bsdf_pdf = laser_dir_bsdf.pdf;
+            prd.contribution = prd_camera->contrib_to_pixel * laser_dir_bsdf.pdf;
+            prd.depth = prd_camera->depth + 1;
+            prd.laser_hitpoint = prd_camera->laser_focus_point;
+            unsigned int opt1;
+            unsigned int opt2;
+            pointer_as_ints(&prd, opt1, opt2);
+            unsigned int raytype = (unsigned int)LASER_SAMPLE_RAY_TYPE;
+            //printf("Hit Point: (%f,%f,%f)\n", hit_point.x, hit_point.y, hit_point.z);
+            float3 proj_hp = hit_point + laser_dir * laser_dist;
+        /*    printf("laser dist: %f t: %f | PL: %f |Target: (%f,%f,%f), o: (%f,%f,%f) d: (%f,%f,%f) | Proj HP: (%f,%f,%f)\n", 
+                   laser_dist,
+                   optixGetRayTime(),
+                   prd.path_length,
+                   prd.laser_hitpoint.x, prd.laser_hitpoint.y, prd.laser_hitpoint.z, 
+                   hit_point.x, hit_point.y, hit_point.z, laser_dir.x,
+                   laser_dir.y, laser_dir.z,
+                   proj_hp.x, proj_hp.y, proj_hp.z);*/
+              optixTrace(params.root, hit_point, laser_dir, params.scene_epsilon, laser_dist, laser_dist, OptixVisibilityMask(1),
+                       OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT, 0, 1, 0, opt1, opt2, raytype);
+         
+            // Add transient sample
+            if (fmaxf(prd.Lr) > 0) {
+               /* printf("Laser Lr: (%f,%f,%f) | PL Before: %f, PL: %f\n", prd.Lr.x, prd.Lr.y, prd.Lr.z,
+                         prd_camera->path_length + laser_dist, prd.path_length);*/
+                TransientSample sample = {};
+                sample.pathlength = prd.path_length;
+                sample.color = prd.Lr;
+                int idx = params.max_depth * prd_camera->current_pixel + (prd_camera->depth - 1);
+
+                params.transient_buffer[idx] = sample;
+                
+            }
+        }
+    } 
+    else { // Do standard NEE Direct lighting
+        // Uniform sample light
+        unsigned int sample_light_index =
+            (unsigned int)(curand_uniform(&prd_camera->rng) *
+                           params.num_lights);  // TODO: Won't work for whitted as no GI, have a global sampler instead?
+        Light l = params.lights[sample_light_index];
+        LightSample ls;
+        ls.hitpoint = hit_point;
+        ls.wo = wo;
+        ls.n = world_normal;
+
+        // Compute direct lighting
+        Lr = prd_camera->contrib_to_pixel * ComputeDirectLight(l, ls, mat, prd_camera->depth);
+
+        if (fmaxf(Lr) > 0) {
+            TransientSample sample = {};
+            sample.pathlength = prd_camera->path_length + ls.dist;
+            sample.color = Lr;
+            int idx = params.max_depth * prd_camera->current_pixel + (prd_camera->depth - 1);
+
+            params.transient_buffer[idx] = sample;
+        }
+    }
+
+    L += Lr;
+
+    // Find next direction by either hidden geometry sampling or standard bsdf sampling
+    {
+        if (prd_camera->depth + 1 < params.max_depth) {
+            BSDFSample sample;
+            sample.wo = wo;
+            sample.n = world_normal;
+            float z1 = curand_uniform(&prd_camera->rng);
+            float z2 = curand_uniform(&prd_camera->rng);
+            SampleBSDF(bsdfType, sample, mat, false, z1, z2);
+
+            if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
+                float NdL = Dot(sample.n, sample.wi);
+              
+                float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
+                if (fmaxf(next_contrib_to_pixel) < 0) {
+                    prd_camera->depth_reached = prd_camera->depth;
+                    return;
+                }
+                // Check possible rr termination
+                float rr_thresh = .1f;
+                if (fmaxf(next_contrib_to_pixel) < rr_thresh && prd_camera->depth > 3) {
+                    float q = fmaxf((float).05, 1 - fmaxf(next_contrib_to_pixel));
+                    float p = curand_uniform(&prd_camera->rng);
+                    if (p < q) {
+                        prd_camera->depth_reached = prd_camera->depth;
+                        return;
+                    }
+                    next_contrib_to_pixel = next_contrib_to_pixel / (1 - q);
+                }
+
+                // Trace next ray
+                PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+                prd_reflection.integrator = prd_camera->integrator;
+                prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
+                prd_reflection.rng = prd_camera->rng;
+                prd_reflection.depth = prd_camera->depth + 1;
+                prd_reflection.use_gi = prd_camera->use_gi;
+                prd_reflection.path_length = prd_camera->path_length;
+                prd_reflection.laser_focus_point = prd_camera->laser_focus_point;
+                unsigned int opt1, opt2;
+                pointer_as_ints(&prd_reflection, opt1, opt2);
+                unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+                optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
+                           OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
+                L += prd_reflection.color;
+                prd_camera->depth_reached = prd_reflection.depth_reached;
+            }
+        } else {
+            prd_camera->depth_reached = prd_camera->depth;
+        }
+
+        prd_camera->color += L;
+        prd_camera->albedo = mat.Kd;  // Might change
+        prd_camera->normal = world_normal;
+    }
+}
+
 extern "C" __global__ void __closesthit__material_shader() {
     //printf("Material Shader!\n");
     // determine parameters that are shared across all ray types
@@ -1923,6 +2206,8 @@ extern "C" __global__ void __closesthit__material_shader() {
     const float3 ray_orig = optixGetWorldRayOrigin();
     const float3 ray_dir = normalize(optixGetWorldRayDirection());  // this may be modified by the scaling transform
     const float ray_dist = optixGetRayTmax();
+
+    float3 hit_point = ray_orig + ray_dir*ray_dist;
 
     //printf("NVDBVolShader: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y,ray_dir.z);
     float3 object_normal;
@@ -2010,6 +2295,10 @@ extern "C" __global__ void __closesthit__material_shader() {
                    TimeGatedIntegrator(transCam_prd, mat_params, material_id, mat_params->num_blended_materials,
                                             world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
                    break;
+                case Integrator::MITRANSIENT:
+                   MITransientIntegrator(transCam_prd, mat_params, material_id, mat_params->num_blended_materials,
+                                        world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                    break;
                 default:
                     break;
             }
@@ -2029,6 +2318,15 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
         case DEPTH_RAY_TYPE:
             DepthShader(getDepthCameraPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            break;
+        case LASER_SAMPLE_RAY_TYPE:
+            PerRayData_laserSampleRay* prd = getLaserPRD();
+            if (prd->sample_laser) {
+                LaserNEEE(prd, mat_params, material_id, mat_params->num_blended_materials,
+                                      world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            } else {
+                prd->laser_hitpoint = hit_point;
+            }
             break;
     }
 }

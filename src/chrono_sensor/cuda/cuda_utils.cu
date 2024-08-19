@@ -336,10 +336,10 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<open
 #endif
 
 
-__global__ void initializeBufferKernel(__half* buffer, int N) {
+__global__ void initializeBufferKernel(float* buffer, int N) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N) {
-        buffer[idx] = __float2half(1e-5);
+        buffer[idx] = 1e-5f;
         //printf("Buffer[%d]: %f\n", idx, __half2float(buffer[idx]));
     }
 }
@@ -357,7 +357,7 @@ __global__ void initializeBufferKernel(__half* frame, __half* albedo, __half* no
 void initializeBuffer(void* frame, int w, int h) {
     int threadsPerBlock = 512;
     int blocksPerGrid = (w * h * 4 + threadsPerBlock - 1) / threadsPerBlock;
-    initializeBufferKernel<<<blocksPerGrid, threadsPerBlock>>>((__half*)frame, w * h * 4);
+    initializeBufferKernel<<<blocksPerGrid, threadsPerBlock>>>((float*)frame, w * h * 4);
 }
 
 void initializeBuffer(void* frame, void* albedo, void* normal, int w, int h) {
