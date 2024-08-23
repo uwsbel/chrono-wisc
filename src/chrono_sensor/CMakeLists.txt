@@ -151,6 +151,7 @@ message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
 
 set(CH_SENSOR_INCLUDES ${CH_SENSOR_INCLUDES} "${CUDA_TOOLKIT_ROOT_DIR}/include")
 list(APPEND CUDA_NVCC_FLAGS "--use_fast_math --extended-lambda --std c++17")
+list(APPEND CUDA_NVCC_FLAGS_DEBUG "--use_fast_math --extended-lambda --std c++17 -G")
 
 
 
@@ -550,10 +551,11 @@ CUDA_WRAP_SRCS(ChronoEngine_sensor OBJ generated_obj_files ${ChronoEngine_sensor
 if(NOT USE_CUDA_NVRTC)
   set(CUDA_GENERATED_OUTPUT_DIR "${CMAKE_BINARY_DIR}/lib/sensor_ptx")
   # add_definitions(-DCMAKE_SHADER_OUTPUT_PATH="${CUDA_GENERATED_OUTPUT_DIR}/")
-  CUDA_WRAP_SRCS(ChronoEngine_sensor PTX generated_rt_files ${ChronoEngine_sensor_RT_SOURCES} )
+  CUDA_WRAP_SRCS(ChronoEngine_sensor PTX generated_rt_files ${ChronoEngine_sensor_RT_SOURCES}
+  )
   source_group("Generated Files" FILES ${generated_rt_files})
 endif()
-
+# $<$<CONFIG:Debug>:-G>   
 # reset the cuda generate directory for cuda files being compiled into obj
 set(CUDA_GENERATED_OUTPUT_DIR "")
 

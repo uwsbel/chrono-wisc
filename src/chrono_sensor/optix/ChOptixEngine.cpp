@@ -779,7 +779,7 @@ void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std:
             int w = transientSensor->GetWidth();
             int h = transientSensor->GetHeight();
              initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
-                                w, h);
+                                w * transientSensor->GetNumBins(), h);
             //if (transientSensor->GetUseGI()) {  
             //    /*initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
             //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.albedo_buffer,

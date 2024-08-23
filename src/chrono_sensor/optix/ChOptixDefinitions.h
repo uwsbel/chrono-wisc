@@ -96,8 +96,6 @@ struct Light {
           cos_total_width(cos_total_width),
           cos_falloff_start(cos_falloff_start) {}
 
-    virtual ~Light() = default;
-
     LightType type;
     bool delta;
     float3 pos;

@@ -62,20 +62,14 @@ extern "C" __global__ void __raygen__camera() {
     float tranparency = 1.f;
     float gamma = camera.gamma;
     camera.frame_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
-    //if (camera.frame_buffer[image_index].x > __float2half(0.f) || 
-    //    camera.frame_buffer[image_index]. y> __float2half(0.f) ||
-    //    camera.frame_buffer[image_index].z > __float2half(0.f)) {
-    //    printf("buff: (%f,%f,%f)\n", __half2float(camera.frame_buffer[image_index].x),
-    //           __half2float(camera.frame_buffer[image_index].y), __half2float(camera.frame_buffer[image_index].z));
-    //    //printf("Oops\n");
-    //}
+
    
     //
     if (camera.use_gi) {
         camera.albedo_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
         camera.normal_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
     }   
-
+    
     curandState_t rng = camera.rng_buffer[image_index];
     for (int sample = 0; sample < nsamples; sample++) {
        
@@ -150,7 +144,7 @@ extern "C" __global__ void __raygen__camera() {
         // ray_direction.x, ray_direction.y, ray_direction.z);
         optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse,
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-
+        
         color_result += prd.color;
         normal_result = (prd.normal * inv_nsamples); //?
         albedo_result = (prd.albedo * inv_nsamples);
@@ -176,18 +170,19 @@ extern "C" __global__ void __raygen__camera() {
             camera.normal_buffer[image_index].w += 0.f;
         }
     }
-
-
+   // printf("C1 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
     color_result = color_result * inv_nsamples;
-    //printf("C Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
 
     half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma),
                                        pow(color_result.z, 1.0f / gamma), 1.f);
+   // printf("C2 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
+
 
     camera.frame_buffer[image_index].x += corrected_color.x;
     camera.frame_buffer[image_index].y += corrected_color.y;
     camera.frame_buffer[image_index].z += corrected_color.z;
     camera.frame_buffer[image_index].w = 1.f;
+    //printf("Frame Buff4: (%f,%f,%f)\n", camera.frame_buffer[image_index].x, camera.frame_buffer[image_index].y,  camera.frame_buffer[image_index].z);
     //color_result = color_result * inv_nsamples;
     //normal_result = normal_result * inv_nsamples; // should the normals be averaged?
     //albedo_result = albedo_result * inv_nsamples;
@@ -334,12 +329,7 @@ extern "C" __global__ void __raygen__transientcamera() {
                 float4 L2_corrected =
                     make_float4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
 
-                  /* if (sample.pathlength > 0.f) {
-                    printf("path length: %f, color: (%f,%f,%f), tmin:%f, tmax:%f, tbins:%f, r: %f , curridx: %d, nextidx: %d, remainer: %f, idxvalid: %f| Adding to buffer idx: %d, L1: (%f,%f,%f)\n",
-                     sample.pathlength,
-                   sample.color.x, sample.color.y, sample.color.z, camera.tmin, camera.tmax, camera.tbins, r, curr_idx,
-                   next_idx, remainder, idx_valid, stride * curr_idx + image_index, L1.x, L1.y, L1.z);
-                   }*/
+              
 
 
                 camera.frame_buffer[stride * curr_idx + image_index].x += L1_corrected.x;
@@ -351,6 +341,15 @@ extern "C" __global__ void __raygen__transientcamera() {
                 camera.frame_buffer[stride * next_idx + image_index].y += L2_corrected.y;
                 camera.frame_buffer[stride * next_idx + image_index].z += L2_corrected.z;
                 camera.frame_buffer[stride * next_idx + image_index].w = L2_corrected.w;
+
+             /*   if (idx_valid && i == 0 && sample.pathlength > 0.f) {
+                    float4 fb_l1 = camera.frame_buffer[stride * curr_idx + image_index];
+                    float4 fb_l2 = camera.frame_buffer[stride * next_idx + image_index];
+                    printf("color: (%f,%f,%f), L1: (%f,%f,%f), L2: (%f,%f,%f),r: %f, (1-r): %f,\n", sample.color.x,
+                           sample.color.y, sample.color.z, fb_l1.x, fb_l1.y, fb_l1.z, fb_l2.x, fb_l2.y, fb_l2.z,
+                           remainder,
+                           1 - remainder);
+                }*/
             }
         } /*else if (params.integrator == Integrator::TIMEGATED) {
             float3 color = prd.color * inv_nsamples;

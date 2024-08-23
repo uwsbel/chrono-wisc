@@ -131,7 +131,7 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         DeviceFloat4BufferPtr b(cudaMallocHelper<PixelFloat4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins()),
                                 cudaFreeHelper<PixelFloat4>);
         std::cout << "Buffer size: " << pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins() << std::endl;
-        initializeBuffer(b.get(), pOptixSensor->GetWidth(), pOptixSensor->GetHeight());
+        initializeBuffer(b.get(), pOptixSensor->GetWidth() * transientCamera->GetNumBins(), pOptixSensor->GetHeight());
         bufferOut->Buffer = std::move(b);
         m_raygen_record->data.specific.transientCamera.hFOV = transientCamera->GetHFOV();
         m_raygen_record->data.specific.transientCamera.gamma = transientCamera->GetGamma();
