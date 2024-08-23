@@ -693,7 +693,7 @@ static __device__ __inline__ void CameraShader(PerRayData_camera* prd_camera,
                                                const float& ray_dist,
                                                const float3& ray_orig,
                                                const float3& ray_dir) {
-   
+    //printf("MS| d: %d | contr: (%f,%f,%f)\n", prd_camera->depth, prd_camera->contrib_to_pixel.x,  prd_camera->contrib_to_pixel.y, prd_camera->contrib_to_pixel.z);
     float3 hit_point = ray_orig + ray_dir * ray_dist;
 
     // if not blended materials, check for transparent cards and short circuit on the transparent texture
@@ -794,7 +794,6 @@ static __device__ __inline__ void CameraShader(PerRayData_camera* prd_camera,
         prd_camera->albedo = accumulated_subsurface_albedo;
         prd_camera->normal = world_normal;
     }
-
     
 }
 
@@ -1071,276 +1070,10 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
      prd_camera->color += reflected_color;
 }
 
-static __device__ inline void SamplePointLight(Light pl, LightSample* ls) {
-    ls->dir = normalize(pl.pos - ls->hitpoint); // How much slow down due to derefing hitpoint twice?
-    float dist = Length(pl.pos - ls->hitpoint);
-    ls->dist = dist;
-    ls->pdf = 1.f;
-    float point_light_falloff = (pl.max_range * pl.max_range / (dist * dist + pl.max_range * pl.max_range));
-    ls->L = pl.color * point_light_falloff;
-}
-
-static __device__ inline void SampleSpotLight(Light spot, LightSample* ls) {
-    ls->dir = normalize(spot.pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
-    float dist = Length(spot.pos - ls->hitpoint);
-    ls->dist = dist;
-    ls->pdf = 1.f;
-
-    float cos_theta = Dot(spot.spot_dir, -1*ls->dir);
-    
-    // Replace max range with a high intensity
-    //float point_light_falloff = (spot.max_range * spot.max_range / (dist * dist + spot.max_range * spot.max_range));
-    ls->L = spot.color / (dist*dist);
-
-    float falloff;  // spot light falloff
-    if (cos_theta >= spot.cos_falloff_start) {
-        falloff = 1.f;
-        return;
-    } 
-    if (cos_theta < spot.cos_total_width) {
-        falloff = 0.f;
-        ls->L = make_float3(0.f);
-        return;
-    }
-        
-    float delta = (cos_theta - spot.cos_total_width) / (spot.cos_falloff_start - spot.cos_total_width);
-    falloff = (delta * delta) * (delta * delta);
-   
-    ls->L = ls->L * falloff;
-    //printf("falloff: %f | dist: %f | cosTheta: %f\n", falloff, dist, cos_theta*180/CUDART_PI);
-}
-
-static __device__ inline void SampleLight(Light light, LightSample* ls) {
-    switch (light.type) {
-        case LightType::POINT_LIGHT:
-            SamplePointLight(light, ls);
-            break;
-        case LightType::SPOT_LIGHT:
-            //printf("Sample Spot!\n");
-            SampleSpotLight(light,ls);
-            break;
-        default:
-            break;
-    }
-}
-static __device__ inline void CameraDiffuseShader(PerRayData_camera* prd_camera,
-                                               const MaterialRecordParameters* mat_params,
-                                               unsigned int& material_id,
-                                               const unsigned int& num_blended_materials,
-                                               const float3& world_normal,
-                                               const float2& uv,
-                                               const float3& tangent,
-                                               const float& ray_dist,
-                                               const float3& ray_orig,
-                                               const float3& ray_dir){ 
-
-         //printf("Diffuse Shader\n");
-         const MaterialParameters& mat = params.material_pool[material_id];
-         float3 lambertian = mat.Kd/ CUDART_PI_F;
-         prd_camera->contrib_to_pixel = prd_camera->contrib_to_pixel * lambertian;
-
-         float3 hit_point = ray_orig + ray_dir * ray_dist;
-         float3 reflected_color = make_float3(0.0f);
-
-   
-         //for (int i = 0; i < params.num_lights; i++) {
-         if (params.num_lights) {
-             unsigned int sample_light_index = (unsigned int)(curand_uniform(&prd_camera->rng) * params.num_lights); // TODO: Won't work for whitted as no GI, have a global sampler instead
-             Light l = params.lights[sample_light_index];
-             LightSample ls;
-             ls.hitpoint = hit_point;
-             SampleLight(l, &ls);
-             if (ls.pdf > 0 && fmaxf(ls.L) > 0) {  // ls.dist < 2 * l.max_range
-                float NdL = Dot(world_normal, ls.dir);
-                
-                if (NdL > 0.0f) {
-                    // check shadows
-                    PerRayData_shadow prd_shadow = default_shadow_prd();
-                    prd_shadow.depth = prd_camera->depth + 1;
-                    prd_shadow.ramaining_dist = ls.dist;
-                    unsigned int opt1;
-                    unsigned int opt2;
-                    pointer_as_ints(&prd_shadow, opt1, opt2);
-                    unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
-                    optixTrace(params.root, hit_point, ls.dir, params.scene_epsilon, ls.dist,
-                               optixGetRayTime(), OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2,
-                               raytype);
-
-
-                    float3 light_attenuation = prd_shadow.attenuation;
-
-                    float3 incoming_light_ray = ls.L * light_attenuation * NdL;
-
-                    if (fmaxf(incoming_light_ray) > 0.0f) {                       
-                        float3 diffuse = incoming_light_ray * prd_camera->contrib_to_pixel;
-                        
-                        reflected_color += diffuse;
-
-                    }
-                }
-            }
-         }
-
-        {
-            if (prd_camera->use_gi) {
-               //sample hemisphere for next ray when using global illumination
-                float z1 = curand_uniform(&prd_camera->rng);
-                float z2 = curand_uniform(&prd_camera->rng);
-                float3 next_dir = sample_hemisphere_dir(z1, z2, world_normal);
-                float NdL = Dot(world_normal, next_dir);
-
-                if (prd_camera->depth + 1 < params.max_depth) {
-                    PerRayData_camera prd_reflection = default_camera_prd();
-                    prd_reflection.integrator = prd_camera->integrator;
-                    float bsdf_pdf = NdL > 0.f ? NdL/CUDART_PI : 0.f;
-                    prd_reflection.contrib_to_pixel = prd_camera->contrib_to_pixel / bsdf_pdf;
-                    prd_reflection.rng = prd_camera->rng;
-                    prd_reflection.depth = prd_camera->depth + 1;
-                    prd_reflection.use_gi = prd_camera->use_gi;
-                    unsigned int opt1, opt2;
-                    pointer_as_ints(&prd_reflection, opt1, opt2);
-                    unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
-                    optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
-                               OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-                    reflected_color += prd_reflection.color;
-                }
-            }
-        }
-        
-        
-
-        prd_camera->color += reflected_color;
-        prd_camera->albedo = mat.Kd;
-        prd_camera->normal = world_normal; 
-
-}
-
-
-static __device__ inline void TransientCameraDiffuseShader(PerRayData_transientCamera* prd_camera,
-                                                  const MaterialRecordParameters* mat_params,
-                                                  unsigned int& material_id,
-                                                  const unsigned int& num_blended_materials,
-                                                  const float3& world_normal,
-                                                  const float2& uv,
-                                                  const float3& tangent,
-                                                  const float& ray_dist,
-                                                  const float3& ray_orig,
-                                                  const float3& ray_dir) {
-  
-    const MaterialParameters& mat = params.material_pool[material_id];
-    float3 lambertian = mat.Kd / CUDART_PI_F;
-
-    prd_camera->contrib_to_pixel = prd_camera->contrib_to_pixel * lambertian;
-
-
-    float3 hit_point = ray_orig + ray_dir * ray_dist;
-    float3 reflected_color = make_float3(0.0f);
-    prd_camera->path_length += ray_dist;
-    //if (mat.Kd.x == 0.f && mat.Kd.y == 1.f && mat.Kd.z == 0.f && prd_camera->depth == 2) {
-    //     printf("Sphere PL: %f | depth: %d\n", prd_camera->path_length, prd_camera->depth);
-    //    //prd_camera->fromNLOSHit = true;
-    //}
-    
-  
-    // Add ambient light
-    prd_camera->color += params.ambient_light_color * prd_camera->contrib_to_pixel; // ?
-    if(params.num_lights) {
-        unsigned int sample_light_index =
-            (unsigned int)(curand_uniform(&prd_camera->rng) *
-                           params.num_lights);  // TODO: Won't work for whitted as no GI, have a global sampler instead
-        Light l = params.lights[sample_light_index];
-        LightSample ls;
-        ls.hitpoint = hit_point;
-        SampleLight(l, &ls);
-        if (ls.pdf > 0 && fmaxf(ls.L) > 0) {  // ls.dist < 2 * l.max_range
-            float NdL = Dot(world_normal, ls.dir);
-            if (NdL > 0.0f) {
-                // check shadows
-                PerRayData_shadow prd_shadow = default_shadow_prd();
-                prd_shadow.depth = prd_camera->depth + 1;
-                prd_shadow.ramaining_dist = ls.dist;
-                unsigned int opt1;
-                unsigned int opt2;
-                pointer_as_ints(&prd_shadow, opt1, opt2);
-                unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
-                optixTrace(params.root, hit_point, ls.dir, params.scene_epsilon, ls.dist, optixGetRayTime(),
-                           OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-
-                float3 light_attenuation = prd_shadow.attenuation;
-
-                float3 incoming_light_ray = ls.L * light_attenuation * NdL;
-                float3 diffuse = incoming_light_ray * prd_camera->contrib_to_pixel / ls.pdf;
-                if (fmaxf(diffuse) > 0.0f) {
-                   
-
-                    reflected_color += diffuse;
-
-                    TransientSample sample = {};
-                  
-                    sample.pathlength = prd_camera->path_length + ls.dist;
-                    sample.color = reflected_color;
-                    int idx = params.max_depth * prd_camera->current_pixel + (prd_camera->depth - 1);
-                    //printf("Transient buffer idx: %d\n", idx);
-                    params.transient_buffer[idx] = sample;
-                    //printf("Diffuse Shader2\n");
-                    printf("idx: %d | color: (%f,%f,%f) | PL:%f | d: %d \n", idx, params.transient_buffer[idx].color.x,
-                           params.transient_buffer[idx].color.y, params.transient_buffer[idx].color.z,
-                           params.transient_buffer[idx].pathlength, prd_camera->depth);
-                      if (prd_camera->fromNLOSHit)
-                        printf("NLOS Hit: %f | depth: %d\n", sample.pathlength, prd_camera->depth);
-                }
-            }
-        }
-
-        float3 gi_reflection_color = make_float3(0.f);
-        {
-            if (prd_camera->use_gi) {
-                // sample hemisphere for next ray when using global illumination
-                float z1 = curand_uniform(&prd_camera->rng);
-                float z2 = curand_uniform(&prd_camera->rng);
-                float3 next_dir = sample_hemisphere_dir(z1, z2, world_normal);
-                float NdL = Dot(world_normal, next_dir);
-
-                if (prd_camera->depth + 1 < params.max_depth) {
-                    PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
-                    prd_reflection.integrator = prd_camera->integrator;
-                    float bsdf_pdf = NdL > 0.f ? NdL / CUDART_PI : 0.f;
-                    prd_reflection.contrib_to_pixel = prd_camera->contrib_to_pixel / bsdf_pdf;
-                    prd_reflection.rng = prd_camera->rng;
-                    prd_reflection.depth = prd_camera->depth + 1;
-                    prd_reflection.use_gi = prd_camera->use_gi;
-                    prd_reflection.path_length = prd_camera->path_length;
-                    unsigned int opt1, opt2;
-                    pointer_as_ints(&prd_reflection, opt1, opt2);
-                    unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
-
-                     if (mat.Kd.x == 0.f && mat.Kd.y == 1.f && mat.Kd.z == 0.f) {
-                        // printf("Sphere PL: %f | depth: %d\n", prd_camera->path_length, prd_camera->depth);
-                        prd_reflection.fromNLOSHit = true;
-                    }
-
-                    optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
-                               OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-                    // gi_reflection_color = prd_reflection.color;  // accumulate indirect lighting color
-                    reflected_color += prd_reflection.color;
-                    prd_camera->depth_reached = prd_reflection.depth_reached;
-                } else {
-                    prd_camera->depth_reached = prd_camera->depth;
-                }
-            }
-        }
-    }
-
-    prd_camera->color += reflected_color;
-    prd_camera->albedo = mat.Kd;
-    prd_camera->normal = world_normal;
-   
-}
-
 static __device__ __inline__ float SchlickPhase(float VdL, float k) {
     float numerator = 1 - (k * k);
-    float denominator = 4*CUDART_PI*(1 - k * VdL) * (1 - k * VdL);
-    return numerator/denominator;
+    float denominator = 4 * CUDART_PI * (1 - k * VdL) * (1 - k * VdL);
+    return numerator / denominator;
 }
 
 
@@ -1354,7 +1087,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                                                      const float& ray_dist,
                                                      const float3& ray_orig,
                                                      const float3& ray_dir) {
-    #ifdef USE_SENSOR_NVDB
+#ifdef USE_SENSOR_NVDB
     nanovdb::NanoGrid<float>* grid = params.handle_ptr;
     const nanovdb::Vec3f ray_orig_v(ray_orig.x, ray_orig.y, ray_orig.z);
     const nanovdb::Vec3f ray_dir_v(ray_dir.x, ray_dir.y, ray_dir.z);
@@ -1435,7 +1168,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                             int ssteps = 0;
                             float sV = 0;
                             float sTransmittance = 1.0f;
-                            while (shdda.step() && ssteps < 50){
+                            while (shdda.step() && ssteps < 50) {
                                 sijk = nanovdb::RoundDown<nanovdb::Coord>(sRay(shdda.time() + Delta));
                                 shdda.update(sRay, acc.getDim(sijk, sRay));
                                 if (shdda.dim() > 1 || !acc.isActive(sijk)) {
@@ -1467,30 +1200,87 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
             nsteps++;
             // break;
         }
-    
     }
     float alpha = 1 - clamp(transmittance, 0, 1);
     if (nsteps > 0) {
-        prd_camera->transparency = 1-alpha;
-        prd_camera->color += volumeLight; //make_float3(1-alpha, 1-alpha, 1-alpha);
-        //prd_camera->color += make_float3(0, 0, 1);
+        prd_camera->transparency = 1 - alpha;
+        prd_camera->color += volumeLight;  // make_float3(1-alpha, 1-alpha, 1-alpha);
+        // prd_camera->color += make_float3(0, 0, 1);
     } else {
-        //prd_camera->transparency = 1.f;
-        prd_camera->color += make_float3(0,0,0); //0.1f, 0.2f, 0.4f
+        // prd_camera->transparency = 1.f;
+        prd_camera->color += make_float3(0, 0, 0);  // 0.1f, 0.2f, 0.4f
     }
-    #endif
+#endif
 }
 
 static __device__ __inline__ void DepthShader(PerRayData_depthCamera* prd,
-                                                 const MaterialParameters& mat,
-                                                 const float3& world_normal,
-                                                 const float2& uv,
-                                                 const float3& tangent,
-                                                 const float& ray_dist,
-                                                 const float3& ray_orig,
-                                                 const float3& ray_dir) {
+                                              const MaterialParameters& mat,
+                                              const float3& world_normal,
+                                              const float2& uv,
+                                              const float3& tangent,
+                                              const float& ray_dist,
+                                              const float3& ray_orig,
+                                              const float3& ray_dir) {
     prd->depth = fminf(prd->max_depth, ray_dist);
 }
+
+static __device__ inline void SamplePointLight(Light pl, LightSample* ls) {
+    ls->dir = normalize(pl.pos - ls->hitpoint); // How much slow down due to derefing hitpoint twice?
+    float dist = Length(pl.pos - ls->hitpoint);
+    ls->dist = dist;
+    ls->pdf = 1.f;
+    float point_light_falloff = (pl.max_range * pl.max_range / (dist * dist + pl.max_range * pl.max_range));
+    ls->L = pl.color * point_light_falloff;
+}
+
+static __device__ inline void SampleSpotLight(Light spot, LightSample* ls) {
+    ls->dir = normalize(spot.pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
+    float dist = Length(spot.pos - ls->hitpoint);
+    ls->dist = dist;
+    ls->pdf = 1.f;
+
+    float cos_theta = Dot(spot.spot_dir, -1*ls->dir);
+    
+    // Replace max range with a high intensity
+    //float point_light_falloff = (spot.max_range * spot.max_range / (dist * dist + spot.max_range * spot.max_range));
+    ls->L = spot.color / (dist*dist);
+
+    float falloff;  // spot light falloff
+    if (cos_theta >= spot.cos_falloff_start) {
+        falloff = 1.f;
+        return;
+    } 
+    if (cos_theta < spot.cos_total_width) {
+        falloff = 0.f;
+        ls->L = make_float3(0.f);
+        return;
+    }
+        
+    float delta = (cos_theta - spot.cos_total_width) / (spot.cos_falloff_start - spot.cos_total_width);
+    falloff = (delta * delta) * (delta * delta);
+   
+    ls->L = ls->L * falloff;
+    //printf("falloff: %f | dist: %f | cosTheta: %f\n", falloff, dist, cos_theta*180/CUDART_PI);
+}
+
+static __device__ inline void SampleLight(Light light, LightSample* ls) {
+    switch (light.type) {
+        case LightType::POINT_LIGHT:
+            SamplePointLight(light, ls);
+            break;
+        case LightType::SPOT_LIGHT:
+            //printf("Sample Spot!\n");
+            SampleSpotLight(light,ls);
+            break;
+        default:
+            break;
+    }
+}
+
+
+
+
+
 
 static __device__ __inline__ float LambertianBSDFPdf(float3& wo, float3& wi, float3& n) {
     // float WodWi = Dot(wo,wi);
@@ -1591,7 +1381,7 @@ static __device__ __inline__ float3 ComputeDirectLight(Light& l, LightSample& ls
 
             // light contribution
             float3 light_contrib = bsdf.f * NdL * (prd_shadow.attenuation);
-
+           // printf("L Contr: (%f,%f,%f)\n", light_contrib.x,light_contrib.y, light_contrib.z);
             if (l.delta) {
                 Ld += light_contrib * ls.L / ls.pdf;
             } else {
@@ -1617,7 +1407,9 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
                                                         const float3& ray_orig,
                                                         const float3& ray_dir) {
 
-    //printf("PATH Integrator!\n");
+    //if (prd_camera->depth >= 3)
+    //    printf("PI| d: %d | contr: (%f,%f,%f)\n", prd_camera->depth, prd_camera->contrib_to_pixel.x,
+    //           prd_camera->contrib_to_pixel.y, prd_camera->contrib_to_pixel.z);
     const MaterialParameters& mat = params.material_pool[material_id];
     BSDFType bsdfType = (BSDFType)mat.BSDFType;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
@@ -1645,22 +1437,23 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
         ls.n = world_normal;
         
         // Compute direct lighting
+        float3 ld = ComputeDirectLight(l, ls, mat, prd_camera->depth);
+        //printf("d: %d | DL: (%f,%f,%f) \n", prd_camera->depth, ld.x,ld.y,ld.z);
         Ld = prd_camera->contrib_to_pixel * ComputeDirectLight(l,ls,mat,prd_camera->depth);
     }
     L += Ld;
     
     if (prd_camera->depth + 1 < params.max_depth) {
+       // printf("Next ray!\n");
         BSDFSample sample;
         sample.wo = wo;
         sample.n = world_normal;
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
         SampleBSDF(bsdfType, sample, mat, false, z1, z2);
-
-        if (luminance(sample.f) > params.importance_cutoff && sample.pdf > 0) {
-            float NdL = Dot(sample.n, sample.wi);
-            float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf; 
-            
+        float NdL = Dot(sample.n, sample.wi);
+        float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf; 
+        if (luminance(sample.f) > params.importance_cutoff && sample.pdf > 0 && fmaxf(next_contrib_to_pixel) > 0) {         
             // Check possible rr termination
             float rr_thresh = .1f; // Replace this with importance_cutoff?
             if (fmaxf(next_contrib_to_pixel) < rr_thresh && prd_camera->depth > 3) {
@@ -1754,11 +1547,13 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
         SampleBSDF(bsdfType, sample, mat, false, z1, z2);
-
         if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
             float NdL = Dot(sample.n, sample.wi);
             float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
-
+            if (fmaxf(next_contrib_to_pixel) < 0) {
+                prd_camera->depth_reached = prd_camera->depth;
+                return;
+            }
             // Check possible rr termination
             float rr_thresh = .1f;
             if (fmaxf(next_contrib_to_pixel) < rr_thresh && prd_camera->depth > 3) {
@@ -1878,11 +1673,14 @@ static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
         SampleBSDF(bsdfType, sample, mat, false, z1, z2);
-
         if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
+
             float NdL = Dot(sample.n, sample.wi);
             float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
-
+            if (fmaxf(next_contrib_to_pixel) < 0) {
+                prd_camera->depth_reached = prd_camera->depth;
+                return;
+            }
             // Check possible rr termination
             float rr_thresh = .1f;
             if (fmaxf(next_contrib_to_pixel) < rr_thresh && prd_camera->depth > 3) {
@@ -2063,19 +1861,22 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
         optixTrace(params.root, hit_point, laser_dir, params.scene_epsilon, laser_dist, optixGetRayTime(),
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
-
-        if (!fmaxf(prd_shadow.attenuation) &&  laser_dist > 1e-8) {  // 
+        float NdLaser = Dot(world_normal, -1*laser_dir);
+      
+        if (fmaxf(prd_shadow.attenuation) > 0 && laser_dist > 1e-8f) {  // 
+           /* printf("NdLaser: %f, d: (%f,%f,%f), n: (%f,%f,%f)\n", NdLaser, laser_dir.x, laser_dir.y, laser_dir.z,
+                   world_normal.x, world_normal.y, world_normal.z);*/
             BSDFSample laser_dir_bsdf;
             laser_dir_bsdf.wo = wo;
             laser_dir_bsdf.wi  = laser_dir;
             laser_dir_bsdf.n = world_normal;
             SampleBSDF(bsdfType,laser_dir_bsdf,mat,true);
-            float NdLaser = Dot(world_normal, -1*laser_dir);
+            //laser_dir_bsdf.pdf = EvalBSDFPDF(bsdfType, wo, laser_dir, laser_dir_bsdf.n);
+          
             if (NdLaser > 0) {
                 float pdf_ls = (laser_dist * laser_dist) / NdLaser;
                 laser_dir_bsdf.pdf /= pdf_ls;
             }
-            
             // Shoot laser ray towards laser focus point
             PerRayData_laserSampleRay prd = default_laserSampleRay_prd();
             prd.sample_laser = true;
@@ -2089,7 +1890,6 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
             pointer_as_ints(&prd, opt1, opt2);
             unsigned int raytype = (unsigned int)LASER_SAMPLE_RAY_TYPE;
             //printf("Hit Point: (%f,%f,%f)\n", hit_point.x, hit_point.y, hit_point.z);
-            float3 proj_hp = hit_point + laser_dir * laser_dist;
         /*    printf("laser dist: %f t: %f | PL: %f |Target: (%f,%f,%f), o: (%f,%f,%f) d: (%f,%f,%f) | Proj HP: (%f,%f,%f)\n", 
                    laser_dist,
                    optixGetRayTime(),
@@ -2153,7 +1953,6 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
 
             if (luminance(sample.f) > params.importance_cutoff > 0 && sample.pdf > 0) {
                 float NdL = Dot(sample.n, sample.wi);
-              
                 float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / sample.pdf;
                 if (fmaxf(next_contrib_to_pixel) < 0) {
                     prd_camera->depth_reached = prd_camera->depth;
