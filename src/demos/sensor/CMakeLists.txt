@@ -3,7 +3,7 @@
 
 # Demos that show the sensor framework
 set(DEMOS
-  demo_SEN_buildtest
+	# demo_SEN_buildtest
   demo_SEN_camera
   demo_SEN_JSON
   demo_SEN_lidar
