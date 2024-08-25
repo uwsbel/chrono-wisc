@@ -59,8 +59,8 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 float update_rate = 30;
 
 // Image width and height
-unsigned int image_width = 2;
-unsigned int image_height = 2;
+unsigned int image_width = 500;
+unsigned int image_height = 500;
 
 // Camera's horizontal field of view
 float fov = (45)* (CH_PI/180) ; //(float)CH_PI / 2.;
@@ -128,9 +128,15 @@ int main(int argc, char* argv[]) {
     grey->SetBSDF(shader);
 
     auto white = chrono_types::make_shared<ChVisualMaterial>();
-    grey->SetDiffuseColor({1,1,1});
-    grey->SetSpecularColor({0,0,0});
-    grey->SetBSDF(shader);
+    white->SetDiffuseColor({1, 1, 1});
+    white->SetSpecularColor({0, 0, 0});
+    white->SetBSDF(shader);
+
+    auto relay_wall_mat = chrono_types::make_shared<ChVisualMaterial>();
+    relay_wall_mat->SetDiffuseColor({1, 1, 1});
+    relay_wall_mat->SetSpecularColor({0, 0, 0});
+    relay_wall_mat->SetIsHiddenObject(false);
+    relay_wall_mat->SetBSDF(shader);
 
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(10, 10, .1, 1000, false, false);
     floor->SetPos({0, 0, 0});
@@ -156,12 +162,12 @@ int main(int argc, char* argv[]) {
     //sys.Add(right_wall);
     right_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
 
-    auto back_wall = chrono_types::make_shared<ChBodyEasyBox>(.1, 10, 5, 1000, true, false);
+    auto relay_wall = chrono_types::make_shared<ChBodyEasyBox>(.1, 10, 5, 1000, true, false);
     //back_wall->SetPos({5, 0, 2.5});
-    back_wall->SetPos({0,0,0});
-    back_wall->SetFixed(true);
-    sys.Add(back_wall);
-    back_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(white);
+    relay_wall->SetPos({0,0,0});
+    relay_wall->SetFixed(true);
+    sys.Add(relay_wall);
+    relay_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(relay_wall_mat);
 
     auto mid_wall = chrono_types::make_shared<ChBodyEasyBox>(5, .1, 5, 1000, true, false);
     mid_wall->SetPos({-2.5, 0, 2.5});
@@ -171,16 +177,16 @@ int main(int argc, char* argv[]) {
 
     auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false); 
     //auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
-    box_body->SetPos({-1, 2.5, 3});
+    box_body->SetPos({-1, 0, 0});
     box_body->SetFixed(true);
     //sys.Add(box_body);
     box_body->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
 
-    auto box_body1 = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
-    box_body1->SetPos({-1, -2.5, .5});
-    box_body1->SetFixed(true);
-    //sys.Add(box_body1);
-    box_body1->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
+    auto sphere_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
+    sphere_body->SetPos({-1, 0, 0});
+    sphere_body->SetFixed(true);
+    sys.Add(sphere_body);
+    sphere_body->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
 
   /*  auto rod = chrono_types::make_shared<ChBodyEasyBox>(2, .1, .2, 1000, true, false);
     rod->SetPos({4, -.5, .1});
@@ -200,16 +206,16 @@ int main(int argc, char* argv[]) {
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
     float intensity = 1e0f;
-    manager->scene->AddPointLight({-1,0,0}, {1,1,1}, 5.0f); // 0.0f, -2.5f, 4.8f// 2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    //manager->scene->AddPointLight({-1,0,0}, {1,1,1}, 5.0f); // 0.0f, -2.5f, 4.8f// 2.0f / 2, 1.8902f / 2, 1.7568f / 2
     //manager->scene->AddAreaLight({0.0f, -2.5, 4.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     float rotX = 0 * (CH_PI / 180);
     //manager->scene->AddSpotLight({0, -2.5, 2}, {5, 1.5, 2.5}, {1e4,1e4,1e4}, 5.0f, 1*(CH_PI/180), .5*(CH_PI/180));
-    //manager->scene->AddSpotLight({-1,0,0}, {0,0,0}, {intensity,intensity,intensity}, 5.0f, fov, fov*0.5);
+    manager->scene->AddSpotLight({-0.25,0,0.5}, {0,0,0.5}, {intensity,intensity,intensity}, 5.0f, fov, fov*0.5);
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
    // chrono::ChFrame<double> offset_pose2({0, -2.5, 2}, QuatFromAngleZ(rotX));
-    chrono::ChFrame<double> offset_pose2({-1,0,0}, QuatFromAngleZ(rotX));
+    chrono::ChFrame<double> offset_pose2({-0.25,0,0.5}, QuatFromAngleZ(rotX));
     //chrono::ChFrame<double> offset_pose2({0, -10, 2}, QuatFromAngleZ(CH_PI_2));
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
@@ -217,7 +223,7 @@ int main(int argc, char* argv[]) {
                                                          image_width,   // image width
                                                          image_height,  // image height
                                                          fov,           // camera's horizontal field of view
-                                                         16,  // supersample factor for antialiasing
+                                                         4,  // supersample factor for antialiasing
                                                          lens_model,    // FOV
                                                          true);         // use global illumination or not
     cam->SetName("Camera");
@@ -253,7 +259,7 @@ int main(int argc, char* argv[]) {
     tcam->SetNLOSaserSamples(true);
     tcam->SetDiscardDirectPaths(false);
     tcam->SetFilterBounces(-1);
-    tcam->SetNLOSHiddenGeometrySampling(true);
+    tcam->SetNLOSHiddenGeometrySampling(false);
     tcam->SetGamma(1);
     /* if (vis)
          cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera"));
@@ -285,7 +291,7 @@ int main(int argc, char* argv[]) {
 
         // Get the current time of the simulation
         ch_time = (float)sys.GetChTime();
-        //i++;
+        i++;
     }
 
     //buffPtr = tcam->GetMostRecentBuffer<UserFloat4BufferPtr>();

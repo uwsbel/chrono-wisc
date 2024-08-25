@@ -44,6 +44,11 @@ __device__ __inline__ float radial_function(const float& rd2, const LensParams& 
     return ru;
 }
 
+__device__ float gaussian(int dx, int dy, float sigma) {
+    float dist2 = dx * dx + dy * dy;
+    return expf(-dist2 / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
+}
+
 /// Camera ray generation program using an FOV lens model
 extern "C" __global__ void __raygen__camera() {
 
@@ -216,6 +221,7 @@ extern "C" __global__ void __raygen__transientcamera() {
 
     float3 accum_color = make_float3(0.f);
     float3 laser_focus_point;
+    float sigma = .5f;
 
     if (camera.integrator == Integrator::MITRANSIENT) {
         // trace laser ray to find laster focusing point
@@ -309,13 +315,13 @@ extern "C" __global__ void __raygen__transientcamera() {
 
                 float r = ((sample.pathlength - camera.tmin) / (camera.tmax - camera.tmin)) * camera.tbins;
 
-                unsigned int idx = static_cast<unsigned int>(r);
+                unsigned int idx_t = static_cast<unsigned int>(r);
            
                 // Check if index is valid
                 float idx_valid = (sample.pathlength >= camera.tmin) && (sample.pathlength < camera.tmax) ? 1.0f : 0.0f;
                 // Clamp indices
-                unsigned int curr_idx = clamp(idx, 0, camera.tbins - 1);
-                unsigned int next_idx = clamp(idx + 1, 0, camera.tbins - 1);
+                unsigned int curr_idx = clamp(idx_t, 0, camera.tbins - 1);
+                unsigned int next_idx = clamp(idx_t + 1, 0, camera.tbins - 1);
 
                 // Calculate remainder
                 float remainder = r - curr_idx;
@@ -324,23 +330,30 @@ extern "C" __global__ void __raygen__transientcamera() {
                 float3 L1 = (sample.color * (1 - remainder) * idx_valid) * inv_nsamples;
                 float3 L2 = (sample.color * remainder * idx_valid) * inv_nsamples;
 
-                float4 L1_corrected =
-                    make_float4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
-                float4 L2_corrected =
-                    make_float4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
+                float4 L1_corrected  = make_float4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
+                float4 L2_corrected = make_float4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
 
-              
+                int kernel_radius = static_cast<int>(2 * sigma);  // Define this based on your sigma
+                for (int dx = -kernel_radius; dx <= kernel_radius; ++dx) {
+                    for (int dy = -kernel_radius; dy <= kernel_radius; ++dy) {
+                        int nx = clamp(idx.x + dx, 0, (int)screen.x - 1);
+                        int ny = clamp((int)idx.y + dy, 0, (int)screen.y - 1);
+                        float weight = gaussian(dx, dy, sigma);
+
+                        camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].x += L1_corrected.x * weight;
+                        camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].y += L1_corrected.y * weight;
+                        camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].z += L1_corrected.z * weight;
+                        camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].w = L1_corrected.w;
+
+                        camera.frame_buffer[stride * next_idx + ny * screen.x + nx].x += L2_corrected.x * weight;
+                        camera.frame_buffer[stride * next_idx + ny * screen.x + nx].y += L2_corrected.y * weight;
+                        camera.frame_buffer[stride * next_idx + ny * screen.x + nx].z += L2_corrected.z * weight;
+                        camera.frame_buffer[stride * next_idx + ny * screen.x + nx].w = L2_corrected.w;
+                    }
+                }
 
 
-                camera.frame_buffer[stride * curr_idx + image_index].x += L1_corrected.x;
-                camera.frame_buffer[stride * curr_idx + image_index].y += L1_corrected.y;
-                camera.frame_buffer[stride * curr_idx + image_index].z += L1_corrected.z;
-                camera.frame_buffer[stride * curr_idx + image_index].w = L1_corrected.w;
-
-                camera.frame_buffer[stride * next_idx + image_index].x += L2_corrected.x;
-                camera.frame_buffer[stride * next_idx + image_index].y += L2_corrected.y;
-                camera.frame_buffer[stride * next_idx + image_index].z += L2_corrected.z;
-                camera.frame_buffer[stride * next_idx + image_index].w = L2_corrected.w;
+       
 
              /*   if (idx_valid && i == 0 && sample.pathlength > 0.f) {
                     float4 fb_l1 = camera.frame_buffer[stride * curr_idx + image_index];

@@ -74,6 +74,11 @@ def main():
     white.SetDiffuseColor(chrono.ChColor(1,1,1))
     white.SetBSDF(sens.BSDFType_DIFFUSE)
 
+    relay_wall_mat = chrono.ChVisualMaterial()
+    relay_wall_mat.SetDiffuseColor(chrono.ChColor(1,1,1))
+    relay_wall_mat.SetIsHiddenObject(False)
+    relay_wall_mat.SetBSDF(sens.BSDFType_DIFFUSE)
+
     green = chrono.ChVisualMaterial()
     green.SetDiffuseColor(chrono.ChColor(0,1,0))
     green.SetBSDF(sens.BSDFType_DIFFUSE)
@@ -180,7 +185,7 @@ def main():
     transCam.SetLag(lag)
     transCam.SetNLOSaserSamples(True)
     transCam.SetDiscardDirectPaths(False)
-    transCam.SetNLOSHiddenGeometrySampling(True)
+    transCam.SetNLOSHiddenGeometrySampling(False)
     transCam.SetFilterBounces(-1)
     transCam.SetCollectionWindow(exposure_time)
     transCam.SetGamma(1)
@@ -239,7 +244,7 @@ def main():
         ch_time = mphysicalSystem.GetChTime()
 
     print("Sim time:", end_time, "Wall time:", time.time() - t1)
-
+    print(transCam.GetNLOSHiddenGeometrySampling())
     if (transient_buffer is not None and transient_buffer.HasData()):
             transient_data = transient_buffer.GetFloat4Data()
             transient_data = np.array(transient_data)

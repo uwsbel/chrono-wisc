@@ -50,6 +50,17 @@ struct __device__ BSDFSample {
     float pdf;
 };
 
+struct __device__ PositionSample {
+    __device__ PositionSample() : pos(make_float3(0.f,0.f,0.f)), n(make_float3(0.f,0.f,0.f)), t(0.f), delta(false), pdf(0.f), uv(make_float2(0.f,0.f)){}
+
+    float3 pos;
+    float3 n;
+    float t;
+    bool delta;
+    float pdf;
+    float2 uv;
+};
+
 
 extern "C" {
     __constant__ ContextParameters params;
@@ -542,6 +553,71 @@ __device__ __inline__ float3 sample_hemisphere_dir(const float& z1, const float&
     // float3 binormal = make_float3(-normal.y, normal.x, 0);
     float3 tangent = Cross(normal, binormal);
     return x * tangent + y * binormal + z * normal;
+}
+
+__device__ __inline__ float3 square_to_uniform_sphere(const float3& sample) {
+    float z = 2.f*sample.y - 1.f;
+    float r = sqrt(fmaxf(0.f, 1.f - z * z)); 
+    float sinx = sin(2*CUDART_PI_F*sample.x);
+    float cosx = cos(2*CUDART_PI_F*sample.x);
+    //printf("sqToSPh| z: %f | r: %f | sinx: %f | cosx: %f\n", z, r, sinx, cosx);
+    float3 p = make_float3(r*cosx, r*sinx, z);
+    return p;
+}
+
+__device__ __inline__ float2 square_to_uniform_triangle(const float3& sample) {
+    float t = fmaxf(0.f, sqrt(1-sample.x));
+    float2 p = make_float2(1.f - t, t*sample.y);
+    return p;
+}
+
+static __device__ __inline__ int sample_pmf(const float* cdf, int num_elements, float value) {
+    int low = 0;
+    int high = num_elements - 1;
+
+    while (low < high) {
+        int mid = (low + high) / 2;
+        if (cdf[mid] < value) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    return low;
+}
+
+static __device__ __inline__ int sample_reuse(const float* cdf_arr,
+                                             const float* pmf_arr,
+                                             float* sample,
+                                             float pmf_sum,
+                                             int num_elements,
+                                             float* pdf) {
+    float value = (*sample) * pmf_sum;
+    float normalization = 1 / pmf_sum;  // NOTE: Have this precomputed?
+
+    // Find the index corresponding to the CDF
+    int index = sample_pmf(cdf_arr, num_elements, value);
+
+    // Compute the PMF and CDF values at the index
+    float pmf_value = pmf_arr[index] * normalization;
+    float cdf_value = (index > 0) ? cdf_arr[index - 1] * normalization : 0.0f;
+
+    // Rescale the sample for reuse
+    float rescaled_value = (value - cdf_value) / pmf_value;
+    *sample = rescaled_value;
+    *pdf = pmf_value;
+
+    return index;
+}
+
+__device__ __inline__ float3 quaternion_rotate(const float4& q, const float3& v) {
+    // Extract the vector part (y,z,w) and the scalar part (x) of the quaternion
+    float s = q.x;
+    float3 u = make_float3(q.y, q.z, q.w);
+
+
+    // Perform the rotation: v' = 2 * dot(u, v) * u + (s*s - dot(u, u)) * v + 2 * s * cross(u, v)
+    return 2.0f * Dot(u, v) * u + (s * s - Dot(u, u)) * v + 2.0f * s * Cross(u, v);
 }
 
 #endif
