@@ -79,6 +79,7 @@ class ChApi ChVisualMaterial {
     /// 3 - Glossy
     /// 4 - Disney
     /// 5 - Hapke
+    /// 6 - Retroreflective
     /// @param s 
     void SetBSDF(int s) {BSDFType = s;}
     void SetIsHiddenObject(bool hidden) {is_hidden_object = hidden;}

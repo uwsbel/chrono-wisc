@@ -1296,6 +1296,20 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample, const
     sample.pdf = LambertianBSDFPdf(sample.wo, sample.wi, sample.n);
 }
 
+// Retroreflective BSDF PDF function
+static __device__ __inline__ float RetroreflectiveBSDFPdf(float3& wo, float3& wi, float3& n) {
+    return wi == wo ? 1.0f : 0.0f;
+}
+
+// Retroreflective BSDF Sampling function
+static __device__ __inline__ void RetroreflectiveBSDFSample(BSDFSample& sample, const MaterialParameters& mat, bool eval, float z1, float z2) {
+    // Use Ks as the efficiency factor
+    sample.f = mat.Ks;
+    if (eval) return;
+
+    sample.wi = sample.wo;
+    sample.pdf = 1.0f; 
+}
 
 static __device__ __inline__ BSDFSample SampleBSDF(BSDFType type,
                                                    BSDFSample& sample,
@@ -1317,6 +1331,9 @@ static __device__ __inline__ BSDFSample SampleBSDF(BSDFType type,
             break;
         case BSDFType::HAPKE:
             break;
+        case BSDFType::RETROREFLECTIVE:
+            RetroreflectiveBSDFSample(sample, mat, eval, z1, z2);
+            break;
         default:
             break;
     }
@@ -1328,7 +1345,7 @@ static __device__ __inline__ float EvalBSDFPDF(BSDFType type, float3& wo, float3
     float pdf;
     switch (type) {
         case BSDFType::DIFFUSE:
-            pdf = LambertianBSDFPdf(wo,wi,n);
+            pdf = LambertianBSDFPdf(wo, wi, n);
             break;
         case BSDFType::SPECULAR:
             break;
@@ -1339,6 +1356,9 @@ static __device__ __inline__ float EvalBSDFPDF(BSDFType type, float3& wo, float3
         case BSDFType::DISNEY:
             break;
         case BSDFType::HAPKE:
+            break;
+        case BSDFType::RETROREFLECTIVE:
+            pdf = RetroreflectiveBSDFPdf(wo, wi, n);
             break;
         default:
             break;

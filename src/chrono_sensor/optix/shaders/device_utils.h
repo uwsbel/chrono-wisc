@@ -20,7 +20,6 @@
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
 
 #include <math_constants.h>
-#include <assert.h>
 #include <optix.h>
 
 typedef uchar3				bool3;
@@ -250,6 +249,10 @@ __device__ __inline__ float3 operator/(const float3& a, const float3& b) {
 
 __device__ __inline__ float3 operator*(const float3& a, const float3& b) {
     return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
+__device__ __inline__ bool operator==(const float3& a, const float3& b) {
+    return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
 /// =======================
