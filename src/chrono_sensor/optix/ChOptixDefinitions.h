@@ -316,7 +316,8 @@ struct MeshParameters {              // pad to align 16 (swig doesn't support ex
     float* triangleAreaBuffer;       ///< a device pointer to the mesh's triangle areas // size 8
     float* triangleAreaCDFBuffer;   ///< a device pointer to the mesh's triangle area CDF // size 8
     float area;                     // 4 bytes
-    float pad;                      ///< padding to ensure 16 byte alignment // size 4
+    int num_triangles;
+    //float pad;                      ///< padding to ensure 16 byte alignment // size 4
 };
 
 /// All data relevant to a Sphere object
@@ -331,8 +332,9 @@ struct SphereParameters{ // pad to align 16
 struct BoxParameters{ // Pad to align 16
     float3 pos; // world pos 12 bytes
     float3 lengths; // side length 12 bytes
+    float4 rot_quat; // 12 bytes
     float area;  // 4 bytes
-    float pad; // 4 byres
+    float2 pad; // 8 byres
 
 };
 
@@ -346,6 +348,7 @@ struct BoxParameters{ // Pad to align 16
 //};
 
 /// All parameters for specifying a material in optix
+/// 21 floats/ints, 3 float3, 8 cudaTextureObject_t, 2 unsigned short int, 1 float2 = 
 struct MaterialParameters {      // pad to align 16 (swig doesn't support explicit alignment calls)
     float3 Kd;                   ///< the diffuse color // size 12
     float3 Ks;                   ///< the specular color // size 12
@@ -383,9 +386,9 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     float h_s;
     float phi; 
     float theta_p;
-    float2 pad; // padding to ensure 16 byte alignment
-
     int BSDFType; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
+    int is_hidden_geometry; // 0 for not hidden geometry, 1 for hidden geometry // size 4
+    float3 pad; // padding to ensure 16 byte alignment
     
 };
 

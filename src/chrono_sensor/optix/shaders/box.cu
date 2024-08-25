@@ -36,11 +36,6 @@ extern "C" __global__ void __intersection__box_intersect() {
     const float ray_tmin = optixGetRayTmin();
     const float ray_tmax = optixGetRayTmax();
 
-  /*  RayType raytype = (RayType)optixGetPayload_2();
-    if (raytype == RayType::LASER_SAMPLE_RAY_TYPE) {
-        printf("ray_orig: (%f, %f, %f), ray_dir: (%f, %f, %f), ray_tmin: %f, ray_tmax: %f\n", ray_orig.x, ray_orig.y,
-               ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, ray_tmin, ray_tmax);
-   } */ 
 
 
     // calculate potential intersections with the box

@@ -860,6 +860,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
         material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
         material.emissive_power = mat->GetEmissivePower();
         material.BSDFType = mat->GetBSDF();
+        material.is_hidden_geometry = mat->IsHiddenObject();
 
       
 
@@ -977,6 +978,8 @@ unsigned int ChOptixPipeline::GetBoxMaterial(std::shared_ptr<ChBody> body,
         // Add Box Shape if its a hidden object
         BoxParameters box;
         box.pos = make_float3(body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
+        ChQuaterniond quat = body->GetRot();
+        box.rot_quat = make_float4(quat.e0(), quat.e1(), quat.e2(), quat.e3());
         box.lengths =
             make_float3(box_shape->GetLengths().x(), box_shape->GetLengths().y(), box_shape->GetLengths().z());
         box.area = 2 * (box.lengths.x * box.lengths.y + box.lengths.x * box.lengths.z + box.lengths.y * box.lengths.z);
@@ -1245,6 +1248,7 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
         mesh_data.triangleAreaBuffer = d_triangleAreas_buffer;
         mesh_data.triangleAreaCDFBuffer = d_triangleAreasCDF_buffer;
         mesh_data.area = totalArea;
+        mesh_data.num_triangles = mesh->GetNumTriangles();
 
         mesh_area = mesh_data.area;
 
