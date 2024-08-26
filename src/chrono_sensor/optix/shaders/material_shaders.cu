@@ -1298,7 +1298,9 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample, const
 
 // Retroreflective BSDF PDF function
 static __device__ __inline__ float RetroreflectiveBSDFPdf(float3& wo, float3& wi, float3& n) {
-    return wi == wo ? 1.0f : 0.0f;
+    float WodWi = Dot(wo, wi);
+    float NdWi = Dot(n, wi);
+    return WodWi > .999f ? 1/NdWi : 0.f; 
 }
 
 // Retroreflective BSDF Sampling function
@@ -1308,7 +1310,7 @@ static __device__ __inline__ void RetroreflectiveBSDFSample(BSDFSample& sample, 
     if (eval) return;
 
     sample.wi = sample.wo;
-    sample.pdf = 1.0f; 
+    sample.pdf = RetroreflectiveBSDFPdf(sample.wo, sample.wi, sample.n);
 }
 
 static __device__ __inline__ BSDFSample SampleBSDF(BSDFType type,
@@ -1806,10 +1808,10 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
             if (luminance(sample.f) > params.importance_cutoff && sample.pdf > 0) {
                 float NdL = Dot(sample.n, sample.wi);
                 float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * sample.f * NdL / (sample.pdf * pdf_method);
-            /*    if (fmaxf(next_contrib_to_pixel) > 0) {
+              /*  if (prd_camera->depth == 2 && fmaxf(next_contrib_to_pixel) >=0) {
                     printf(
-                        "std| d:%d | prev contr: (%f,%f,%f) | next contr:(%f,%f,%f) | NdL: %f | bsdf_pdf: %f pdf_method: %f |f: (%f,%f,%f)\n",
-                        prd_camera->depth, prd_camera->contrib_to_pixel.x, prd_camera->contrib_to_pixel.y,
+                        "obj: %d| d:%d | prev contr: (%f,%f,%f) | next contr:(%f,%f,%f) | NdL: %f | bsdf_pdf: %f pdf_method: %f |f: (%f,%f,%f)\n",
+                        mat.instance_id, prd_camera->depth, prd_camera->contrib_to_pixel.x, prd_camera->contrib_to_pixel.y,
                         prd_camera->contrib_to_pixel.z, next_contrib_to_pixel.x, next_contrib_to_pixel.y,
                         next_contrib_to_pixel.z, NdL, sample.pdf, pdf_method,
                         sample.f.x, sample.f.y, sample.f.z);
