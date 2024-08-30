@@ -77,7 +77,7 @@ enum class LightType { POINT_LIGHT, AREA_LIGHT, SPOT_LIGHT };
 
 struct Light {
     
-    Light() {}
+    Light() : parent_id(-1) {}
     Light(float3 pos, float3 color, float max_range) : type(LightType::POINT_LIGHT), delta(true), pos(pos), color(color), max_range(max_range) {}
     Light(float3 pos, float3 color, float max_range, float3 du, float3 dv)
         : type(LightType::AREA_LIGHT),
@@ -110,6 +110,9 @@ struct Light {
     // Spot light members
     float cos_total_width;
     float cos_falloff_start;
+
+    // parent info
+    int parent_id;
 };
 /// Parameters for an area light
 struct AreaLight : public Light {

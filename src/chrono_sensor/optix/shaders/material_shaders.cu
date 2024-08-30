@@ -1300,7 +1300,7 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample, const
 static __device__ __inline__ float RetroreflectiveBSDFPdf(float3& wo, float3& wi, float3& n) {
     float WodWi = Dot(wo, wi);
     float NdWi = Dot(n, wi);
-    return WodWi > .999f ? 1/NdWi : 0.f; 
+    return WodWi > .999f ? NdWi : 0.f; 
 }
 
 // Retroreflective BSDF Sampling function

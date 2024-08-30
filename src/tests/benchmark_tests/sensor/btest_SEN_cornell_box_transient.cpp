@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
             cam1->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Camera"));
         if (save)
             cam1->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience_steady_state/"));
-        manager->AddSensor(cam1);
+        //manager->AddSensor(cam1);
 
    
        float tmin = 6;
@@ -185,11 +185,13 @@ int main(int argc, char* argv[]) {
         cam->SetName("Transient Camera");
         cam->SetLag(lag);
         cam->SetCollectionWindow(exposure_time);
+        cam->SetNLOSHiddenGeometrySampling(false);
+        cam->SetNLOSaserSamples(false);
        /*if (vis)
             cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Transient Camera")); */
         if (save)
             cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "transience/"));
-        manager->AddSensor(cam);
+       manager->AddSensor(cam);
 
        auto cam2 = chrono_types::make_shared<ChTransientSensor>(floor,         // body camera is attached to
                                                                 update_rate,   // update rate in Hz
@@ -213,7 +215,7 @@ int main(int argc, char* argv[]) {
              cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "TimeGated Camera")); 
         if (save)
             cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "timegated/"));
-        manager->AddSensor(cam2);
+        //manager->AddSensor(cam2);
 
 
 

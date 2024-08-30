@@ -55,7 +55,7 @@ NoiseModel noise_model = PIXEL_DEPENDENT;
 CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 
 // Update rate in Hz
-float update_rate = 30;
+float update_rate = 2;
 
 // Image width and height
 unsigned int image_width = 1920;
@@ -135,31 +135,49 @@ int main(int argc, char* argv[]) {
     mesh_body->AddVisualShape(trimesh_shape);
     mesh_body->SetFixed(true);
     mesh_body->SetRot(QuatFromAngleAxis(CH_PI_2, {0, 0, 1}) * QuatFromAngleAxis(CH_PI_2, {1, 0, 0}));
-    sys.Add(mesh_body);
+    //sys.Add(mesh_body);
 
     for (auto mat : trimesh_shape->GetMaterials()) {
-        mat->SetBSDF(2);
+        mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
     }
 
-    auto vis_mat3 = chrono_types::make_shared<ChVisualMaterial>();
-    vis_mat3->SetAmbientColor({0.f, 0.f, 0.f});
-    vis_mat3->SetDiffuseColor({.5, .5, .5});
-    vis_mat3->SetSpecularColor({.0f, .0f, .0f});
-    vis_mat3->SetUseSpecularWorkflow(true);
-    vis_mat3->SetClassID(30000);
-    vis_mat3->SetInstanceID(30000);
-    vis_mat3->SetBSDF(2);
+    auto floor_mat = chrono_types::make_shared<ChVisualMaterial>();
+    floor_mat->SetAmbientColor({0.f, 0.f, 0.f});
+    floor_mat->SetDiffuseColor({.5, .5, .5});
+    floor_mat->SetSpecularColor({.0f, .0f, .0f});
+    floor_mat->SetUseSpecularWorkflow(true);
+    floor_mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
+
+    auto box_mat = chrono_types::make_shared<ChVisualMaterial>();
+    box_mat->SetAmbientColor({0.f, 0.f, 0.f});
+    box_mat->SetDiffuseColor({1,0,0});
+    box_mat->SetSpecularColor({.0f, .0f, .0f});
+    box_mat->SetUseSpecularWorkflow(true);
+    box_mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
     
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(200, 200, .1, 1000, true, false);
-    floor->SetPos({0, 0, -40});
+    floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sys.Add(floor);
     {
         auto shape = floor->GetVisualModel()->GetShapeInstances()[0].first;
         if (shape->GetNumMaterials() == 0) {
-            shape->AddMaterial(vis_mat3);
+            shape->AddMaterial(floor_mat);
         } else {
-            shape->GetMaterials()[0] = vis_mat3;
+            shape->GetMaterials()[0] = floor_mat;
+        }
+    }
+
+    auto box = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false);
+    box->SetPos({0, 0, 0.5});
+    box->SetFixed(true);
+    sys.Add(box);
+    {
+        auto shape = box->GetVisualModel()->GetShapeInstances()[0].first;
+        if (shape->GetNumMaterials() == 0) {
+            shape->AddMaterial(box_mat);
+        } else {
+            shape->GetMaterials()[0] = box_mat;
         }
     }
 
@@ -169,17 +187,19 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
+    manager->SetRayRecursions(4);
     Background b;
     b.mode = BackgroundMode::SOLID_COLOR;
     b.color_horizon = {1,1,1};
     manager->scene->SetBackground(b);
-    //manager->scene->AddPointLight({0.0f, 0.0f, 200.f}, {2.0f / 2, 1.8902f / 2, 1.7568f / 2}, 1000.0f);
-    manager->scene->AddSpotLight({0.0f, 0.0f, 200.f}, {0,0,-1}, {1.f,1.f,1.f}, 1000.0f, CH_PI/3, CH_PI/6);
+    manager->scene->AddPointLight({0.0f, 0.0f, 10.f}, {1,1,1}, 1000.0f);
+    //manager->scene->AddSpotLight({2.f, 0.0f, 2.f},{0,0,-1}, {10.f,10.f,10.f}, 1000.0f, CH_PI/3, CH_PI/6);
+    manager->scene->AddSpotLight(box, ChFramed({0, 0, 2.f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/3, CH_PI/6);
     //manager->scene->AddAreaLight({0.0f, 0.0f, 200.f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 1000.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
     // -------------------------------------------------------
-    chrono::ChFrame<double> offset_pose2({-220, -40, 100}, QuatFromAngleY(.4f));
+    chrono::ChFrame<double> offset_pose2({-10, 0, 2}, QuatFromAngleY(0.f));
     // chrono::ChFrame<double> offset_pose2({-3, 0, 0}, QUNIT);
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
@@ -193,6 +213,7 @@ int main(int argc, char* argv[]) {
     cam->SetName("Global Illum Camera");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
+    cam->SetIntegrator(Integrator::PATH);
     if (vis)
         cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Global Illumination"));
     if (save)
@@ -209,6 +230,7 @@ int main(int argc, char* argv[]) {
                                                           lens_model,    // FOV
                                                           false);        // use global illumination or not
     cam2->SetName("Whitted Camera");
+    cam2->SetIntegrator(Integrator::PATH);
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);
     if (vis)
@@ -216,7 +238,7 @@ int main(int argc, char* argv[]) {
             chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Whitted Ray Tracing"));
     if (save)
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "whitted/"));
-    manager->AddSensor(cam2);
+    //manager->AddSensor(cam2);
 
     // ---------------
     // Simulate system
@@ -228,10 +250,18 @@ int main(int argc, char* argv[]) {
     float ch_time = 0.0;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-
+    int step = 0;
+    float end_dist = 5;
+    float move_rate = (end_dist/end_time) * step_size;
     while (ch_time < end_time) {
         // Update sensor manager
         // Will render/save/filter automatically
+
+        ChVector3f new_pos = box->GetPos() + ChVector3f(move_rate, 0, 0);
+        box->SetPos(new_pos);
+      /*  ChQuaternionf new_rot = box->GetRot() * QuatFromAngleAxis(0.1, ChVector3f(0, 0, 1));
+        box->SetRot(new_rot);*/
+        
         manager->Update();
 
         // Perform step of dynamics
@@ -239,6 +269,7 @@ int main(int argc, char* argv[]) {
 
         // Get the current time of the simulation
         ch_time = (float)sys.GetChTime();
+        step++;
     }
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
