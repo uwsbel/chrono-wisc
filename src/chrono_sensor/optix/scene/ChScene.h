@@ -87,7 +87,18 @@ class CH_SENSOR_API ChScene {
     unsigned int AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv);
 
     unsigned int AddSpotLight(ChVector3f pos, ChVector3f to, ChColor color, float max_range, float total_width, float falloff_start);
+    unsigned int ChScene::AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
+                                       ChFramed offsetPose,
+                                       ChColor color,
+                                       float max_range,
+                                       float total_width,
+                                       float falloff_start);
 
+    unsigned int ChScene::AddSpotLight(ChFramed offsetPose,
+                                       ChColor color,
+                                       float max_range,
+                                       float total_width,
+                                       float falloff_start);
     /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
     /// @return m_pointlights A vector of point lights in the scene currently
     //std::vector<PointLight> GetPointLights() { return m_pointlights; }
@@ -214,6 +225,10 @@ class CH_SENSOR_API ChScene {
     /// @param enable whether to enable to the moving origin
     void EnableDynamicOrigin(bool enable) { m_dynamic_origin_offset = enable; }
 
+    ChFramed GetLightFrame(unsigned int id) {return m_light_frames[id];}
+    ChFramed GetLightParentFrame(unsigned int id) { return m_light_parent[id]->GetVisualModelFrame(); } // This is awful...rework the entire lights data strcuture!
+
+    void UpdateLight(unsigned int id, ChFramed newpose = ChFramed());
     // void SetGVDBVolume(gvdb::VolumeGVDB* gvdb) { m_gvdb = gvdb; }
     // nvdb::VolumeGVDB* GetGVDBVolume() { return m_gvdb; }
 
@@ -227,8 +242,10 @@ class CH_SENSOR_API ChScene {
     std::vector<Light> m_lights;  //< list of all lights in the scene
     int m_num_pointlights;         //< number of point lights in the scene
     int m_num_arealights;          //< number of area lights in the scene
-
+    std::map<unsigned int, ChFramed> m_light_frames;
+    std::map<unsigned int, std::shared_ptr<ChBody>> m_light_parent;
     
+
     Background m_background;                ///< The background object
     ChVector3f m_ambient_light;        ///< ambient light color used in the scene
 

@@ -839,10 +839,20 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         scene->ResetBackgroundChanged();
     }
 
-    if (scene->GetLightsChanged() || scene->GetOriginChanged()) {
+    std::vector<Light> l = scene->GetLights();
+    // Handle moving lights
+    bool light_moved = false;
+    for (int i = 0; i < l.size(); i++) {
+        Light light = l[i];
+        if (light.type == LightType::SPOT_LIGHT && light.parent_id >= 0) {
+            std::cout << "Moving Spot Light" << std::endl;
+            scene->UpdateLight(i);
+        }
+    }
+
+    if (true && scene->GetLightsChanged() || scene->GetOriginChanged()) {
 
         // Handling changes to all lights
-        std::vector<Light> l = scene->GetLights();
         if (l.size() != m_params.num_lights) {  // need new memory in this case
             if (m_params.lights)
                 CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
@@ -857,43 +867,6 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
 
         cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(Light), cudaMemcpyHostToDevice);
         m_params.num_lights = static_cast<int>(l.size());
-        // // Handling changes to area light
-        // std::vector<AreaLight> a = scene->GetAreaLights();
-        // if (a.size() != m_params.num_arealights) {  // need new memory in this case
-        //     if (m_params.arealights)
-        //         CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.arealights)));
-
-        //     cudaMalloc(reinterpret_cast<void**>(&m_params.arealights), a.size() * sizeof(AreaLight));
-        // }
-
-        
-        // for (unsigned int i = 0; i < a.size(); i++) {
-        //     a[i].pos = make_float3(a[i].pos.x - scene->GetOriginOffset().x(), a[i].pos.y - scene->GetOriginOffset().y(),
-        //                            a[i].pos.z - scene->GetOriginOffset().z());
-        // }
-
-        // cudaMemcpy(reinterpret_cast<void*>(m_params.arealights), a.data(), a.size() * sizeof(AreaLight),
-        //            cudaMemcpyHostToDevice);
-
-        // m_params.num_arealights = static_cast<int>(a.size());
-        
-        // // Handling changes for point lights
-
-        // std::vector<PointLight> l = scene->GetPointLights();
-        // if (l.size() != m_params.num_lights) {  // need new memory in this case
-        //     if (m_params.lights)
-        //         CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
-
-        //     cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(PointLight));
-        // }
-
-        // for (unsigned int i = 0; i < l.size(); i++) {
-        //     l[i].pos = make_float3(l[i].pos.x - scene->GetOriginOffset().x(), l[i].pos.y - scene->GetOriginOffset().y(),
-        //                            l[i].pos.z - scene->GetOriginOffset().z());
-        // }
-
-        // cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(PointLight),
-        //            cudaMemcpyHostToDevice);
       
         
         // Handling changes in origin
@@ -908,6 +881,8 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         //scene->ResetAreaLightsChanged();
         scene->ResetOriginChanged();
     }
+
+
 
     #ifdef USE_SENSOR_NVDB
     if (float* d_pts = scene->GetFSIParticles()) {

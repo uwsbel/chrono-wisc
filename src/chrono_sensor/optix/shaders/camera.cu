@@ -223,6 +223,7 @@ extern "C" __global__ void __raygen__transientcamera() {
     float3 laser_focus_point;
     float sigma = .5f;
 
+
     if (camera.integrator == Integrator::MITRANSIENT) {
         // trace laser ray to find laster focusing point
         assert(params.num_lights > 0);
@@ -247,8 +248,6 @@ extern "C" __global__ void __raygen__transientcamera() {
     }
 
     for (unsigned int sample = 0; sample < nsamples; sample++) {
-     
-
         float2 jitter = make_float2(curand_uniform(&camera.rng_buffer[image_index]),
                                     curand_uniform(&camera.rng_buffer[image_index]));
         // float2 d = (make_float2(idx.x, idx.y) + make_float2(0.5, 0.5)) / make_float2(screen.x, screen.y) * 2.f -
@@ -288,6 +287,29 @@ extern "C" __global__ void __raygen__transientcamera() {
         
         basis_from_quaternion(ray_quat, forward, left, up);
         float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
+        
+        //float2 jitter = make_float2(curand_uniform(&camera.rng_buffer[image_index]), curand_uniform(&camera.rng_buffer[image_index]));
+
+        //float phi_jitter = (idx.y + jitter.y) / (float)(max(1, screen.y - 1));
+        //float phi = phi_jitter * camera.hFOV - camera.hFOV / 2.;
+
+        //float theta_jitter = (idx.x + jitter.x) / (float)(max(1, screen.x - 1));
+        //float theta = theta_jitter * camera.hFOV - camera.hFOV / 2.;
+
+        //float xy_proj = cos(phi);
+        //float z = sin(phi);
+        //float y = xy_proj * sin(theta);
+        //float x = xy_proj * cos(theta);
+
+        //const float t_frac = idx.x / (float)screen.x;
+        //const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
+        //float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
+        //float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
+        //float3 forward;
+        //float3 left;
+        //float3 up;
+        //basis_from_quaternion(ray_quat, forward, left, up);
+        //float3 ray_direction = normalize(forward * x + left * y + up * z);
 
         PerRayData_transientCamera prd = default_transientCamera_prd(image_index);
         prd.integrator = camera.integrator;
