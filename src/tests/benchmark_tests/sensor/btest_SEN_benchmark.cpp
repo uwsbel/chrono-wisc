@@ -193,8 +193,10 @@ int main(int argc, char* argv[]) {
     b.color_horizon = {1,1,1};
     manager->scene->SetBackground(b);
     manager->scene->AddPointLight({0.0f, 0.0f, 10.f}, {1,1,1}, 1000.0f);
-    //manager->scene->AddSpotLight({2.f, 0.0f, 2.f},{0,0,-1}, {10.f,10.f,10.f}, 1000.0f, CH_PI/3, CH_PI/6);
-    manager->scene->AddSpotLight(box, ChFramed({0, 0, 2.f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/3, CH_PI/6);
+    //manager->scene->AddSpotLight({0.f, 0.0f, 2.f},{0,0,-1}, {10.f,10.f,10.f}, 1000.0f, CH_PI/3, CH_PI/6);
+    //manager->scene->AddSpotLight(box, ChFramed({0, 0, 2.f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/3, CH_PI/6);
+    ChVector3f light_pos = {0, 0, 2.f};
+    unsigned int spot_id  = manager->scene->AddSpotLight(ChFramed(light_pos, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/3, CH_PI/6);
     //manager->scene->AddAreaLight({0.0f, 0.0f, 200.f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 1000.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
@@ -253,12 +255,15 @@ int main(int argc, char* argv[]) {
     int step = 0;
     float end_dist = 5;
     float move_rate = (end_dist/end_time) * step_size;
+    offset_pose2.GetRotMat()
     while (ch_time < end_time) {
         // Update sensor manager
         // Will render/save/filter automatically
 
         ChVector3f new_pos = box->GetPos() + ChVector3f(move_rate, 0, 0);
+        light_pos = light_pos + ChVector3f(move_rate, 0, 0);
         box->SetPos(new_pos);
+        manager->scene->UpdateLight(spot_id, ChFramed(light_pos, QuatFromAngleY(90 * CH_PI / 180)));
       /*  ChQuaternionf new_rot = box->GetRot() * QuatFromAngleAxis(0.1, ChVector3f(0, 0, 1));
         box->SetRot(new_rot);*/
         

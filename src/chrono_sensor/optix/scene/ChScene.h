@@ -87,14 +87,14 @@ class CH_SENSOR_API ChScene {
     unsigned int AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv);
 
     unsigned int AddSpotLight(ChVector3f pos, ChVector3f to, ChColor color, float max_range, float total_width, float falloff_start);
-    unsigned int ChScene::AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
+    unsigned int AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
                                        ChFramed offsetPose,
                                        ChColor color,
                                        float max_range,
                                        float total_width,
                                        float falloff_start);
 
-    unsigned int ChScene::AddSpotLight(ChFramed offsetPose,
+    unsigned int AddSpotLight(ChFramed offsetPose,
                                        ChColor color,
                                        float max_range,
                                        float total_width,
