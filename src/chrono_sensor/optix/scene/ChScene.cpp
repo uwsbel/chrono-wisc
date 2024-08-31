@@ -183,7 +183,7 @@ CH_SENSOR_API void ChScene::UpdateLight(unsigned int id, ChFramed newpose) {
     Light* light = &m_lights[id];
     switch (light->type) {
         case LightType::SPOT_LIGHT: {
-            if (light->parent_id) { // If light has a parent
+            if (light->parent_id > 0) { // If light has a parent
                 ChFramed local_frame = GetLightFrame(id);
                 ChFramed parent_frame = GetLightParentFrame(id);
                 ChFramed glob_frame = parent_frame * local_frame;
@@ -201,6 +201,7 @@ CH_SENSOR_API void ChScene::UpdateLight(unsigned int id, ChFramed newpose) {
                 light->pos = make_float3(interp_pos.x(), interp_pos.y(), interp_pos.z());
                 light->spot_dir = make_float3(interp_dir.x(), interp_dir.y(), interp_dir.z());
             } else { // Not attached to parent just change pose
+                //std::cout << "Updating Pose of Spot Light" << std::endl;
                 ChVector3f glob_pos = newpose.GetPos();
                 ChVector3f local_dir{1, 0, 0};
                 ChVector3f world_dir = newpose.GetRot().Rotate(local_dir);
