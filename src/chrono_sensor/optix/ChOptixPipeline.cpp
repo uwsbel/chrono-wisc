@@ -512,6 +512,8 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             program_groups.push_back(m_tranientCamera_raygen_group);
             OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_tranientCamera_raygen_group, raygen_record.get()));
             raygen_record->data.specific.transientCamera.hFOV = 3.14f / 4;      // default value
+            raygen_record->data.specific.transientCamera.maxVFOV = 3.14f / 4;   // default value
+            raygen_record->data.specific.transientCamera.minVFOV = 0.f;         // default value
             raygen_record->data.specific.transientCamera.frame_buffer = {};     // default value
             raygen_record->data.specific.transientCamera.use_gi = false;        // default value
             raygen_record->data.specific.transientCamera.use_fog = true;        // default value

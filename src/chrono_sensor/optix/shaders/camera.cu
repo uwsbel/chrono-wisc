@@ -119,8 +119,8 @@ extern "C" __global__ void __raygen__camera() {
         //}
 
         float t_frac = 0.f;
-        if (camera.rng_buffer)
-            t_frac = curand_uniform(&rng);  // 0-1 between start and end time of the camera (chosen here)
+        //if (camera.rng_buffer)
+        //    t_frac = curand_uniform(&rng);  // 0-1 between start and end time of the camera (chosen here)
         const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
 
         float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
@@ -250,7 +250,7 @@ extern "C" __global__ void __raygen__transientcamera() {
     for (unsigned int sample = 0; sample < nsamples; sample++) {
         float2 jitter = make_float2(curand_uniform(&camera.rng_buffer[image_index]),
                                     curand_uniform(&camera.rng_buffer[image_index]));
-        // float2 d = (make_float2(idx.x, idx.y) + make_float2(0.5, 0.5)) / make_float2(screen.x, screen.y) * 2.f -
+         //float2 d = (make_float2(idx.x, idx.y) + make_float2(0.5, 0.5)) / make_float2(screen.x, screen.y) * 2.f -
         // make_float2(1.f);
         float2 d = (make_float2(idx.x, idx.y) + jitter) / make_float2(screen.x, screen.y) * 2.f - make_float2(1.f);
         d.y *= (float)(screen.y) / (float)(screen.x);  // correct for the aspect ratio
@@ -273,8 +273,8 @@ extern "C" __global__ void __raygen__transientcamera() {
 
        
         float t_frac = 0.f;
-        if (camera.rng_buffer)
-            t_frac = curand_uniform(&camera.rng_buffer[image_index]);  // 0-1 between start and end time of the camera (chosen here)
+        //if (camera.rng_buffer)
+        //    t_frac = curand_uniform(&camera.rng_buffer[image_index]);  // 0-1 between start and end time of the camera (chosen here)
         const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
 
         float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
@@ -291,7 +291,7 @@ extern "C" __global__ void __raygen__transientcamera() {
         //float2 jitter = make_float2(curand_uniform(&camera.rng_buffer[image_index]), curand_uniform(&camera.rng_buffer[image_index]));
 
         //float phi_jitter = (idx.y + jitter.y) / (float)(max(1, screen.y - 1));
-        //float phi = phi_jitter * camera.hFOV - camera.hFOV / 2.;
+        //float phi = phi_jitter * (camera.maxVFOV - camera.minVFOV) + camera.minVFOV;
 
         //float theta_jitter = (idx.x + jitter.x) / (float)(max(1, screen.x - 1));
         //float theta = theta_jitter * camera.hFOV - camera.hFOV / 2.;
@@ -354,7 +354,7 @@ extern "C" __global__ void __raygen__transientcamera() {
 
                 float4 L1_corrected  = make_float4(pow(L1.x, 1.0f / gamma), pow(L1.y, 1.0f / gamma), pow(L1.z, 1.0f / gamma), 1.f);
                 float4 L2_corrected = make_float4(pow(L2.x, 1.0f / gamma), pow(L2.y, 1.0f / gamma), pow(L2.z, 1.0f / gamma), 1.f);
-
+                
                 int kernel_radius = static_cast<int>(2 * sigma);  // Define this based on your sigma
                 for (int dx = -kernel_radius; dx <= kernel_radius; ++dx) {
                     for (int dy = -kernel_radius; dy <= kernel_radius; ++dy) {
@@ -362,6 +362,8 @@ extern "C" __global__ void __raygen__transientcamera() {
                         int ny = clamp((int)idx.y + dy, 0, (int)screen.y - 1);
                         float weight = gaussian(dx, dy, sigma);
 
+                        // print L1 corrected
+                      
                         camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].x += L1_corrected.x * weight;
                         camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].y += L1_corrected.y * weight;
                         camera.frame_buffer[stride * curr_idx + ny * screen.x + nx].z += L1_corrected.z * weight;
@@ -374,17 +376,19 @@ extern "C" __global__ void __raygen__transientcamera() {
                     }
                 }
 
-
+                // print L1 corrected and value at image index
        
 
-             /*   if (idx_valid && i == 0 && sample.pathlength > 0.f) {
-                    float4 fb_l1 = camera.frame_buffer[stride * curr_idx + image_index];
-                    float4 fb_l2 = camera.frame_buffer[stride * next_idx + image_index];
-                    printf("color: (%f,%f,%f), L1: (%f,%f,%f), L2: (%f,%f,%f),r: %f, (1-r): %f,\n", sample.color.x,
-                           sample.color.y, sample.color.z, fb_l1.x, fb_l1.y, fb_l1.z, fb_l2.x, fb_l2.y, fb_l2.z,
-                           remainder,
-                           1 - remainder);
-                }*/
+                // if (idx_valid && i == 0 && sample.pathlength > 0.f) {
+                //     float4 fb_l1 = camera.frame_buffer[stride * curr_idx + image_index];
+                //     float4 fb_l2 = camera.frame_buffer[stride * next_idx + image_index];
+                //     printf("color: (%f,%f,%f), L1: (%f,%f,%f), L2: (%f,%f,%f),r: %f, (1-r): %f,\n", sample.color.x,
+                //            sample.color.y, sample.color.z, fb_l1.x, fb_l1.y, fb_l1.z, fb_l2.x, fb_l2.y, fb_l2.z,
+                //            remainder,
+                //            1 - remainder);
+                //     float4 outval = camera.frame_buffer[stride * curr_idx + image_index];
+                //     printf("Outval: (%f,%f,%f,%f)\n", outval.x, outval.y, outval.z, outval.w);
+                // }
             }
         } /*else if (params.integrator == Integrator::TIMEGATED) {
             float3 color = prd.color * inv_nsamples;

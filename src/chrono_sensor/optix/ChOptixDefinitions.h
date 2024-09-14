@@ -223,6 +223,8 @@ struct TransientCameraParameters {
     float tmax;
     float tbins;
     Integrator integrator;
+    float maxVFOV;
+    float minVFOV;
 };
 
 
