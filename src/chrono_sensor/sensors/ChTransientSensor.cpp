@@ -73,6 +73,8 @@ CH_SENSOR_API ChTransientSensor::ChTransientSensor(std::shared_ptr<chrono::ChBod
       ChOptixSensor(parent, updateRate, offsetPose, w, h, integrator) {
 
     m_pipeline_type = PipelineType::TANSIENT;
+    m_max_vert_angle = m_hFOV/2;
+    m_min_vert_angle = -m_hFOV/2;
 
     if (integrator != Integrator::TRANSIENT && integrator != Integrator::TIMEGATED && integrator != Integrator::MITRANSIENT)
         throw std::runtime_error("Transient Sensor integrator must be TRANSIENT, TIMEGATED or MITRANSIENT!");

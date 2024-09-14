@@ -167,6 +167,12 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
    void SetDiscardDirectPaths(bool discard_direct_paths) { m_discard_direct_paths = discard_direct_paths; }
    bool GetDiscardDirectPaths() { return m_discard_direct_paths; }
 
+   void SetMaxVFOV(float angle) {m_max_vert_angle = angle;}
+   void SetMinVFov(float angle){m_min_vert_angle = angle;}
+
+    float GetMaxVFOV() {return m_max_vert_angle;}
+    float GetMinVFOV() {return m_min_vert_angle;}
+
 
   private:
     float m_hFOV;                           ///< the horizontal field of view of the sensor
@@ -189,6 +195,9 @@ class CH_SENSOR_API ChTransientSensor : public ChOptixSensor {
     int m_filter_bounces;
     bool m_nlos_hidden_geometry_sampling;
     bool m_discard_direct_paths;
+
+    float m_max_vert_angle;
+    float m_min_vert_angle;
 
 };
 

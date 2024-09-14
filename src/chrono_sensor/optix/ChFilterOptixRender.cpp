@@ -134,6 +134,8 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         initializeBuffer(b.get(), pOptixSensor->GetWidth() * transientCamera->GetNumBins(), pOptixSensor->GetHeight());
         bufferOut->Buffer = std::move(b);
         m_raygen_record->data.specific.transientCamera.hFOV = transientCamera->GetHFOV();
+        m_raygen_record->data.specific.transientCamera.maxVFOV = transientCamera->GetMaxVFOV();
+        m_raygen_record->data.specific.transientCamera.minVFOV = transientCamera->GetMinVFOV();
         m_raygen_record->data.specific.transientCamera.gamma = transientCamera->GetGamma();
         m_raygen_record->data.specific.transientCamera.super_sample_factor = transientCamera->GetSampleFactor();
         m_raygen_record->data.specific.transientCamera.frame_buffer = reinterpret_cast<float4*>(bufferOut->Buffer.get());
