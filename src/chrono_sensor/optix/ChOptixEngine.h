@@ -188,6 +188,10 @@ class CH_SENSOR_API ChOptixEngine {
     ChSystem* m_system;       ///< the chrono system that defines the scene
     unsigned int m_deviceId;  ///< ID of the GPU the context should be attached to
     int m_recursions;         ///< number of allowable ray tracing recursions in optix
+
+    void* m_dust_particles;
+    int m_num_dust_particles = 0;
+    int m_frame = 0;
 };
 
 /// @} sensor_optix

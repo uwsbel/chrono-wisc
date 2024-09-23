@@ -623,4 +623,14 @@ __device__ __inline__ float3 quaternion_rotate(const float4& q, const float3& v)
     return 2.0f * Dot(u, v) * u + (s * s - Dot(u, u)) * v + 2.0f * s * Cross(u, v);
 }
 
+#ifdef USE_SENSOR_NVDB
+__device__ __inline__ float3 make_float3(const nanovdb::Vec3f& a) {
+    return make_float3(a[0], a[1], a[2]);
+}
+
+__device__ __inline__ nanovdb::Vec3f make_nanovec3f(const float3& a) {
+    return nanovdb::Vec3f(a.x,a.y,a.z);
+}
+#endif
+
 #endif

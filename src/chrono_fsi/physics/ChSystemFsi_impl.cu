@@ -632,6 +632,70 @@ thrust::device_vector<Real4> ChSystemFsi_impl::GetParticlePositions(const thrust
 
 std::vector<float> ChSystemFsi_impl::GetParticleData() {
 
+
+    //thrust::device_vector<Real4> posD = sphMarkersD2->posRadD;
+    //thrust::device_vector<Real3> velD = sphMarkersD2->velMasD;
+
+    //thrust::device_vector<Real4> activePosD(posD.size());
+    //thrust::device_vector<Real3> activeVelD(velD.size());
+
+    //thrust::host_vector<int4>& refArr = fsiGeneralData->referenceArray;
+    //bool haveHelper = (refArr[0].z == -3) ? true : false;
+    //bool haveGhost = (refArr[0].z == -2 || refArr[1].z == -2) ? true : false;
+
+    //size_t fluidStart = refArr[haveHelper + haveGhost].x;
+    //size_t fluidEnd = refArr[haveHelper + haveGhost].y;
+
+    //int num_free = thrust::reduce(fsiGeneralData->freeSurfaceIdD.begin() + fluidStart,
+    //                              fsiGeneralData->freeSurfaceIdD.begin() + fluidEnd);
+    //printf("There are %d free surface fluid markers!\n", num_free);
+    //// Copy the active free surface particles
+    //auto posActiveEndIt = thrust::copy_if(posD.begin() + fluidStart, posD.begin() + fluidEnd,
+    //                                      fsiGeneralData->freeSurfaceIdD.begin() + fluidStart, activePosD.begin(),
+    //                                      thrust::identity<uint>());
+    //auto velActiveEndIt = thrust::copy_if(velD.begin() + fluidStart, velD.begin() + fluidEnd,
+    //                                      fsiGeneralData->freeSurfaceIdD.begin() + fluidStart, activeVelD.begin(),
+    //                                      thrust::identity<uint>());
+    //// resize
+    //activePosD.resize(thrust::distance(activePosD.begin(), posActiveEndIt));
+    //activeVelD.resize(thrust::distance(activeVelD.begin(), velActiveEndIt));
+
+    //Real4* r4_pos_d = mR4CAST(activePosD.data());
+    //Real3* r4_vel_d = mR3CAST(activeVelD.data());
+
+    //int n = activePosD.size();
+    //if (activePosD.size() != activeVelD.size())
+    //    printf("WARNING: Active Positions and Velocity vectors have different sizes!\n");
+
+    //printf("%d Active fluid markers out of %d makers convering to float buffer!\n", n, posD.size());
+    //float* pts_d;
+    //cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));
+
+    //uint nBlocks, nThreads;
+    //int blockSize = 1024;
+    //computeGridSize(n, blockSize, nBlocks, nThreads);
+    //kernel_convert_Real4_to_float_buffer<<<nBlocks, nThreads>>>(r4_pos_d, r4_vel_d, pts_d, n, 0);
+
+    //cudaError_t err = cudaGetLastError();
+    //if (err != cudaSuccess) {
+    //    fprintf(stderr, "CUDA kernel launch error: %s\n", cudaGetErrorString(err));
+    //    // Handle the error...
+    //}
+    //err = cudaDeviceSynchronize();
+    //if (err != cudaSuccess) {
+    //    fprintf(stderr, "CUDA kernel execution error: %s\n", cudaGetErrorString(err));
+    //    // Handle the error...
+    //}
+
+    //// float* pts_h = (float*)malloc(6 * n * sizeof(float));
+    //std::vector<float> pts_h(6 * n, 0.f);
+    //cudaMemcpy(pts_h.data(), pts_d, 6 * n * sizeof(float), cudaMemcpyDeviceToHost);
+
+    //cudaFree(pts_d);
+
+    //printf("Conversion Done: Converted %d particles!\n", n);
+    //return pts_h;
+
     Real4* r4_pts_d = mR4CAST(sphMarkersD2->posRadD.data());
     Real3* vel_d = mR3CAST(sphMarkersD2->velMasD.data());
 

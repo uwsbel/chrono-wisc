@@ -65,6 +65,10 @@
 #include <openvdb/points/PointConversion.h>
 #include <openvdb/points/PointCount.h>
 
+#include <omp.h>
+#include <execution>
+#include <random>
+
 
 using namespace chrono;
 using namespace chrono::fsi;
@@ -95,8 +99,8 @@ CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 // Update rate in Hz
 float update_rate = 30;
 // Image width and height
-unsigned int image_width = 1280;
-unsigned int image_height = 720;
+unsigned int image_width = 1920;
+unsigned int image_height = 780;
 // 720;
 // Camera's horizontal field of view
 float fov = (float)CH_PI / 2.;
@@ -104,7 +108,7 @@ float fov = (float)CH_PI / 2.;
 float lag = 0.0f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.00f;
-int alias_factor = 1;
+int alias_factor = 4;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -124,11 +128,43 @@ bool firstInst = true;
 std::vector<int> idList;
 int prevActiveVoxels = 0;
 std::vector<std::shared_ptr<ChBody>> voxelBodyList = {};
+std::vector<float> offsetXList = {};
+std::vector<float> offsetYList = {};
+int activeVoxels = 0;
+
+int num_meshes = 100;
+std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh 
+
+bool use_regolith_mesh = true;
 
 // forward declarations
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene);
-std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts);
+void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene);
 
+
+template <typename ValueType>
+class FloatBufferAttrVector {
+  public:
+    using PosType = ValueType;
+    using value_type = openvdb::Vec3d;
+    FloatBufferAttrVector(const std::vector<float> data, const openvdb::Index stride = 1)
+        : mData(data), mStride(stride) {}
+
+    size_t size() const { return mData.size() / 6; }
+    void getPos(size_t n, ValueType& xyz) const {
+        /*xyz[0] = mData[6 * n];
+        xyz[1] = mData[6 * n + 1];
+        xyz[2] = mData[6 * n + 2];*/
+        xyz = ValueType(mData[6 * n], mData[6 * n + 1], mData[6 * n + 2]);
+    }
+    // void get(ValueType& value, size_t n) const { value = mData[n]; }
+    // void get(ValueType& value, size_t n, openvdb::Index m) const { value = mData[n * mStride + m]; }
+
+  private:
+    const const std::vector<float> mData;
+    const openvdb::Index mStride;
+};  // PointAttributeVector
+
+float spacing = .01f;
 int main(int argc, char* argv[]) {
     double density = 1700;
     double cohesion = 5e3;
@@ -153,7 +189,7 @@ int main(int argc, char* argv[]) {
     sys.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // Create the CRM terrain system
-    CRMTerrain terrain(sys, 0.03);
+    CRMTerrain terrain(sys, spacing);
     terrain.SetVerbose(verbose);
     ChSystemFsi& sysFSI = terrain.GetSystemFSI();
 
@@ -250,7 +286,7 @@ int main(int argc, char* argv[]) {
     double grouser_height = 0.025;
     double grouser_wide = 0.005;
     int grouser_num = 24;
-    double wheel_AngVel = 0.8;
+    double wheel_AngVel = 0.0;
 
     for (int i = 0; i < 4; i++) {
         std::shared_ptr<ChBodyAuxRef> wheel_body;
@@ -292,22 +328,55 @@ int main(int argc, char* argv[]) {
     // Set up sensor sim
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({0.29f, 0.29f, 0.235f});
+    vis_mat->SetDiffuseColor({.5,.5,5}); //0.29f, 0.29f, 0.235f
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF(0);
+    vis_mat->SetAbsorptionCoefficient(0.001f);
+    vis_mat->SetScatteringCoefficient(0.01f);
+    vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
-    vis_mat->SetClassID(30000);
-    vis_mat->SetInstanceID(20000);
 
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
     floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sys.Add(floor);
 
+    auto box = chrono_types::make_shared<ChBodyEasyBox>(8, 8, 2, 1000, true, false);
+    box->SetPos({0, 0, 0});
+    box->SetFixed(true);
+    //sys.Add(box);
+    box->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(vis_mat);
+
+    auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(8, 8, 2, 1000, true);
+    vol_bbox->SetPos({0, 0, 0});
+    vol_bbox->SetFixed(true);
+    sys.Add(vol_bbox);
+    {
+        auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
+        if (shape->GetNumMaterials() == 0) {
+            shape->AddMaterial(vis_mat);
+        } else {
+            shape->GetMaterials()[0] = vis_mat;
+        }
+    }
+
+    // Load regolith meshes
+    std::string mesh_name_prefix = "sensor/geometries/regolith/particle_";
+    for (int i = 1; i <= num_meshes; i++) {
+         auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(GetChronoDataFile(mesh_name_prefix + std::to_string(i) + ".obj"),
+                                                         false, true);
+         mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
+         auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+         trimesh_shape->SetMesh(mmesh);
+         // std::cout << "OK1" << std::endl;
+         trimesh_shape->SetName("RegolithMesh" + std::to_string(i));
+         trimesh_shape->SetMutable(false);
+         regolith_meshes.push_back(trimesh_shape);
+    }
+
     // Create a Sensor manager
-    float intensity = 1.0;
+    float intensity = 1;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
     manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
     manager->scene->SetAmbientLight({.1, .1, .1});
@@ -316,9 +385,15 @@ int main(int argc, char* argv[]) {
     b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
-    manager->SetVerbose(false);
+    manager->scene->SetVoxelSize(spacing);
+    manager->scene->SetWindowSize(5);
+    manager->SetRayRecursions(4);
+    manager->scene->SetThresholdVelocity(.1f);
+    manager->scene->SetZThreshold(1.f);
+    Integrator integrator = Integrator::LEGACY;
+    bool use_denoiser = false;
 
-    chrono::ChFrame<double> offset_pose1({0,5,1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+    chrono::ChFrame<double> offset_pose1({0,4,3}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -327,7 +402,9 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // super sampling factor
                                                          lens_model,    // lens model type
-                                                         false, 2.2);
+                                                         use_denoiser,
+                                                         integrator,
+                                                         2.2);
     cam->SetName("Third Person Camera");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
@@ -338,7 +415,7 @@ int main(int argc, char* argv[]) {
         cam->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "CRM_DEMO_THIRD_PERSON_VIEW_RealSlope/"));
     manager->AddSensor(cam);
 
-    chrono::ChFrame<double> offset_pose2({-0.f, -1.7, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75}));
+    chrono::ChFrame<double> offset_pose2({0.f, -1.7, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75}));
     auto cam2 = chrono_types::make_shared<ChCameraSensor>(rover->GetChassis()->GetBody(),  // body camera is attached to
                                                           update_rate,                     // update rate in Hz
                                                           offset_pose2,                    // offset pose
@@ -347,7 +424,9 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // super sampling factor
                                                           lens_model,    // lens model type
-                                                          false, 2.2);
+                                                          use_denoiser, 
+                                                          integrator,
+                                                          2.2);
     cam2->SetName("Wheel Camera");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);
@@ -368,7 +447,9 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // super sampling factor
                                                           lens_model,    // lens model type
-                                                          false, 2.2);
+                                                          use_denoiser, 
+                                                          integrator,
+                                                          2.2);
     cam3->SetName("Rear Camera");
     cam3->SetLag(lag);
     cam3->SetCollectionWindow(exposure_time);
@@ -377,10 +458,10 @@ int main(int argc, char* argv[]) {
 
     if (save)
         cam3->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Rear_Cam_RealSlope/"));
-    manager->AddSensor(cam3);
+    //manager->AddSensor(cam3);
 
     // chrono::ChFrame<double> offset_pose4({-2.f, 0, .5f}, Q_from_AngAxis(.2, {0, 1, 0}));
-    chrono::ChFrame<double> offset_pose4({0, 0, 5.f}, QuatFromAngleAxis(CH_PI_2, {0, 1, 0}));
+    chrono::ChFrame<double> offset_pose4({2.5f, 0, 1.f}, QuatFromAngleAxis(CH_PI_2, {0, 1, 0}));
     auto cam4 = chrono_types::make_shared<ChCameraSensor>(rover->GetChassis()->GetBody(),  // body camera is attached to
                                                           update_rate,                     // update rate in Hz
                                                           offset_pose4,                    // offset pose
@@ -389,7 +470,9 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // super sampling factor
                                                           lens_model,    // lens model type
-                                                          false, 2.2);
+                                                          use_denoiser, 
+                                                          integrator,
+                                                          2.2);
     cam4->SetName("Top Camera");
     cam4->SetLag(lag);
     cam4->SetCollectionWindow(exposure_time);
@@ -448,7 +531,7 @@ int main(int argc, char* argv[]) {
     int frame = 0;
 
     std::vector<openvdb::Vec3R> vdbBuffer;
-    float* h_points;
+    std::vector<float> h_points;
     int n_pts;
     while (t < tend) {
         rover->Update();
@@ -458,18 +541,19 @@ int main(int argc, char* argv[]) {
             if (!visFSI->Render())
                 break;
         }
-        if (!visualization) {
+       /* if (!visualization) {
             std::cout << sysFSI.GetSimTime() << "  " << sysFSI.GetRTF() << std::endl;
-        }
+        }*/
        
         if(frame % sensor_render_steps == 0) {
             //std::cout << "Adding VDB grid" << std::endl;
             h_points = sysFSI.GetParticleData();
-            std::cout << "Adding VDB grid" << std::endl;
-            n_pts = sysFSI.GetNumFluidMarkers();
-           
-            vdbBuffer = floatToVec3R(h_points, n_pts);
-            createVoxelGrid(vdbBuffer, sys, manager->scene);
+            std::cout << "\n##### Adding " << h_points.size()/6 << " to VDB Grid####\n" << std::endl;
+            //n_pts = sysFSI.GetNumFluidMarkers();
+            //manager->scene->SetFSIParticles(h_points.data());
+            //manager->scene->SetFSINumFSIParticles(h_points.size()/6);
+         
+            createVoxelGrid(h_points, sys, manager->scene);
         }
       
         manager->Update();
@@ -482,23 +566,16 @@ int main(int argc, char* argv[]) {
 }
 
 
-
-std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts) {
-    std::vector<openvdb::Vec3R> vec3RBuffer;
-    for (size_t i = 0; i < npts; i++) {
-        vec3RBuffer.emplace_back(floatBuffer[6 * i], floatBuffer[6 * i + 1], floatBuffer[6 * i + 2]);
-    }
-    return vec3RBuffer;
-}
-
-void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
+void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
     std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
     openvdb::initialize();
-    openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
-    float r = 0.01f;
-    int pointsPerVoxel = 1;
-    std::vector<float> radius(points.size(), r);
-    float voxelSize = openvdb::points::computeVoxelSize(positionsWrapper, pointsPerVoxel);
+    // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
+    const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points);
+
+    float r = spacing/2;
+    int pointsPerVoxel = 2;
+    // std::vector<float> radius(points.size(), r);
+    float voxelSize = spacing ;//openvdb::points::computeVoxelSize(positionsWrapper, pointsPerVoxel);
     // Print the voxel-size to cout
     std::cout << "VoxelSize=" << voxelSize << std::endl;
     // Create a transform using this voxel-size.
@@ -507,99 +584,136 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std:
     openvdb::tools::PointIndexGrid::Ptr pointIndexGrid =
         openvdb::tools::createPointIndexGrid<openvdb::tools::PointIndexGrid>(positionsWrapper, *transform);
 
-    openvdb::points::PointDataGrid::Ptr grid =
-        openvdb::points::createPointDataGrid<openvdb::points::NullCodec, openvdb::points::PointDataGrid>(points,
-                                                                                                         *transform);
+    /*  openvdb::points::PointDataGrid::Ptr grid =
+          openvdb::points::createPointDataGrid<openvdb:
+          :points::NullCodec, openvdb::points::PointDataGrid>(points,*transform);*/
 
-    using Codec = openvdb::points::FixedPointCodec</*1-byte=*/false, openvdb::points::UnitRange>;
-    openvdb::points::TypedAttributeArray<float, Codec>::registerType();
-    openvdb::NamePair radiusAttribute = openvdb::points::TypedAttributeArray<float, Codec>::attributeType();
-    openvdb::points::appendAttribute(grid->tree(), "pscale", radiusAttribute);
-    // Create a wrapper around the radius vector.
-    openvdb::points::PointAttributeVector<float> radiusWrapper(radius);
-    // Populate the "pscale" attribute on the points
-    openvdb::points::populateAttribute<openvdb::points::PointDataTree, openvdb::tools::PointIndexTree,
-                                       openvdb::points::PointAttributeVector<float>>(
-        grid->tree(), pointIndexGrid->tree(), "pscale", radiusWrapper);
+    openvdb::points::PointDataGrid::Ptr grid =
+        openvdb::points::createPointDataGrid<openvdb::points::NullCodec, openvdb::points::PointDataGrid>(
+            *pointIndexGrid, positionsWrapper, *transform, nullptr);
 
     // Set the name of the grid
     grid->setName("FSIPointData");
     openvdb::Vec3d minBBox = grid->evalActiveVoxelBoundingBox().min().asVec3d();
     openvdb::Vec3d maxBBox = grid->evalActiveVoxelBoundingBox().max().asVec3d();
 
-    int activeVoxels = grid->activeVoxelCount();
+    activeVoxels = grid->activeVoxelCount();
     // Print Grid information
-    printf("############### VDB POINT GRID INFORMATION ################\n");
-    printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
-    printf("Grid Class: %d\n", grid->getGridClass());
-    printf("Grid Type: %s\n", grid->gridType().c_str());
-    printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
-    printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
-    printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
-    printf("Active Voxels: %d\n", grid->activeVoxelCount());
-    printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
-    printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
-    printf("############### END #############\n");
+      printf("############### VDB POINT GRID INFORMATION ################\n");
+      printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
+      printf("Grid Class: %d\n", grid->getGridClass());
+      printf("Grid Type: %s\n", grid->gridType().c_str());
+      printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
+      printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
+      printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
+      printf("Active Voxels: %d\n", grid->activeVoxelCount());
+      printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
+      printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
+      printf("############### END #############\n");
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({1, 1, 1});  // 0.29f, 0.29f, 0.235f
+    vis_mat->SetDiffuseColor({1,1,1});  // 0.29f, 0.29f, 0.235f
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF(1);
+    vis_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
 
-    int voxelCount = 0;
+    //int voxelCount = 0;
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
     int numAdds = 0;
     int numUpdates = 0;
 
+    std::vector<openvdb::Coord> coords;
     for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
         for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
-            // const float value = iter.getValue();
             const openvdb::Coord coord = iter.getCoord();
-            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
-            // std::wcout << "Voxel Pos: (" << voxelPos[0] << "," << voxelPos[1] << "," << voxelPos[2] << std::endl;
-            // Update existing spheres
-            /* if (!firstInst && voxelCount >= 500000)
-                 std::cout << numVoxelsToAdd << " " << prevActiveVoxels << " " << voxelCount << " " << idList.size()
-                           << " " << numAdds << " " << numUpdates << std::endl;*/
-            if (!idList.empty() && voxelCount < prevActiveVoxels) {
-                /* if (voxelCount >= 500000)
-                     std::cout << "Updating sphere: " << idList[voxelCount] << " Total Bodies: "<<
-                   sys.GetBodies().size() << std::endl;*/
-                numUpdates++;
-                // std::cout << voxelCount << "," << idList.size() << std::endl;
-                // auto voxelBody = sys.GetBodies()[idList[voxelCount]];
-                // auto voxelBody =
-                // std::reinterpret_pointer_cast<ChBody>(sys.GetOtherPhysicsItems()[idList[voxelCount]]); auto voxelBody
-                // = scene->GetSprite(idList[voxelCount]);
-                auto voxelBody = voxelBodyList[idList[voxelCount]];
-                voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+            coords.push_back(coord);
+        }
+    }
+
+    if (!firstInst) {
+          int voxelCount = 0;
+          for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
+            for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
+                // const float value = iter.getValue();
+                const openvdb::Coord coord = iter.getCoord();
+                openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+                if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
+                    numUpdates++;
+                    auto voxelBody = voxelBodyList[idList[voxelCount]];
+                    float offsetX = offsetXList[idList[voxelCount]];
+                    float offsetY = offsetYList[idList[voxelCount]];
+                    voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+                    //voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+                }
+                voxelCount++;
             }
-            // Create a sphere for each point
-            if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
-                /* if (!firstInst && voxelCount >= 500000) {
-                     std::cout << "Adding Sphere" << std::endl;
-                 }*/
-                numAdds++;
-                auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
-                // auto voxelBody = chrono_types::make_shared<ChBodyEasyBox>(r, r, r, 1000, true, false);
-                voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
-                voxelBody->SetFixed(true);
-                // sys.Add(voxelBody);
-                // int index = voxelBody->GetIndex();
-                // int index = sys.GetOtherPhysicsItems().size();
-                // int index = scene->GetSprites().size();
-                int index = voxelBodyList.size();
-                // scene->AddSprite(voxelBody);
-                // sys.AddOtherPhysicsItem(voxelBody);
-                voxelBodyList.push_back(voxelBody);
-                {
-                    auto shape = voxelBody->GetVisualModel()->GetShapes()[0].first;
+        }
+
+        //for (int i = 0; i < coords.size(); i++) {
+        //    const openvdb::Coord coord = coords[i];
+        //        openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+        //        if (!idList.empty() && ((i < prevActiveVoxels) || (i < idList.size()))) {
+        //            numUpdates++;
+        //            auto voxelBody = voxelBodyList[idList[i]];
+        //            float offsetX = offsetXList[idList[i]];
+        //            float offsetY = offsetYList[idList[i]];
+        //            voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+        //        }
+        //        //voxelCount++;
+        //}    
+    
+    } else {
+        voxelBodyList.resize(coords.size());
+        idList.resize(coords.size());
+        offsetXList.resize(coords.size());
+        offsetYList.resize(coords.size());
+
+        //std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
+
+        // Use std::for_each with parallel execution
+        std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
+            // Calculate the index based on the position in the loop
+            int i = &coord - &coords[0];  // Get the current index
+
+            thread_local std::mt19937 generator(std::random_device{}());
+            std::uniform_int_distribution<int> distribution(0, num_meshes-1);
+            std::uniform_real_distribution<float> randpos(-.01f, .01f);
+            std::uniform_real_distribution<float> randscale(1.f, 1.5);
+            // Compute voxel position in world space
+            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+
+            // Create voxelBody if necessary
+            if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
+                std::shared_ptr<ChBody> voxelBody;
+                if (true) {
+                    //std::cout << "Adding Mesh " << i << std::endl;
+                    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                    auto trimesh_shape = regolith_meshes[meshIndex];
+                    trimesh_shape->SetScale(randscale(generator));
+                    ////std::cout << "OK" << std::endl;
+                    //auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+                    //trimesh_shape->SetMesh(mmesh);
+                    ////std::cout << "OK1" << std::endl;
+                    //trimesh_shape->SetName("RegolithMesh");
+                    //trimesh_shape->SetMutable(false);
+                    if (trimesh_shape->GetNumMaterials() == 0) {
+                        trimesh_shape->AddMaterial(vis_mat);
+                    } else {
+                        trimesh_shape->GetMaterials()[0] = vis_mat;
+                    }
+                    voxelBody = chrono_types::make_shared<ChBody>();
+                    voxelBody->AddVisualShape(trimesh_shape);
+
+                } else {
+                    // Create a sphere voxel
+                    voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
                     if (shape->GetNumMaterials() == 0) {
                         shape->AddMaterial(vis_mat);
                     } else {
@@ -607,16 +721,22 @@ void createVoxelGrid(std::vector<openvdb::Vec3R>& points, ChSystemNSC& sys, std:
                     }
                 }
 
-                /* if (voxelCount > 500000)
-                     std::cout << "BodyList: "<< sys.GetBodies().size() <<  " Adding Sphere " << sphere->GetIndex() <<
-                   std::endl;*/
-                idList.emplace_back(index);
+                float offsetX = 0.f;//randpos(generator);
+                float offsetY = 0.f;//randpos(generator);
+;                // Set the position and other properties of the voxel body
+                voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+                voxelBody->SetFixed(true);
+
+                // Directly assign the voxelBody and index to the preallocated list positions
+                voxelBodyList[i] = voxelBody;
+                idList[i] = i;  // Assign index to idList slot
+                offsetXList[i] = offsetX;
+                offsetYList[i] = offsetY;
             }
-            voxelCount++;
-        }
+        });
     }
-    prevActiveVoxels = voxelCount;
-    std::wcout << "Num Voxels: " << voxelCount << std::endl;
+    prevActiveVoxels = coords.size();
+    std::wcout << "Num Voxels: " << coords.size() << std::endl;
     scene->SetSprites(voxelBodyList);
     firstInst = false;
 }

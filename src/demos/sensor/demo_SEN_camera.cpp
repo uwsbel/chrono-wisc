@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
     // ---------------------------------------
     // add a mesh to be visualized by a camera
     // ---------------------------------------
-    auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(GetChronoDataFile("vehicle/audi/audi_chassis.obj"),
+    auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(GetChronoDataFile("sensor/geometries/regolith/particle_1.obj"),
                                                                   false, true);
     mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
 

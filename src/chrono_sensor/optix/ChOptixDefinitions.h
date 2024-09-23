@@ -68,7 +68,7 @@ enum CameraLensModelType {
 
 enum class TIMEGATED_MODE {BOX,TENT,COS,SIN,EXPONENTIAL};
 
-enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE, RETROREFLECTIVE};
+enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE, RETROREFLECTIVE, VDB, VDBHAPKE, VDBVOL};
 
 
 enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
@@ -391,9 +391,11 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     float h_s;
     float phi; 
     float theta_p;
+    float absorption_coefficient;
+    float scattering_coefficient;
     int BSDFType; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
     int is_hidden_geometry; // 0 for not hidden geometry, 1 for hidden geometry // size 4
-    float3 pad; // padding to ensure 16 byte alignment
+    float2 pad; // padding to ensure 16 byte alignment
     
 };
 
@@ -436,9 +438,13 @@ struct ContextParameters {
     #ifdef USE_SENSOR_NVDB
     //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>* handle_ptr; // NanoVDB grid handle
     //nanovdb::NanoGrid<float>* handle_ptr;
-        nanovdb::NanoGrid<float>* handle_ptr;
+        nanovdb::NanoGrid<nanovdb::Point>* handle_ptr;
+        nanovdb::NanoGrid<nanovdb::Vec3f>* normal_handle_ptr;
+        nanovdb::NanoGrid<float>* density_grid_ptr;
     #else
         int handle_ptr;
+        int normal_handle_ptr;
+        int density_grid_ptr;
     #endif
 };
 

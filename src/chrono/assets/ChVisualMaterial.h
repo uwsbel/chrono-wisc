@@ -84,6 +84,9 @@ class ChApi ChVisualMaterial {
     void SetBSDF(int s) {BSDFType = s;}
     void SetIsHiddenObject(bool hidden) {is_hidden_object = hidden;}
 
+    void SetAbsorptionCoefficient(float abs_coef) {m_absorption_coefficient = abs_coef;}
+    void SetScatteringCoefficient(float scatter_coef) {m_scattering_coefficient = scatter_coef;}
+
     void SetClassID(unsigned short int id) { class_id = id; }
     void SetInstanceID(unsigned short int id) { instance_id = id; }
 
@@ -142,6 +145,9 @@ class ChApi ChVisualMaterial {
 
     unsigned short int GetClassID() const { return class_id; }
     unsigned short int GetInstanceID() const { return instance_id; }
+
+    float GetAbsorptionCoefficient(){return m_absorption_coefficient;}
+    float GetScatteringCoefficient() {return m_scattering_coefficient;}
 
     /// Method to allow serialization of transient data to archives.
     virtual void ArchiveOut(ChArchiveOut& archive_out);
@@ -202,6 +208,8 @@ class ChApi ChVisualMaterial {
 
     // For NLOS rendering
     bool is_hidden_object; // All objects will be hiddden objects by default
+    float m_absorption_coefficient = .001f;
+    float m_scattering_coefficient = .01f;
     
 };
 

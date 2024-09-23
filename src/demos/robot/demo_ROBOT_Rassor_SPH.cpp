@@ -56,6 +56,10 @@
 #include <openvdb/points/PointConversion.h>
 #include <openvdb/points/PointCount.h>
 
+
+#include <execution>
+#include <random>
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::rassor;
@@ -137,7 +141,7 @@ float fov = (float)CH_PI / 2.;
 float lag = 0.0f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.00f;
-int alias_factor = 1;
+int alias_factor = 4;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -156,6 +160,8 @@ bool firstInst = true;
 std::vector<int> idList;
 int prevActiveVoxels = 0;
 std::vector<std::shared_ptr<ChBody>> voxelBodyList = {};
+std::vector<float> offsetXList = {};
+std::vector<float> offsetYList = {};
 int activeVoxels = 0;
 
 // forward declarations
@@ -184,6 +190,11 @@ class FloatBufferAttrVector {
     const const std::vector<float> mData;
     const openvdb::Index mStride;
 };  // PointAttributeVector
+
+
+
+int num_meshes = 100;
+std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh 
 
 
 int main(int argc, char* argv[]) {
@@ -318,6 +329,7 @@ int main(int argc, char* argv[]) {
     }
 
     // setup sensor sim
+
     // Set up sensor sim
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
@@ -325,28 +337,60 @@ int main(int argc, char* argv[]) {
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF(0);
+    vis_mat->SetBSDF((unsigned int)BSDFType::VDB);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
+
+
+    auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400, 400, 200, 1000, true);
+    vol_bbox->SetPos({0, 0, 0});
+    vol_bbox->SetFixed(true);
+    //sysMBS.Add(vol_bbox);
+    {
+        auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
+        if (shape->GetNumMaterials() == 0) {
+            shape->AddMaterial(vis_mat);
+        } else {
+            shape->GetMaterials()[0] = vis_mat;
+        }
+    }
 
   /*  auto floor = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
     floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sysMBS.Add(floor);*/
 
+    // Load regolith meshes
+    std::string mesh_name_prefix = "sensor/geometries/regolith/particle_";
+    for (int i = 1; i <= num_meshes; i++) {
+        auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(
+            GetChronoDataFile(mesh_name_prefix + std::to_string(i) + ".obj"), false, true);
+        mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
+        auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+        trimesh_shape->SetMesh(mmesh);
+        // std::cout << "OK1" << std::endl;
+        trimesh_shape->SetName("RegolithMesh" + std::to_string(i));
+        trimesh_shape->SetMutable(false);
+        regolith_meshes.push_back(trimesh_shape);
+    }
+
     // Create a Sensor manager
     float intensity = 1.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sysMBS);
     manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
     manager->scene->SetAmbientLight({.1, .1, .1});
+    manager->scene->SetVoxelSize(sysFSI.GetInitialSpacing());
+    manager->scene->SetWindowSize(5);
     Background b;
     b.mode = BackgroundMode::ENVIRONMENT_MAP;
     b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
+    manager->SetRayRecursions(4);
+    Integrator integrator = Integrator::LEGACY;
 
-    chrono::ChFrame<double> offset_pose2({-0, -1.4, 0.2}, QuatFromAngleAxis(CH_PI_2, {0,0,1})); //QuatFromAngleAxis(.2, {-2, 3, 9.75})
+    chrono::ChFrame<double> offset_pose2({-0, -1.3, 0.2}, QuatFromAngleAxis(CH_PI_2, {0,0,1})); //QuatFromAngleAxis(.2, {-2, 3, 9.75})
     auto cam2 = chrono_types::make_shared<ChCameraSensor>(rover->GetChassis()->GetBody(),  // body camera is attached to
                                                           update_rate,                     // update rate in Hz
                                                           offset_pose2,                    // offset pose
@@ -355,7 +399,8 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // super sampling factor
                                                           lens_model,    // lens model type
-                                                          false, 2.2);
+                                                          true);
+    cam2->SetIntegrator(integrator);
     cam2->SetName("Wheel Camera");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);
@@ -365,6 +410,29 @@ int main(int argc, char* argv[]) {
     if (save)
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Wheel_Cam_RealSlope/"));
     manager->AddSensor(cam2);
+
+    
+    chrono::ChFrame<double> offset_pose3(
+        {0,0,2.f}, QuatFromAngleAxis(CH_PI_2, {0, 1, 0}));  // QuatFromAngleAxis(.2, {-2, 3, 9.75})
+    auto top = chrono_types::make_shared<ChCameraSensor>(rover->GetChassis()->GetBody(),  // body camera is attached to
+                                                          update_rate,                     // update rate in Hz
+                                                          offset_pose3,                    // offset pose
+                                                          image_width,                     // image width
+                                                          image_height,                    // image height
+                                                          fov,           // camera's horizontal field of view
+                                                          alias_factor,  // super sampling factor
+                                                          lens_model,    // lens model type
+                                                          true);
+    top->SetIntegrator(integrator);
+    top->SetName("Wheel Camera");
+    top->SetLag(lag);
+    top->SetCollectionWindow(exposure_time);
+    if (vis)
+        top->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Top Camera"));
+
+    if (save)
+        top->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Top_Camera"));
+    manager->AddSensor(top);
 
     // Start the simulation
     unsigned int output_steps = (unsigned int)round(1 / (out_fps * dT));
@@ -477,27 +545,26 @@ int main(int argc, char* argv[]) {
             
         if (current_step % sensor_render_steps == 0) {
             h_points = sysFSI.GetParticleData();
-            n_pts = sysFSI.GetNumFluidMarkers();
+            //n_pts = sysFSI.GetNumFluidMarkers();
+            //manager->scene->SetFSIParticles(h_points.data());
+            //manager->scene->SetFSINumFSIParticles(h_points.size()/6);
             createVoxelGrid(h_points, sysMBS, manager->scene);
-
-            std::cout << "sizeof body:" << sizeof(*voxelBodyList[0]) << " "
-                      << "n: " << voxelBodyList.size() << "accVox: " << activeVoxels << std::endl;
         }
 
        
-        if (output && current_step % output_steps == 0) {
+    /*    if (output && current_step % output_steps == 0) {
                
 
             sysFSI.PrintParticleToFile(out_dir + "/particles");
             sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
             rover->writeMeshFile(out_dir + "/rover", int(current_step/output_steps), true);
-        }
+        }*/
 
-        // Render system
-        if (render && current_step % render_steps == 0) {
-         /*   if (!visFSI->Render())
-                break;*/
-        }
+        //// Render system
+        //if (render && current_step % render_steps == 0) {
+        // /*   if (!visFSI->Render())
+        //        break;*/
+        //}
 
         rover->Update();
 
@@ -526,17 +593,17 @@ std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts) {
     return vec3RBuffer;
 }
 
-void createVoxelGrid(std::vector<float> points,  ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
+
+void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
     std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
     openvdb::initialize();
-    //openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points); 
-    const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points); 
-   
-   
-    float r = 0.005f;
-    int pointsPerVoxel = 2;
-    //std::vector<float> radius(points.size(), r);
-    float voxelSize = openvdb::points::computeVoxelSize(positionsWrapper, pointsPerVoxel);
+    // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
+    const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points);
+    float spacing = 0.005f;
+    float r = spacing / 2;
+    int pointsPerVoxel = 1;
+    // std::vector<float> radius(points.size(), r);
+    float voxelSize = spacing;  // openvdb::points::computeVoxelSize(positionsWrapper, pointsPerVoxel);
     // Print the voxel-size to cout
     std::cout << "VoxelSize=" << voxelSize << std::endl;
     // Create a transform using this voxel-size.
@@ -545,22 +612,13 @@ void createVoxelGrid(std::vector<float> points,  ChSystemNSC& sys, std::shared_p
     openvdb::tools::PointIndexGrid::Ptr pointIndexGrid =
         openvdb::tools::createPointIndexGrid<openvdb::tools::PointIndexGrid>(positionsWrapper, *transform);
 
-  /*  openvdb::points::PointDataGrid::Ptr grid =
-        openvdb::points::createPointDataGrid<openvdb:
-        :points::NullCodec, openvdb::points::PointDataGrid>(points,*transform);*/
+    /*  openvdb::points::PointDataGrid::Ptr grid =
+          openvdb::points::createPointDataGrid<openvdb:
+          :points::NullCodec, openvdb::points::PointDataGrid>(points,*transform);*/
 
-     openvdb::points::PointDataGrid::Ptr grid =  openvdb::points::createPointDataGrid<openvdb::points::NullCodec, openvdb::points::PointDataGrid>(*pointIndexGrid, positionsWrapper,*transform, nullptr);
-
-    //using Codec = openvdb::points::FixedPointCodec</*1-byte=*/false, openvdb::points::UnitRange>;
-    //openvdb::points::TypedAttributeArray<float, Codec>::registerType();
-    //openvdb::NamePair radiusAttribute = openvdb::points::TypedAttributeArray<float, Codec>::attributeType();
-    //openvdb::points::appendAttribute(grid->tree(), "pscale", radiusAttribute);
-    //// Create a wrapper around the radius vector.
-    //openvdb::points::PointAttributeVector<float> radiusWrapper(radius);
-    //// Populate the "pscale" attribute on the points
-    //openvdb::points::populateAttribute<openvdb::points::PointDataTree, openvdb::tools::PointIndexTree,
-    //                                   openvdb::points::PointAttributeVector<float>>(
-    //    grid->tree(), pointIndexGrid->tree(), "pscale", radiusWrapper);
+    openvdb::points::PointDataGrid::Ptr grid =
+        openvdb::points::createPointDataGrid<openvdb::points::NullCodec, openvdb::points::PointDataGrid>(
+            *pointIndexGrid, positionsWrapper, *transform, nullptr);
 
     // Set the name of the grid
     grid->setName("FSIPointData");
@@ -569,7 +627,7 @@ void createVoxelGrid(std::vector<float> points,  ChSystemNSC& sys, std::shared_p
 
     activeVoxels = grid->activeVoxelCount();
     // Print Grid information
-  /*  printf("############### VDB POINT GRID INFORMATION ################\n");
+    printf("############### VDB POINT GRID INFORMATION ################\n");
     printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
     printf("Grid Class: %d\n", grid->getGridClass());
     printf("Grid Type: %s\n", grid->gridType().c_str());
@@ -579,7 +637,7 @@ void createVoxelGrid(std::vector<float> points,  ChSystemNSC& sys, std::shared_p
     printf("Active Voxels: %d\n", grid->activeVoxelCount());
     printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
     printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
-    printf("############### END #############\n");*/
+    printf("############### END #############\n");
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
@@ -587,50 +645,157 @@ void createVoxelGrid(std::vector<float> points,  ChSystemNSC& sys, std::shared_p
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF(1);
+    vis_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
 
-    int voxelCount = 0;
+    // int voxelCount = 0;
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
     int numAdds = 0;
     int numUpdates = 0;
 
+    std::vector<openvdb::Coord> coords;
     for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
         for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
-            // const float value = iter.getValue();
             const openvdb::Coord coord = iter.getCoord();
-            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
-            if (!idList.empty() && ( (voxelCount < prevActiveVoxels) || (voxelCount < idList.size()) )) {
-                numUpdates++;
-                auto voxelBody = voxelBodyList[idList[voxelCount]];
-                voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+            coords.push_back(coord);
+        }
+    }
+
+    if (!firstInst) {
+        thread_local std::mt19937 generator(std::random_device{}());
+        std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+        std::uniform_real_distribution<float> randpos(-.005f, .005f);
+        std::uniform_real_distribution<float> randscale(1.f, 1.5);
+        int voxelCount = 0;
+        for (auto leaf = grid->tree().cbeginLeaf(); leaf; ++leaf) {
+            for (auto iter(leaf->cbeginValueOn()); iter; ++iter) {
+                // const float value = iter.getValue();
+                const openvdb::Coord coord = iter.getCoord();
+                openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+                if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
+                    numUpdates++;
+                    auto voxelBody = voxelBodyList[idList[voxelCount]];
+                    float offsetX = offsetXList[idList[voxelCount]];
+                    float offsetY = offsetYList[idList[voxelCount]];
+                    voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+                    //voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+                }
+                // Create a sphere for each point
+                else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
+                    numAdds++;
+                    std::shared_ptr<ChBody> voxelBody;
+                    if (true) {
+                        // std::cout << "Adding Mesh " << i << std::endl;
+                        int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                        auto trimesh_shape = regolith_meshes[meshIndex];
+                        trimesh_shape->SetScale(randscale(generator));
+                        if (trimesh_shape->GetNumMaterials() == 0) {
+                            trimesh_shape->AddMaterial(vis_mat);
+                        } else {
+                            trimesh_shape->GetMaterials()[0] = vis_mat;
+                        }
+                        voxelBody = chrono_types::make_shared<ChBody>();
+                        voxelBody->AddVisualShape(trimesh_shape);
+                    } else {
+                        auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+                    }
+                    float offsetX = randpos(generator);
+                    float offsetY = randpos(generator);
+                    // Set the position and other properties of the voxel body
+                    voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+                    voxelBody->SetFixed(true);
+                   
+                    int index = voxelBodyList.size();
+                    voxelBodyList.push_back(voxelBody);
+                    {
+                        auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                        if (shape->GetNumMaterials() == 0) {
+                            shape->AddMaterial(vis_mat);
+                        } else {
+                            shape->GetMaterials()[0] = vis_mat;
+                        }
+                    }
+                    idList.emplace_back(index);
+                    offsetXList.emplace_back(offsetX);
+                    offsetYList.emplace_back(offsetY);
+                    
+                }
+                voxelCount++;
             }
-            // Create a sphere for each point
-            else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
-                numAdds++;
-                auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
-                // auto voxelBody = chrono_types::make_shared<ChBodyEasyBox>(r, r, r, 1000, true, false);
-                voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
-                voxelBody->SetFixed(true);
-                int index = voxelBodyList.size();
-                voxelBodyList.push_back(voxelBody);
-                {
-                    auto shape = voxelBody->GetVisualModel()->GetShapes()[0].first;
+        }
+
+    } else {
+        voxelBodyList.resize(coords.size());
+        idList.resize(coords.size());
+        offsetXList.resize(coords.size());
+        offsetYList.resize(coords.size());
+
+        // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
+
+        // Use std::for_each with parallel execution
+        std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
+            // Calculate the index based on the position in the loop
+            int i = &coord - &coords[0];  // Get the current index
+
+            thread_local std::mt19937 generator(std::random_device{}());
+            std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+            std::uniform_real_distribution<float> randpos(-.005f, .005f);
+            std::uniform_real_distribution<float> randscale(1.f, 1.5);
+            // Compute voxel position in world space
+            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+
+            // Create voxelBody if necessary
+            if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
+                std::shared_ptr<ChBody> voxelBody;
+                if (true) {
+                    // std::cout << "Adding Mesh " << i << std::endl;
+                    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                    auto trimesh_shape = regolith_meshes[meshIndex];
+                    trimesh_shape->SetScale(randscale(generator));
+                    ////std::cout << "OK" << std::endl;
+                    // auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+                    // trimesh_shape->SetMesh(mmesh);
+                    ////std::cout << "OK1" << std::endl;
+                    // trimesh_shape->SetName("RegolithMesh");
+                    // trimesh_shape->SetMutable(false);
+                    if (trimesh_shape->GetNumMaterials() == 0) {
+                        trimesh_shape->AddMaterial(vis_mat);
+                    } else {
+                        trimesh_shape->GetMaterials()[0] = vis_mat;
+                    }
+                    voxelBody = chrono_types::make_shared<ChBody>();
+                    voxelBody->AddVisualShape(trimesh_shape);
+
+                } else {
+                    // Create a sphere voxel
+                    voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
                     if (shape->GetNumMaterials() == 0) {
                         shape->AddMaterial(vis_mat);
                     } else {
                         shape->GetMaterials()[0] = vis_mat;
                     }
                 }
-                idList.emplace_back(index);
+
+                float offsetX = randpos(generator);
+                float offsetY = randpos(generator);
+                // Set the position and other properties of the voxel body
+                voxelBody->SetPos({voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z()});
+                voxelBody->SetFixed(true);
+
+                // Directly assign the voxelBody and index to the preallocated list positions
+                voxelBodyList[i] = voxelBody;
+                idList[i] = i;  // Assign index to idList slot
+                offsetXList[i] = offsetX;
+                offsetYList[i] = offsetY;
             }
-            voxelCount++;
-        }
+        });
     }
-    prevActiveVoxels = voxelCount;
-    std::wcout << "Num Voxels: " << voxelCount << std::endl;
+    prevActiveVoxels = coords.size();
+    std::wcout << "Num Voxels: " << coords.size() << std::endl;
     scene->SetSprites(voxelBodyList);
     firstInst = false;
 }

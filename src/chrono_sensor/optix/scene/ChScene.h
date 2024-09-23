@@ -191,6 +191,14 @@ class CH_SENSOR_API ChScene {
     /// @param n the number of FSI markers
     void SetFSINumFSIParticles(int n) { m_num_fsi_points = n; }
 
+    void SetVoxelSize(double vsize) {m_voxel_size = vsize;}
+
+    void SetWindowSize(int wsize) {m_window_size = wsize;}
+
+    void SetThresholdVelocity(float vel) {m_threshold_velocity = vel;}
+
+    void SetZThreshold(float thresh) {m_z_threshold = thresh;}
+
     /// @brief Returns a host pointer to the Chrono::FSI, SPH markers being rendered
     /// @return float* to Chrono::FSI, SPH markers in the scene
     float* GetFSIParticles() { return m_fsi_points; }
@@ -198,6 +206,14 @@ class CH_SENSOR_API ChScene {
     /// @brief Returns the number of Chrono::FSI, SPH markers in the scene
     /// @return the number of Chrono::FSI, SPH markers in the scene (int)
     int GetNumFSIParticles() { return m_num_fsi_points;}
+
+    double  GetVoxelSize() { return m_voxel_size;}
+    
+    int GetWindowSize() {return m_window_size;}
+
+    float GetThresholdVelocity() {return m_threshold_velocity;}
+
+    float GetZThreshold() { return m_z_threshold;}
 
     // TODO: Allow adding multiple grids
     void AddVDBGrid(std::shared_ptr<openvdb::FloatGrid> grid) {m_grid = grid; };
@@ -270,6 +286,10 @@ class CH_SENSOR_API ChScene {
     float* m_fsi_points = nullptr; // Pointer to FSI particle positions in host
     int m_num_fsi_points = 0; // Number of FSI particles
     std::shared_ptr<openvdb::FloatGrid> m_grid;
+    double m_voxel_size = .01;
+    int m_window_size = 1;
+    float m_threshold_velocity = 1.f;
+    float m_z_threshold = 0.f;
     #endif
 };
 

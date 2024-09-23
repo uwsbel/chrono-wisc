@@ -176,8 +176,10 @@ void ChOptixPipeline::Cleanup() {
     // clean up environment map data if it exists
     // clear out and free texture samplers
     if (md_miss_img_texture) {
+        std::cout << "Freeing Miss Image Texture" << std::endl;
         CUDA_ERROR_CHECK(cudaFreeArray(md_miss_img_texture));
         md_miss_img_texture = 0;
+        std::cout << "Done Freeing Miss Image Texture" << std::endl;
     }
     if (md_miss_texture_sampler) {
         CUDA_ERROR_CHECK(cudaDestroyTextureObject(md_miss_texture_sampler));
@@ -862,6 +864,8 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
         material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
         material.emissive_power = mat->GetEmissivePower();
         material.BSDFType = mat->GetBSDF();
+        material.absorption_coefficient = mat->GetAbsorptionCoefficient();
+        material.scattering_coefficient = mat->GetScatteringCoefficient();
         material.is_hidden_geometry = mat->IsHiddenObject();
 
       
@@ -942,6 +946,8 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
             material.emissive_power = 0.f;
             material.pad = {0.f, 0.f};
             material.BSDFType = 0;
+            material.absorption_coefficient = 0.001f;
+            material.scattering_coefficient = 0.01f;
 
             m_material_pool.push_back(material);
             m_default_material_id = static_cast<unsigned int>(m_material_pool.size() - 1);

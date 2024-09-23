@@ -126,20 +126,20 @@ std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
     //std::cout << "VDB Grid Written\n" << std::endl;
 
     // Print Grid information
-    //printf("############### VDB POINT GRID INFORMATION ################\n");
-    //printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
-    //printf("Grid Class: %d\n", grid->getGridClass());
-    //printf("Grid Type: %s\n", grid->gridType().c_str());
-    //printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
-    //printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
-    //printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
-    //printf("Active Voxels: %d\n", grid->activeVoxelCount());
-    //printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
-    //printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
-    //printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
-    //printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
-    //printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
-    //printf("############### END #############\n");
+    printf("############### VDB POINT GRID INFORMATION ################\n");
+    printf("Voxel Size: %f %f %f\n", grid->voxelSize()[0], grid->voxelSize()[1], grid->voxelSize()[2]);
+    printf("Grid Class: %d\n", grid->getGridClass());
+    printf("Grid Type: %s\n", grid->gridType().c_str());
+    printf("Upper Internal Nodes: %d\n", grid->tree().nodeCount()[2]);
+    printf("Lower Internal Nodes: %d\n", grid->tree().nodeCount()[1]);
+    printf("Leaf Nodes: %d\n", grid->tree().nodeCount()[0]);
+    printf("Active Voxels: %d\n", grid->activeVoxelCount());
+    printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
+    printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
+    printf("Min BBox WorldSpace: %f %f %f\n", minBBoxWS[0], minBBoxWS[1], minBBoxWS[2]);
+    printf("Max BBox WorldSpace: %f %f %f\n", maxBBoxWS[0], maxBBoxWS[1], maxBBoxWS[2]);
+    printf("Volume Dimensions: %f %f %f\n", volDims[0], volDims[1], volDims[2]);
+    printf("############### END #############\n");
 
     return grid;
 
@@ -163,8 +163,8 @@ void processVDBFiles(const std::string& directory) {
             continue;
         gridVec.push_back(readVDBGrid(file));
 
-       /* if (i >= toRange)
-            break;*/
+       if (i >= toRange)
+            break;
         
     }
 }
@@ -191,7 +191,7 @@ int main(int argc, char* argv[]) {
     floor->SetFixed(true);
     //sys.Add(floor);
     {
-        auto shape = floor->GetVisualModel()->GetShapes()[0].first;
+        auto shape = floor->GetVisualModel()->GetShapeInstances()[0].first;
         if (shape->GetNumMaterials() == 0) {
             shape->AddMaterial(vis_mat3);
         } else {
@@ -201,13 +201,13 @@ int main(int argc, char* argv[]) {
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({0.f, 0.f, 0.f});
-    vis_mat->SetDiffuseColor({0.0, 1.0, 0.0});
+    vis_mat->SetDiffuseColor({1,1,1}); //0.659, 0.459, 0.051
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
     vis_mat->SetUseSpecularWorkflow(true);
-    vis_mat->SetBSDF(3);
-    vis_mat->SetRoughness(.5f);
-    vis_mat->SetClassID(30000);
-    vis_mat->SetInstanceID(50000);
+    vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
+    vis_mat->SetAbsorptionCoefficient(.000001f);
+    vis_mat->SetScatteringCoefficient(.001f);
+
 
     auto ground_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
     ground_body->SetPos({0, 0, 0});
@@ -215,7 +215,8 @@ int main(int argc, char* argv[]) {
     sys.Add(ground_body);
 
     // Make VDB Grid
-    std::string vdbGridsDir = "C:\\workspace\\data\\VDBFIles\\DustShockwaveVDB";
+    //std::string vdbGridsDir = "D:\\workspace\\data\\VDBVolumes\\DustShockwaveVDB";
+    std::string vdbGridsDir = "D:\\workspace\\data\\VDBVolumes\\CRM";
     processVDBFiles(vdbGridsDir);
     //std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
 
@@ -229,7 +230,7 @@ int main(int argc, char* argv[]) {
      vol_bbox->SetFixed(true);
      sys.Add(vol_bbox);
     {
-        auto shape = vol_bbox->GetVisualModel()->GetShapes()[0].first;
+        auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
         if (shape->GetNumMaterials() == 0) {
             shape->AddMaterial(vis_mat);
         } else {
@@ -269,7 +270,8 @@ int main(int argc, char* argv[]) {
                                                          alias_factor,  // super sampling factor
                                                          lens_model,    // lens model type
                                                          use_gi, 
-                                                          2.2);
+                                                         Integrator::LEGACY,
+                                                         2.2);
     cam->SetName("Camera Sensor");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
@@ -284,7 +286,7 @@ int main(int argc, char* argv[]) {
 
     manager->AddSensor(cam);
 
-     chrono::ChFrame<double> offset_pose2({-50, 50, 50}, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
+     chrono::ChFrame<double> offset_pose2({-50, 10, 50}, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
     auto cam2 = chrono_types::make_shared<ChCameraSensor>(vol_bbox,      // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose2,  // offset pose
@@ -293,7 +295,9 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // super sampling factor
                                                          lens_model,    // lens model type
-                                                         use_gi, 2.2);
+                                                         use_gi,
+                                                         Integrator::LEGACY,
+                                                         2.2);
     cam2->SetName("Camera Sensor");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);

@@ -1137,8 +1137,10 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                                                      const float& ray_dist,
                                                      const float3& ray_orig,
                                                      const float3& ray_dir) {
-#ifdef USE_SENSOR_NVDB
-    nanovdb::NanoGrid<float>* grid = params.handle_ptr;
+ #ifdef USE_SENSOR_NVDB
+    //printf("VOL SHADER!\n");
+    const MaterialParameters& mat = params.material_pool[material_id]; 
+    nanovdb::NanoGrid<float>* grid = params.density_grid_ptr; // TODO:: Add Multiple handle types for volume and CRM VDB grids
     const nanovdb::Vec3f ray_orig_v(ray_orig.x, ray_orig.y, ray_orig.z);
     const nanovdb::Vec3f ray_dir_v(ray_dir.x, ray_dir.y, ray_dir.z);
     float3 hitPoint = ray_orig + ray_dir * ray_dist;
@@ -1162,16 +1164,16 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
     const auto v0 = acc.getValue(ijk);
 
     // printf("Start Value: %f | Start Idx: %f,%f,%f\n", v0, ijk.asVec3d()[0], ijk.asVec3d()[1], ijk.asVec3d()[2]);
-    static const float Delta = 1.0001f;
+    static const float Delta = 1e-3; //1.0001f;
     int nsteps = 0;
     float transmittance = 1.0f;
-    float absorptionCoeff = 0.001;
-    float scatteringCoeff = 0.01;
+    float absorptionCoeff = mat.absorption_coefficient;
+    float scatteringCoeff = mat.scattering_coefficient;
     float extinctionCoeff = absorptionCoeff + scatteringCoeff;
     float3 inScattering = make_float3(0);
     float outScattering = 0;
     float k = 0;  // isotropic reflections
-    float3 volAlbedo = make_float3(0.659, 0.459, 0.051);
+    float3 volAlbedo = mat.Kd;
 
     int inactiveSteps = 0;
     float3 volumeLight = make_float3(0);
@@ -1188,6 +1190,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
         // sample lights
         while (hdda.step() && acc.isActive(hdda.voxel())) {  // in the narrow band
             v = acc.getValue(hdda.voxel());                  // density
+            //printf("density: %f\n", v);
             ijk = hdda.voxel();
             nanovdb::Vec3f volPntIdx =
                 grid->indexToWorld(ijk.asVec3s());  // TODO: Make VDB to chrono data type conversion function
@@ -2337,7 +2340,7 @@ extern "C" __global__ void __closesthit__material_shader() {
                               __int_as_float(optixGetAttribute_7()));
     }
 
-    
+
 
     if (mat.kn_tex) {
         float3 bitangent = normalize(Cross(object_normal, tangent));
@@ -2346,8 +2349,15 @@ extern "C" __global__ void __closesthit__material_shader() {
         object_normal =normalize(normal_delta.x * tangent + normal_delta.y * bitangent + normal_delta.z * object_normal);
     }
 
-    float3 world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
+    float3 world_normal;
+    if ((BSDFType)mat.BSDFType == BSDFType::VDB || (BSDFType)mat.BSDFType == BSDFType::VDBHAPKE) {
+        world_normal = object_normal;
+    } else {
+        world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
+    }
+   
 
+    float3 hp = ray_orig + ray_dist*ray_dir;
     // from here on out, things are specific to the ray type
     RayType raytype = (RayType)optixGetPayload_2();
 
@@ -2355,6 +2365,11 @@ extern "C" __global__ void __closesthit__material_shader() {
     switch (raytype) {
         case CAMERA_RAY_TYPE:
             PerRayData_camera* prd_cam = getCameraPRD();
+           /* if (prd_cam->depth > 2) {
+                printf("CH |d: %d t: %f | o: (%f,%f,%f) | d: (%f,%f,%f) | hp: (%f,%f,%f) | n: (%f,%f,%f)\n", prd_cam->depth, ray_dist,
+                       ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, hp.x, hp.y, hp.z,
+                       world_normal.x, world_normal.y, world_normal.z);
+            }*/
             switch (prd_cam->integrator)
             {
                 case Integrator::PATH:
@@ -2364,8 +2379,25 @@ extern "C" __global__ void __closesthit__material_shader() {
                 case Integrator::VOLUMETRIC:
                     break; 
                 case Integrator::LEGACY:
-                    //printf("LEGACY SHADER!\n");
-                    CameraShader(prd_cam, mat_params, material_id, mat_params->num_blended_materials,world_normal, uv,tangent, ray_dist, ray_orig, ray_dir);
+                    switch ((BSDFType)mat.BSDFType) {
+                        case BSDFType::HAPKE:
+                        case BSDFType::VDBHAPKE: {
+                            CameraHapkeShader(getCameraPRD(), mat_params, material_id,
+                                              mat_params->num_blended_materials, world_normal, uv, tangent, ray_dist,
+                                              ray_orig, ray_dir);
+                            break;
+                        }
+                        case BSDFType::VDBVOL: {
+                            CameraVolumetricShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,
+                                         world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                            break;
+                        }
+                        default: {
+                            CameraShader(prd_cam, mat_params, material_id, mat_params->num_blended_materials,
+                                         world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                            break;
+                        }
+                    }
                     break;
                 default:
                     break;

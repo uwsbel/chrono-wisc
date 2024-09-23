@@ -116,8 +116,10 @@ void ChOptixEngine::Initialize() {
     m_params.target_dist = 1.f;
     #ifdef USE_SENSOR_NVDB
         m_params.handle_ptr = nullptr;
+        m_params.normal_handle_ptr = nullptr;
     #else
     m_params.handle_ptr = 0;
+    m_params.normal_handle_ptr = 0;
     #endif  // USE_SENSOR_NVDB
     
     CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&md_params), sizeof(ContextParameters)));
@@ -513,7 +515,7 @@ void ChOptixEngine::rigidMeshVisualization(std::shared_ptr<ChBody> body,
     }
     ChVector3d size = mesh_shape->GetScale();
 
-    printf("Rigid Mesh: %s!\n", body->GetName());
+    //printf("Rigid Mesh: %s!\n", body->GetName());
     unsigned int mat_id;
     CUdeviceptr d_vertex_buffer;  // handle will go to m_geometry
     CUdeviceptr d_index_buffer;   // handle will go to m_geometry
@@ -607,7 +609,7 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
 
                 } else if (auto trimesh_shape = std::dynamic_pointer_cast<ChVisualShapeTriangleMesh>(shape)) {
                     if (!trimesh_shape->IsMutable()) {
-                        printf("Trimesh Shape: %s, Pos: %f,%f,%f\n", body->GetName().c_str(),body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
+                        //printf("Trimesh Shape: %s, Pos: %f,%f,%f\n", body->GetName().c_str(),body->GetPos().x(), body->GetPos().y(), body->GetPos().z());
                         rigidMeshVisualization(body, trimesh_shape, shape_frame);
 
                         // added_asset_for_body = true;
@@ -704,8 +706,8 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
 
                 } else if (auto trimesh_shape = std::dynamic_pointer_cast<ChVisualShapeTriangleMesh>(shape)) {
                     if (!trimesh_shape->IsMutable()) {
-                        printf("Trimesh Shape: %s, Pos: %f,%f,%f\n", sprite->GetName().c_str(), sprite->GetPos().x(),
-                               sprite->GetPos().y(), sprite->GetPos().z());
+                        // printf("Trimesh Shape: %s, Pos: %f,%f,%f\n", sprite->GetName().c_str(), sprite->GetPos().x(),
+                        //        sprite->GetPos().y(), sprite->GetPos().z());
                         rigidMeshVisualization(sprite, trimesh_shape, shape_frame);
 
                         // added_asset_for_body = true;
@@ -889,54 +891,72 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         int n = scene->GetNumFSIParticles();
         
         printf("Creatinng NanoVDB Handle...\n");
-        using buildType = float;
-        nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = createNanoVDBGridHandle(d_pts, n);
-        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = addVDBVolume(nullptr);
-        nanovdb::NanoGrid<buildType>* grid = handle.deviceGrid<buildType>();
-        handle.deviceDownload();
-        auto* grid_h = handle.grid<buildType>();
-        auto* tree = grid_h->treePtr();
-        printf("############### VDB GRID INFORMATION ################\n");
-        printf("Grid Size: %d\n", grid_h->gridSize());
-        printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
-        printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
+        //using buildType = nanovdb::Point;
+        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> volHandle;
+        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> normalHandle;
+        //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> densityHandle;
+        //createNanoVDBGridHandle(d_pts, n, scene->GetVoxelSize(), scene->GetWindowSize(), volHandle, normalHandle,densityHandle);
+        ////nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = addVDBVolume(nullptr);
+        //nanovdb::NanoGrid<buildType>* grid = volHandle.deviceGrid<buildType>();
+        //nanovdb::NanoGrid<nanovdb::Vec3f>* normal_grid = normalHandle.deviceGrid<nanovdb::Vec3f>();
+        //nanovdb::NanoGrid<float>* density_grid = densityHandle.deviceGrid<float>();
 
-        printf("############### END #############\n");
-        printf("Handle created!\n");
+        //if (m_params.handle_ptr)
+        //    cudaFree(m_params.handle_ptr);
+        //cudaMalloc((void**)&m_params.handle_ptr, volHandle.gridSize());
+        //cudaMemcpy((void*)m_params.handle_ptr, grid, volHandle.gridSize(), cudaMemcpyDeviceToDevice);
 
-        // printf("Grid Size: %d\n", grid_h->gridSize());
-        ////printf("Point Count: %d", (int)grid_h->pointCount());
-        // printf("Upper Internal Nodes: %d\n", grid_h->tree().nodeCount(2));
-        // printf("Lower Internal Nodes: %d\n", grid_h->tree().nodeCount(1));
-        // printf("Leaf Nodes: %d\n", grid_h->tree().nodeCount(0));
+        //if (m_params.normal_handle_ptr)
+        //    cudaFree(m_params.normal_handle_ptr);
+        //cudaMalloc((void**)&m_params.normal_handle_ptr, normalHandle.gridSize());
+        //cudaMemcpy((void*)m_params.normal_handle_ptr, normal_grid, normalHandle.gridSize(), cudaMemcpyDeviceToDevice);
 
-        // float wBBoxDimZ = (float)grid_h->worldBBox().dim()[2] * 2;
-        // nanovdb::Vec3<float> wBBoxCenter = nanovdb::Vec3<float>(grid_h->worldBBox().min() + grid_h->worldBBox().dim()
-        // * 0.5f); nanovdb::CoordBBox treeIndexBbox = grid_h->tree().bbox(); std::cout << "Bounds: "
-        //          << "[" << treeIndexBbox.min()[0] << "," << treeIndexBbox.min()[1] << "," << treeIndexBbox.min()[2]
-        //          << "] -> [" << treeIndexBbox.max()[0] << "," << treeIndexBbox.max()[1] << "," <<
-        //          treeIndexBbox.max()[2]
-        //          << "]" << std::endl;
 
-        /* printf("size of handle_ptr: %d | size of grid*: %d\n", sizeof(m_params.handle_ptr), sizeof(grid));
-         printf("Grid ptr: %p | Grid Size: %d | Grid Type: %d | Grid Empty: %d\n ", grid, handle.gridSize(),
-         handle.gridType(), handle.empty()); printf("size of ContextParameters: %d\n", sizeof(ContextParameters));*/
-
-        cudaMalloc((void**)&m_params.handle_ptr, handle.gridSize());
-        cudaMemcpy((void*)m_params.handle_ptr, grid, handle.gridSize(), cudaMemcpyDeviceToDevice);
-        /* cudaError_t status = cudaMalloc((void**)&md_params->handle_ptr, handle.gridSize());
-         if (status != cudaSuccess) {
-            printf("cudaMalloc failed: %s\n",cudaGetErrorString(status));
-          }
-         printf("md grid ptr: %p\n", md_params->handle_ptr);
-
-         cudaMemcpy(md_params->handle_ptr, grid, handle.gridSize(), cudaMemcpyDeviceToDevice);*/
-        /*printf("Done!\n");
-        size_t sz = handle.gridSize();
-        cudaMalloc(reinterpret_cast<void**>(&m_params.handle_ptr), sz);he
-        printf("handle: %p\n", &handle);
-        cudaMemcpy(reinterpret_cast<void*>(m_params.handle_ptr), &handle, sz, cudaMemcpyHostToDevice);*/
-
+        // Make dust grid
+        if (m_system->GetChTime() > 1.f) {
+            nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> dustHandle;
+            createDustGrid(dustHandle, d_pts, n, scene->GetThresholdVelocity(), &m_dust_particles, m_num_dust_particles,
+                           m_system->GetChTime(), m_frame, scene->GetZThreshold());
+            if (m_num_dust_particles > 0) {
+                 nanovdb::NanoGrid<float>* dust_grid = dustHandle.deviceGrid<float>();
+                if (m_params.density_grid_ptr)
+                    cudaFree(m_params.density_grid_ptr);
+                cudaMalloc((void**)&m_params.density_grid_ptr, dustHandle.gridSize());
+                cudaMemcpy((void*)m_params.density_grid_ptr, dust_grid, dustHandle.gridSize(), cudaMemcpyDeviceToDevice);
+            } else {
+                nanovdb::build::Grid<float> density_grid(0.f);
+                density_grid.setTransform(0.001);
+                density_grid.setName("density0");
+                dustHandle = nanovdb::createNanoGrid<nanovdb::build::Grid<float>, float, nanovdb::CudaDeviceBuffer>(density_grid);
+                dustHandle.deviceUpload();
+                nanovdb::NanoGrid<float>* dust_grid = dustHandle.deviceGrid<float>();
+                if (m_params.density_grid_ptr)
+                    cudaFree(m_params.density_grid_ptr);
+                cudaMalloc((void**)&m_params.density_grid_ptr, dustHandle.gridSize());
+                cudaMemcpy((void*)m_params.density_grid_ptr, dust_grid, dustHandle.gridSize(), cudaMemcpyDeviceToDevice);
+            }
+        } else { // TODO: Ugly code! Refactor!
+            nanovdb::build::Grid<float> density_grid(0.f);
+            density_grid.setTransform(0.001);
+            density_grid.setName("density0");
+            nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> dustHandle = nanovdb::createNanoGrid<nanovdb::build::Grid<float>, float, nanovdb::CudaDeviceBuffer>(density_grid);
+            dustHandle.deviceUpload();
+            nanovdb::NanoGrid<float>* dust_grid = dustHandle.deviceGrid<float>();
+            if (m_params.density_grid_ptr)
+                cudaFree(m_params.density_grid_ptr);
+            cudaMalloc((void**)&m_params.density_grid_ptr, dustHandle.gridSize());
+            cudaMemcpy((void*)m_params.density_grid_ptr, dust_grid, dustHandle.gridSize(), cudaMemcpyDeviceToDevice);
+            
+        }
+     
+       
+        /*DustParticle* h_dust = new DustParticle[m_num_dust_particles];
+        DustParticle* d_dust = (DustParticle*)m_dust_particles;
+        cudaMemcpy(h_dust, d_dust, m_num_dust_particles * sizeof(DustParticle), cudaMemcpyDeviceToHost);*
+        for (int i = 0; i < m_num_dust_particles; i++) {
+            float3 pos = h_dust[i].pos;
+            printf("i: %d | p: (%f,%f,%f) | Active: %d\n", i, pos.x,pos.y,pos.z, h_dust[i].isActive);
+        }*/
         cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
     }
 
@@ -948,8 +968,8 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         handle.deviceDownload();
         auto* nanoGrid_h = handle.grid<float>();
 
-        cudaMalloc((void**)&m_params.handle_ptr, handle.gridSize());
-        cudaMemcpy((void*)m_params.handle_ptr, nanoGrid, handle.gridSize(), cudaMemcpyDeviceToDevice);
+        cudaMalloc((void**)&m_params.density_grid_ptr, handle.gridSize());
+        cudaMemcpy((void*)m_params.density_grid_ptr, nanoGrid, handle.gridSize(), cudaMemcpyDeviceToDevice);
       
         nanovdb::DefaultReadAccessor<float> acc = nanoGrid_h->tree().getAccessor();
         nanovdb::CoordBBox bbox = acc.root().bbox();
