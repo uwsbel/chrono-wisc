@@ -1,0 +1,4 @@
+VgenVAR
+VbackemfCVAR
+VSW1VAR
+VgenPWMVAR
