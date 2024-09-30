@@ -78,7 +78,7 @@ void NetlistStrings::Dat_File_Vector_double(std::string File_name, std::vector<d
     std::ofstream outFile(File_name, std::ios::out | std::ios::binary); 
     // Check if the file is successfully opened
     if (!outFile) { 
-        std::cerr << "Error opening the file!" << std::endl;
+        std::cerr << "Error opening the file! " << File_name << std::endl;
         // return 1;
     }
     // Write the vector data to the file
@@ -94,7 +94,7 @@ void NetlistStrings::Dat_File_Vector_Vector_double(std::string File_name, std::v
     std::ofstream outFile(File_name, std::ios::out | std::ios::binary); 
     // Check if the file is successfully opened
     if (!outFile) { 
-        std::cerr << "Error opening the file!" << std::endl; 
+        std::cerr << "Error opening the file! " << File_name << std::endl; 
         // return 1;
     }
     // Write the vector data to the file
@@ -108,7 +108,7 @@ void NetlistStrings::Save_Vector_double_To_Txt(const std::string& file_name, con
     std::ofstream outFile(file_name); 
     // Check if the file is successfully opened
     if (!outFile) {
-        std::cerr << "Error opening the file!" << std::endl; 
+        std::cerr << "Error opening the file! " << file_name << std::endl; 
         return;
     }
     // Save data to the file
@@ -126,7 +126,7 @@ std::vector<double> NetlistStrings::Read_Txt_File_Into_Vector_double(const std::
     std::ifstream inFile(file_name);
     // Check if the file is successfully opened
     if (!inFile) {
-        std::cerr << "Error opening the file!" << std::endl;
+        std::cerr << "Error opening the file! " << file_name << std::endl;
         return data;
     }
     double value;
@@ -143,7 +143,7 @@ void NetlistStrings::Save_Vector_Vector_double_To_Txt(const std::string& file_na
     std::ofstream outFile(file_name);
     // Check if the file is successfully opened
     if (!outFile) {
-        std::cerr << "Error opening the file!" << std::endl;
+        std::cerr << "Error opening the file! " << file_name << std::endl;
         return;
     }
     // Save data to the file
@@ -165,7 +165,7 @@ std::vector<std::vector<double>> NetlistStrings::Read_Txt_File_Into_Vector_Vecto
     std::ifstream inFile(file_name);
     // Check if the file is successfully opened
     if (!inFile) {
-        std::cerr << "Error opening the file!" << std::endl;
+        std::cerr << "Error opening the file!" << file_name <<  std::endl;
         return data;
     }
     std::string line;

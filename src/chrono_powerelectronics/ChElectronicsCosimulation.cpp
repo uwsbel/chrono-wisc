@@ -32,41 +32,6 @@ void ChElectronicsCosimulation::Set_t_clock_var(double t_clock_var)
     t_clock = t_clock_var; 
 }
 
-    // ======== Method: allows to read a NETLIST circuit ========
-std::vector<std::string> ChElectronicsCosimulation::Read_NETLIST(std::string File_name)
-{
-    std::vector<std::string> File_contents = NetlistStrings::Read_File(File_name);
-    return File_contents;
-}
-
-    // ======== Method: allows to read the INPUT list file ========
-std::vector<std::string> ChElectronicsCosimulation::Read_INPUT_Parameters(std::string File_name)
-{
-    std::vector<std::string> File_contents = NetlistStrings::Read_File(File_name);
-    return File_contents;
-}
-
-    // ======== Method: allows to read the OUTPUT list file ========
-std::vector<std::string> ChElectronicsCosimulation::Read_OUTPUT_Parameters(std::string File_name)
-{
-    std::vector<std::string> File_contents = NetlistStrings::Read_File(File_name);
-    return File_contents;
-}
-
-    // ======== Method: allows to read the Piece Wise Linear sowrces list file ========
-std::vector<std::string> ChElectronicsCosimulation::Read_PWL_sources(std::string File_name)
-{
-    std::vector<std::string> File_contents = NetlistStrings::Read_File(File_name);
-    return File_contents;
-}
-
-    // ======== Method: allows to read the Parameters Initial Conditions values list file ========
-std::vector<std::string> ChElectronicsCosimulation::Read_Param_IC(std::string File_name)
-{
-    std::vector<std::string> File_contents = NetlistStrings::Read_File(File_name);
-    return File_contents;
-}
-
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
 void ChElectronicsCosimulation::Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end)
 {
@@ -204,8 +169,6 @@ void ChElectronicsCosimulation::PWL_sources_Initializer(std::vector<std::string>
     // cout << TF2.size();                                    // DEBUG: Scope some needed results
         
     // -------- Initialize the PWL sources --------
-
-    
     std::vector<std::string> PWL_generators_new; 
     for (const auto& string_line : PWL_generators) 
     {
@@ -409,34 +372,31 @@ void ChElectronicsCosimulation::Inductances_Initializer(std::vector<std::string>
 void ChElectronicsCosimulation::NETLIST_Initializer()
 {
     // -------- Read the main circuit initialization files --------
-    std::vector<std::string> NETLIST_contents = Read_NETLIST(NETLIST_name);
-    if (NETLIST_contents.size() == 0)                   // Allert the user that no circuit model is found inside the NETLIST
+    parser_output = parser.ParseCircuit(parser_input);
+
+    if (parser_output.NETLIST_contents.size() == 0)                   // Allert the user that no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
         system("pause>0");
     }
-    INPUT_contents = Read_INPUT_Parameters(INPUT_name); 
-    OUTPUT_contents = Read_OUTPUT_Parameters(OUTPUT_name); 
-    PWL_sources_contents = Read_PWL_sources(PWL_sources_name);  
-    Param_IC_contents = Read_Param_IC(Param_IC_name); 
     
     // -------- Initialize the PWL_sources in the NETLIST -------- 
-    PWL_sources_Initializer(PWL_sources_contents, NETLIST_contents);
+    PWL_sources_Initializer(parser_output.PWL_sources_contents, parser_output.NETLIST_contents);
     // Scope_String_Vector(NETLIST_contents);               // DEBUG: Scope what desired for debug purposes
         
     // -------- Initialize the Inductances in the NETLIST --------
-    Inductances_Initializer(NETLIST_contents);
+    Inductances_Initializer(parser_output.NETLIST_contents);
     // Scope_String_Vector(NETLIST_contents);               // DEBUG: Scope what desired for debug purposes
         
     // -------- Update the NETLIST with the resulting PWL_sources and Inductances --------
-    NetlistStrings::Write_File(NETLIST_name, ""); 
+    NetlistStrings::Write_File(parser_input.NETLIST_name, ""); 
     int ii = 1;
-    for (const auto& string_line : NETLIST_contents)        // The NETLIST_contents variable was previously updated by the above two functions
+    for (const auto& string_line : parser_output.NETLIST_contents)        // The NETLIST_contents variable was previously updated by the above two functions
     {
-        NetlistStrings::Append_File(NETLIST_name, string_line); 
-        if (ii < NETLIST_contents.size())
+        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line); 
+        if (ii < parser_output.NETLIST_contents.size())
         {
-            NetlistStrings::Append_File(NETLIST_name, "\n"); 
+            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n"); 
         }
         ii++;
     }
@@ -446,14 +406,10 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     double t_step = 1e-8; // Max allowed : t_step = 1e-8;
     double t_end = 1e-6;
 
-    std::cout << "111" << std::endl;
-
     Run_Spice(File_name, Method_name, t_step, t_end);
-    std::cout << "222" << std::endl;
     
-    // -------- Read the NETLIST --------
-    NETLIST_contents.clear();
-    NETLIST_contents = Read_NETLIST(NETLIST_name);
+    // -------- Re-Read the NETLIST --------
+    parser.RefreshNetlist(parser_input,parser_output);
 
     // -------- Get the list of all the folders inside the Spice_circuit/Results folder --------
     std::string currentDirectory = fs::current_path().string();
@@ -692,15 +648,15 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     // -------- Set the parameters to the IC values --------
     ii = 0;
     int jj = 0;
-    for (const auto& string_line : NETLIST_contents)
+    for (const auto& string_line : parser_output.NETLIST_contents)
     {
         std::string str = string_line;                                               // String to analyze
         std::string pat = ".param par";                                              // Pattern to find
         if (NetlistStrings::ContainsPattern(str, pat))
         {
             std::string Parameters1 = NetlistStrings::Extract_Before_Pattern(string_line, "=");
-            std::string Parameters2 = Parameters1 + "=" + Param_IC_contents[jj];     // Remember to implement the Par_IC_contents file with the order of the .param par in the NETLIST
-            NETLIST_contents[ii] = Parameters2;
+            std::string Parameters2 = Parameters1 + "=" + parser_output.Param_IC_contents[jj];     // Remember to implement the Par_IC_contents file with the order of the .param par in the NETLIST
+            parser_output.NETLIST_contents[ii] = Parameters2;
             jj++;
         }
         ii++;
@@ -721,39 +677,39 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
         
     }
     ii = 0; 
-    for (const auto& string_line : NETLIST_contents)
+    for (const auto& string_line : parser_output.NETLIST_contents)
     {
         std::string str = string_line;                       // String to analyze
         std::string pat = ".ic";                             // Pattern to find
         if (NetlistStrings::ContainsPattern(str, pat))
         {
-            NETLIST_contents[ii] = V_IC_array;
+            parser_output.NETLIST_contents[ii] = V_IC_array;
         }
         ii++;
     }
 
     // -------- Update the NETLIST --------
-    NetlistStrings::Write_File(NETLIST_name, "");
+    NetlistStrings::Write_File(parser_input.NETLIST_name, "");
     ii = 1;
-    for (const auto& string_line : NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions
+    for (const auto& string_line : parser_output.NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions
     {
-        NetlistStrings::Append_File(NETLIST_name, string_line);
-        if (ii < NETLIST_contents.size())
+        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line);
+        if (ii < parser_output.NETLIST_contents.size())
         {
-            NetlistStrings::Append_File(NETLIST_name, "\n");
+            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n");
         }
         ii++;
     }
 
     // -------- Set some important variable of the Class to speed up the simulation --------
         // Find the PWL sources lines in the NETLIST
-    for (const auto& string_line : NETLIST_contents)
+    for (const auto& string_line : parser_output.NETLIST_contents)
     {
         std::string str = string_line;                       // String to analyze
         std::string pat = "PWL";                             // Pattern to find
         if (NetlistStrings::ContainsPattern(str, pat))
         {
-            for (const auto& string_line1 : PWL_sources_contents)
+            for (const auto& string_line1 : parser_output.PWL_sources_contents)
             {
                 std::string str = string_line;               // String to analyze
                 std::string pat = string_line1;              // Pattern to find
@@ -778,8 +734,9 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
 {
     // -------- Read the main circuit initialization files --------
 
-    std::vector<std::string> NETLIST_contents = Read_NETLIST(NETLIST_name);
+    // std::vector<std::string> NETLIST_contents = Read_NETLIST(parser_input.NETLIST_name);
 
+    auto NETLIST_contents = parser_output.NETLIST_contents;
     if (NETLIST_contents.size() == 0)           // Allert the user that no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
@@ -814,7 +771,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
             
             std::vector<std::string> Source_Signal_1;
             int jj = 0;                                     // Iterator over the INPUT_contents elements 
-            for (const auto& string_line1 : INPUT_contents)
+            for (const auto& string_line1 : parser_output.INPUT_contents)
             {
                 std::string str = string_line1;                  // String to analyze
                 std::string pat = string_line;                   // Pattern to find
@@ -871,7 +828,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // std::vector <double> test = Source_Signal_PWL_Source[1];     // DEBUG: Set some needed results 
     // std::cout << "IL valore e'" << test[10] << "\n";             // DEBUG: Scope some needed results 
 
-    if (PWL_sources_contents.size() > 0)
+    if (parser_output.PWL_sources_contents.size() > 0)
     {
             // Continue the PWL sources settings
         std::cout << "@@@@" << std::endl;
@@ -1055,7 +1012,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // -------- Set the parameters --------
     std::vector<std::string> Parameters1;
     jj = 0;                                             // Iterator over the INPUT_contents elements 
-    for (const auto& string_line : INPUT_contents) 
+    for (const auto& string_line : parser_output.INPUT_contents) 
     {
         std::string Parameters1_line = ".param par" + string_line + "=" + NetlistStrings::Num_To_LongEng_String(INPUT_values[jj][0]);
         Parameters1.push_back(Parameters1_line);
@@ -1066,7 +1023,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // -------- Introduce the array in the netlist --------
     ii = 0;
     jj = 0;
-    for (const auto& string_line : NETLIST_contents)
+    for (const auto& string_line : parser_output.NETLIST_contents)
     {
         std::string str = string_line;                       // String to analyze 
         std::string pat = ".param par";                      // Pattern to find 
@@ -1079,14 +1036,14 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     }
     
     // -------- Update the NETLIST --------
-    NetlistStrings::Write_File(NETLIST_name, ""); 
+    NetlistStrings::Write_File(parser_input.NETLIST_name, ""); 
     ii = 1;
-    for (const auto& string_line : NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions 
+    for (const auto& string_line : parser_output.NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions 
     {
-        NetlistStrings::Append_File(NETLIST_name, string_line); 
+        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line); 
         if (ii < NETLIST_contents.size())
         {
-            NetlistStrings::Append_File(NETLIST_name, "\n");
+            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n");
         }
         ii++;
     }
@@ -1128,7 +1085,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
 
     // -------- OUTPUT_extraction --------
     OUTPUT_value.clear();  
-    for (const auto& string_line : NetlistStrings::To_Lower_Case(OUTPUT_contents))  
+    for (const auto& string_line : NetlistStrings::To_Lower_Case(parser_output.OUTPUT_contents))  
     {
         ii = 0;
         for (const auto& string_line1 : res_name)  

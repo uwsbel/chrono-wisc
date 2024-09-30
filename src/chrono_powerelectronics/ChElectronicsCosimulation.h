@@ -19,23 +19,60 @@
 // ======== Headers ========
 // =========================
 #include "utils/NetlistStrings.h"
-
+#include "ChElectronicsNetlist.h"
 // =======================
 // ======== Class ========
 // =======================
+
+class CircuitParserIO {
+public:
+
+    typedef struct CircuitDirs {
+        std::string NETLIST_name;                            // Path where to find the Circuit_Netlist.cir file starting from the working-directory folder       
+        std::string INPUT_name;                            // Path where to find the INPUT_Netlist.txt file starting from the working-directory folder
+        std::string OUTPUT_name;                             // Path where to find the OUTPUT_Netlist.txt file starting from the working-directory folder
+        std::string PWL_sources_name;                        // Path where to find the PWL_sources.txt file starting from the working-directory folder
+        std::string Param_IC_name;                           // Path where to find the Param_IC.txt file starting from the working-directory folder
+    };
+    typedef struct CircuitDefs {
+        std::vector<std::string> NETLIST_contents;
+        std::vector<std::string> INPUT_contents;                  // Contains the lists of the INPUT parameters 
+        std::vector<std::string> OUTPUT_contents;                 // Contains the lists of the OUTPUT parameters
+        std::vector<std::string> PWL_sources_contents;            // Contains the lists of the PWL sources
+        std::vector<std::string> Param_IC_contents;               // Contains the lists of the IC values for the INPUT parameters
+    };
+
+
+    CircuitDefs ParseCircuit(CircuitDirs files) {
+        CircuitDefs parser_output;
+        parser_output.NETLIST_contents = NetlistStrings::Read_File(files.NETLIST_name); 
+        parser_output.INPUT_contents = NetlistStrings::Read_File(files.INPUT_name); 
+        parser_output.OUTPUT_contents = NetlistStrings::Read_File(files.OUTPUT_name); 
+        parser_output.PWL_sources_contents = NetlistStrings::Read_File(files.PWL_sources_name);  
+        parser_output.Param_IC_contents = NetlistStrings::Read_File(files.Param_IC_name); 
+
+        return parser_output;
+    }
+
+    void RefreshNetlist(CircuitDirs input, CircuitDefs& defs) {
+        defs.NETLIST_contents = NetlistStrings::Read_File(input.NETLIST_name); 
+    }
+};
+
+
 class ChElectronicsCosimulation {  
 public:
     // =============================
     // ======== Constructor ========
     // =============================
     ChElectronicsCosimulation(std::string NETLIST_name_var, std::string INPUT_name_var, std::string OUTPUT_name_var, std::string PWL_sources_name_var, std::string Param_IC_name_var, std::string Python_simulator_name_var) {
-        NETLIST_name = NETLIST_name_var;                            
-        INPUT_name = INPUT_name_var;                              
-        OUTPUT_name = OUTPUT_name_var;                             
-        PWL_sources_name = PWL_sources_name_var;                        
-        Param_IC_name = Param_IC_name_var;                           
-        Python_simulator_name = Python_simulator_name_var;                   
+        
+        parser_input = CircuitParserIO::CircuitDirs {
+            NETLIST_name_var, INPUT_name_var, OUTPUT_name_var, PWL_sources_name_var,
+            Param_IC_name_var
+        };
 
+        Python_simulator_name = Python_simulator_name_var;                   
     }
 
     std::vector<double> sim_time;                                // Contains the SPICE simulation time returned by the Python module, it is update at every call of the class
@@ -50,17 +87,13 @@ public:
     double T_sampling_electronic;                    // Time window of the electronic (SPICE) simulation
     double sim_time_last;                            // Last element of the SPICE sim_time_vector to reallocate the local SPICE sim_time array, respect to the global simulation time line
 
-    std::vector<std::string> INPUT_contents;                  // Contains the lists of the INPUT parameters 
-    std::vector<std::string> OUTPUT_contents;                 // Contains the lists of the OUTPUT parameters
-    std::vector<std::string> PWL_sources_contents;            // Contains the lists of the PWL sources
-    std::vector<std::string> Param_IC_contents;               // Contains the lists of the IC values for the INPUT parameters
+    ChElectronicsNetlist netlist;
+
+    // CircuitParserIO parser;
+    // CircuitParserIO::CircuitDefs parser_output;
+    // CircuitParserIO::CircuitDirs parser_input;
+
     std::vector<std::string> PWL_sources_NETLIST_reordered;   // Contains the lists of the PWL sources reordered in accordance to the appearance in the NETLIST
-    
-    std::string NETLIST_name;                            // Path where to find the Circuit_Netlist.cir file starting from the working-directory folder       
-    std::string INPUT_name;                              // Path where to find the INPUT_Netlist.txt file starting from the working-directory folder
-    std::string OUTPUT_name;                             // Path where to find the OUTPUT_Netlist.txt file starting from the working-directory folder
-    std::string PWL_sources_name;                        // Path where to find the PWL_sources.txt file starting from the working-directory folder
-    std::string Param_IC_name;                           // Path where to find the Param_IC.txt file starting from the working-directory folder
     std::string Python_simulator_name;                   // Name of the Python module that run and pass the results
 
     py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
@@ -74,21 +107,6 @@ public:
     // ==========================================
         // ======== Method: allows to set the class t_clock global variable ========
     void Set_t_clock_var(double t_clock_var);
-
-        // ======== Method: allows to read a NETLIST circuit ========
-    std::vector<std::string> Read_NETLIST(std::string File_name);
-
-        // ======== Method: allows to read the INPUT list file ========
-    std::vector<std::string> Read_INPUT_Parameters(std::string File_name);
-
-        // ======== Method: allows to read the OUTPUT list file ========
-    std::vector<std::string> Read_OUTPUT_Parameters(std::string File_name);
-
-        // ======== Method: allows to read the Piece Wise Linear sowrces list file ========
-    std::vector<std::string> Read_PWL_sources(std::string File_name);
-
-        // ======== Method: allows to read the Parameters Initial Conditions values list file ========
-    std::vector<std::string> Read_Param_IC(std::string File_name);
 
         // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
     void Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end);
