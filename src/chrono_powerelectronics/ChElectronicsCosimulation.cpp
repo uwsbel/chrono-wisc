@@ -29,9 +29,7 @@
 
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
-// sim_time: A vector of doubles storing simulation times extracted from the first element of the tuple returned by CircuitAnalysis.
-// results
-
+// CosimResults
 void ChElectronicsCosimulation::Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end)
 {
     std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
@@ -347,7 +345,7 @@ void ChElectronicsCosimulation::Inductances_Initializer(std::vector<std::string>
     }
     // Scope_String_Vector(Inductances1);               // DEBUG: Scope what desired for debug purposes
 
-        // (Per Fede) da sistemare nel caso in cui nella NETLIST non abbia neche una riga con ".param ic..."
+    // (Per Fede) da sistemare nel caso in cui nella NETLIST non abbia neche una riga con ".param ic..."
     std::vector<size_t> indexes;
     ii = 0;
     bool flag = true; 
@@ -379,13 +377,30 @@ void ChElectronicsCosimulation::Inductances_Initializer(std::vector<std::string>
     // cout << NETLIST_contents[74] << "\n";            // DEBUG: Scope some needed results
 }    
 
+/*
+*   Mutates: parser_output.NETLIST_contents, parser_output.PWL_sources_contents
+*/
+void ChElectronicsCosimulation::UpdateInductanceVoltage() {
+
+    PWL_sources_Initializer(parser_output.PWL_sources_contents, parser_output.NETLIST_contents);
+    Inductances_Initializer(parser_output.NETLIST_contents);
+    
+}
+
+void ChElectronicsCosimulation::WriteNetlist(std::string name, std::vector<std::string> contents) {
+    NetlistStrings::Write_File(name, "");
+    for (const auto& string_line : contents)
+    {
+        NetlistStrings::Append_File(name, string_line + "\n");
+    }
+}
+
 // ======== Method: allows to initialize the NETLIST file for co-simulation ========
 // Class variables used:
 // parser_input, parser_output
 // PWL_sources_NETLIST_reordered
 // PWL_sources_NETLIST_idx
-// node_name
-// sim_time_last
+// CosimResults
 // Python_simulator_name
 void ChElectronicsCosimulation::NETLIST_Initializer()
 {
@@ -393,7 +408,7 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     auto node_name = this->results.node_name;
 
     // -------- Read the main circuit initialization files --------
-    parser_output = parser.ParseCircuit(parser_input);
+    this->parser_output = parser.ParseCircuit(parser_input);
 
     if (parser_output.NETLIST_contents.empty()) // Alert the user if no circuit model is found inside the NETLIST
     {
@@ -403,15 +418,9 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     }
 
     // -------- Initialize the PWL_sources and Inductances in the NETLIST -------- 
-    PWL_sources_Initializer(parser_output.PWL_sources_contents, parser_output.NETLIST_contents);
-    Inductances_Initializer(parser_output.NETLIST_contents);
+    UpdateInductanceVoltage();
 
-    // -------- Update the NETLIST with the resulting PWL_sources and Inductances --------
-    NetlistStrings::Write_File(parser_input.NETLIST_name, "");
-    for (const auto& string_line : parser_output.NETLIST_contents)
-    {
-        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line + "\n");
-    }
+    WriteNetlist(parser_input.NETLIST_name, parser_output.NETLIST_contents);
 
     // -------- Run a preliminary simulation to initialize the parameters --------
     std::string File_name = Python_simulator_name;
@@ -459,11 +468,7 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     }
 
     // -------- Update the NETLIST with new initial conditions --------
-    NetlistStrings::Write_File(parser_input.NETLIST_name, "");
-    for (const auto& string_line : parser_output.NETLIST_contents)
-    {
-        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line + "\n");
-    }
+    WriteNetlist(parser_input.NETLIST_name, parser_output.NETLIST_contents);
 
     // -------- Identify and reorder PWL sources in the NETLIST --------
     for (const auto& string_line : parser_output.NETLIST_contents)
@@ -485,9 +490,6 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
             PWL_sources_NETLIST_idx.push_back(0);
         }
     }
-
-    // -------- Initialize the simulation time --------
-    sim_time_last = 0;
 }
 
 // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
@@ -495,24 +497,18 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
 
 
 // double t_clock;                       // Represents the current clock time for the simulation
-// double t_step_electronic;             // Time step for the electronic simulation
-// double T_sampling_electronic;         // Sampling time for the electronic simulation
 
 // ParserOutput
 // ParserInput
 
-// CosimReult;   // Names of the nodes
+// CosimResult;   // Names of the nodes
 
 // std::vector<std::string> PWL_sources_NETLIST_reordered;   // Reordered PWL sources in the NETLIST
-
-// double sim_time_last;                 // Last simulation time step
 
 // int sim_step;                         // Simulation step count
 // std::vector<double> OUTPUT_value;     // Output values after parsing and comparison
 
-
-
-void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var) 
+void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
 {
 
     auto node_val = this->results.node_val;
@@ -522,7 +518,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     auto sim_time = this->results.sim_time;
 
     // -------- Read the main circuit initialization files --------
-   auto NETLIST_contents = parser_output.NETLIST_contents;
+    auto NETLIST_contents = parser_output.NETLIST_contents;
     if (NETLIST_contents.empty())  // Alert the user if no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
@@ -530,9 +526,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     }
 
     // -------- Set the SPICE simulation main variables --------
-    t_clock = t_clock_var; 
-    t_step_electronic = t_step_electronic_var; 
-    T_sampling_electronic = T_sampling_electronic_var; 
+    this->t_clock = t_clock; 
 
     // -------- Set the PWL sources --------
     std::vector<std::vector<double>> t_interp_PWL_Source;
@@ -629,7 +623,6 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // -------- Set the inductances in the NETLIST --------
     std::vector<std::string> Inductances1;
     std::vector<std::string> str = NetlistStrings::First_Letter_Extractor(NETLIST_contents);
-    std::vector<bool> TF;
     int ii = 0; 
 
     for (const auto& string_line : str) 
@@ -637,11 +630,6 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         if (NetlistStrings::ContainsPattern(string_line, "L")) 
         {
             Inductances1.push_back(NETLIST_contents[ii]); 
-            TF.push_back(true);
-        }
-        else
-        {
-            TF.push_back(false);
         }
         ii++;
     }
@@ -780,6 +768,5 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // Scope_String_Vector(OUTPUT_contents);                    // DEBUG: Scope what desired for debug purposes 
 
     // -------- Update the sim_step_last variable --------
-    sim_time_last = sim_time.back(); 
     sim_step++;
 }  

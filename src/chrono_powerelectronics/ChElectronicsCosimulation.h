@@ -91,16 +91,7 @@ public:
 
 
     int sim_step = 1;                               // Initialize the simulation step counter to 1
-    
-    typedef CosimSettings {
-        double t_step_electronic;                        // Time step for the SPICE solver intergration
-        double T_sampling_electronic;                    // Time window of the electronic (SPICE) simulation
-    }
-
-    
-    double sim_time_last;                            // Last element of the SPICE sim_time_vector to reallocate the local SPICE sim_time array, respect to the global simulation time line
-
-    // ChElectronicsNetlist netlist;
+    double t_clock = 0.0;                            // Global clock of the simulation
 
     CircuitParserIO parser;
     CircuitParserIO::CircuitDefs parser_output;
@@ -110,7 +101,6 @@ public:
     py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
     py::tuple data;                         // Call the desired method from the Python module
 
-    double t_clock = 0.0;                            // Global clock of the simulation
     std::vector<double> OUTPUT_value;                // OUTPUT values to return to the caller
 
     // ==========================================
@@ -132,6 +122,9 @@ public:
         // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
     void NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
 
+    void UpdateInductanceVoltage();
+
+    void WriteNetlist(std::string file, std::vector<std::string> contents);
 };
 
 #endif // CHELECTRONICSEXECUTOR_H
