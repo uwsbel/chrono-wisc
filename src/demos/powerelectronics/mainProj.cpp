@@ -1174,11 +1174,9 @@ int main(int argc, char* argv[]) {
             double t_step = t_step_electronic; // Max allowed : t_step = 1e-8;     
             double t_end = T_sampling_electronic;
             Circuit1.Run_Spice(File_name, Method_name, t_step, t_end);
-            std::cout << "HELLO!!!" << std::endl;
 
             // ======== COSIMULATE -> the SPICE circuit ========
             Circuit1.NETLIST_Cosimulator(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
-            std::cout << "HELLO!!!" << std::endl;
 
             // ======== STORE -> the Electronic results ========
             OUTPUT_Sim[7].push_back(t_sim_electronics);

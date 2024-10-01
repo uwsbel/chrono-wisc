@@ -20,15 +20,17 @@
 // =========================
 #include "utils/NetlistStrings.h"
 
-class ChElectronicsNetlist {
+// class ChElectronicsNetlist {
 
-    std::vector<std::string> NETLIST_contents;
-    CircuitParserIO::CircuitDefs parser_output;
-    CircuitParserIO::CircuitDirs parser_input;
-    CircuitParserIO parser;
+//     std::vector<std::string> NETLIST_contents;
+//     CircuitParserIO::CircuitDefs parser_output;
+//     CircuitParserIO::CircuitDirs parser_input;
+//     CircuitParserIO parser;
 
-    Inductances_Initializer(CircuitDirs parser_input, CircuitDefs parser_output);
+//     Inductances_Initializer(CircuitDirs parser_input, CircuitDefs parser_output);
 
-    NETLIST_Initializer();
+//     NETLIST_Initializer();
 
-};
+// };
+
+#endif

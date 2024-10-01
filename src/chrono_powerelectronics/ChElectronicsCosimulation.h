@@ -59,7 +59,6 @@ public:
     }
 };
 
-
 class ChElectronicsCosimulation {  
 public:
     // =============================
@@ -75,25 +74,37 @@ public:
         Python_simulator_name = Python_simulator_name_var;                   
     }
 
-    std::vector<double> sim_time;                                // Contains the SPICE simulation time returned by the Python module, it is update at every call of the class
-    std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
-    std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
-    std::vector<std::vector<double>> branch_val;                 // Contains the current values at every SPICE circuit branches returned by the Python module, it is update at every call of the class
-    std::vector<std::string> branch_name;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
     
+    typedef struct CosimResults {
+        std::vector<double> sim_time;                                // Contains the SPICE simulation time returned by the Python module, it is update at every call of the class
+        std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
+        std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
+        std::vector<std::vector<double>> branch_val;                 // Contains the current values at every SPICE circuit branches returned by the Python module, it is update at every call of the class
+        std::vector<std::string> branch_name;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
+    };
+
+    CosimResults results;
+
+
     std::vector<bool> PWL_sources_NETLIST_idx;      // Contains the lists of order indexes of PWL sources in accordance to the appearance in the NETLIST 
+    std::vector<std::string> PWL_sources_NETLIST_reordered;   // Contains the lists of the PWL sources reordered in accordance to the appearance in the NETLIST
+
+
     int sim_step = 1;                               // Initialize the simulation step counter to 1
-    double t_step_electronic;                        // Time step for the SPICE solver intergration
-    double T_sampling_electronic;                    // Time window of the electronic (SPICE) simulation
+    
+    typedef CosimSettings {
+        double t_step_electronic;                        // Time step for the SPICE solver intergration
+        double T_sampling_electronic;                    // Time window of the electronic (SPICE) simulation
+    }
+
+    
     double sim_time_last;                            // Last element of the SPICE sim_time_vector to reallocate the local SPICE sim_time array, respect to the global simulation time line
 
-    ChElectronicsNetlist netlist;
+    // ChElectronicsNetlist netlist;
 
-    // CircuitParserIO parser;
-    // CircuitParserIO::CircuitDefs parser_output;
-    // CircuitParserIO::CircuitDirs parser_input;
-
-    std::vector<std::string> PWL_sources_NETLIST_reordered;   // Contains the lists of the PWL sources reordered in accordance to the appearance in the NETLIST
+    CircuitParserIO parser;
+    CircuitParserIO::CircuitDefs parser_output;
+    CircuitParserIO::CircuitDirs parser_input;
     std::string Python_simulator_name;                   // Name of the Python module that run and pass the results
 
     py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
@@ -105,8 +116,6 @@ public:
     // ==========================================
     // ======== Methods: SPICE execution ========
     // ==========================================
-        // ======== Method: allows to set the class t_clock global variable ========
-    void Set_t_clock_var(double t_clock_var);
 
         // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
     void Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end);

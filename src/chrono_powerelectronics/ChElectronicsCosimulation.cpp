@@ -26,15 +26,20 @@
 // ==========================================
 // ======== Methods: SPICE execution ========
 // ==========================================
-    // ======== Method: allows to set the class t_clock global variable ========
-void ChElectronicsCosimulation::Set_t_clock_var(double t_clock_var) 
-{
-    t_clock = t_clock_var; 
-}
+
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
+// sim_time: A vector of doubles storing simulation times extracted from the first element of the tuple returned by CircuitAnalysis.
+// results
+
 void ChElectronicsCosimulation::Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end)
 {
+    std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
+    std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
+    std::vector<std::vector<double>> branch_val;                 // Contains the current values at every SPICE circuit branches returned by the Python module, it is update at every call of the class
+    std::vector<std::string> branch_name;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
+    std::vector<double> sim_time;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
+
     // -------- Python call --------
     
     // Import the Python module    
@@ -93,9 +98,14 @@ void ChElectronicsCosimulation::Run_Spice(std::string File_name, std::string Met
     branch_name.clear();
     branch_name = data[4].cast<std::vector<std::string>>();
     //Scope_String_Vector(branch_name);               // DEBUG: Scope what desired for debug purposes  
+
+    this->results = {
+        sim_time, node_val, node_name, branch_val, branch_name
+    };
 }
 
-    // ======== Method: allows to initialize the PWL sources present in the circuit ========
+// ======== Method: allows to initialize the PWL sources present in the circuit ========
+// No class variables
 void ChElectronicsCosimulation::PWL_sources_Initializer(std::vector<std::string>& PWL_sources_contents, std::vector<std::string>& NETLIST_contents) // To fix generator co-simulation dynamics problematics
 {
     // Initialize the PWL sources: Define the name of the PWL source, if no PWL present in the circuit PWL_V_source = []
@@ -200,7 +210,8 @@ void ChElectronicsCosimulation::PWL_sources_Initializer(std::vector<std::string>
     // cout << NETLIST_contents[1];                            // DEBUG: Scope some needed results
 }
 
-    // ======== Method: allows to initialize the inductances present in the circuit ========
+// ======== Method: allows to initialize the inductances present in the circuit ========
+// No class variables used.
 void ChElectronicsCosimulation::Inductances_Initializer(std::vector<std::string>& NETLIST_contents)   // To fix IC inductances current problematics during co-simulation
 {
     // -------- Isolate the lines with Inductances --------
@@ -368,354 +379,103 @@ void ChElectronicsCosimulation::Inductances_Initializer(std::vector<std::string>
     // cout << NETLIST_contents[74] << "\n";            // DEBUG: Scope some needed results
 }    
 
-    // ======== Method: allows to initialize the NETLIST file for co-simulation ========
+// ======== Method: allows to initialize the NETLIST file for co-simulation ========
+// Class variables used:
+// parser_input, parser_output
+// PWL_sources_NETLIST_reordered
+// PWL_sources_NETLIST_idx
+// node_name
+// sim_time_last
+// Python_simulator_name
 void ChElectronicsCosimulation::NETLIST_Initializer()
 {
+
+    auto node_name = this->results.node_name;
+
     // -------- Read the main circuit initialization files --------
     parser_output = parser.ParseCircuit(parser_input);
 
-    if (parser_output.NETLIST_contents.size() == 0)                   // Allert the user that no circuit model is found inside the NETLIST
+    if (parser_output.NETLIST_contents.empty()) // Alert the user if no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
         system("pause>0");
+        return;
     }
-    
-    // -------- Initialize the PWL_sources in the NETLIST -------- 
+
+    // -------- Initialize the PWL_sources and Inductances in the NETLIST -------- 
     PWL_sources_Initializer(parser_output.PWL_sources_contents, parser_output.NETLIST_contents);
-    // Scope_String_Vector(NETLIST_contents);               // DEBUG: Scope what desired for debug purposes
-        
-    // -------- Initialize the Inductances in the NETLIST --------
     Inductances_Initializer(parser_output.NETLIST_contents);
-    // Scope_String_Vector(NETLIST_contents);               // DEBUG: Scope what desired for debug purposes
-        
+
     // -------- Update the NETLIST with the resulting PWL_sources and Inductances --------
-    NetlistStrings::Write_File(parser_input.NETLIST_name, ""); 
-    int ii = 1;
-    for (const auto& string_line : parser_output.NETLIST_contents)        // The NETLIST_contents variable was previously updated by the above two functions
+    NetlistStrings::Write_File(parser_input.NETLIST_name, "");
+    for (const auto& string_line : parser_output.NETLIST_contents)
     {
-        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line); 
-        if (ii < parser_output.NETLIST_contents.size())
-        {
-            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n"); 
-        }
-        ii++;
+        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line + "\n");
     }
+
     // -------- Run a preliminary simulation to initialize the parameters --------
     std::string File_name = Python_simulator_name;
     std::string Method_name = "CircuitAnalysis";
-    double t_step = 1e-8; // Max allowed : t_step = 1e-8;
+    double t_step = 1e-8; // Max allowed: t_step = 1e-8
     double t_end = 1e-6;
 
     Run_Spice(File_name, Method_name, t_step, t_end);
-    
+
     // -------- Re-Read the NETLIST --------
-    parser.RefreshNetlist(parser_input,parser_output);
+    parser.RefreshNetlist(parser_input, parser_output);
 
-    // -------- Get the list of all the folders inside the Spice_circuit/Results folder --------
-    std::string currentDirectory = fs::current_path().string();
-    std::string WorkingDirectory = currentDirectory + "/" + "Spice_circuit" + "/" + "Results";
-    std::vector<std::string> Folder_list = NetlistStrings::List_Folders_In_Directory(WorkingDirectory);
-    // Scope_String_Vector(Folder_list);               // DEBUG: Scope what desired for debug purposes
-
-    // -------- Create the folder needed to store the results at every time step --------
-    if (Folder_list.size() == 0)
+    // -------- Set parameters to the initial conditions --------
+    int index = 0;
+    int param_idx = 0;
+    for (auto& string_line : parser_output.NETLIST_contents)
     {
-        // Create the new results folder: node_val_folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "node_val_folder");       // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-        // Create the new results folder: branch_val_folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "branch_val_folder");     // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-        // Create the new results folder: sim_time_folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "sim_time_folder");       // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-    }
-    else
-    {
-        // node_val_folder
-            // Find all the node_val_folder among the found folders
-        std::vector<std::string> node_val_folder;
-        for (const auto& string_line : Folder_list)
-        {
-            std::string str = string_line;                                // String to analyze
-            std::string pat = "node_val_folder";                          // Pattern to find
-            if (NetlistStrings::ContainsPattern(str, pat))
-            {
-                node_val_folder.push_back(string_line);
-            }
-        }
-        // Scope_String_Vector(node_val_folder);               // DEBUG: Scope what desired for debug purposes
-
-            // Find the major folder among the node_val_folder
-        std::vector<int> node_val_folder_idx;
-        for (const auto& string_line : node_val_folder)
-        {
-            std::string node_val_folder_idx1 = NetlistStrings::Replace_Substring(string_line, "node_val_folder", "");
-            if (node_val_folder_idx1 == "")
-            {
-                node_val_folder_idx1 = "0";
-            }
-            int node_val_folder_idx2 = stoi(node_val_folder_idx1);
-            node_val_folder_idx.push_back(node_val_folder_idx2);
-        }
-        // Scope_String_Vector(node_val_folder_idx);               // DEBUG: Scope what desired for debug purposes
-
-        auto node_val_folder_max_ptr = max_element(node_val_folder_idx.begin(), node_val_folder_idx.end()); // FInd the folder with the maximum index
-        int node_val_folder_max = *node_val_folder_max_ptr;
-        std::string node_val_folder_new = "node_val_folder" + std::to_string(node_val_folder_max + 1);
-        // cout << node_val_folder_new << "\n";                     // DEBUG: Scope some needed results
-            
-            // Rename the last results folder
-        try {
-            fs::rename(WorkingDirectory + "/" + "node_val_folder", WorkingDirectory + "/" + node_val_folder_new); // Rename the folder
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-            // Create the new results folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "node_val_folder");       // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-        // branch_val_folder
-            // Find all the branch_val_folder among the found folders
-        std::vector<std::string> branch_val_folder;
-        for (const auto& string_line : Folder_list)
-        {
-            std::string str = string_line;                                   // String to analyze
-            std::string pat = "branch_val_folder";                           // Pattern to find
-            if (NetlistStrings::ContainsPattern(str, pat))
-            {
-                branch_val_folder.push_back(string_line);
-            }
-        }
-        // Scope_String_Vector(branch_val_folder);               // DEBUG: Scope what desired for debug purposes
-
-            // Find the major folder among the branch_val_folder
-        std::vector<int> branch_val_folder_idx;
-        for (const auto& string_line : branch_val_folder)
-        {
-            std::string branch_val_folder_idx1 = NetlistStrings::Replace_Substring(string_line, "branch_val_folder", "");
-            if (branch_val_folder_idx1 == "")
-            {
-                branch_val_folder_idx1 = "0";
-            }
-            int branch_val_folder_idx2 = stoi(branch_val_folder_idx1);
-            branch_val_folder_idx.push_back(branch_val_folder_idx2);
-        }
-        // Scope_String_Vector(branch_val_folder_idx);               // DEBUG: Scope what desired for debug purposes
-        
-        auto branch_val_folder_max_ptr = max_element(branch_val_folder_idx.begin(), branch_val_folder_idx.end()); // FInd the folder with the maximum index
-        int branch_val_folder_max = *branch_val_folder_max_ptr;
-        std::string branch_val_folder_new = "branch_val_folder" + std::to_string(branch_val_folder_max + 1); 
-        // cout << branch_val_folder_new << "\n";                   // DEBUG: Scope some needed results
-             
-            // Rename the last results folder
-        try {
-            fs::rename(WorkingDirectory + "/" + "branch_val_folder", WorkingDirectory + "/" + branch_val_folder_new);       // Rename the folder
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-            // Create the new results folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "branch_val_folder");                                             // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-        // sim_time_folder
-            // Find all the sim_time_folder among the found folders
-        std::vector<std::string> sim_time_folder;
-        for (const auto& string_line : Folder_list)
-        {
-            std::string str = string_line;                                // String to analyze
-            std::string pat = "sim_time_folder";                          // Pattern to find
-            if (NetlistStrings::ContainsPattern(str, pat))
-            {
-                sim_time_folder.push_back(string_line);
-            }
-        }
-        // Scope_String_Vector(sim_time_folder);               // DEBUG: Scope what desired for debug purposes
-
-            // Find the major folder among the sim_time_folder
-        std::vector<int> sim_time_folder_idx;
-        for (const auto& string_line : sim_time_folder)
-        {
-            std::string sim_time_folder_idx1 = NetlistStrings::Replace_Substring(string_line, "sim_time_folder", "");
-            if (sim_time_folder_idx1 == "")
-            {
-                sim_time_folder_idx1 = "0";
-            }
-            int sim_time_folder_idx2 = stoi(sim_time_folder_idx1);
-            sim_time_folder_idx.push_back(sim_time_folder_idx2);
-        }
-        // Scope_String_Vector(sim_time_folder_idx);               // DEBUG: Scope what desired for debug purposes
-
-        auto sim_time_folder_max_ptr = max_element(sim_time_folder_idx.begin(), sim_time_folder_idx.end()); // FInd the folder with the maximum index
-        int sim_time_folder_max = *sim_time_folder_max_ptr;
-        std::string sim_time_folder_new = "sim_time_folder" + std::to_string(sim_time_folder_max + 1); 
-        // cout << sim_time_folder_new << "\n";                     // DEBUG: Scope some needed results
-        
-            // Rename the last results folder
-        try {
-            fs::rename(WorkingDirectory + "/" + "sim_time_folder", WorkingDirectory + "/" + sim_time_folder_new); // Rename the folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-            // Create the new results folder
-        try {
-            fs::create_directory(WorkingDirectory + "/" + "sim_time_folder"); // Create a new folder 
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-    }
-
-    // -------- Sort the current and voltage results --------
-        // Voltage nodes
-    auto result = NetlistStrings::Sort_With_Indices(node_name);
-    std::vector<std::string> node_name_Vec = result.first;
-    std::vector<std::vector<double>> node_val_Vec;
-    std::vector<std::vector<double>> node_val_Vec_new;
-
-        // Current branches
-    auto result1 = NetlistStrings::Sort_With_Indices(branch_name);
-    std::vector<std::string> branch_name_Vec = result1.first;
-    std::vector<std::vector<double>> branch_val_Vec;
-    std::vector<std::vector<double>> branch_val_Vec_new;
-
-        // Simulation time
-    std::vector<double> sim_time_Vec;
-    sim_time_Vec.push_back(0);
-    std::vector<double> sim_time_Vec_new;
-    sim_time_Vec_new.push_back(0);
-    
-    // -------- Save the results in the created folders --------
-    NetlistStrings::Save_Vector_Vector_double_To_Txt(WorkingDirectory + "/" + "node_val_folder" + "/" + "node_val_Vec1.txt", node_val_Vec_new);
-    NetlistStrings::Save_Vector_Vector_double_To_Txt(WorkingDirectory + "/" + "branch_val_folder" + "/" + "branch_val_Vec1.txt", branch_val_Vec_new);
-    NetlistStrings::Save_Vector_double_To_Txt(WorkingDirectory + "/" + "sim_time_folder" + "/" + "sim_time_Vec1.txt", sim_time_Vec_new);
-
-    // -------- Save the reordered file branch and node name variables --------
-        // Update the node_name_Vec
-    NetlistStrings::Write_File("SPICE_circuit/Results/node_val_folder/node_name_Vec.txt", "");
-    ii = 1; 
-    for (const auto& string_line : node_name_Vec) 
-    {
-        NetlistStrings::Append_File("SPICE_circuit/Results/node_val_folder/node_name_Vec.txt", string_line);
-        if (ii < node_name_Vec.size())
-        {
-            NetlistStrings::Append_File("SPICE_circuit/Results/node_val_folder/node_name_Vec.txt", "\n");
-        }
-        ii++; 
-    }
-    
-        // Update the branch_name_Vec
-    NetlistStrings::Write_File("SPICE_circuit/Results/branch_val_folder/branch_name_Vec.txt", "");
-    ii = 1;
-    for (const auto& string_line : branch_name_Vec)
-    {
-        NetlistStrings::Append_File("SPICE_circuit/Results/branch_val_folder/branch_name_Vec.txt", string_line);
-        if (ii < branch_name_Vec.size())
-        {
-            NetlistStrings::Append_File("SPICE_circuit/Results/branch_val_folder/branch_name_Vec.txt", "\n");
-        }
-        ii++;
-    }    
-    
-    // -------- Set the parameters to the IC values --------
-    ii = 0;
-    int jj = 0;
-    for (const auto& string_line : parser_output.NETLIST_contents)
-    {
-        std::string str = string_line;                                               // String to analyze
-        std::string pat = ".param par";                                              // Pattern to find
-        if (NetlistStrings::ContainsPattern(str, pat))
+        std::string pat = ".param par";
+        if (NetlistStrings::ContainsPattern(string_line, pat))
         {
             std::string Parameters1 = NetlistStrings::Extract_Before_Pattern(string_line, "=");
-            std::string Parameters2 = Parameters1 + "=" + parser_output.Param_IC_contents[jj];     // Remember to implement the Par_IC_contents file with the order of the .param par in the NETLIST
-            parser_output.NETLIST_contents[ii] = Parameters2;
-            jj++;
+            std::string Parameters2 = Parameters1 + "=" + parser_output.Param_IC_contents[param_idx++];
+            parser_output.NETLIST_contents[index] = Parameters2;
         }
-        ii++;
+        ++index;
     }
-    // -------- Set the voltage initial conditions to 0 IC: V --------
+
+    // -------- Set the voltage initial conditions to 0 --------
     std::string V_IC_array = ".ic ";
-    ii = 1; 
-    for (const auto& string_line : node_name)
+    for (size_t i = 0; i < node_name.size(); ++i)
     {
-        V_IC_array += "V(";
-        V_IC_array += string_line;
-        V_IC_array += ")=" + NetlistStrings::Num_To_LongEng_String(0); 
-        if (ii < node_name.size())
-        {
-            V_IC_array += " ";
-        }
-        ii++;
-        
-    }
-    ii = 0; 
-    for (const auto& string_line : parser_output.NETLIST_contents)
-    {
-        std::string str = string_line;                       // String to analyze
-        std::string pat = ".ic";                             // Pattern to find
-        if (NetlistStrings::ContainsPattern(str, pat))
-        {
-            parser_output.NETLIST_contents[ii] = V_IC_array;
-        }
-        ii++;
+        V_IC_array += "V(" + node_name[i] + ")=" + NetlistStrings::Num_To_LongEng_String(0);
+        if (i < node_name.size() - 1) V_IC_array += " ";
     }
 
-    // -------- Update the NETLIST --------
+    index = 0;
+    for (auto& string_line : parser_output.NETLIST_contents)
+    {
+        std::string pat = ".ic";
+        if (NetlistStrings::ContainsPattern(string_line, pat))
+        {
+            parser_output.NETLIST_contents[index] = V_IC_array;
+        }
+        ++index;
+    }
+
+    // -------- Update the NETLIST with new initial conditions --------
     NetlistStrings::Write_File(parser_input.NETLIST_name, "");
-    ii = 1;
-    for (const auto& string_line : parser_output.NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions
-    {
-        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line);
-        if (ii < parser_output.NETLIST_contents.size())
-        {
-            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n");
-        }
-        ii++;
-    }
-
-    // -------- Set some important variable of the Class to speed up the simulation --------
-        // Find the PWL sources lines in the NETLIST
     for (const auto& string_line : parser_output.NETLIST_contents)
     {
-        std::string str = string_line;                       // String to analyze
-        std::string pat = "PWL";                             // Pattern to find
-        if (NetlistStrings::ContainsPattern(str, pat))
+        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line + "\n");
+    }
+
+    // -------- Identify and reorder PWL sources in the NETLIST --------
+    for (const auto& string_line : parser_output.NETLIST_contents)
+    {
+        std::string pat = "PWL";
+        if (NetlistStrings::ContainsPattern(string_line, pat))
         {
-            for (const auto& string_line1 : parser_output.PWL_sources_contents)
+            for (const auto& pwl_source : parser_output.PWL_sources_contents)
             {
-                std::string str = string_line;               // String to analyze
-                std::string pat = string_line1;              // Pattern to find
-                if (NetlistStrings::ContainsPattern(str, pat))
+                if (NetlistStrings::ContainsPattern(string_line, pwl_source))
                 {
-                    PWL_sources_NETLIST_reordered.push_back(string_line1);
+                    PWL_sources_NETLIST_reordered.push_back(pwl_source);
                 }
             }
             PWL_sources_NETLIST_idx.push_back(1);
@@ -725,22 +485,48 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
             PWL_sources_NETLIST_idx.push_back(0);
         }
     }
-    // -------- Update the sim_step_last variable --------
-    sim_time_last = 0;  
+
+    // -------- Initialize the simulation time --------
+    sim_time_last = 0;
 }
 
-    // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
+// ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
+// Class variables used:
+
+
+// double t_clock;                       // Represents the current clock time for the simulation
+// double t_step_electronic;             // Time step for the electronic simulation
+// double T_sampling_electronic;         // Sampling time for the electronic simulation
+
+// ParserOutput
+// ParserInput
+
+// CosimReult;   // Names of the nodes
+
+// std::vector<std::string> PWL_sources_NETLIST_reordered;   // Reordered PWL sources in the NETLIST
+
+// double sim_time_last;                 // Last simulation time step
+
+// int sim_step;                         // Simulation step count
+// std::vector<double> OUTPUT_value;     // Output values after parsing and comparison
+
+
+
 void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var) 
 {
+
+    auto node_val = this->results.node_val;
+    auto node_name = this->results.node_name;
+    auto branch_val = this->results.branch_val;
+    auto branch_name = this->results.branch_name;
+    auto sim_time = this->results.sim_time;
+
     // -------- Read the main circuit initialization files --------
-
-    // std::vector<std::string> NETLIST_contents = Read_NETLIST(parser_input.NETLIST_name);
-
-    auto NETLIST_contents = parser_output.NETLIST_contents;
-    if (NETLIST_contents.size() == 0)           // Allert the user that no circuit model is found inside the NETLIST
+   auto NETLIST_contents = parser_output.NETLIST_contents;
+    if (NETLIST_contents.empty())  // Alert the user if no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
-        system("pause>0");
+        return;
     }
 
     // -------- Set the SPICE simulation main variables --------
@@ -752,159 +538,103 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     std::vector<std::vector<double>> t_interp_PWL_Source;
     std::vector<std::vector<double>> Source_Signal_PWL_Source;
 
-        // Iterate over the PWLsources_reordered, it's important that we use the PWLsources_reordered so that the NETLIST will be updated correctly
+    // Iterate over the PWLsources_reordered, it's important that we use the PWLsources_reordered so that the NETLIST will be updated correctly
     for (const auto& string_line : PWL_sources_NETLIST_reordered)
     {
-            // Define the time interval for the electronics time step
-        std::vector<double> t_interp;                            // Localized onto the global time line
-        std::vector<double> t_interp1;                           // Localized onto the SPICE time line
-        for (double t = t_clock; t <= t_clock + T_sampling_electronic; t += t_step_electronic) {
-            t_interp.push_back(t);                          // Add the current value of t to the vector
+        std::vector<double> t_interp; 
+        std::vector<double> t_interp1;
+
+        for (double t = t_clock; t <= t_clock + T_sampling_electronic; t += t_step_electronic) 
+        {
+            t_interp.push_back(t); 
             t_interp1.push_back(t - t_clock);
         }
 
-            // -------- Check if it is a VARiable or a PREdefined source --------
-        std::string str = string_line;                           // String to analyze
-        std::string pat = "VAR";                                 // Pattern to find
-        if (NetlistStrings::ContainsPattern(str, pat))                      // We are now processing a VARiable PWL source
+        std::string pat = "VAR";
+        if (NetlistStrings::ContainsPattern(string_line, pat))  // Processing a variable PWL source
         {
-            
             std::vector<std::string> Source_Signal_1;
-            int jj = 0;                                     // Iterator over the INPUT_contents elements 
+            int jj = 0; 
             for (const auto& string_line1 : parser_output.INPUT_contents)
             {
-                std::string str = string_line1;                  // String to analyze
-                std::string pat = string_line;                   // Pattern to find
-                if (NetlistStrings::ContainsPattern(str, pat))              // We are now processing a VARiable PWL sources
+                if (NetlistStrings::ContainsPattern(string_line1, string_line))  // Variable PWL source found
                 {
-                    if (INPUT_values[jj].size() == 1) // Case in which we are passing only a value of the PWl source
+                    if (INPUT_values[jj].size() == 1) 
                     {
-                        // Load the previous time-step PWL_sorces value 
+                        // Load previous time-step PWL sources value
                         std::string path = "SPICE_circuit/PWL_sources/" + string_line + ".txt"; 
-                        std::vector<std::string> V_source = NetlistStrings::Read_File(path); 
+                        std::vector<std::string> V_source = NetlistStrings::Read_File(path);
 
-                        // Create a vector that stores all the PWL informations 
+                        // Create a vector that stores all the PWL information
                         Source_Signal_1.push_back(V_source[0]); 
-                        Source_Signal_1.push_back(NetlistStrings::Num_To_LongEng_String(INPUT_values[jj][0])); 
+                        Source_Signal_1.push_back(NetlistStrings::Num_To_LongEng_String(INPUT_values[jj][0]));
 
                         std::vector<double> Source_Signal = NetlistStrings::Linspace(stod(Source_Signal_1[0]), stod(Source_Signal_1[1]), t_interp.size());
                         Source_Signal_PWL_Source.push_back(Source_Signal);
+
                         // Update the source value in the PWL_sources folder
-                        std::string Path;
-                        Path = "SPICE_circuit/PWL_sources/";
-                        Path += string_line;
-                        Path += ".txt";
+                        std::string Path = "SPICE_circuit/PWL_sources/" + string_line + ".txt";
                         NetlistStrings::Write_File(Path, Source_Signal_1[1]);
                     }
-                    else // Case in which we are passing a complete PWL array to the PWL source
+                    else 
                     {
                         std::vector<double> Source_Signal = INPUT_values[jj];
                         Source_Signal_PWL_Source.push_back(Source_Signal);
+
                         // Update the source value in the PWL_sources folder
-                        std::string Path;
-                        Path = "SPICE_circuit/PWL_sources/";
-                        Path += string_line;
-                        Path += ".txt";
+                        std::string Path = "SPICE_circuit/PWL_sources/" + string_line + ".txt";
                         NetlistStrings::Write_File(Path, std::to_string(Source_Signal.back()));
                     }
-                        
                 }
                 jj++;
-            }   
+            }
         }
-        else      // We are now processing a PREdefined PWL sources --> OBSOLETE
-        {
-            //
-            //
-            // Qua andrebbe da righe 98 a 108 della versione Matlab
-            //
-            //
-        }
-            // Define the time interval for the electronics time step initialized for the SPICE time line
         t_interp_PWL_Source.push_back(t_interp1);
     }
-    // vector <double> test = t_interp_PWL_Source[1];               // DEBUG: Set some needed results
-    // cout << test[1] << "\n";                                     // DEBUG: Scope some needed results
-    // std::vector <double> test = Source_Signal_PWL_Source[1];     // DEBUG: Set some needed results 
-    // std::cout << "IL valore e'" << test[10] << "\n";             // DEBUG: Scope some needed results 
 
-    if (parser_output.PWL_sources_contents.size() > 0)
+
+    if (!parser_output.PWL_sources_contents.empty())
     {
-            // Continue the PWL sources settings
-        std::cout << "@@@@" << std::endl;
-
         std::vector<std::string> PWL_command_line;
-        for (int jj = 0; jj < Source_Signal_PWL_Source.size(); ++jj)                                // Iterate through both vectors alternately and add elements to the result vector
+        for (int jj = 0; jj < Source_Signal_PWL_Source.size(); ++jj)
         {
             std::vector<double> t_interp_PWL_Source_vector = t_interp_PWL_Source[jj];
             std::vector<double> Source_Signal_PWL_Source_vector = Source_Signal_PWL_Source[jj];
             std::string PWL_command_line_string = "(";
-                // Determine the size of the resulting vector (sum of sizes of vector1 and vector2)
-            int size = t_interp_PWL_Source_vector.size() + Source_Signal_PWL_Source_vector.size();
-                // Iterate through both vectors alternately and add elements to the result vector
-            for (int ii = 0; ii < size; ++ii) {
-                if (ii < t_interp_PWL_Source_vector.size()) {
-                    PWL_command_line_string += NetlistStrings::Num_To_LongEng_String(t_interp_PWL_Source_vector[ii]);   
+
+            for (int ii = 0; ii < t_interp_PWL_Source_vector.size(); ++ii) {
+                PWL_command_line_string += NetlistStrings::Num_To_LongEng_String(t_interp_PWL_Source_vector[ii]) + " ";
+                PWL_command_line_string += NetlistStrings::Num_To_LongEng_String(Source_Signal_PWL_Source_vector[ii]);
+                if (ii < t_interp_PWL_Source_vector.size() - 1)
                     PWL_command_line_string += " ";
-                }
-                if (ii < Source_Signal_PWL_Source_vector.size()) {
-                    PWL_command_line_string += NetlistStrings::Num_To_LongEng_String(Source_Signal_PWL_Source_vector[ii]); 
-                    if (ii < Source_Signal_PWL_Source_vector.size()-1)
-                    {
-                        PWL_command_line_string += " ";
-                    }
-                }
             }
             PWL_command_line_string += ")";
             PWL_command_line.push_back(PWL_command_line_string);
         }
-        // Scope_String_Vector(PWL_sources_contents);               // DEBUG: Scope what desired for debug purposes
-        std::cout << "@@@@" << std::endl;
 
-            // Extract from the NETLIST the PWL sources lines
         int ii = 0;
-        int jj = 0; 
-        for (const auto& string_line : NETLIST_contents)
+        int jj = 0;
+        for (auto& string_line : NETLIST_contents)
         {
-            std::string str = string_line;                               // String to analyze
-            std::string pat = "PWL(";                                    // Pattern to find
-            if (NetlistStrings::ContainsPattern(str, pat))                          // We are now processing a VARiable PWL source
+            if (NetlistStrings::ContainsPattern(string_line, "PWL("))
             {
-                std::string PWL_sources_new = NetlistStrings::Extract_Before_Pattern(string_line, "PWL(");
-                PWL_sources_new += "PWL";
-                PWL_sources_new += PWL_command_line[ii]; 
-                NETLIST_contents[jj] = PWL_sources_new;  
+                std::string PWL_sources_new = NetlistStrings::Extract_Before_Pattern(string_line, "PWL(") + "PWL" + PWL_command_line[ii];
+                NETLIST_contents[jj] = PWL_sources_new;
                 ii++; 
-            }
-            else
-            {
-                // std::cerr << "!!! ERROR !!! -> The line:" << string_line << "doesn't contain PWL sources found, check the NETLIST if the PWL line is written correvtly" << std::endl; 
             }
             jj++;
         }
-        std::cout << "@@@@" << std::endl;
-
-        //cout << Source_Signal_PWL_Source.size() << "\n";          // DEBUG: Scope some needed results
-        //cout << PWL_command_line.size() << "\n";                  // DEBUG: Scope some needed results
-        //cout << ii << "\n";                                       // DEBUG: Scope some needed results
-        // std::cout << NETLIST_contents[3] << "\n";                // DEBUG: Scope some needed results
-
-    }
-    
+    }    
 
     // -------- Set the inductances in the NETLIST --------
-        // Isolate the lines with Inductances
     std::vector<std::string> Inductances1;
     std::vector<std::string> str = NetlistStrings::First_Letter_Extractor(NETLIST_contents);
     std::vector<bool> TF;
     int ii = 0; 
 
-
     for (const auto& string_line : str) 
     {
-        std::string str = string_line;                   // String to analyze 
-        std::string pat = "L";                           // Pattern to find 
-        if (NetlistStrings::ContainsPattern(str, pat)) 
+        if (NetlistStrings::ContainsPattern(string_line, "L")) 
         {
             Inductances1.push_back(NETLIST_contents[ii]); 
             TF.push_back(true);
@@ -915,41 +645,32 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         }
         ii++;
     }
-    // Scope_String_Vector(Inductances1);               // DEBUG: Scope what desired for debug purposes
 
-    // -------- Isolate the names of the Inductances --------
     std::vector<std::string> Inductances;
-
     for (const auto& string_line : Inductances1)
     {
         std::string new_string_line = NetlistStrings::Extract_Before_Pattern(string_line, " ");
         Inductances.push_back(new_string_line);
     }
-    // Scope_String_Vector(Inductances);               // DEBUG: Scope what desired for debug purposes
 
-    // -------- Upload the results data --------
     std::vector<std::string> res_name;
     res_name = node_name;
-    res_name.insert(res_name.end(), branch_name.begin(), branch_name.end()); 
+    res_name.insert(res_name.end(), this->results.branch_name.begin(), this->results.branch_name.end()); 
     std::vector<std::vector<double>> res_val = NetlistStrings::Concatenate_2_Vectors(node_val, branch_val);
-    
 
     // -------- Set the inductance current initial conditions IC: I(L) --------
     Inductances1.clear();
     std::vector<std::string> ToFind = NetlistStrings::To_Lower_Case(Inductances);
-    // Scope_String_Vector(ToFind);                     // DEBUG: Scope what desired for debug purposes
     int jj = 0;
     for (const auto& string_line : ToFind)
     {
         ii = 0;
         double IL_value_IC;
-        for (const auto& string_line1 : branch_name) 
+        for (const auto& string_line1 : this->results.branch_name) 
         {
-            std::string str = string_line1;                      // String to analyze
-            std::string pat = string_line;                       // Pattern to find
-            if (NetlistStrings::ContainsPattern(str, pat))
+            if (NetlistStrings::ContainsPattern(string_line1, string_line))
             {
-                std::vector<double> IL_value_IC1 = branch_val[ii];
+                std::vector<double> IL_value_IC1 = this->results.branch_val[ii];
                 IL_value_IC = IL_value_IC1.back(); 
             }
             ii++;
@@ -958,17 +679,13 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         Inductances1.push_back(new_string_line); 
         jj++;
     }
-    // Scope_String_Vector(Inductances1);               // DEBUG: Scope what desired for debug purposes 
-    
-        
+
     // -------- Reinitialize the ".param ic" rows in the NETLIST --------
     ii = 0;
     jj = 0; 
-    for (const auto& string_line : NETLIST_contents)
+    for (auto& string_line : NETLIST_contents)
     {
-        std::string str = string_line;                       // String to analyze 
-        std::string pat = ".param ic";                       // Pattern to find  
-        if (NetlistStrings::ContainsPattern(str, pat))
+        if (NetlistStrings::ContainsPattern(string_line, ".param ic"))
         {
             NETLIST_contents[ii] = Inductances1[jj];
             jj++;
@@ -976,16 +693,13 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         ii++;
     }
     
-    std::cout << "@@@@" << std::endl;
-    // -------- Set the voltage initial conditions IC: V --------
+        // -------- Set the voltage initial conditions IC: V --------
     std::string V_IC_array = ".ic ";
     ii = 1;
     jj = 0; 
     for (const auto& string_line : node_name) 
     {
-        V_IC_array += "V("; 
-        V_IC_array += string_line; 
-        V_IC_array += ")=";
+        V_IC_array += "V(" + string_line + ")=";
         std::vector<double> node_val_IC = node_val[jj];
         V_IC_array += NetlistStrings::Num_To_LongEng_String(node_val_IC.back()); 
         if (ii < node_name.size())  
@@ -995,39 +709,34 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         ii++;
         jj++;
     }
-    
+
     // -------- Introduce the array in the netlist --------
     ii = 0;  
-    for (const auto& string_line : NETLIST_contents)
+    for (auto& string_line : NETLIST_contents)
     {
-        std::string str = string_line;                       // String to analyze  
-        std::string pat = ".ic";                             // Pattern to find 
-        if (NetlistStrings::ContainsPattern(str, pat))
+        if (NetlistStrings::ContainsPattern(string_line, ".ic"))
         {
             NETLIST_contents[ii] = V_IC_array;
         }
         ii++;
     }
-    
+
     // -------- Set the parameters --------
     std::vector<std::string> Parameters1;
-    jj = 0;                                             // Iterator over the INPUT_contents elements 
+    jj = 0; 
     for (const auto& string_line : parser_output.INPUT_contents) 
     {
         std::string Parameters1_line = ".param par" + string_line + "=" + NetlistStrings::Num_To_LongEng_String(INPUT_values[jj][0]);
         Parameters1.push_back(Parameters1_line);
         jj++; 
     }
-    // Scope_String_Vector(Parameters1);               // DEBUG: Scope what desired for debug purposes 
 
     // -------- Introduce the array in the netlist --------
     ii = 0;
     jj = 0;
-    for (const auto& string_line : parser_output.NETLIST_contents)
+    for (auto& string_line : parser_output.NETLIST_contents)
     {
-        std::string str = string_line;                       // String to analyze 
-        std::string pat = ".param par";                      // Pattern to find 
-        if (NetlistStrings::ContainsPattern(str, pat))
+        if (NetlistStrings::ContainsPattern(string_line, ".param par"))
         {
             NETLIST_contents[ii] = Parameters1[jj]; 
             jj++; 
@@ -1047,41 +756,6 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         }
         ii++;
     }
-
-    // -------- Update the global SPICE results storing them in the Storage disk to clean-up the RAM --------
-        // Get the list of all the folders inside the Spice_circuit/Results folder
-    std::string currentDirectory = fs::current_path().string();
-    std::string WorkingDirectory = currentDirectory + "/" + "Spice_circuit" + "/" + "Results";
-        
-        // Save the results in the appropriate folders
-        // Voltage nodes
-    auto result1 = NetlistStrings::Sort_With_Indices(node_name);
-    std::vector<size_t> Idx_sort_node_name = result1.second;
-    std::vector<std::vector<double>> node_val_Vec_new; 
-    for (const auto& size_value : Idx_sort_node_name)
-    {
-        node_val_Vec_new.push_back(node_val[size_value]); 
-    }
-    
-    NetlistStrings::Save_Vector_Vector_double_To_Txt(WorkingDirectory + "/" + "node_val_folder" + "/" + "node_val_Vec" + std::to_string(sim_step) + ".txt", node_val_Vec_new);
-
-        // Current branches
-    auto result2 = NetlistStrings::Sort_With_Indices(branch_name);
-    std::vector<size_t> Idx_sort_branch_name = result2.second;
-    std::vector<std::vector<double>> branch_val_Vec_new;
-    for (const auto& size_value : Idx_sort_branch_name) 
-    {
-        branch_val_Vec_new.push_back(branch_val[size_value]);
-    }
-    NetlistStrings::Save_Vector_Vector_double_To_Txt(WorkingDirectory + "/" + "branch_val_folder" + "/" + "branch_val_Vec" + std::to_string(sim_step) + ".txt", branch_val_Vec_new);
-
-        // Simulation time
-    std::vector<double> sim_time_Vec_new;
-    for (size_t kk = 0; kk < sim_time.size(); ++kk)
-    {
-        sim_time_Vec_new.push_back(sim_time[kk] + sim_time_last); 
-    }
-    NetlistStrings::Save_Vector_double_To_Txt(WorkingDirectory + "/" + "sim_time_folder" + "/" + "sim_time_Vec" + std::to_string(sim_step) + ".txt", sim_time_Vec_new);
 
     // -------- OUTPUT_extraction --------
     OUTPUT_value.clear();  
@@ -1107,8 +781,5 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
 
     // -------- Update the sim_step_last variable --------
     sim_time_last = sim_time.back(); 
-    // cout << sim_time_last << "\n";                               // DEBUG: Scope some needed results
-
-    // -------- Increment the simulation step --------
     sim_step++;
 }  
