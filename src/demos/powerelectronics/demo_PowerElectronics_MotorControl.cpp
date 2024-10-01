@@ -1015,18 +1015,24 @@ int main(int argc, char* argv[]) {
     // ======== SPICE SOLVER & CIRCUIT INITIALIZATIONS ========
     // ========================================================
     // ======== Set the main directories ========  
-    std::string NETLIST_name = "../Release/SPICE_circuit/Models/Circuit_Netlist.cir";
-    std::string INPUT_name = "../Release/SPICE_circuit/Models/INPUT_Netlist.txt";
-    std::string OUTPUT_name = "../Release/SPICE_circuit/Models/OUTPUT_Netlist.txt";
-    std::string PWL_sources_name = "../Release/SPICE_circuit/Models/PWL_sources.txt";
-    std::string Param_IC_name = "../Release/SPICE_circuit/Models/Param_IC.txt";
+
+    std::string data_dir = "data/";
+
+    std::string NETLIST_name = data_dir+"Circuit/MotorControl/Circuit_Netlist.cir";
+    std::string INPUT_name = data_dir+"Circuit/MotorControl/INPUT_Netlist.txt";
+    std::string OUTPUT_name = data_dir+"Circuit/MotorControl/OUTPUT_Netlist.txt";
+    std::string PWL_sources_name = data_dir+"Circuit/MotorControl/PWL_sources.txt";
+    std::string Param_IC_name = data_dir+"Circuit/MotorControl/Param_IC.txt";
+
+
     std::string Python_simulator_name = "MainPython_Spice_1";
 
     // ======== Initialize the NETLIST for the co-simulation ======== 
-    ChElectronicsCosimulation Circuit1(NETLIST_name, INPUT_name, OUTPUT_name, PWL_sources_name, Param_IC_name, Python_simulator_name);
+    ChElectronicsCosimulation Circuit1(NETLIST_name, INPUT_name, OUTPUT_name, 
+                                PWL_sources_name, Param_IC_name, 
+                                Python_simulator_name, "CircuitAnalysis");
 
-    Circuit1.NETLIST_Initializer();
-
+    Circuit1.Initialize();
 
     // ======== Electronics parameter ======== 
     double R_coil = 69.1f; //[Ohm] Resistance of the equivalent coil 
@@ -1169,25 +1175,31 @@ int main(int argc, char* argv[]) {
         if (t_sampling_electronic_counter >= T_ToSample_electronic)
         {
             // ======== RUN -> the SPICE circuit ========
-            std::string File_name = Python_simulator_name;
-            std::string Method_name = "CircuitAnalysis";
+            std::string file_name = Python_simulator_name;
+            std::string method_name = "CircuitAnalysis";
             double t_step = t_step_electronic; // Max allowed : t_step = 1e-8;     
             double t_end = T_sampling_electronic;
-            Circuit1.Run_Spice(File_name, Method_name, t_step, t_end);
+
+            std::cout << t_step << " " << t_end << std::endl;
+            Circuit1.RunSpice(file_name, method_name, t_step, t_end);
 
             // ======== COSIMULATE -> the SPICE circuit ========
-            Circuit1.NETLIST_Cosimulator(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
+            auto res = Circuit1.Cosimulate(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
+
+            assert(!res.empty());
 
             // ======== STORE -> the Electronic results ========
             OUTPUT_Sim[7].push_back(t_sim_electronics);
-            OUTPUT_Sim[8].push_back(Circuit1.OUTPUT_value[0]);
-            OUTPUT_Sim[9].push_back(Circuit1.OUTPUT_value[1]);
-            OUTPUT_Sim[10].push_back(Circuit1.OUTPUT_value[2]);
-            OUTPUT_Sim[11].push_back(Circuit1.OUTPUT_value[3]);
-            OUTPUT_Sim[12].push_back(Circuit1.OUTPUT_value[4]);
+            OUTPUT_Sim[8].push_back(res[0]);
+            OUTPUT_Sim[9].push_back(res[1]);
+            OUTPUT_Sim[10].push_back(res[2]);
+            OUTPUT_Sim[11].push_back(res[3]);
+            OUTPUT_Sim[12].push_back(res[4]);
 
             // ======== COMPUTE -> the Electronics ========
-            IVprobe1 = Circuit1.OUTPUT_value[0]; //[A] 
+            IVprobe1 = res[0]; //[A] 
+
+            std::cout << IVprobe1 << std::endl;
 
             // ======== UPDATE -> the time varaibles ========
             t_sampling_electronic_counter = 0;      // The variable is nulled to re-start with the counter for the next call of the electronic domain

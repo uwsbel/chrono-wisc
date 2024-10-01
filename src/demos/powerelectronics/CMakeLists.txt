@@ -167,7 +167,7 @@ endif()
 # files in your project. 
 #--------------------------------------------------------------
 
-add_executable(my_demo mainProj.cpp ${SOURCES})
+add_executable(my_demo demo_PowerElectronics_MotorControl.cpp ${SOURCES})
 
 #--------------------------------------------------------------
 # INIZIO NUOVO

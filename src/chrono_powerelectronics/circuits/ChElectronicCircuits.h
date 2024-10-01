@@ -40,10 +40,20 @@ public:
     };
 
     CircuitFiles files;
+    ChElectronicsCosimulation cosim;
 
     ChElectronicCircuits(CircuitFiles files) {
         this->files = files;
     }
+
+    void Initialize() {
+        
+    }
+
+    void Advance () {
+
+    }
+
 
 };
 

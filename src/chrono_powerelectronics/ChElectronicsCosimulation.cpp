@@ -17,20 +17,10 @@
 // =========================
 #include "ChElectronicsCosimulation.h"
 
-// =============================
-// ======== Constructor ========
-// =============================
-// ChElectronicsCosimulation::ChElectronicsCosimulation(std::string NETLIST_name_var, std::string INPUT_name_var, std::string OUTPUT_name_var, std::string PWL_sources_name_var, std::string Param_IC_name_var, std::string Python_simulator_name_var)
-//     : ChElectronicsManipulator(NETLIST_name_var, INPUT_name_var, OUTPUT_name_var, PWL_sources_name_var, Param_IC_name_var, Python_simulator_name_var) {}
-
-// ==========================================
-// ======== Methods: SPICE execution ========
-// ==========================================
-
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
 // CosimResults
-void ChElectronicsCosimulation::Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end)
+void ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end)
 {
     std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
     std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
@@ -117,11 +107,9 @@ void ChElectronicsCosimulation::PWL_sources_Initializer(std::vector<std::string>
         std::string pat = "VAR";                             // Pattern to find
         if (NetlistStrings::ContainsPattern(str, pat)) 
         {
-            std::string Path;
-            Path = "SPICE_circuit/PWL_sources/";
-            Path += string_line;
-            Path += ".txt";
-            NetlistStrings::Write_File(Path, NetlistStrings::Num_To_LongEng_String(0)); 
+            
+            std::string path = "data/Circuit/PWL_sources/" + string_line + ".txt";
+            NetlistStrings::Write_File(path, NetlistStrings::Num_To_LongEng_String(0)); 
         }
     }
     // -------- Set the voltage IC waveform through the PWL --------
@@ -395,6 +383,10 @@ void ChElectronicsCosimulation::WriteNetlist(std::string name, std::vector<std::
     }
 }
 
+void ChElectronicsCosimulation::Initialize() {
+    this->InitializeNetlist();
+}
+
 // ======== Method: allows to initialize the NETLIST file for co-simulation ========
 // Class variables used:
 // parser_input, parser_output
@@ -402,7 +394,7 @@ void ChElectronicsCosimulation::WriteNetlist(std::string name, std::vector<std::
 // PWL_sources_NETLIST_idx
 // CosimResults
 // Python_simulator_name
-void ChElectronicsCosimulation::NETLIST_Initializer()
+void ChElectronicsCosimulation::InitializeNetlist()
 {
 
     auto node_name = this->results.node_name;
@@ -423,12 +415,12 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
     WriteNetlist(parser_input.NETLIST_name, parser_output.NETLIST_contents);
 
     // -------- Run a preliminary simulation to initialize the parameters --------
-    std::string File_name = Python_simulator_name;
-    std::string Method_name = "CircuitAnalysis";
+    std::string file_name = this->python_sim_dir;
+    std::string method_name = this->method_name;
     double t_step = 1e-8; // Max allowed: t_step = 1e-8
     double t_end = 1e-6;
 
-    Run_Spice(File_name, Method_name, t_step, t_end);
+    RunSpice(file_name, method_name, t_step, t_end);
 
     // -------- Re-Read the NETLIST --------
     parser.RefreshNetlist(parser_input, parser_output);
@@ -476,6 +468,7 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
         std::string pat = "PWL";
         if (NetlistStrings::ContainsPattern(string_line, pat))
         {
+            
             for (const auto& pwl_source : parser_output.PWL_sources_contents)
             {
                 if (NetlistStrings::ContainsPattern(string_line, pwl_source))
@@ -506,10 +499,10 @@ void ChElectronicsCosimulation::NETLIST_Initializer()
 // std::vector<std::string> PWL_sources_NETLIST_reordered;   // Reordered PWL sources in the NETLIST
 
 // int sim_step;                         // Simulation step count
-// std::vector<double> OUTPUT_value;     // Output values after parsing and comparison
 
-void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
+std::vector<double> ChElectronicsCosimulation::Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
 {
+    std::vector<double> OUTPUT_value;
 
     auto node_val = this->results.node_val;
     auto node_name = this->results.node_name;
@@ -522,11 +515,10 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     if (NETLIST_contents.empty())  // Alert the user if no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
-        return;
+        return OUTPUT_value;
     }
 
     // -------- Set the SPICE simulation main variables --------
-    this->t_clock = t_clock; 
 
     // -------- Set the PWL sources --------
     std::vector<std::vector<double>> t_interp_PWL_Source;
@@ -535,6 +527,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     // Iterate over the PWLsources_reordered, it's important that we use the PWLsources_reordered so that the NETLIST will be updated correctly
     for (const auto& string_line : PWL_sources_NETLIST_reordered)
     {
+
         std::vector<double> t_interp; 
         std::vector<double> t_interp1;
 
@@ -553,10 +546,11 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
             {
                 if (NetlistStrings::ContainsPattern(string_line1, string_line))  // Variable PWL source found
                 {
+                    std::string path = "data/Circuit/PWL_sources/" + string_line + ".txt";                         
+
                     if (INPUT_values[jj].size() == 1) 
                     {
                         // Load previous time-step PWL sources value
-                        std::string path = "SPICE_circuit/PWL_sources/" + string_line + ".txt"; 
                         std::vector<std::string> V_source = NetlistStrings::Read_File(path);
 
                         // Create a vector that stores all the PWL information
@@ -567,8 +561,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
                         Source_Signal_PWL_Source.push_back(Source_Signal);
 
                         // Update the source value in the PWL_sources folder
-                        std::string Path = "SPICE_circuit/PWL_sources/" + string_line + ".txt";
-                        NetlistStrings::Write_File(Path, Source_Signal_1[1]);
+                        NetlistStrings::Write_File(path, Source_Signal_1[1]);
                     }
                     else 
                     {
@@ -576,8 +569,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
                         Source_Signal_PWL_Source.push_back(Source_Signal);
 
                         // Update the source value in the PWL_sources folder
-                        std::string Path = "SPICE_circuit/PWL_sources/" + string_line + ".txt";
-                        NetlistStrings::Write_File(Path, std::to_string(Source_Signal.back()));
+                        NetlistStrings::Write_File(path, std::to_string(Source_Signal.back()));
                     }
                 }
                 jj++;
@@ -592,6 +584,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         std::vector<std::string> PWL_command_line;
         for (int jj = 0; jj < Source_Signal_PWL_Source.size(); ++jj)
         {
+
             std::vector<double> t_interp_PWL_Source_vector = t_interp_PWL_Source[jj];
             std::vector<double> Source_Signal_PWL_Source_vector = Source_Signal_PWL_Source[jj];
             std::string PWL_command_line_string = "(";
@@ -610,10 +603,10 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         int jj = 0;
         for (auto& string_line : NETLIST_contents)
         {
+            
             if (NetlistStrings::ContainsPattern(string_line, "PWL("))
             {
-                std::string PWL_sources_new = NetlistStrings::Extract_Before_Pattern(string_line, "PWL(") + "PWL" + PWL_command_line[ii];
-                NETLIST_contents[jj] = PWL_sources_new;
+                std::string PWL_sources_new = NetlistStrings::Extract_Before_Pattern(string_line, "PWL(") + "PWL" + PWL_command_line[ii];                // NETLIST_contents[jj] = PWL_sources_new;
                 ii++; 
             }
             jj++;
@@ -644,7 +637,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     std::vector<std::string> res_name;
     res_name = node_name;
     res_name.insert(res_name.end(), this->results.branch_name.begin(), this->results.branch_name.end()); 
-    std::vector<std::vector<double>> res_val = NetlistStrings::Concatenate_2_Vectors(node_val, branch_val);
+
 
     // -------- Set the inductance current initial conditions IC: I(L) --------
     Inductances1.clear();
@@ -654,11 +647,11 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
     {
         ii = 0;
         double IL_value_IC;
-        for (const auto& string_line1 : this->results.branch_name) 
+        for (const auto& string_line1 : branch_name) 
         {
             if (NetlistStrings::ContainsPattern(string_line1, string_line))
             {
-                std::vector<double> IL_value_IC1 = this->results.branch_val[ii];
+                std::vector<double> IL_value_IC1 = branch_val[ii];
                 IL_value_IC = IL_value_IC1.back(); 
             }
             ii++;
@@ -745,8 +738,9 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         ii++;
     }
 
+    std::vector<std::vector<double>> res_val = NetlistStrings::Concatenate_2_Vectors(node_val, branch_val);
+
     // -------- OUTPUT_extraction --------
-    OUTPUT_value.clear();  
     for (const auto& string_line : NetlistStrings::To_Lower_Case(parser_output.OUTPUT_contents))  
     {
         ii = 0;
@@ -764,9 +758,7 @@ void ChElectronicsCosimulation::NETLIST_Cosimulator(std::vector<std::vector<doub
         }   
     }
 
-    // std::cout << OUTPUT_value.size() << "\n";                // DEBUG: Scope what desired for debug purposes 
-    // Scope_String_Vector(OUTPUT_contents);                    // DEBUG: Scope what desired for debug purposes 
+    IncrementStep();
 
-    // -------- Update the sim_step_last variable --------
-    sim_step++;
+    return OUTPUT_value;
 }  

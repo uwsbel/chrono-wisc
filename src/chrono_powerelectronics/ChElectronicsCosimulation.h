@@ -64,17 +64,47 @@ public:
     // =============================
     // ======== Constructor ========
     // =============================
-    ChElectronicsCosimulation(std::string NETLIST_name_var, std::string INPUT_name_var, std::string OUTPUT_name_var, std::string PWL_sources_name_var, std::string Param_IC_name_var, std::string Python_simulator_name_var) {
+    ChElectronicsCosimulation(std::string netlist, std::string input, std::string output, std::string PWL_sources_name_var, std::string Param_IC_name_var, std::string python_sim_dir, std::string method_name) {
         
+
         parser_input = CircuitParserIO::CircuitDirs {
-            NETLIST_name_var, INPUT_name_var, OUTPUT_name_var, PWL_sources_name_var,
+            netlist, input, output, PWL_sources_name_var,
             Param_IC_name_var
         };
 
-        Python_simulator_name = Python_simulator_name_var;                   
+        this->python_sim_dir = python_sim_dir;   
+        this->method_name = method_name;
     }
 
-    
+    void SetDataDir(std::string data_dir) {
+        this->data_dir = data_dir;
+    }
+
+    // ==========================================
+    // ======== Methods: SPICE execution ========
+    // ==========================================
+
+        // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
+    void RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end);
+
+        // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
+    std::vector<double> Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
+
+    void Initialize();
+
+
+    double GetCurrStep() {
+        return sim_step;
+    }
+
+private:
+
+    py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
+    py::tuple data;                         // Call the desired method from the Python module
+
+    int sim_step = 1;                               // Initialize the simulation step counter to 1
+    double t_clock = 0.0;                            // Global clock of the simulation
+
     typedef struct CosimResults {
         std::vector<double> sim_time;                                // Contains the SPICE simulation time returned by the Python module, it is update at every call of the class
         std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
@@ -83,48 +113,37 @@ public:
         std::vector<std::string> branch_name;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
     };
 
+    CircuitParserIO parser;
+    CircuitParserIO::CircuitDefs parser_output;
+    CircuitParserIO::CircuitDirs parser_input;
+
+    std::string python_sim_dir;                   // Name of the Python module that run and pass the results
+    std::string method_name;
+    std::string data_dir;
+    
     CosimResults results;
 
 
     std::vector<bool> PWL_sources_NETLIST_idx;      // Contains the lists of order indexes of PWL sources in accordance to the appearance in the NETLIST 
     std::vector<std::string> PWL_sources_NETLIST_reordered;   // Contains the lists of the PWL sources reordered in accordance to the appearance in the NETLIST
 
-
-    int sim_step = 1;                               // Initialize the simulation step counter to 1
-    double t_clock = 0.0;                            // Global clock of the simulation
-
-    CircuitParserIO parser;
-    CircuitParserIO::CircuitDefs parser_output;
-    CircuitParserIO::CircuitDirs parser_input;
-    std::string Python_simulator_name;                   // Name of the Python module that run and pass the results
-
-    py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
-    py::tuple data;                         // Call the desired method from the Python module
-
-    std::vector<double> OUTPUT_value;                // OUTPUT values to return to the caller
-
-    // ==========================================
-    // ======== Methods: SPICE execution ========
-    // ==========================================
-
-        // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
-    void Run_Spice(std::string File_name, std::string Method_name, double t_step, double t_end);
-
-        // ======== Method: allows to initialize the PWL sources present in the circuit ========
+    // ======== Method: allows to initialize the PWL sources present in the circuit ========
     void PWL_sources_Initializer(std::vector<std::string>& PWL_sources_contents, std::vector<std::string>& NETLIST_contents);   // To fix generator co-simulation dynamics problematics
 
-        // ======== Method: allows to initialize the inductances present in the circuit ========
+    // ======== Method: allows to initialize the inductances present in the circuit ========
     void Inductances_Initializer(std::vector<std::string>& NETLIST_contents); // To fix IC inductances current problematics during co-simulation
     
-        // ======== Method: allows to initialize the NETLIST file for co-simulation ========
-    void NETLIST_Initializer();
-
-        // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
-    void NETLIST_Cosimulator(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
-
     void UpdateInductanceVoltage();
 
     void WriteNetlist(std::string file, std::vector<std::string> contents);
+
+    // ======== Method: allows to initialize the NETLIST file for co-simulation ========
+    void InitializeNetlist();
+
+    void IncrementStep() {
+        sim_step++;
+    }
+
 };
 
 #endif // CHELECTRONICSEXECUTOR_H
