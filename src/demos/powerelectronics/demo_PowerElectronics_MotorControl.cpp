@@ -18,7 +18,7 @@
     // ======== Multi-purposes headers ========
 #if defined(_DEBUG)
 #undef _DEBUG
-#include <python.h>
+#include <Python.h>
 #define _DEBUG
 #else
 #include <Python.h>
@@ -60,16 +60,17 @@
 #include <chrono/physics/ChSystem.h>
 
     // ======== ChElectronics headers ========
-#include "chrono_powerelectronics/ChElectronics.h"
+// #include "chrono_powerelectronics/ChElectronics.h"
 // #include "chrono_powerelectronics/ChElectronicsManipulator.h"
-#include "chrono_powerelectronics/ChElectronicsSources.h"
+// #include "chrono_powerelectronics/ChElectronicsSources.h"
 #include "chrono_powerelectronics/ChElectronicsCosimulation.h"
+#include "chrono_powerelectronics/circuits/ChElectronicMotor.h"
 
 // ============================
 // ======== NAMESPACES ========
 // ============================
-using namespace chrono;
-using namespace chrono::irrlicht;
+using namespace ::chrono;
+using namespace ::chrono::irrlicht;
 namespace py = pybind11;
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -170,7 +171,7 @@ private:
 };
 
 // ======== Method: calculate the effective Euler angular position of a body from the angular velocity along x-y-z- axis ========
-std::vector<double> GetEulerAngPos(std::shared_ptr<chrono::ChBody> body, double& t_step_mechanic)
+std::vector<double> GetEulerAngPos(std::shared_ptr<::chrono::ChBody> body, double& t_step_mechanic)
 {
     // Get the effective angular velocity along x-y-z axis
     ChVector3d body_Euler_Vel = body->GetAngVelLocal(); // Get the angular velocity 
@@ -948,25 +949,6 @@ int main(int argc, char* argv[]) {
         FrameGlobal_Piston_Link_Frame);        // Location and orientation of the frame   
     sys.AddLink(FrameGlobal_Piston_Link_Prismatic);
 
-    // ====================================================
-    // ======== DYNAMIC FORCES AND TORQUES CRATION ========
-    // ====================================================
-
-    // =======================================================================
-    // ======== F / T DEFINITION -> UNIVERSAL FORCE: Kernel3 - Ground ========
-    // =======================================================================
-    /*
-    // ======== FORCE TEMEPLATE ========
-    ChVector3d Force_direction_Stator_Ground(0, 0, 1); // IMPORTANT!! the direction vertex need to be normalized
-    double Force_magnitude_Stator_Ground = -0.0 * 1e3; //[N] converted to ([kg]-[mm]-[s])
-    ChVector3d Stator_Ground_Force = Force_magnitude_Stator_Ground * Force_direction_Stator_Ground;
-    */
-
-    // ======== TORQUE TEMEPLATE ========
-    ChVector3d Torque_direction_Rotor_Stator(0, 0, 1); // IMPORTANT!! the direction vertex need to be normalized  
-    double Torque_magnitude_Rotor_Stator = -0.0 * 1e3 * 1e3; //[Nm] converted to ([kg]-[mm]-[s]) 
-    ChVector3d Rotor_Stator_Torque = Torque_magnitude_Rotor_Stator * Torque_direction_Rotor_Stator;
-
     // =============================================================================
     // ======== F / T DEFINITION -> TORSIONAL SPRING/DAMPER: Rotor - Stator ========
     // =============================================================================
@@ -1006,43 +988,6 @@ int main(int argc, char* argv[]) {
     Piston_Frame_Spring->SetSpringCoefficient(0.0);
     Piston_Frame_Spring->SetDampingCoefficient(0.0005);
     sys.AddLink(Piston_Frame_Spring);
-
-    // =%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=
-    // =%=%=%=% ELECTRONIC DOMAIN =%=%=%=%
-    // =%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=
-
-    // ========================================================
-    // ======== SPICE SOLVER & CIRCUIT INITIALIZATIONS ========
-    // ========================================================
-    // ======== Set the main directories ========  
-
-    std::string data_dir = "data/";
-
-    std::string NETLIST_name = data_dir+"Circuit/MotorControl/Circuit_Netlist.cir";
-    std::string INPUT_name = data_dir+"Circuit/MotorControl/INPUT_Netlist.txt";
-    std::string OUTPUT_name = data_dir+"Circuit/MotorControl/OUTPUT_Netlist.txt";
-    std::string PWL_sources_name = data_dir+"Circuit/MotorControl/PWL_sources.txt";
-    std::string Param_IC_name = data_dir+"Circuit/MotorControl/Param_IC.txt";
-
-
-    std::string Python_simulator_name = "MainPython_Spice_1";
-
-    // ======== Initialize the NETLIST for the co-simulation ======== 
-    ChElectronicsCosimulation Circuit1(NETLIST_name, INPUT_name, OUTPUT_name, 
-                                PWL_sources_name, Param_IC_name, 
-                                Python_simulator_name, "CircuitAnalysis");
-
-
-    Circuit1.Initialize();
-
-    std::cout << "Initialized Circuit" << std::endl;
-
-    // ======== Electronics parameter ======== 
-    double R_coil = 69.1f; //[Ohm] Resistance of the equivalent coil 
-    //double L_coil = 33.4e-8f; //[H]
-    double L_coil = 0.002f;//0.002f;//33.4e-5f; //[H]
-    double ke_motor = -0.953e-1;//-0.9e-4; //[Nm/A]
-
 
     // =%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%
     // =%=%=%=% MULTI-PHYSICS SIMULATION =%=%=%=%
@@ -1086,31 +1031,12 @@ int main(int argc, char* argv[]) {
     double T_sampling_electronic = t_step_mechanic;                         // Time window of the electronic (SPICE) simulation
     double t_step_electronic = 1.0e-6; // [s]                                  Discretization of the electronic time window
 
-    // ======================================================
-    // ======== SET THE MULTI-PHYSICS OUTPUT RESULTS ========
-    // ======================================================
-    std::vector<std::string> OUTPUT_Var = { "t_sim_mechanics",
-                                            "Rotor_yaw",
-                                            "Rotor_pitch",
-                                            "Rotor_roll",
-                                            "dt_Rotor_yaw",
-                                            "dt_Rotor_pitch",
-                                            "dt_Rotor_roll",
-                                            "t_sim_electronics",
-                                            "IVprobe1",
-                                            "Vn2",
-                                            "Vn7",
-                                            "Vn8",
-                                            "Vn1"
-    };
+    // ==================================================
+    // ======== INITIALIZE THE MOTOR ========
+    // ==================================================
 
-    std::vector<std::vector<double>> OUTPUT_Sim;
-    for (const auto& string_line : OUTPUT_Var) // Initialize the OUTPUT vector
-    {
-        std::vector<double> vector_first;
-        vector_first.push_back(0.0f);
-        OUTPUT_Sim.push_back(vector_first);
-    }
+    ChElectronicMotor motor(Rotor_body, t_step_electronic, T_sampling_electronic);
+    motor.Initialize();
 
     // ==================================================
     // ======== MULTI-PHYSICS CO-SYMULATION LOOP ========
@@ -1123,14 +1049,6 @@ int main(int argc, char* argv[]) {
     double t_sampling_electronic_counter = 0; //[s] This variable is needed to count the event at which the Electronic domain need to be called respect to the Global Time-line
     int brake_flag = 1; // Set a brake flag in the case you want to stop the simulation before: t_simulation_STOP 
 
-    // ======== INITIALIZE -> the single SPICE INPUT variables ========
-    std::vector<double> VgenVAR = { 15.0 };
-    std::vector<double> VbackemfCVAR = { 0.0 };
-    std::vector<double> LaC = { L_coil };
-    std::vector<double> RaC = { R_coil };
-    std::vector<double> VSW1VAR = { 1.0 };
-    std::vector<double> VgenPWMVAR = { 0.0 };
-    
     // ======== INITIALIZE -> some needed variables ========
     double IVprobe1 = 0.0; //[A] Current circulating in the Motor
     double T_PWM = 4000.0e-6; //[s] PWM Period
@@ -1147,26 +1065,17 @@ int main(int argc, char* argv[]) {
         vis->Render();
         vis->EndScene();
 
-        // ======== COLLECT -> the INPUT variables to pass to SPICE as flows variables ========
-        std::vector<std::vector<double>> INPUT_values; //Collect the variables according to the "SPICE_circuit\Models\INPUT_Netlist.txt" 
-        INPUT_values.push_back(VgenVAR);
-        INPUT_values.push_back(VbackemfCVAR);
-        INPUT_values.push_back(LaC);
-        INPUT_values.push_back(RaC);
-        INPUT_values.push_back(VSW1VAR);
-        INPUT_values.push_back(VgenPWMVAR);
-
         // ======== SOLVE & UPDATE -> the Electronic domain ========
         if (t_sim_mechanics > 1.0e-4)
         {
             if (t_PWM_counter < T_PWM * Duty_PWM)
             {
-                VgenPWMVAR = { 5.2 }; //[V]
+                motor.SetPWM(5.2); //[V]
                 t_PWM_counter += t_step_mechanic;
             }
             else
             {
-                VgenPWMVAR = { 0.0 }; //[V]
+                motor.SetPWM(0.0); //[V]
                 t_PWM_counter += t_step_mechanic;
             }
             if (t_PWM_counter >= T_PWM)
@@ -1175,39 +1084,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
-
         if (t_sampling_electronic_counter >= T_ToSample_electronic)
         {
-            // ======== RUN -> the SPICE circuit ========
-            std::string file_name = Python_simulator_name;
-            std::string method_name = "CircuitAnalysis";
-            double t_step = t_step_electronic; // Max allowed : t_step = 1e-8;     
-            double t_end = T_sampling_electronic;
-
-
-
-            Circuit1.RunSpice(file_name, method_name, t_step, t_end);
-
-
             // ======== COSIMULATE -> the SPICE circuit ========
-            auto res = Circuit1.Cosimulate(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
-
+            motor.Advance(t_step_mechanic);
+            auto res = motor.GetResult();
             assert(!res.empty());
-
-            // ======== STORE -> the Electronic results ========
-            OUTPUT_Sim[7].push_back(t_sim_electronics);
-            OUTPUT_Sim[8].push_back(res["vprobe1"][res["vprobe1"].size()-1]);
-            // OUTPUT_Sim[9].push_back(res["n2"][0]);
-            // OUTPUT_Sim[10].push_back(res["n7"][0]);
-            // OUTPUT_Sim[11].push_back(res["n8"][0]);
-            // OUTPUT_Sim[12].push_back(res["n1"][0]);
-
-            // ======== COMPUTE -> the Electronics ========
-            IVprobe1 = res["vprobe1"][res["vprobe1"].size()-1]; //[A] 
-
-            std::cout << IVprobe1 << std::endl;
-
-            // ======== UPDATE -> the time varaibles ========
             t_sampling_electronic_counter = 0;      // The variable is nulled to re-start with the counter for the next call of the electronic domain
         }
 
@@ -1217,64 +1099,11 @@ int main(int argc, char* argv[]) {
         sys.DoStepDynamics(t_step_mechanic);
         realtime_timer.Spin(t_step_mechanic);
 
-        // ======== COMPUTE -> the Mechanics ========
-        std::vector<double> Rotor_Euler_Ang = GetEulerAngPos(Rotor_body, t_step_mechanic);
-        ChVector3d Rotor_Euler_Vel = Rotor_body->GetAngVelLocal(); // Get the effective euler angular velocity   
-
-        // ======== COMPUTE -> the Multiphysics ========
-        VbackemfCVAR = { ke_motor * Rotor_Euler_Vel[2] };
-
-        /*
-        // ======== FORCE TEMEPLATE ========
-        // ======== UPDATE ->  Forces and Torques: Rotor ========
-        Force_magnitude_Stator_Ground = 0.249955562 * 1e3; // Conversion to ([kg]-[mm]-[s])
-        Stator_Ground_Force = Force_magnitude_Stator_Ground * Force_direction_Stator_Ground;
-        ChVector3d Stator_Ground_Force_Position(Stator_body->GetPos());
-        Stator_body->EmptyAccumulators(); // Clean the body from the previous force/torque
-        Stator_body->AccumulateForce(Stator_Ground_Force, Stator_Ground_Force_Position, false); // Apply to the body the force
-        */
-
-        // ======== TORQUE TEMEPLATE ========
-        // ======== UPDATE ->  Forces and Torques: Rotor ========
-        Torque_magnitude_Rotor_Stator = kt_motor * IVprobe1 * 1e3 * 1e3; // Conversion to ([kg]-[mm]-[s])   
-        Rotor_Stator_Torque = Torque_magnitude_Rotor_Stator * Torque_direction_Rotor_Stator;
-        Rotor_body->EmptyAccumulators(); // Clean the body from the previous force/torque 
-        Rotor_body->AccumulateTorque(Rotor_Stator_Torque, false); // Apply to the body the force
-
-        // ======== STORE -> the Multi-physics Results ======== 
-        OUTPUT_Sim[0].push_back(t_sim_mechanics);
-        OUTPUT_Sim[1].push_back(Rotor_Euler_Ang[0]); //[rad]
-        OUTPUT_Sim[2].push_back(Rotor_Euler_Ang[1]); //[rad]
-        OUTPUT_Sim[3].push_back(Rotor_Euler_Ang[2]); //[rad]
-        OUTPUT_Sim[4].push_back(Rotor_Euler_Vel[0]); //[rad/s]   
-        OUTPUT_Sim[5].push_back(Rotor_Euler_Vel[1]); //[rad/s] 
-        OUTPUT_Sim[6].push_back(Rotor_Euler_Vel[2]); //[rad/s]
-
         // ======== UPDATE -> the Multi-physics timeline ======== 
         t_sampling_electronic_counter += t_step_mechanic;
         t_sim_electronics += t_step_mechanic;
         t_sim_mechanics += t_step_mechanic;
     }
-
-    // ======================================================================
-    // ======== EXPORT THE CO-SIMULATION RESULTS FOR POST PROCESSING ========
-    // ======================================================================
-    // ======== CLEAN -> the results variables from the initialization ========
-    for (size_t i = 0; i < OUTPUT_Var.size(); ++i)
-    {
-        OUTPUT_Sim[i].erase(OUTPUT_Sim[i].begin()); // Erase the first element of each single OUTPUT vector, because the first element was initialized equal to 0.0
-    }
-    // ======== COLLECT -> the results variables ========
-    json MultiPhysics_CoSim_Results_data; // json variable that will contains all the results of the co-simulation 
-    int ii = 0;
-    for (const auto& str : OUTPUT_Var)
-    {
-        MultiPhysics_CoSim_Results_data[str] = OUTPUT_Sim[ii];
-        ii += 1;
-    }
-    // ======== EXPORT -> the results variables ========
-    std::string filename = "MultiPhysics_CoSim_Results";
-    writeJsonFile(filename, MultiPhysics_CoSim_Results_data);
 
     // ============================================================
     // ======== CLOSE THE MULTI-PHYSICS CO-SIMULATION LOOP ========

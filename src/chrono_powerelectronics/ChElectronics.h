@@ -18,13 +18,8 @@
 // =========================
 // ======== Headers ========
 // =========================
-#if defined(_DEBUG)
-#undef _DEBUG
-#include <python.h>
-#define _DEBUG
-#else
+
 #include <Python.h>
-#endif
 #include <pybind11/pybind11.h>
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>
