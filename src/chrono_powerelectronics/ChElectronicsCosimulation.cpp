@@ -34,6 +34,8 @@ void ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Meth
     mymodule = py::module::import(File_name.c_str());            // c_str() allows to convert a string to a char string, the File_name does not need the extension .py 
 
     // Call the desired method from the Python module
+    std::cout << t_step << " " << t_end << std::endl;
+    
     data = mymodule.attr("CircuitAnalysis")(t_step, t_end);
 
     // -------- Access the sim_time: (NumPy array (double array) from the tuple) --------
@@ -376,11 +378,11 @@ void ChElectronicsCosimulation::UpdateInductanceVoltage() {
 }
 
 void ChElectronicsCosimulation::WriteNetlist(std::string name, std::vector<std::string> contents) {
-    NetlistStrings::Write_File(name, "");
-    for (const auto& string_line : contents)
-    {
-        NetlistStrings::Append_File(name, string_line + "\n");
-    }
+    // NetlistStrings::Write_File(name, "");
+    // for (const auto& string_line : contents)
+    // {
+    //     NetlistStrings::Append_File(name, string_line + "\n");
+    // }
 }
 
 void ChElectronicsCosimulation::Initialize() {
@@ -500,9 +502,9 @@ void ChElectronicsCosimulation::InitializeNetlist()
 
 // int sim_step;                         // Simulation step count
 
-std::vector<double> ChElectronicsCosimulation::Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
+std::map<std::string,std::vector<double>> ChElectronicsCosimulation::Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
 {
-    std::vector<double> OUTPUT_value;
+    std::map<std::string,std::vector<double>> OUTPUT_value;
 
     auto node_val = this->results.node_val;
     auto node_name = this->results.node_name;
@@ -726,39 +728,31 @@ std::vector<double> ChElectronicsCosimulation::Cosimulate(std::vector<std::vecto
     }
     
     // -------- Update the NETLIST --------
-    NetlistStrings::Write_File(parser_input.NETLIST_name, ""); 
-    ii = 1;
-    for (const auto& string_line : parser_output.NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions 
-    {
-        NetlistStrings::Append_File(parser_input.NETLIST_name, string_line); 
-        if (ii < NETLIST_contents.size())
-        {
-            NetlistStrings::Append_File(parser_input.NETLIST_name, "\n");
-        }
-        ii++;
+    // NetlistStrings::Write_File(parser_input.NETLIST_name, ""); 
+    // ii = 1;
+    // for (const auto& string_line : parser_output.NETLIST_contents)    // The NETLIST_contents variable was previously updated by the above two functions 
+    // {
+    //     NetlistStrings::Append_File(parser_input.NETLIST_name, string_line); 
+    //     if (ii < NETLIST_contents.size())
+    //     {
+    //         NetlistStrings::Append_File(parser_input.NETLIST_name, "\n");
+    //     }
+    //     ii++;
+    // }
+
+    /* Construct OUTPUT */
+
+    std::map<std::string, std::vector<double>> circuit_map;
+    for (size_t i = 0; i < branch_name.size(); ++i) {
+        circuit_map[branch_name[i]] = branch_val[i];
     }
-
-    std::vector<std::vector<double>> res_val = NetlistStrings::Concatenate_2_Vectors(node_val, branch_val);
-
-    // -------- OUTPUT_extraction --------
-    for (const auto& string_line : NetlistStrings::To_Lower_Case(parser_output.OUTPUT_contents))  
-    {
-        ii = 0;
-        for (const auto& string_line1 : res_name)  
-        { 
-            std::string str = string_line;                               // String to analyze    
-            std::string pat = string_line1;                              // Pattern to find   
-            if (NetlistStrings::StrCompare(str, pat))
-            { 
-                OUTPUT_value.push_back(res_val[ii].back()); 
-                //std::cout << "str:" << str << "\n\n";                // DEBUG: Scope what desired for debug purposes 
-                //std::cout << "pat:" << pat << "\n\n";                // DEBUG: Scope what desired for debug purposes 
-            }
-            ii++; 
-        }   
+    for (size_t i = 0; i < node_name.size(); ++i) {
+        circuit_map[node_name[i]] = node_val[i];
     }
 
     IncrementStep();
 
-    return OUTPUT_value;
+    return circuit_map;
+
+
 }  

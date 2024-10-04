@@ -51,8 +51,8 @@ set(CH_POWERELECTRONICS_BASE_FILES
   ChElectronics.h
   ChElectronics.cpp
 
-  circuits/ChElectronicCircuits.cpp
-  circuits/ChElectronicCircuits.h
+  # circuits/ChElectronicCircuits.cpp
+  # circuits/ChElectronicCircuits.h
 
   ChElectronicsCosimulation.h
 	ChElectronicsCosimulation.cpp

@@ -1032,7 +1032,10 @@ int main(int argc, char* argv[]) {
                                 PWL_sources_name, Param_IC_name, 
                                 Python_simulator_name, "CircuitAnalysis");
 
+
     Circuit1.Initialize();
+
+    std::cout << "Initialized Circuit" << std::endl;
 
     // ======== Electronics parameter ======== 
     double R_coil = 69.1f; //[Ohm] Resistance of the equivalent coil 
@@ -1172,6 +1175,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+
         if (t_sampling_electronic_counter >= T_ToSample_electronic)
         {
             // ======== RUN -> the SPICE circuit ========
@@ -1180,8 +1184,10 @@ int main(int argc, char* argv[]) {
             double t_step = t_step_electronic; // Max allowed : t_step = 1e-8;     
             double t_end = T_sampling_electronic;
 
-            std::cout << t_step << " " << t_end << std::endl;
+
+
             Circuit1.RunSpice(file_name, method_name, t_step, t_end);
+
 
             // ======== COSIMULATE -> the SPICE circuit ========
             auto res = Circuit1.Cosimulate(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
@@ -1190,20 +1196,21 @@ int main(int argc, char* argv[]) {
 
             // ======== STORE -> the Electronic results ========
             OUTPUT_Sim[7].push_back(t_sim_electronics);
-            OUTPUT_Sim[8].push_back(res[0]);
-            OUTPUT_Sim[9].push_back(res[1]);
-            OUTPUT_Sim[10].push_back(res[2]);
-            OUTPUT_Sim[11].push_back(res[3]);
-            OUTPUT_Sim[12].push_back(res[4]);
+            OUTPUT_Sim[8].push_back(res["vprobe1"][res["vprobe1"].size()-1]);
+            // OUTPUT_Sim[9].push_back(res["n2"][0]);
+            // OUTPUT_Sim[10].push_back(res["n7"][0]);
+            // OUTPUT_Sim[11].push_back(res["n8"][0]);
+            // OUTPUT_Sim[12].push_back(res["n1"][0]);
 
             // ======== COMPUTE -> the Electronics ========
-            IVprobe1 = res[0]; //[A] 
+            IVprobe1 = res["vprobe1"][res["vprobe1"].size()-1]; //[A] 
 
             std::cout << IVprobe1 << std::endl;
 
             // ======== UPDATE -> the time varaibles ========
             t_sampling_electronic_counter = 0;      // The variable is nulled to re-start with the counter for the next call of the electronic domain
         }
+
         _sleep(300.0e-3); // Wait until Python circuit solution is completed
 
         // ======== RUN -> the Mechanic solver ========

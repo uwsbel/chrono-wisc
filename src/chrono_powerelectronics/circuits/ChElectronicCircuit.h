@@ -26,33 +26,55 @@
 // =======================
 
 using namespace std;
+using namespace CircuitParserIO;
 
-class ChElectronicCircuits {  
+class ChElectronicCircuit {  
 public:
 
-    typedef struct CircuitFiles {
-        string netlist;
-        string input;
-        string output;
-        string pwl_sources;
-        string param_ic;
-        string python_simulator;
-    };
+    // typedef struct CircuitFiles {
+    //     string netlist;
+    //     string input;
+    //     string output;
+    //     string pwl_sources;
+    //     string param_ic;
+    //     string python_simulator;
+    // };
 
     CircuitFiles files;
     ChElectronicsCosimulation cosim;
+    string python_simulator = "MainPython_Spice_1";
 
-    ChElectronicCircuits(CircuitFiles files) {
+    double t_step;
+    double t_end;
+
+    std::vector<double> result;
+
+    double t_sampling_electronic_counter = 0;
+    double t_sim_electronics = 0;
+    double t_sim_mechanics = 0;
+
+    ChElectronicCircuits(CircuitDirs files, double t_step, double t_end) {
         this->files = files;
+        this->t_step = t_step;
+        this->t_end = t_end;
     }
 
     void Initialize() {
-        
+        cosim.Initialize(files, "CircuitAnalysis");
     }
 
-    void Advance () {
 
+    virtual void PreInitialize() {};
+    virtual void PostInitialize() {};
+
+    virtual void PreAdvance () {};
+
+    void Advance() {
+        cosim.RunSpice(python_simulator, "CircuitAnalysis", t_step, t_end);
+        this->result = Circuit1.Cosimulate(INPUT_values, t_sim_electronics, t_step_electronic, T_sampling_electronic);
     }
+
+    virtual void PostAdvance () {};
 
 
 };

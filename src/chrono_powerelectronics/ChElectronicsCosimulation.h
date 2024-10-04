@@ -20,44 +20,11 @@
 // =========================
 #include "utils/NetlistStrings.h"
 #include "ChElectronicsNetlist.h"
+#include "utils/CircuitParser.h"
+
 // =======================
 // ======== Class ========
 // =======================
-
-class CircuitParserIO {
-public:
-
-    typedef struct CircuitDirs {
-        std::string NETLIST_name;                            // Path where to find the Circuit_Netlist.cir file starting from the working-directory folder       
-        std::string INPUT_name;                            // Path where to find the INPUT_Netlist.txt file starting from the working-directory folder
-        std::string OUTPUT_name;                             // Path where to find the OUTPUT_Netlist.txt file starting from the working-directory folder
-        std::string PWL_sources_name;                        // Path where to find the PWL_sources.txt file starting from the working-directory folder
-        std::string Param_IC_name;                           // Path where to find the Param_IC.txt file starting from the working-directory folder
-    };
-    typedef struct CircuitDefs {
-        std::vector<std::string> NETLIST_contents;
-        std::vector<std::string> INPUT_contents;                  // Contains the lists of the INPUT parameters 
-        std::vector<std::string> OUTPUT_contents;                 // Contains the lists of the OUTPUT parameters
-        std::vector<std::string> PWL_sources_contents;            // Contains the lists of the PWL sources
-        std::vector<std::string> Param_IC_contents;               // Contains the lists of the IC values for the INPUT parameters
-    };
-
-
-    CircuitDefs ParseCircuit(CircuitDirs files) {
-        CircuitDefs parser_output;
-        parser_output.NETLIST_contents = NetlistStrings::Read_File(files.NETLIST_name); 
-        parser_output.INPUT_contents = NetlistStrings::Read_File(files.INPUT_name); 
-        parser_output.OUTPUT_contents = NetlistStrings::Read_File(files.OUTPUT_name); 
-        parser_output.PWL_sources_contents = NetlistStrings::Read_File(files.PWL_sources_name);  
-        parser_output.Param_IC_contents = NetlistStrings::Read_File(files.Param_IC_name); 
-
-        return parser_output;
-    }
-
-    void RefreshNetlist(CircuitDirs input, CircuitDefs& defs) {
-        defs.NETLIST_contents = NetlistStrings::Read_File(input.NETLIST_name); 
-    }
-};
 
 class ChElectronicsCosimulation {  
 public:
@@ -65,15 +32,25 @@ public:
     // ======== Constructor ========
     // =============================
     ChElectronicsCosimulation(std::string netlist, std::string input, std::string output, std::string PWL_sources_name_var, std::string Param_IC_name_var, std::string python_sim_dir, std::string method_name) {
-        
+        this->Initialize(CircuitParserIO::CircuitDirs{netlist, input, output, PWL_sources_name_var,
+            Param_IC_name_var}, python_sim_dir, method_name);
+    }
 
+    ChElectronicsCosimulation() {
+
+    }
+
+    void Initialize(CircuitParserIO::CircuitDirs dirs, std::string python_sim_name, std::string method_name) 
+    {
         parser_input = CircuitParserIO::CircuitDirs {
-            netlist, input, output, PWL_sources_name_var,
-            Param_IC_name_var
+            dirs.NETLIST_name, dirs.INPUT_name, dirs.OUTPUT_name, dirs.PWL_sources_name,
+            dirs.Param_IC_name
         };
 
-        this->python_sim_dir = python_sim_dir;   
+        this->python_sim_dir = python_sim_name;   
         this->method_name = method_name;
+
+        this->Initialize();
     }
 
     void SetDataDir(std::string data_dir) {
@@ -87,11 +64,10 @@ public:
         // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
     void RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end);
 
-        // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
-    std::vector<double> Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
+    // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
+    std::map<std::string,std::vector<double>> Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
 
     void Initialize();
-
 
     double GetCurrStep() {
         return sim_step;
