@@ -53,7 +53,7 @@ public:
 
     CircStateMap RunSpice(std::string file_name, double t_step, double t_end);
 
-    void Cosimulate(CosimResults results, double t_step, double t_end);
+    void Cosimulate(CosimResults results, FlowInMap flow_in, double t_step, double t_end);
     
     CosimResults GetResult_V();
 

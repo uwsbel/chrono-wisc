@@ -31,19 +31,13 @@ using namespace std;
 class ChElectronicCircuit {  
 public:
 
-    // typedef struct CircuitDirs {
-    //     string netlist;
-    //     string input;
-    //     string output;
-    //     string pwl_sources;
-    //     string param_ic;
-    // };
 
     ChElectronicCircuit(std::string netlist, double t_step, double t_end) {
         this->netlist = netlist;
         this->t_step = t_step;
         this->t_end = t_end;
     }
+
 
     virtual void PreInitialize() {};
     virtual void PostInitialize() {};
@@ -63,7 +57,7 @@ public:
         this->PreAdvance();
         t_sim_electronics += dt_mbs;
         this->result = cosim.RunSpice(python_simulator, t_step, t_end);
-        cosim.Cosimulate(cosim.GetResult_V(), t_step, t_end);
+        cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, t_step, t_end);
         this->PostAdvance();
     }
 
@@ -85,7 +79,7 @@ private:
     std::map<std::string,std::vector<double>> result;
 
 protected:
-    std::vector<std::vector<double>> flow_in;
+    FlowInMap flow_in;
 
 };
 

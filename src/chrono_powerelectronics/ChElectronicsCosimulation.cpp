@@ -107,9 +107,9 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(st
 }
 
 // void Cosimulate(CosimResults results, double t_step, double t_end)
-void ChElectronicsCosimulation::Cosimulate(CosimResults results, double t_step, double t_end) 
+void ChElectronicsCosimulation::Cosimulate(CosimResults results, FlowInMap flow_in, double t_step, double t_end) 
 {
-    this->netlist.UpdateNetlist(results,1e-6,2e-4);
+    this->netlist.UpdateNetlist(results,flow_in,t_step,t_end);
     // netlist.WriteNetlist();
 }  
 

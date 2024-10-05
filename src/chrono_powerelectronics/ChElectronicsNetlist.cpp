@@ -26,23 +26,21 @@ void ChElectronicsNetlist::InitNetlist(std::string file, double t_step, double t
     auto init_flowin = this->GetInitFlowInICs();
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, init_flowin);
 
-    /* Initialize ic{} flags for each flow in variable
-     * TODO: Rethink this? Is this necessary
-    */
-
-//     /* Initialize .ic voltages for each node in the circuit
-//     */
-//    auto init_node_voltages = this->GetInitNodeVoltages();
-//    this->netlist_file = this->UpdateVoltageICs(this->netlist_file, init_node_voltages);
-
-//     std::cout << this->AsString() << std::endl;
- 
 }
 
-void ChElectronicsNetlist::UpdateNetlist(CosimResults results, double t_step, double t_end) {
-    // this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
-    // this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_states);
-    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
+void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_map, double t_step, double t_end) {
+    auto pwl_sources = GetPWLConds(results);
+    this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
+
+    this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
+    
+ 
+    auto node_v_states = GetVoltageConds(results);
+    this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
+
+       
+    // std::cout << this->AsString() << std::endl;
+
 }
 
 Netlist_V ChElectronicsNetlist::ReadNetlistFile(std::string file) {
@@ -131,7 +129,7 @@ Netlist_V ChElectronicsNetlist::UpdateFlowInParams(Netlist_V netlist, FlowInMap 
         // Extract the flow in variable name
         std::string flowInVarName = flowIn.first;  // key of the map
         std::string paramString = ".param par" + flowInVarName + " = " + std::to_string(flowIn.second); // creating param string
-
+        
         bool paramExists = false;
 
         // Check if the parameter already exists in the netlist and update it if found

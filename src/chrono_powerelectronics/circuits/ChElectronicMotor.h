@@ -69,13 +69,12 @@ public:
     }
 
     void PreAdvance() override {
-        this->flow_in.clear();
-        this->flow_in.push_back(VgenVAR);
-        this->flow_in.push_back(VbackemfCVAR);
-        this->flow_in.push_back(LaC);
-        this->flow_in.push_back(RaC);
-        this->flow_in.push_back(VSW1VAR);
-        this->flow_in.push_back(VgenPWMVAR);
+        this->flow_in["VgenVAR"] = VgenVAR[0];
+        this->flow_in["VbackemfCVAR"] = VbackemfCVAR[0];
+        this->flow_in["LaC"] = LaC[0];
+        this->flow_in["RaC"] = RaC[0];
+        this->flow_in["VSW1VAR"] = VSW1VAR[0];
+        this->flow_in["VgenPWMVAR"] = VgenPWMVAR[0];
     }
 
     void PostAdvance() override {
