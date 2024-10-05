@@ -20,17 +20,89 @@
 // =========================
 #include "utils/NetlistStrings.h"
 
-// class ChElectronicsNetlist {
+typedef std::vector<std::string> Netlist_V;
+typedef std::map<std::string,std::pair<double,double>> PWLSourceMap;
+typedef std::map<std::string,double> FlowInMap;
+typedef std::map<std::string,double> VoltageMap;
 
-//     std::vector<std::string> NETLIST_contents;
-//     CircuitParserIO::CircuitDefs parser_output;
-//     CircuitParserIO::CircuitDirs parser_input;
-//     CircuitParserIO parser;
+class ChElectronicsNetlist {
+public:
 
-//     Inductances_Initializer(CircuitDirs parser_input, CircuitDefs parser_output);
+    Netlist_V netlist_file;
+    
+    /* Initialization */    
+    void InitNetlist(std::string file, double t_step, double t_end);
 
-//     NETLIST_Initializer();
+    Netlist_V ReadNetlistFile(std::string file);
 
-// };
+    // TODO: Get initial PWL source states (assumed constant from t_0->t_f)
+    PWLSourceMap GetInitPWLSources() {
+        return {
+           {"VgenVAR", { 0., 0., }},
+           {"VbackemfCVAR", {0., 0.,}},
+           {"VSW1VAR", {0., 0., }},
+           {"VgenPWMVAR", { 0., 0., }}
+        };
+    }
+
+    /* Get initial conditions of flow-in variables at first time step
+    */
+    FlowInMap GetInitFlowInICs() {
+        return {
+           {"VgenVAR", 0. },
+           {"VbackemfCVAR", 0. },
+           {"LaC", 45.0e-6},
+           {"RaC", 25.1},
+           {"VSW1VAR", 0. },
+           {"VgenPWMVAR",  0.}
+        };
+    }
+
+    /* Get initial voltage conditions for each node
+    */
+    VoltageMap GetInitNodeVoltages() {
+        return {
+            
+        }
+    }
+
+    Netlist_V InitFlowInICs();           // ic{}
+
+    /* Cosimulation / Pre-warming */
+    void UpdateNetlist(double t_step, double t_end);
+
+    /* For every key in FlowInMap, initialize or update a .param par{...} string in the netlist */
+    Netlist_V UpdateFlowInParams(Netlist_V netlist, FlowInMap map);           
+
+    /* For every key in PWLSourceMap, initialize a PWL(...) string in the netlist */
+    Netlist_V UpdatePWLSources(Netlist_V netlist, PWLSourceMap map, double t_step, double t_end);  // PWL(...)
+
+    Netlist_V UpdateVoltageICs(); // .ic V(...)
+
+    std::string AsString();
+
+    /*###############################
+     * Initial Conditions
+     ###############################*/
+
+    /*###############################
+     * PWL 
+     ###############################*/
+    std::vector<std::string> GetPWLSources();
+    /*
+    *   Create a string of form 
+    *   PWL(t_0 V_0 t_1 V_1, ..., t_f V_f) 
+    *   V_i is a linearly interpolated value between V_0,V_f 
+    */
+    std::string GeneratePWLSequence(
+        std::pair<double,double> V,  // Order: [V_0, V_f]
+        double t_start, double t_end);
+
+
+    // void SubstitutePWL();
+
+    
+
+};
 
 #endif

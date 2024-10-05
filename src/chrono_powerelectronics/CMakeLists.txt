@@ -59,6 +59,9 @@ set(CH_POWERELECTRONICS_BASE_FILES
   ChElectronicsCosimulation.h
 	ChElectronicsCosimulation.cpp
 
+  ChElectronicsNetlist.h
+	ChElectronicsNetlist.cpp
+
   utils/NetlistStrings.h
   utils/NetlistStrings.cpp
 

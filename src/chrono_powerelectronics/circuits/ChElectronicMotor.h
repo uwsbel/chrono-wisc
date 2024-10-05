@@ -55,10 +55,11 @@ public:
     void PreInitialize() override {
         this->VgenVAR = { 15.0 };
         this->VbackemfCVAR = { 0.0 };
-        this->LaC = { L_coil };
-        this->RaC = { R_coil };
         this->VSW1VAR = { 1.0 };
         this->VgenPWMVAR = { 0.0 };
+
+        this->LaC = { L_coil };
+        this->RaC = { R_coil };
     }
 
 

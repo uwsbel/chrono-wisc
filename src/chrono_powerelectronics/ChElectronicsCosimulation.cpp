@@ -20,7 +20,7 @@
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
 // CosimResults
-void ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end)
+std::map<std::string,std::vector<double>>  ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end)
 {
     std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
     std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
@@ -34,7 +34,7 @@ void ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Meth
     mymodule = py::module::import(File_name.c_str());            // c_str() allows to convert a string to a char string, the File_name does not need the extension .py 
 
     // Call the desired method from the Python module
-    std::cout << t_step << " " << t_end << std::endl;
+    // std::cout << t_step << " " << t_end << std::endl;
     
     data = mymodule.attr("CircuitAnalysis")(t_step, t_end);
 
@@ -92,6 +92,18 @@ void ChElectronicsCosimulation::RunSpice(std::string File_name, std::string Meth
     this->results = {
         sim_time, node_val, node_name, branch_val, branch_name
     };
+
+    std::map<std::string, std::vector<double>> circuit_map;
+    for (size_t i = 0; i < branch_name.size(); ++i) {
+        circuit_map[branch_name[i]] = branch_val[i];
+    }
+    for (size_t i = 0; i < node_name.size(); ++i) {
+        circuit_map[node_name[i]] = node_val[i];
+    }
+
+    IncrementStep();
+
+    return circuit_map;
 }
 
 // ======== Method: allows to initialize the PWL sources present in the circuit ========
@@ -502,7 +514,7 @@ void ChElectronicsCosimulation::InitializeNetlist()
 
 // int sim_step;                         // Simulation step count
 
-std::map<std::string,std::vector<double>> ChElectronicsCosimulation::Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
+void ChElectronicsCosimulation::Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock, double t_step_electronic, double T_sampling_electronic) 
 {
     std::map<std::string,std::vector<double>> OUTPUT_value;
 
@@ -517,7 +529,7 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::Cosimulate(
     if (NETLIST_contents.empty())  // Alert the user if no circuit model is found inside the NETLIST
     {
         std::cerr << "WARNING!! -> No circuit model found inside the NETLIST" << std::endl;
-        return OUTPUT_value;
+        return;
     }
 
     // -------- Set the SPICE simulation main variables --------
@@ -742,17 +754,6 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::Cosimulate(
 
     /* Construct OUTPUT */
 
-    std::map<std::string, std::vector<double>> circuit_map;
-    for (size_t i = 0; i < branch_name.size(); ++i) {
-        circuit_map[branch_name[i]] = branch_val[i];
-    }
-    for (size_t i = 0; i < node_name.size(); ++i) {
-        circuit_map[node_name[i]] = node_val[i];
-    }
-
-    IncrementStep();
-
-    return circuit_map;
-
+    
 
 }  

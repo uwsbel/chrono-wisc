@@ -68,8 +68,8 @@ public:
     virtual void Advance(double dt_mbs) final {
         this->PreAdvance();
         t_sim_electronics += dt_mbs;
-        cosim.RunSpice(python_simulator, "CircuitAnalysis", t_step, t_end);
-        this->result = cosim.Cosimulate(flow_in, t_sim_electronics, t_step, dt_mbs);
+        this->result = cosim.RunSpice(python_simulator, "CircuitAnalysis", t_step, t_end);
+        cosim.Cosimulate(flow_in, t_sim_electronics, t_step, dt_mbs);
         this->PostAdvance();
     }
 

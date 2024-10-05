@@ -47,6 +47,10 @@ public:
             dirs.Param_IC_name
         };
 
+        ChElectronicsNetlist netlist;
+        netlist.InitNetlist(dirs.NETLIST_name, 1e-6, 2e-4);
+
+
         this->python_sim_dir = python_sim_name;   
         this->method_name = method_name;
 
@@ -62,10 +66,10 @@ public:
     // ==========================================
 
         // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
-    void RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end);
+    std::map<std::string,std::vector<double>>  RunSpice(std::string File_name, std::string Method_name, double t_step, double t_end);
 
     // ======== Method: allows to initialize the NETLIST file and to extract the SPICE simulation results at every time step of the electronic call ========
-    std::map<std::string,std::vector<double>> Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
+    void Cosimulate(std::vector<std::vector<double>>& INPUT_values, double t_clock_var, double t_step_electronic_var, double T_sampling_electronic_var);
 
     void Initialize();
 
