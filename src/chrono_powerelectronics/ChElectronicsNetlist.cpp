@@ -30,13 +30,19 @@ void ChElectronicsNetlist::InitNetlist(std::string file, double t_step, double t
      * TODO: Rethink this? Is this necessary
     */
 
-    /* Initialize .ic voltages for each node in the circuit
-    */
-   auto init_node_voltages = this->GetInitNodeVoltages();
-   this->netlist_voltages = this->UpdateVoltageICs(this->netlist_file, init_node_voltages);
+//     /* Initialize .ic voltages for each node in the circuit
+//     */
+//    auto init_node_voltages = this->GetInitNodeVoltages();
+//    this->netlist_file = this->UpdateVoltageICs(this->netlist_file, init_node_voltages);
 
-    std::cout << this->AsString() << std::endl;
+//     std::cout << this->AsString() << std::endl;
  
+}
+
+void ChElectronicsNetlist::UpdateNetlist(CosimResults results, double t_step, double t_end) {
+    // this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
+    // this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_states);
+    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
 }
 
 Netlist_V ChElectronicsNetlist::ReadNetlistFile(std::string file) {
@@ -119,8 +125,6 @@ std::string ChElectronicsNetlist::GeneratePWLSequence(std::pair<double, double> 
     return pwl_sequence.str();
 }
 
-/* For every key in FlowInMap, initialize or update a .param par{FlowInVar} string in the netlist (a vector of strings) */
-
 Netlist_V ChElectronicsNetlist::UpdateFlowInParams(Netlist_V netlist, FlowInMap map) {
     // Iterate over the FlowInMap
     for (const auto& flowIn : map) {
@@ -144,4 +148,56 @@ Netlist_V ChElectronicsNetlist::UpdateFlowInParams(Netlist_V netlist, FlowInMap 
     }
 
     return netlist; 
+}
+
+/* For every key in VoltageMap, initialize or update the corresponding V({key})=value string on the .ic line */
+
+Netlist_V ChElectronicsNetlist::UpdateVoltageICs(Netlist_V netlist, VoltageMap map) {
+    // Find the line starting with ".ic"
+    std::string ic_line_prefix = ".ic";
+    int ic_line_index = -1;
+    for (size_t i = 0; i < netlist.size(); i++) {
+        if (netlist[i].find(ic_line_prefix) == 0) {
+            ic_line_index = i;
+            break;
+        }
+    }
+
+    std::string updated_ic_line = ic_line_prefix;
+
+    // If there is an existing .ic line, parse it
+    std::unordered_map<std::string, double> existing_voltages;
+    if (ic_line_index != -1) {
+        std::istringstream ss(netlist[ic_line_index].substr(ic_line_prefix.length()));
+        std::string voltage_entry;
+
+        while (ss >> voltage_entry) {
+            // Each entry should be in the form V(node)=value
+            auto equals_pos = voltage_entry.find('=');
+            if (equals_pos != std::string::npos && voltage_entry[0] == 'V' && voltage_entry[1] == '(') {
+                std::string node = voltage_entry.substr(2, equals_pos - 3); // Extract node
+                double value = std::stod(voltage_entry.substr(equals_pos + 1)); // Extract value
+                existing_voltages[node] = value;
+            }
+        }
+    }
+
+    // Merge VoltageMap into the existing voltages
+    for (const auto& pair : map) {
+        existing_voltages[pair.first] = pair.second;
+    }
+
+    // Rebuild the .ic line
+    for (const auto& pair : existing_voltages) {
+        updated_ic_line += " V(" + pair.first + ")=" + std::to_string(pair.second);
+    }
+
+    // Update or insert the new .ic line into the netlist
+    if (ic_line_index != -1) {
+        netlist[ic_line_index] = updated_ic_line;
+    } else {
+        netlist.push_back(updated_ic_line);
+    }
+
+    return netlist;
 }

@@ -18,7 +18,12 @@
 // =========================
 // ======== Headers ========
 // =========================
-#include "utils/NetlistStrings.h"
+#include "ChElectronicsCosimResult.h"
+#include <map>
+#include <iostream>
+#include <fstream> 
+#include <sstream> 
+#include <string>   
 
 typedef std::vector<std::string> Netlist_V;
 typedef std::map<std::string,std::pair<double,double>> PWLSourceMap;
@@ -58,18 +63,9 @@ public:
         };
     }
 
-    /* Get initial voltage conditions for each node
-    */
-    VoltageMap GetInitNodeVoltages() {
-        return {
-            
-        }
-    }
-
-    Netlist_V InitFlowInICs();           // ic{}
 
     /* Cosimulation / Pre-warming */
-    void UpdateNetlist(double t_step, double t_end);
+    void UpdateNetlist(CosimResults results, double t_step, double t_end);
 
     /* For every key in FlowInMap, initialize or update a .param par{...} string in the netlist */
     Netlist_V UpdateFlowInParams(Netlist_V netlist, FlowInMap map);           
@@ -77,18 +73,11 @@ public:
     /* For every key in PWLSourceMap, initialize a PWL(...) string in the netlist */
     Netlist_V UpdatePWLSources(Netlist_V netlist, PWLSourceMap map, double t_step, double t_end);  // PWL(...)
 
-    Netlist_V UpdateVoltageICs(); // .ic V(...)
+    /* For every key in VoltageMap, initialize or update the corresponding V({key})=value string on the .ic line */
+    Netlist_V UpdateVoltageICs(Netlist_V netlist, VoltageMap map); // .ic V(...)
 
     std::string AsString();
 
-    /*###############################
-     * Initial Conditions
-     ###############################*/
-
-    /*###############################
-     * PWL 
-     ###############################*/
-    std::vector<std::string> GetPWLSources();
     /*
     *   Create a string of form 
     *   PWL(t_0 V_0 t_1 V_1, ..., t_f V_f) 

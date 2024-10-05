@@ -19,8 +19,8 @@
 // ======== Headers ========
 // =========================
 
-#include "../utils/NetlistStrings.h"
-#include "../utils/CircuitParser.h"
+#include "../ChElectronicsCosimResult.h"
+#include "../ChElectronicsCosimulation.h"
 
 // =======================
 // ======== Class ========
@@ -39,16 +39,10 @@ public:
     //     string param_ic;
     // };
 
-    ChElectronicCircuit(CircuitParserIO::CircuitDirs files, double t_step, double t_end) {
-        this->files = files;
+    ChElectronicCircuit(std::string netlist, double t_step, double t_end) {
+        this->netlist = netlist;
         this->t_step = t_step;
         this->t_end = t_end;
-
-        LoadCircuit(files);
-    }
-
-    virtual void LoadCircuit(CircuitParserIO::CircuitDirs files) final {
-        this->files = files;
     }
 
     virtual void PreInitialize() {};
@@ -61,15 +55,15 @@ public:
 
     virtual void Initialize() final {
         this->PreInitialize();
-        cosim.Initialize(files, python_simulator, "CircuitAnalysis");
+        cosim.Initialize(netlist, python_simulator);
         this->PostInitialize();
     }
 
     virtual void Advance(double dt_mbs) final {
         this->PreAdvance();
         t_sim_electronics += dt_mbs;
-        this->result = cosim.RunSpice(python_simulator, "CircuitAnalysis", t_step, t_end);
-        cosim.Cosimulate(flow_in, t_sim_electronics, t_step, dt_mbs);
+        this->result = cosim.RunSpice(python_simulator, t_step, t_end);
+        cosim.Cosimulate(cosim.GetResult_V(), t_step, t_end);
         this->PostAdvance();
     }
 
@@ -79,16 +73,16 @@ public:
 
 private:
 
-    CircuitParserIO::CircuitDirs files;
+    std::string netlist;
     ChElectronicsCosimulation cosim;
     string python_simulator = "MainPython_Spice_1";
 
     double t_step;
     double t_end;
 
-    std::map<std::string,std::vector<double>> result;
 
     double t_sim_electronics = 0;
+    std::map<std::string,std::vector<double>> result;
 
 protected:
     std::vector<std::vector<double>> flow_in;

@@ -62,11 +62,8 @@ set(CH_POWERELECTRONICS_BASE_FILES
   ChElectronicsNetlist.h
 	ChElectronicsNetlist.cpp
 
-  utils/NetlistStrings.h
-  utils/NetlistStrings.cpp
+  ChElectronicsCosimResult.h
 
-  # ChElectronicsSources.h
-  # ChElectronicsSources.cpp
 )
 source_group("base" FILES ${CH_POWERELECTRONICS_BASE_FILES})
 

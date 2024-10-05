@@ -17,7 +17,6 @@
 
 #include "ChElectronicCircuit.h"
 #include "chrono/physics/ChBody.h"
-#include "../utils/CircuitParser.h"
 
 
 using namespace ::chrono;
@@ -42,13 +41,7 @@ public:
     
     ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step, double t_end)
         : ChElectronicCircuit(
-            CircuitParserIO::CircuitDirs {        
-                "data/Circuit/MotorControl/Circuit_Netlist.cir",     // netlist path
-                "data/Circuit/MotorControl/INPUT_Netlist.txt",       // input path
-                "data/Circuit/MotorControl/OUTPUT_Netlist.txt",     // output path
-                "data/Circuit/MotorControl/PWL_sources.txt",// pwl_sources path
-                "data/Circuit/MotorControl/Param_IC.txt"     // param_ic path
-            }, t_step, t_end) {
+            "data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) {
             this->spindle = spindle;
         }
 
