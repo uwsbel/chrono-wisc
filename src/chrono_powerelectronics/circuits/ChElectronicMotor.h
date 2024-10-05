@@ -26,12 +26,8 @@ public:
 
     std::shared_ptr<ChBody> spindle;
     
-    std::vector<double> VgenVAR;
-    std::vector<double> VbackemfCVAR;
-    std::vector<double> LaC;
-    std::vector<double> RaC;
-    std::vector<double> VSW1VAR;
-    std::vector<double> VgenPWMVAR;
+    double VbackemfCVAR;
+    double VgenPWMVAR;
 
     double kt_motor = 0.1105; //[Nm/A] 150
     double ke_motor = -0.953e-1;//-0.9e-4; //[Nm/A]
@@ -46,35 +42,37 @@ public:
         }
 
     void PreInitialize() override {
-        this->VgenVAR = { 15.0 };
-        this->VbackemfCVAR = { 0.0 };
-        this->VSW1VAR = { 1.0 };
-        this->VgenPWMVAR = { 0.0 };
 
-        this->LaC = { L_coil };
-        this->RaC = { R_coil };
+        this->SetInitialPWLIn({
+           {"VgenVAR", 15. },
+           {"VbackemfCVAR", 0.0},
+           {"VSW1VAR", 1.},
+           {"VgenPWMVAR", 5.200000e+00}
+        });
+
+        this->SetInitialFlowInICs({
+           {"LaC", L_coil},
+           {"RaC", R_coil},
+        });
+
     }
 
 
     void SetPWM(double PWM) {
-        this->VgenPWMVAR = { PWM };
-    }
-
-    void SetVbackEMF() {
-        ChVector3d angvel_euler = spindle->GetAngVelLocal(); 
-        this->VbackemfCVAR = { ke_motor * angvel_euler[2] };
+        this->VgenPWMVAR = PWM;
     }
 
     void PostInitialize() override {
     }
 
     void PreAdvance() override {
-        this->flow_in["VgenVAR"] = VgenVAR[0];
-        this->flow_in["VbackemfCVAR"] = VbackemfCVAR[0];
-        this->flow_in["LaC"] = LaC[0];
-        this->flow_in["RaC"] = RaC[0];
-        this->flow_in["VSW1VAR"] = VSW1VAR[0];
-        this->flow_in["VgenPWMVAR"] = VgenPWMVAR[0];
+        this->flow_in["LaC"] = L_coil;
+        this->flow_in["RaC"] = R_coil;
+
+        this->pwl_in["VgenVAR"] = 15.;
+        this->pwl_in["VbackemfCVAR"] = this->VbackemfCVAR;
+        this->pwl_in["VSW1VAR"] = 1.;
+        this->pwl_in["VgenPWMVAR"] = this->VgenPWMVAR;
     }
 
     void PostAdvance() override {
@@ -83,7 +81,9 @@ public:
 
         double IVprobe1 = res["vprobe1"][res["vprobe1"].size() - 1];
 
-        IVprobe1 = 0.4; // Override value for now but keep the last to make sure it's being accessed correclty
+        std::cout << IVprobe1 << std::endl;
+
+        // IVprobe1 = 0.4; // Override value for now but keep the last to make sure it's being accessed correclty
 
         ChVector3d torque_vec_norm(0, 0, 1); // IMPORTANT!! the direction vertex need to be normalized  
         double spindle_torque_mag = this->kt_motor * IVprobe1 * 1e3 * 1e3; // Conversion to ([kg]-[mm]-[s])   
@@ -93,7 +93,8 @@ public:
         spindle->AccumulateTorque(spindle_torque, false); // Apply to the body the force
 
         // Electro-mechanical coupling
-        SetVbackEMF();
+        ChVector3d angvel_euler = spindle->GetAngVelLocal(); 
+        this->VbackemfCVAR = ke_motor * angvel_euler[2];
 
     }
 

@@ -28,6 +28,7 @@
 
 typedef std::vector<std::string> Netlist_V;
 typedef std::map<std::string,std::pair<double,double>> PWLSourceMap;
+typedef std::map<std::string,double> PWLInMap;
 typedef std::map<std::string,double> FlowInMap;
 typedef std::map<std::string,double> VoltageMap;
 
@@ -36,6 +37,9 @@ public:
 
     Netlist_V netlist_file;
     CosimResults last_results;
+    FlowInMap initial_flowin_ics;
+    PWLInMap  initial_pwl_in;
+    PWLInMap last_pwl_in{};
 
     /* Initialization */    
     void InitNetlist(std::string file, double t_step, double t_end);
@@ -43,14 +47,15 @@ public:
     Netlist_V ReadNetlistFile(std::string file);
 
     // TODO: Get initial PWL source states (assumed constant from t_0->t_f)
-    PWLSourceMap GetInitPWLSources() {
-        return {
-           {"VgenVAR", { 0., 0., }},
-           {"VbackemfCVAR", {0., 0.,}},
-           {"VSW1VAR", {0., 0., }},
-           {"VgenPWMVAR", { 0., 0., }}
-        };
+
+    void SetInitialPWLIn(PWLInMap map) {
+        this->initial_pwl_in = map;
     }
+
+    void SetInitialFlowInICs(FlowInMap map) {
+        this->initial_flowin_ics = map;
+    }
+
 
     std::string toLowerCase(const std::string& str) {
         std::string lower_str = str;
@@ -60,51 +65,37 @@ public:
     }
 
 
-    // For each key in GetInitPWLSources(), and from a cached result_last,
-    // set V_0 and V_f accordingly
-    PWLSourceMap GetPWLConds(CosimResults results) {
-        PWLSourceMap init_pwl_sources = GetInitPWLSources();
-        PWLSourceMap pwl_sources = init_pwl_sources;
+    // For each key in pwl_in, and from last,
+    // set V_0 and V_f in pwl_sources accordingly
+    PWLSourceMap GetPWLConds(PWLInMap pwl_in) {
+        PWLSourceMap pwl_sources;
 
-        // Iterate through each key in the PWL source map
-        for (auto& [key, values] : pwl_sources) {
-            // Find the index corresponding to the key in the node_name vector
-            auto it = std::find(results.branch_name.begin(), results.branch_name.end(), toLowerCase(key));
+        // Check if last_pwl_in is empty
+        bool last_pwl_in_empty = last_pwl_in.empty();
+
+        // Iterate through pwl_in from the last to the first
+        for (auto it = pwl_in.rbegin(); it != pwl_in.rend(); ++it) {
+            const std::string& key = it->first;
+            double V_f = it->second;
             
-            if (it != results.branch_name.end()) {
-                int idx = std::distance(results.branch_name.begin(), it);
-                int size = results.branch_val[idx].size() - 1;
-
-                // Update the initial and final values using the current and previous results
-                if(this->last_results.branch_val.empty()) {
-                    values.first = init_pwl_sources[key].first;
-                } else {
-                    values.first = this->last_results.branch_val[idx][size];  // V_0 (initial value from last result)
-                }
-                values.second = results.branch_val[idx][size];       // V_f (final value from current results)
+            // Set V_0 based on last_pwl_in, or initialize with V_f if last_pwl_in is empty
+            double V_0;
+            if (last_pwl_in_empty) {
+                V_0 = V_f; // If last_pwl_in is empty, initialize V_0 with V_f
             } else {
-                // Handle the case where the key is not found in node_name (optional)
-                std::cerr << "Warning: Key '" << key << "' not found in node_name." << std::endl;
+                V_0 = last_pwl_in[key]; // Otherwise, use the value from last_pwl_in
             }
+
+            // Add the pair (V_0, V_f) to the pwl_sources map
+            pwl_sources[key] = std::make_pair(V_0, V_f);
         }
 
-        this->last_results = results;
+        // Store the last pwl_in for future use
+        this->last_pwl_in = pwl_in;
 
         return pwl_sources;
     }
 
-    /* Get initial conditions of flow-in variables at first time step
-    */
-    FlowInMap GetInitFlowInICs() {
-        return {
-           {"VgenVAR", 0. },
-           {"VbackemfCVAR", 0. },
-           {"LaC", 45.0e-6},
-           {"RaC", 25.1},
-           {"VSW1VAR", 0. },
-           {"VgenPWMVAR",  0.}
-        };
-    }
 
     // For all nodes, set according to results.node_val
     // and results.node_name vectors
@@ -132,7 +123,7 @@ public:
     }
 
     /* Cosimulation / Pre-warming */
-    void UpdateNetlist(CosimResults results, FlowInMap map, double t_step, double t_end);
+    void UpdateNetlist(CosimResults results, FlowInMap map, PWLInMap pwl_in, double t_step, double t_end);
 
     /* For every key in FlowInMap, initialize or update a .param par{...} string in the netlist */
     Netlist_V UpdateFlowInParams(Netlist_V netlist, FlowInMap map);           
@@ -154,11 +145,29 @@ public:
         std::pair<double,double> V,  // Order: [V_0, V_f]
         double t_start, double t_end);
 
+    // typedef std::vector<std::string> Netlist_V;
+    void WriteNetlist(const std::string& file) {
+        // Open the file in write mode
+        std::ofstream outFile(file);
 
-    // void SubstitutePWL();
+        // Check if the file is successfully opened
+        if (!outFile.is_open()) {
+            std::cerr << "Error: Could not open the file " << file << " for writing." << std::endl;
+            return;
+        }
 
+        // Write each line of the netlist to the file
+        for (const auto& line : this->netlist_file) {
+            outFile << line << std::endl;
+        }
+
+        // Close the file
+        outFile.close();
+
+        // Confirm the write operation
+        std::cout << "Netlist successfully written to " << file << std::endl;
+    }
     
-
 };
 
 #endif

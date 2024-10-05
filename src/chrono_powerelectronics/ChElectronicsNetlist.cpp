@@ -14,29 +14,28 @@ void ChElectronicsNetlist::InitNetlist(std::string file, double t_step, double t
 
     this->netlist_file = this->ReadNetlistFile(file);
 
-    std::cout << this->AsString() << std::endl;
-
     /* Initialize PWM strings
     */
-    auto pwl_sources = this->GetInitPWLSources();
+    auto pwl_sources = GetPWLConds(this->initial_pwl_in);
     this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
 
     /* Initialize IC of Flow-In Vars
     */
-    auto init_flowin = this->GetInitFlowInICs();
+    auto init_flowin = this->initial_flowin_ics;
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, init_flowin);
 
 }
 
-void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_map, double t_step, double t_end) {
-    auto pwl_sources = GetPWLConds(results);
+void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_map, PWLInMap pwl_in, double t_step, double t_end) {
+    
+    auto pwl_sources = GetPWLConds(pwl_in);
     this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
 
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
     
  
-    auto node_v_states = GetVoltageConds(results);
-    this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
+    // auto node_v_states = GetVoltageConds(results);
+    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
 
        
     // std::cout << this->AsString() << std::endl;
@@ -71,7 +70,7 @@ Netlist_V ChElectronicsNetlist::UpdatePWLSources(Netlist_V file, PWLSourceMap ma
         const std::pair<double, double>& values = pwl_source.second;
         
         std::string pwl_seq = GeneratePWLSequence(values, t_step, t_end);
-        std::string pwl_string = " PWL(" + pwl_seq + ")";
+        std::string pwl_string = "PWL(" + pwl_seq + ")";
 
         // Iterate through the netlist vector to find the line containing the key
         for (auto& line : file) {
@@ -114,9 +113,9 @@ std::string ChElectronicsNetlist::GeneratePWLSequence(std::pair<double, double> 
         // Append to the sequence string (format: time voltage)
         pwl_sequence << t_i << " " << V_i;
 
-        // Add a comma if it's not the last element
+        //Add a comma if it's not the last element
         if (i < num_steps) {
-            pwl_sequence << ", ";
+            pwl_sequence << " ";
         }
     }
 

@@ -53,7 +53,7 @@ public:
 
     CircStateMap RunSpice(std::string file_name, double t_step, double t_end);
 
-    void Cosimulate(CosimResults results, FlowInMap flow_in, double t_step, double t_end);
+    void Cosimulate(CosimResults results, FlowInMap flow_in, PWLInMap pwl_in, double t_step, double t_end);
     
     CosimResults GetResult_V();
 
@@ -62,6 +62,13 @@ public:
         return sim_step;
     }
 
+    void SetInitialPWLIn (PWLInMap map) {
+        this->netlist.SetInitialPWLIn(map);
+    }
+
+    void SetInitialFlowInICs(FlowInMap map) {
+        this->netlist.SetInitialFlowInICs(map);
+    }
 
 private:
 

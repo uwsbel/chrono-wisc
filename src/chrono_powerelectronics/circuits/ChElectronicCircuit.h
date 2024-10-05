@@ -57,8 +57,16 @@ public:
         this->PreAdvance();
         t_sim_electronics += dt_mbs;
         this->result = cosim.RunSpice(python_simulator, t_step, t_end);
-        cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, t_step, t_end);
+        cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, this->pwl_in, t_step, t_end);
         this->PostAdvance();
+    }
+
+    void SetInitialPWLIn(PWLInMap map) {
+        this->cosim.SetInitialPWLIn(map);
+    }
+
+    void SetInitialFlowInICs(FlowInMap map) {
+        this->cosim.SetInitialFlowInICs(map);
     }
 
     std::map<std::string,std::vector<double>> GetResult() {
@@ -80,7 +88,7 @@ private:
 
 protected:
     FlowInMap flow_in;
-
+    PWLInMap pwl_in;
 };
 
 #endif // CHELECTRONICSCIRCUITS_H
