@@ -24,11 +24,6 @@ void ChElectronicsNetlist::InitNetlist(std::string file, double t_step, double t
     auto init_flowin = this->initial_flowin_ics;
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, init_flowin);
 
-    /* Initialize initial currents of current-in branches
-    */
-//    auto init_branchflowin = this->initial_branchin_ics;
-//    this->netlist_file = this->UpdateBranchInParams(this->netlist_file, init_branchflowin);
-
 }
 
 Netlist_V ChElectronicsNetlist::ReadNetlistFile(std::string file) {
@@ -58,16 +53,13 @@ void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_
     this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
 
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
-    
-    /*
-    this->netlist_file = this->UpdateFlowInCurrents(this->netlist_file, FlowInCurrMap map);
-    */
 
     // auto node_v_states = GetVoltageConds(results);
     // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
 
-    // auto branch_states = GetBranchConds(results);
-    // this->netlist_file = this->UpdateBranchInParams(this->netlist_file, branch_states);
+
+    auto branch_states = GetBranchConds(results);
+    this->netlist_file = this->UpdateBranchCurrents(this->netlist_file, branch_states);
        
     // std::cout << this->AsString() << std::endl;
 
@@ -263,6 +255,66 @@ PWLSourceMap ChElectronicsNetlist::GetPWLConds(PWLInMap pwl_in) {
 }
 
 
-Netlist_V ChElectronicsNetlist::UpdateBranchInParams(Netlist_V netlist, BranchInMap map) {
+/* using keys from this->tracked_branches (a vector) and cosim results, construct a new 
+    BranchInMap with updated currents from results
+*/
+BranchCurrentMap ChElectronicsNetlist::GetBranchConds(const CosimResults& results) {
+    BranchCurrentMap branchCurrentMap;
 
+    // Iterate through the tracked branches
+    for (const auto& branch : this->tracked_branches) {
+        
+        // Find the index of the tracked branch in the results branch_name vector
+        auto it = std::find(results.branch_name.begin(), results.branch_name.end(), toLowerCase(branch));
+        
+        // If the branch is found in the results
+        if (it != results.branch_name.end()) {
+            // Get the index of the branch
+            size_t index = std::distance(results.branch_name.begin(), it);
+
+            // Ensure that the index is valid for the branch_val vector
+            if (index < results.branch_val.size()) {
+                // Get the latest current value for the branch
+                double current_value = results.branch_val.back()[index];
+
+                // Insert the branch name and its corresponding current into the map
+                branchCurrentMap[branch] = current_value;
+            }
+        }
+    }
+
+    return branchCurrentMap;
+}
+
+/* For every key in BranchInMap, initialize or update the corresponding .param ic{key} string in the netlist*/
+
+Netlist_V ChElectronicsNetlist::UpdateBranchCurrents(Netlist_V netlist, BranchCurrentMap map) {
+    // Loop through each branch in the BranchCurrentMap
+    for (const auto& [branch, current] : map) {
+        // Construct the .param string for this branch
+        std::string param_str = ".param ic" + branch + " = " + std::to_string(current);
+
+        // Flag to indicate if the parameter was found and updated
+        bool found = false;
+
+        // Loop through the netlist to find if an existing entry for this branch exists
+        for (auto& line : netlist) {
+            // Check if the line contains .param ic{branch}
+            std::string search_str = ".param ic" + branch;
+
+            if (line.find(search_str) != std::string::npos) {
+                // Update the existing line with the new current value
+                line = param_str;
+                found = true;
+                break;
+            }
+        }
+
+        // If the parameter was not found, add a new entry to the netlist
+        if (!found) {
+            netlist.push_back(param_str);
+        }
+    }
+
+    return netlist;
 }

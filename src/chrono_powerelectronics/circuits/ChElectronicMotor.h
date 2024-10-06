@@ -34,8 +34,8 @@ public:
     double L_coil = 0.002f;//0.002f;//33.4e-5f; //[H]
     double R_coil = 69.1f; //[Ohm] Resistance of the equivalent coil 
 
-    double shaft_angvel;
-    ChVector3d torque;
+    double shaft_angvel = 0.0;
+    ChVector3d spindle_torque;
     
     ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step, double t_end)
         : ChElectronicCircuit(
@@ -46,7 +46,7 @@ public:
     ChElectronicMotor(double t_step, double t_end) : ChElectronicCircuit(
             "../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) 
     {
-                
+            
     }
 
 
@@ -69,11 +69,10 @@ public:
            {"RaC", R_coil},
         });
 
-        /*
-        this->SetInitialCurrents({
-           {"LaC", 0.}
-        })
-        */
+        /* Set variables that we want currents to be tracked with */
+        this->SetBranchTracking({
+            "LaC"
+        });
 
     }
 
@@ -116,6 +115,8 @@ public:
         ChVector3d torque_vec_norm(0, 0, 1); // IMPORTANT!! the direction vertex need to be normalized  
         double spindle_torque_mag = this->kt_motor * IVprobe1 * 1e3 * 1e3; // Conversion to ([kg]-[mm]-[s])   
         ChVector3d spindle_torque = spindle_torque_mag * torque_vec_norm;
+        this->spindle_torque = spindle_torque;
+
 
         double ang_vel = this->shaft_angvel;
 
@@ -126,12 +127,12 @@ public:
         // Electro-mechanical coupling
         this->VbackemfCVAR = ke_motor * ang_vel;
 
+        // Apply torque to spindle body if initailized
         if(this->spindle != nullptr) {
             spindle->EmptyAccumulators(); // Clean the body from the previous force/torque 
             spindle->AccumulateTorque(spindle_torque, false); // Apply to the body the force
         }
 
-        this->torque = spindle_torque;
 
     }
 

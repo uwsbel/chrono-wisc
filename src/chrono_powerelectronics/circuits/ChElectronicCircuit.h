@@ -69,6 +69,10 @@ public:
         this->cosim.SetInitialFlowInICs(map);
     }
 
+    void SetBranchTracking(Branch_V branches) {
+        this->cosim.SetBranchTracking(branches);
+    }
+
     std::map<std::string,std::vector<double>> GetResult() {
         return this->result;
     }

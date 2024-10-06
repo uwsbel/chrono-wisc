@@ -31,7 +31,8 @@ typedef std::map<std::string,std::pair<double,double>> PWLSourceMap;
 typedef std::map<std::string,double> PWLInMap;
 typedef std::map<std::string,double> FlowInMap;
 typedef std::map<std::string,double> VoltageMap;
-typedef std::map<std::string,double> BranchInMap;
+typedef std::map<std::string,double> BranchCurrentMap;
+typedef std::vector<std::string> Branch_V;
 
 class ChElectronicsNetlist {
 public:
@@ -44,7 +45,7 @@ public:
     PWLInMap  initial_pwl_in;
     PWLInMap last_pwl_in{};
 
-    BranchInMap initial_branchin_ics;
+    Branch_V tracked_branches;
 
     /* Initialization */    
     void InitNetlist(std::string file, double t_step, double t_end);
@@ -61,8 +62,8 @@ public:
         this->initial_flowin_ics = map;
     }
 
-    void SetInitialBranchInICs(BranchInMap map) {
-        this->initial_branchin_ics = map;
+    void SetBranchTracking(Branch_V branches) {
+        this->tracked_branches = branches;
     }
 
     // For each key in pwl_in, and from last,
@@ -74,10 +75,10 @@ public:
     */
     VoltageMap GetVoltageConds(const CosimResults& results);
 
-    /* using keys from this->initialbranchin_ics and cosim results, construct a new 
+    /* using keys from this->tracked_branches and cosim results, construct a new 
         BranchInMap with updated currents from results
     */
-    BranchInMap GetBranchConds(const CosimResults& results);
+    BranchCurrentMap GetBranchConds(const CosimResults& results);
 
     /* Cosimulation / Pre-warming */
     void UpdateNetlist(CosimResults results, FlowInMap map, PWLInMap pwl_in, double t_step, double t_end);
@@ -92,7 +93,7 @@ public:
     Netlist_V UpdateVoltageICs(Netlist_V netlist, VoltageMap map); // .ic V(...)
 
     /* For every key in BranchInMap, initialize or update the corresponding .param ic{key} string in the netlist*/
-    Netlist_V UpdateBranchInParams(Netlist_V netlist, BranchInMap map); // .param ic{key}
+    Netlist_V UpdateBranchCurrents(Netlist_V netlist, BranchCurrentMap branch_currents); // .param ic{key}
 
     /* Netlist state as string */
     std::string AsString();

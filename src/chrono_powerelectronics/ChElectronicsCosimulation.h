@@ -70,6 +70,10 @@ public:
         this->netlist.SetInitialFlowInICs(map);
     }
 
+    void SetBranchTracking(Branch_V branches) {
+        this->netlist.SetBranchTracking(branches);
+    }
+
 private:
 
     py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
