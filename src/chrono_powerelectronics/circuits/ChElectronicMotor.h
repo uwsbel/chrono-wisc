@@ -24,7 +24,7 @@ using namespace ::chrono;
 class ChElectronicMotor : public ChElectronicCircuit {
 public:
 
-    std::shared_ptr<ChBody> spindle;
+    std::shared_ptr<ChBody> spindle = nullptr;
     
     double VbackemfCVAR;
     double VgenPWMVAR;
@@ -34,15 +34,26 @@ public:
     double L_coil = 0.002f;//0.002f;//33.4e-5f; //[H]
     double R_coil = 69.1f; //[Ohm] Resistance of the equivalent coil 
 
+    double shaft_angvel;
+    ChVector3d torque;
     
     ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step, double t_end)
         : ChElectronicCircuit(
-            "data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) {
+            "../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) {
             this->spindle = spindle;
         }
 
+    ChElectronicMotor(double t_step, double t_end) : ChElectronicCircuit(
+            "../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) 
+    {
+                
+    }
+
+
     void PreInitialize() override {
 
+        /* Initialize the keys and initial values of the PWL sources
+        */
         this->SetInitialPWLIn({
            {"VgenVAR", 15. },
            {"VbackemfCVAR", 0.0},
@@ -50,13 +61,29 @@ public:
            {"VgenPWMVAR", 5.200000e+00}
         });
 
+        /*
+        These can be any parameter you want to use as a parameter {}
+        */
         this->SetInitialFlowInICs({
            {"LaC", L_coil},
            {"RaC", R_coil},
         });
 
+        /*
+        this->SetInitialCurrents({
+           {"LaC", 0.}
+        })
+        */
+
     }
 
+    void SetShaftAngVel(double angvel) {
+        this->shaft_angvel = angvel;
+    }
+
+    ChVector3d GetOutputTorque() {
+        return this->spindle_torque;
+    }
 
     void SetPWM(double PWM) {
         this->VgenPWMVAR = PWM;
@@ -75,6 +102,7 @@ public:
         this->pwl_in["VgenPWMVAR"] = this->VgenPWMVAR;
     }
 
+    
     void PostAdvance() override {
 
         auto res = this->GetResult();
@@ -89,12 +117,21 @@ public:
         double spindle_torque_mag = this->kt_motor * IVprobe1 * 1e3 * 1e3; // Conversion to ([kg]-[mm]-[s])   
         ChVector3d spindle_torque = spindle_torque_mag * torque_vec_norm;
 
-        spindle->EmptyAccumulators(); // Clean the body from the previous force/torque 
-        spindle->AccumulateTorque(spindle_torque, false); // Apply to the body the force
+        double ang_vel = this->shaft_angvel;
 
+        if(this->spindle != nullptr) {  // If motor was initialized with spindle, use it as ang vel source
+            ang_vel = spindle->GetAngVelLocal()[2];
+        }
+    
         // Electro-mechanical coupling
-        ChVector3d angvel_euler = spindle->GetAngVelLocal(); 
-        this->VbackemfCVAR = ke_motor * angvel_euler[2];
+        this->VbackemfCVAR = ke_motor * ang_vel;
+
+        if(this->spindle != nullptr) {
+            spindle->EmptyAccumulators(); // Clean the body from the previous force/torque 
+            spindle->AccumulateTorque(spindle_torque, false); // Apply to the body the force
+        }
+
+        this->torque = spindle_torque;
 
     }
 

@@ -89,6 +89,7 @@ private:
 protected:
     FlowInMap flow_in;
     PWLInMap pwl_in;
+    
 };
 
 #endif // CHELECTRONICSCIRCUITS_H

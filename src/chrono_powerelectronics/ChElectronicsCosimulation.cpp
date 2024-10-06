@@ -110,7 +110,7 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(st
 void ChElectronicsCosimulation::Cosimulate(CosimResults results, FlowInMap flow_in, PWLInMap pwl_in, double t_step, double t_end) 
 {
     this->netlist.UpdateNetlist(results,flow_in,pwl_in,t_step,t_end);
-    this->netlist.WriteNetlist("data/Circuit/MotorControl/Circuit_Netlist.cir.run");
+    this->netlist.WriteNetlist("../data/Circuit/MotorControl/Circuit_Netlist.cir.run");
 }  
 
 CosimResults ChElectronicsCosimulation::GetResult_V() {

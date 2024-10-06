@@ -31,15 +31,20 @@ typedef std::map<std::string,std::pair<double,double>> PWLSourceMap;
 typedef std::map<std::string,double> PWLInMap;
 typedef std::map<std::string,double> FlowInMap;
 typedef std::map<std::string,double> VoltageMap;
+typedef std::map<std::string,double> BranchInMap;
 
 class ChElectronicsNetlist {
 public:
 
     Netlist_V netlist_file;
     CosimResults last_results;
+    
     FlowInMap initial_flowin_ics;
+
     PWLInMap  initial_pwl_in;
     PWLInMap last_pwl_in{};
+
+    BranchInMap initial_branchin_ics;
 
     /* Initialization */    
     void InitNetlist(std::string file, double t_step, double t_end);
@@ -56,71 +61,23 @@ public:
         this->initial_flowin_ics = map;
     }
 
-
-    std::string toLowerCase(const std::string& str) {
-        std::string lower_str = str;
-        std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(),
-                    [](unsigned char c){ return std::tolower(c); });
-        return lower_str;
+    void SetInitialBranchInICs(BranchInMap map) {
+        this->initial_branchin_ics = map;
     }
-
 
     // For each key in pwl_in, and from last,
     // set V_0 and V_f in pwl_sources accordingly
-    PWLSourceMap GetPWLConds(PWLInMap pwl_in) {
-        PWLSourceMap pwl_sources;
+    PWLSourceMap GetPWLConds(PWLInMap pwl_in);
 
-        // Check if last_pwl_in is empty
-        bool last_pwl_in_empty = last_pwl_in.empty();
+    /* For all nodes, set voltage map according to results.node_val
+    *  and results.node_name vectors
+    */
+    VoltageMap GetVoltageConds(const CosimResults& results);
 
-        // Iterate through pwl_in from the last to the first
-        for (auto it = pwl_in.rbegin(); it != pwl_in.rend(); ++it) {
-            const std::string& key = it->first;
-            double V_f = it->second;
-            
-            // Set V_0 based on last_pwl_in, or initialize with V_f if last_pwl_in is empty
-            double V_0;
-            if (last_pwl_in_empty) {
-                V_0 = V_f; // If last_pwl_in is empty, initialize V_0 with V_f
-            } else {
-                V_0 = last_pwl_in[key]; // Otherwise, use the value from last_pwl_in
-            }
-
-            // Add the pair (V_0, V_f) to the pwl_sources map
-            pwl_sources[key] = std::make_pair(V_0, V_f);
-        }
-
-        // Store the last pwl_in for future use
-        this->last_pwl_in = pwl_in;
-
-        return pwl_sources;
-    }
-
-
-    // For all nodes, set according to results.node_val
-    // and results.node_name vectors
-
-    VoltageMap GetVoltageConds(const CosimResults& results) {
-        VoltageMap voltageMap;
-
-        // Ensure that node_name and node_val sizes match
-        if (results.node_name.size() != results.node_val.size()) {
-            throw std::runtime_error("Mismatch between node names and voltage values per node");
-        }
-
-        // Check if there are any time steps to consider
-        if (results.node_val.empty() || results.node_val.back().empty()) {
-            throw std::runtime_error("No voltage data available");
-        }
-
-        // Populate the map with the node names and their corresponding voltage values for the last time step
-        for (size_t i = 0; i < results.node_name.size(); ++i) {
-            double last_time_step_voltage = results.node_val[i].back();
-            voltageMap[results.node_name[i]] = last_time_step_voltage;
-        }
-
-        return voltageMap;
-    }
+    /* using keys from this->initialbranchin_ics and cosim results, construct a new 
+        BranchInMap with updated currents from results
+    */
+    BranchInMap GetBranchConds(const CosimResults& results);
 
     /* Cosimulation / Pre-warming */
     void UpdateNetlist(CosimResults results, FlowInMap map, PWLInMap pwl_in, double t_step, double t_end);
@@ -134,6 +91,10 @@ public:
     /* For every key in VoltageMap, initialize or update the corresponding V({key})=value string on the .ic line */
     Netlist_V UpdateVoltageICs(Netlist_V netlist, VoltageMap map); // .ic V(...)
 
+    /* For every key in BranchInMap, initialize or update the corresponding .param ic{key} string in the netlist*/
+    Netlist_V UpdateBranchInParams(Netlist_V netlist, BranchInMap map); // .param ic{key}
+
+    /* Netlist state as string */
     std::string AsString();
 
     /*
@@ -168,6 +129,14 @@ public:
         std::cout << "Netlist successfully written to " << file << std::endl;
     }
     
+
+    std::string toLowerCase(const std::string& str) {
+        std::string lower_str = str;
+        std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(),
+                    [](unsigned char c){ return std::tolower(c); });
+        return lower_str;
+    }
+
 };
 
 #endif

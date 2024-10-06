@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <unordered_map>
 
+
 struct CosimResults {
     std::vector<double> sim_time;                                // Contains the SPICE simulation time returned by the Python module, it is update at every call of the class
     std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class

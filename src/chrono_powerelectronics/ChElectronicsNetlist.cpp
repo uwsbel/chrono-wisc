@@ -19,26 +19,15 @@ void ChElectronicsNetlist::InitNetlist(std::string file, double t_step, double t
     auto pwl_sources = GetPWLConds(this->initial_pwl_in);
     this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
 
-    /* Initialize IC of Flow-In Vars
+    /* Initialize inductance params of Flow-In Vars
     */
     auto init_flowin = this->initial_flowin_ics;
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, init_flowin);
 
-}
-
-void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_map, PWLInMap pwl_in, double t_step, double t_end) {
-    
-    auto pwl_sources = GetPWLConds(pwl_in);
-    this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
-
-    this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
-    
- 
-    // auto node_v_states = GetVoltageConds(results);
-    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
-
-       
-    // std::cout << this->AsString() << std::endl;
+    /* Initialize initial currents of current-in branches
+    */
+//    auto init_branchflowin = this->initial_branchin_ics;
+//    this->netlist_file = this->UpdateBranchInParams(this->netlist_file, init_branchflowin);
 
 }
 
@@ -62,6 +51,28 @@ Netlist_V ChElectronicsNetlist::ReadNetlistFile(std::string file) {
     }
     return file_contents;
 }
+
+void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_map, PWLInMap pwl_in, double t_step, double t_end) {
+    
+    auto pwl_sources = GetPWLConds(pwl_in);
+    this->netlist_file = UpdatePWLSources(this->netlist_file, pwl_sources, t_step, t_end);
+
+    this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
+    
+    /*
+    this->netlist_file = this->UpdateFlowInCurrents(this->netlist_file, FlowInCurrMap map);
+    */
+
+    // auto node_v_states = GetVoltageConds(results);
+    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
+
+    // auto branch_states = GetBranchConds(results);
+    // this->netlist_file = this->UpdateBranchInParams(this->netlist_file, branch_states);
+       
+    // std::cout << this->AsString() << std::endl;
+
+}
+
 
 Netlist_V ChElectronicsNetlist::UpdatePWLSources(Netlist_V file, PWLSourceMap map, double t_step, double t_end) {
     // Loop through each element in the map
@@ -197,4 +208,61 @@ Netlist_V ChElectronicsNetlist::UpdateVoltageICs(Netlist_V netlist, VoltageMap m
     }
 
     return netlist;
+}
+
+
+VoltageMap ChElectronicsNetlist::GetVoltageConds(const CosimResults& results) {
+    VoltageMap voltageMap;
+
+    // Ensure that node_name and node_val sizes match
+    if (results.node_name.size() != results.node_val.size()) {
+        throw std::runtime_error("Mismatch between node names and voltage values per node");
+    }
+
+    // Check if there are any time steps to consider
+    if (results.node_val.empty() || results.node_val.back().empty()) {
+        throw std::runtime_error("No voltage data available");
+    }
+
+    // Populate the map with the node names and their corresponding voltage values for the last time step
+    for (size_t i = 0; i < results.node_name.size(); ++i) {
+        double last_time_step_voltage = results.node_val[i].back();
+        voltageMap[results.node_name[i]] = last_time_step_voltage;
+    }
+
+    return voltageMap;
+}
+
+PWLSourceMap ChElectronicsNetlist::GetPWLConds(PWLInMap pwl_in) {
+    PWLSourceMap pwl_sources;
+
+    // Check if last_pwl_in is empty
+    bool last_pwl_in_empty = this->last_pwl_in.empty();
+
+    // Iterate through pwl_in from the last to the first
+    for (auto it = pwl_in.rbegin(); it != pwl_in.rend(); ++it) {
+        const std::string& key = it->first;
+        double V_f = it->second;
+        
+        // Set V_0 based on last_pwl_in, or initialize with V_f if last_pwl_in is empty
+        double V_0;
+        if (last_pwl_in_empty) {
+            V_0 = V_f; // If last_pwl_in is empty, initialize V_0 with V_f
+        } else {
+            V_0 = this->last_pwl_in[key]; // Otherwise, use the value from last_pwl_in
+        }
+
+        // Add the pair (V_0, V_f) to the pwl_sources map
+        pwl_sources[key] = std::make_pair(V_0, V_f);
+    }
+
+    // Store the last pwl_in for future use
+    this->last_pwl_in = pwl_in;
+
+    return pwl_sources;
+}
+
+
+Netlist_V ChElectronicsNetlist::UpdateBranchInParams(Netlist_V netlist, BranchInMap map) {
+
 }
