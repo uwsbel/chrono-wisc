@@ -26,7 +26,10 @@
 // ======== Class ========
 // =======================
 
-using namespace std;
+// using namespace std;
+
+namespace chrono {
+namespace powerelectronics {
 
 class ChElectronicCircuit {  
 public:
@@ -81,7 +84,7 @@ private:
 
     std::string netlist;
     ChElectronicsCosimulation cosim;
-    string python_simulator = "MainPython_Spice_1";
+    std::string python_simulator = "MainPython_Spice_1";
 
     double t_step;
     double t_end;
@@ -95,5 +98,8 @@ protected:
     PWLInMap pwl_in;
     
 };
+
+}
+}
 
 #endif // CHELECTRONICSCIRCUITS_H

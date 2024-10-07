@@ -71,6 +71,7 @@
 // ============================
 using namespace ::chrono;
 using namespace ::chrono::irrlicht;
+using namespace ::chrono::powerelectronics;
 namespace py = pybind11;
 namespace fs = std::filesystem;
 using json = nlohmann::json;

@@ -34,6 +34,9 @@ typedef std::map<std::string,double> VoltageMap;
 typedef std::map<std::string,double> BranchCurrentMap;
 typedef std::vector<std::string> Branch_V;
 
+namespace chrono {
+namespace powerelectronics {
+
 class ChElectronicsNetlist {
 public:
 
@@ -139,5 +142,8 @@ public:
     }
 
 };
+
+}
+}
 
 #endif

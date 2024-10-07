@@ -24,7 +24,7 @@ set(CMAKE_CXX_STANDARD 17)
 #-----------------------------------------------------------------------------
 # PyBind11
 #-----------------------------------------------------------------------------
-find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 include_directories(${Python3_INCLUDE_DIRS})
 
 set(EXTERNALS "../demos/powerelectronics/externals")
@@ -48,14 +48,6 @@ add_subdirectory(
 # ------------
 
 set(CH_POWERELECTRONICS_BASE_FILES
-  ChElectronics.h
-  ChElectronics.cpp
-
-  circuits/ChElectronicCircuit.cpp
-  circuits/ChElectronicCircuit.h
-
-  circuits/ChElectronicMotor.h
-
   ChElectronicsCosimulation.h
 	ChElectronicsCosimulation.cpp
 
@@ -63,6 +55,13 @@ set(CH_POWERELECTRONICS_BASE_FILES
 	ChElectronicsNetlist.cpp
 
   ChElectronicsCosimResult.h
+  
+  circuits/ChElectronicCircuit.cpp
+  circuits/ChElectronicCircuit.h
+
+  circuits/ChElectronicMotor.h
+  circuits/ChElectronicMotor.cpp
+
 
 )
 source_group("base" FILES ${CH_POWERELECTRONICS_BASE_FILES})

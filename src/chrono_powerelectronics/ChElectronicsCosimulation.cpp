@@ -17,6 +17,8 @@
 // =========================
 #include "ChElectronicsCosimulation.h"
 
+namespace chrono {
+namespace powerelectronics {
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
 // CosimResults
@@ -115,4 +117,7 @@ void ChElectronicsCosimulation::Cosimulate(CosimResults results, FlowInMap flow_
 
 CosimResults ChElectronicsCosimulation::GetResult_V() {
     return this->results;
+}
+
+}
 }

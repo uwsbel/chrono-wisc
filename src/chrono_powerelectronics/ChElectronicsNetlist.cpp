@@ -1,5 +1,8 @@
 #include "ChElectronicsNetlist.h"
 
+namespace chrono {
+namespace powerelectronics {
+
 std::string ChElectronicsNetlist::AsString() {
     std::string str;
 
@@ -317,4 +320,7 @@ Netlist_V ChElectronicsNetlist::UpdateBranchCurrents(Netlist_V netlist, BranchCu
     }
 
     return netlist;
+}
+
+}
 }
