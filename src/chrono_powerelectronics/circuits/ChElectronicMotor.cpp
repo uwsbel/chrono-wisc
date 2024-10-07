@@ -61,6 +61,9 @@ void ChElectronicMotor::PostInitialize() {
 }
 
 void ChElectronicMotor::PreAdvance() {
+
+    std::cout << "PreAdvance" << std::endl;
+
     this->flow_in["LaC"] = L_coil;
     this->flow_in["RaC"] = R_coil;
 
@@ -68,9 +71,15 @@ void ChElectronicMotor::PreAdvance() {
     this->pwl_in["VbackemfCVAR"] = this->VbackemfCVAR;
     this->pwl_in["VSW1VAR"] = 1.;
     this->pwl_in["VgenPWMVAR"] = this->VgenPWMVAR;
+
+    std::cout << "PreAdvance#" << std::endl;
+
 }
 
 void ChElectronicMotor::PostAdvance() {
+
+    std::cout << "PostAdvance" << std::endl;
+
     auto res = this->GetResult();
     double IVprobe1 = res["vprobe1"][res["vprobe1"].size() - 1];
 
@@ -93,6 +102,9 @@ void ChElectronicMotor::PostAdvance() {
         spindle->EmptyAccumulators(); // Clear previous forces/torques
         spindle->AccumulateTorque(spindle_torque, false); // Apply torque to the spindle body
     }
+
+    std::cout << "PostAdvance#" << std::endl;
+
 }
 
 }

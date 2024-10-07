@@ -16,6 +16,7 @@
 // ======== Headers ========
 // =========================
 #include "ChElectronicsCosimulation.h"
+#include "ChNgSpice.h"
 
 namespace chrono {
 namespace powerelectronics {
@@ -24,84 +25,49 @@ namespace powerelectronics {
 // CosimResults
 std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(std::string file_name, double t_step, double t_end)
 {
-    std::vector<std::vector<double>> node_val;                   // Contains the voltage values at every SPICE circuit nodes returned by the Python module, it is update at every call of the class
-    std::vector<std::string> node_name;                         // Contains the names of every SPICE circuit nodes returned by the Python module, it is update at every call of the class
-    std::vector<std::vector<double>> branch_val;                 // Contains the current values at every SPICE circuit branches returned by the Python module, it is update at every call of the class
-    std::vector<std::string> branch_name;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
-    std::vector<double> sim_time;                       // Contains the names of every SPICE circuit branches returned by the Python module, it is update at every call of the class
-
-    // -------- Python call --------
-    
-    // Import the Python module    
-    mymodule = py::module::import(file_name.c_str());            // c_str() allows to convert a string to a char string, the File_name does not need the extension .py 
-
-    // Call the desired method from the Python module
-    // std::cout << t_step << " " << t_end << std::endl;
-    
-    data = mymodule.attr("CircuitAnalysis")(t_step, t_end);
-
-    // -------- Access the sim_time: (NumPy array (double array) from the tuple) --------
-    sim_time.clear();
-    py::array_t<double> doubleArray = data[0].cast<py::array_t<double>>();     // data[0] first element of the tuple file
-    auto doubleBuffer = doubleArray.request();
-    double* doublePtr = static_cast<double*>(doubleBuffer.ptr);
-
-    for (ssize_t i = 0; i < doubleBuffer.size; ++i) {
-        sim_time.push_back(doublePtr[i]);
-    }
-
-    // -------- Access the node_val: (list of NumPy arrays (array list) from the tuple) --------
-    node_val.clear();
-    py::list arrayList = data[1].cast<py::list>();
-    // Print elements of each NumPy array in the list
-    for (size_t i = 0; i < arrayList.size(); ++i) {
-        py::array_t<double> npArray = arrayList[i].cast<py::array_t<double>>();
-        auto npBuffer = npArray.request();
-        double* npPtr = static_cast<double*>(npBuffer.ptr);
-        std::vector<double> row;                                                      // Create the row of the matrix
-        for (ssize_t j = 0; j < npBuffer.size; ++j) {
-            row.push_back(npPtr[j]);                                            // Add the element to the row
-        }
-        node_val.push_back(row);                                                // Add the row to the matrix
-    }
-    
-    // -------- Access the node_name: (list of strings from the tuple) --------
-    node_name.clear();
-    node_name = data[2].cast<std::vector<std::string>>();
-    // Scope_String_Vector(node_name);               // DEBUG: Scope what desired for debug purposes
-
-
-    // -------- Access the branch_val: (list of NumPy arrays (array list) from the tuple) --------
-    branch_val.clear();
-    py::list arrayList1 = data[3].cast<py::list>();
-    // Print elements of each NumPy array in the list
-    for (size_t i = 0; i < arrayList1.size(); ++i) {
-        py::array_t<double> npArray1 = arrayList1[i].cast<py::array_t<double>>();
-        auto npBuffer1 = npArray1.request();
-        double* npPtr1 = static_cast<double*>(npBuffer1.ptr);
-        std::vector<double> row1;                                                      // Create the row of the matrix
-        for (ssize_t j = 0; j < npBuffer1.size; ++j) {
-            row1.push_back(npPtr1[j]);                                          // Add the element to the row
-        }
-        branch_val.push_back(row1);                                             // Add the row to the matrix
-    }
-
-    // -------- Access the branch_name: (list of strings from the tuple) --------
-    branch_name.clear();
-    branch_name = data[4].cast<std::vector<std::string>>();
-    //Scope_String_Vector(branch_name);               // DEBUG: Scope what desired for debug purposes  
-
-    this->results = {
-        sim_time, node_val, node_name, branch_val, branch_name
-    };
-
     std::map<std::string, std::vector<double>> circuit_map;
-    for (size_t i = 0; i < branch_name.size(); ++i) {
-        circuit_map[branch_name[i]] = branch_val[i];
+
+    try {
+        // Create an instance of the ChNgSpice class
+        ChNgSpice ngspice;
+
+        // Load the circuit file
+        if (!ngspice.loadCircuitFromFile("../data/Circuit/MotorControl/Circuit_Netlist.cir.run")) {
+            return circuit_map;
+        }
+
+        // Run the simulation
+        if (!ngspice.runSimulation()) {
+            return circuit_map;
+        }
+
+        // Extract and display the simulation results
+        auto [nodeNames, nodeValues, branchNames, branchValues] = ngspice.extractResults();
+
+        for (size_t i = 0; i < branchNames.size(); ++i) {
+            circuit_map[branchNames[i]] = branchValues[i];
+        }
+        for (size_t i = 0; i < nodeNames.size(); ++i) {
+            circuit_map[nodeNames[i]] = nodeValues[i];
+        }
+
+        // // Display node names and values
+        // std::cout << "\nNode Names and Values:\n";
+        // for (size_t i = 0; i < nodeNames.size(); ++i) {
+        //     std::cout << nodeNames[i] << ": " << nodeValues[i] << std::endl;
+        // }
+
+        // // Display branch names and values
+        // std::cout << "\nBranch Names and Values:\n";
+        // for (size_t i = 0; i < branchNames.size(); ++i) {
+        //     std::cout << branchNames[i] << ": " << branchValues[i] << std::endl;
+        // }
+
+    } catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << std::endl;
+        return circuit_map;
     }
-    for (size_t i = 0; i < node_name.size(); ++i) {
-        circuit_map[node_name[i]] = node_val[i];
-    }
+
 
     IncrementStep();
 

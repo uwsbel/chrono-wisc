@@ -21,12 +21,12 @@
 #include <Python.h>
 #define _DEBUG
 #else
-#include <Python.h>
+// #include <Python.h>
 #endif
-#include <pybind11/pybind11.h>
-#include <pybind11/embed.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
+// #include <pybind11/pybind11.h>
+// #include <pybind11/embed.h>
+// #include <pybind11/numpy.h>
+// #include <pybind11/stl.h>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -40,11 +40,11 @@
 #include <exception>
 #define _USE_MATH_DEFINES 
 #include <cmath>
-#include "externals/json.hpp"
+// #include "externals/json.hpp"
 #include <future>
 #include <sstream>
 // #include <chrono> // Header, which provides a high-resolution clock
-//#include <nlohmann/json.hpp>
+// #include <nlohmann/json.hpp>
 #include <thread>
 
 #include "chrono/core/ChRealtimeStep.h"
@@ -72,9 +72,9 @@
 using namespace ::chrono;
 using namespace ::chrono::irrlicht;
 using namespace ::chrono::powerelectronics;
-namespace py = pybind11;
-namespace fs = std::filesystem;
-using json = nlohmann::json;
+// namespace py = pybind11;
+// namespace fs = std::filesystem;
+// using json = nlohmann::json;
 
 // Use the main namespaces of Irrlicht
 using namespace irr;
@@ -94,34 +94,34 @@ void _sleep(int seconds) {
 }
 
 // ======== Method: allows to read a .json file ========
-bool readJsonFile(const std::string& filename, json& j) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Error opening JSON file." << std::endl;
-        return false;
-    }
-    file >> j;
-    return true;
-}
+// bool readJsonFile(const std::string& filename, json& j) {
+//     std::ifstream file(filename);
+//     if (!file.is_open()) {
+//         std::cerr << "Error opening JSON file." << std::endl;
+//         return false;
+//     }
+//     file >> j;
+//     return true;
+// }
 
 // ======== Method: allows to write into a .json file ========
-auto writeJsonFile(const std::string& filename, json data)
-{
-    // Specify the file name
-    std::string fileName = "Sim_Res/" + filename + ".json";
-    // Open a file stream for writing
-    std::ofstream file(fileName);
-    // Check if the file stream is open
-    if (!file.is_open()) {
-        std::cerr << "Error opening file for writing!" << std::endl;
-        return 1;
-    }
-    // Write the JSON object to the file
-    file << data.dump(4); // Pretty print with indentation of 4 spaces
-    // Close the file stream
-    file.close();
-    std::cout << "\n!!!!! Results exported to: " << fileName << " !!!!!\n";
-}
+// auto writeJsonFile(const std::string& filename, json data)
+// {
+//     // Specify the file name
+//     std::string fileName = "Sim_Res/" + filename + ".json";
+//     // Open a file stream for writing
+//     std::ofstream file(fileName);
+//     // Check if the file stream is open
+//     if (!file.is_open()) {
+//         std::cerr << "Error opening file for writing!" << std::endl;
+//         return 1;
+//     }
+//     // Write the JSON object to the file
+//     file << data.dump(4); // Pretty print with indentation of 4 spaces
+//     // Close the file stream
+//     file.close();
+//     std::cout << "\n!!!!! Results exported to: " << fileName << " !!!!!\n";
+// }
 
 // ======== Class: allows to compute the derivative in-between a single simulation time-step through the numerical differentiation method ========
 class NumericalDifferentiation {
@@ -242,7 +242,7 @@ int main(int argc, char* argv[]) {
         // ======== SET THE PYTHON INTERPRETER ========
         // ============================================
         // ======== Python global variables ========  
-    py::scoped_interpreter guard{};         // Initialize Python interpreter  
+    // py::scoped_interpreter guard{};         // Initialize Python interpreter  
 
     // =%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=%=
     // =%=%=%=% MECHANICAL DOMAIN =%=%=%=%

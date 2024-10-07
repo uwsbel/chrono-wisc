@@ -24,19 +24,24 @@ set(CMAKE_CXX_STANDARD 17)
 #-----------------------------------------------------------------------------
 # PyBind11
 #-----------------------------------------------------------------------------
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-include_directories(${Python3_INCLUDE_DIRS})
+# find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+# include_directories(${Python3_INCLUDE_DIRS})
 
-set(EXTERNALS "../demos/powerelectronics/externals")
+# set(EXTERNALS "../demos/powerelectronics/externals")
 
-list(APPEND CH_POWERELECTRONICS_LINKED_LIBRARIES ${Python3_LIBRARIES})
-list(APPEND CH_POWERELECTRONICS_INCLUDES ${Python3_INCLUDE_DIRS})
+# list(APPEND CH_POWERELECTRONICS_LINKED_LIBRARIES ${Python3_LIBRARIES})
+# list(APPEND CH_POWERELECTRONICS_INCLUDES ${Python3_INCLUDE_DIRS})
 
-#### TODO: MAKE PART OF THIRDPARTY?
-add_subdirectory(
-  /home/bret/chrono-wisc/src/demos/powerelectronics/externals/pybind11
-  ${CMAKE_BINARY_DIR}/pybind11_build
-)
+# #### TODO: MAKE PART OF THIRDPARTY?
+# add_subdirectory(
+#   /home/bret/chrono-wisc/src/demos/powerelectronics/externals/pybind11
+#   ${CMAKE_BINARY_DIR}/pybind11_build
+# )
+#-----------------------------------------------------------------------------
+# NgSpice
+#-----------------------------------------------------------------------------
+find_library(NGSPICE_LIB ngspice REQUIRED)
+list(APPEND CH_POWERELECTRONICS_LINKED_LIBRARIES ${NGSPICE_LIB})
 
 # ----------------------------------------------------------------------------
 # Generate and install configuration file
@@ -53,6 +58,9 @@ set(CH_POWERELECTRONICS_BASE_FILES
 
   ChElectronicsNetlist.h
 	ChElectronicsNetlist.cpp
+  
+  ChNgSpice.h
+	ChNgSpice.cpp
 
   ChElectronicsCosimResult.h
   
@@ -76,7 +84,7 @@ add_library(ChronoEngine_powerelectronics #SHARED
 
 # list(APPEND CH_ROS_LIBRARIES ChronoModels_robot)
 
-list(APPEND CH_POWERELECTRONICS_LIBRARIES pybind11::embed)
+# list(APPEND CH_POWERELECTRONICS_LIBRARIES pybind11::embed)
 
 # Update compile definitions on optionally found packages
 

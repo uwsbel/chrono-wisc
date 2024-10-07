@@ -82,11 +82,11 @@ endif()
 #-----------------------------------------------------------------------------
 # PyBind11
 #-----------------------------------------------------------------------------
-find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(PythonLibs 3.10 REQUIRED)
+# find_package(Python3 REQUIRED COMPONENTS Development)
+# find_package(PythonLibs 3.10 REQUIRED)
 
-include_directories(${Python3_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals)
+# include_directories(${Python3_INCLUDE_DIRS})
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals)
 
 # set(EXTERNALS "../demos/powerelectronics/externals")
 

@@ -61,6 +61,7 @@ public:
         t_sim_electronics += dt_mbs;
         this->result = cosim.RunSpice(python_simulator, t_step, t_end);
         cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, this->pwl_in, t_step, t_end);
+
         this->PostAdvance();
     }
 

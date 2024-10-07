@@ -24,26 +24,15 @@
 
 #include <filesystem>
 
-#include <Python.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/embed.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
 // =======================
 // ======== Class ========
 // =======================
-namespace py = pybind11;
-namespace fs = std::filesystem;
 
 namespace chrono {
 namespace powerelectronics {
 
 class ChElectronicsCosimulation {  
 public:
-
-    py::object mymodule;                    // Import the Python module -> c_str() allows to convert a string to a char string, the File_name does not need the extension .py
-    py::tuple data;                         // Call the desired method from the Python module
 
     // =============================
     // ======== Constructor ========
@@ -64,7 +53,8 @@ public:
 
         this->Initialize();
     }
-    void Initialize() {}
+    void Initialize() {
+    }
 
     typedef std::map<std::string,std::vector<double>> CircStateMap;
 
