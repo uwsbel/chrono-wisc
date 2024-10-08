@@ -14,13 +14,15 @@ public:
     ~ChNgSpice();
 
     // Load circuit from file
-    bool loadCircuitFromFile(const std::string& filename);
+    bool loadCircuitFromFile(const std::string& filename, double dt_mbs);
 
     // Run the NGSpice simulation
     bool runSimulation();
 
     // Get the results from the simulation
     std::tuple<std::vector<std::string>, std::vector<std::vector<double>>, std::vector<std::string>, std::vector<std::vector<double>>> extractResults();
+
+    void runTransientAnalysis(std::vector<std::string> netlist, double t_step, double dt_mbs);
 
 private:
     // NGSpice callback functions

@@ -31,7 +31,7 @@ ChNgSpice::~ChNgSpice() {
 }
 
 // Load circuit from file
-bool ChNgSpice::loadCircuitFromFile(const std::string& filename) {
+bool ChNgSpice::loadCircuitFromFile(const std::string& filename, double dt_mbs) {
     std::vector<std::string> circuit = readCircuitFromFile(filename);
     if (circuit.empty()) {
         std::cerr << "No circuit data found." << std::endl;
@@ -42,10 +42,6 @@ bool ChNgSpice::loadCircuitFromFile(const std::string& filename) {
     for (const std::string& line : circuit) {
         ngspiceCircuit.push_back(const_cast<char*>(line.c_str()));
     }
-    ngspiceCircuit.push_back(".tran 1e-6 2e-4");
-    ngspiceCircuit.push_back(".end");
-
-    ngspiceCircuit.push_back(nullptr); // Null-terminate the array
 
     if (ngSpice_Circ(ngspiceCircuit.data()) != 0) {
         std::cerr << "Failed to load the circuit into NGSpice." << std::endl;
@@ -54,6 +50,33 @@ bool ChNgSpice::loadCircuitFromFile(const std::string& filename) {
 
     return true;
 }
+
+void ChNgSpice::runTransientAnalysis(std::vector<std::string> netlist, double t_step, double dt_mbs) {
+    
+    std::string tranCommand = ".tran " + std::to_string(t_step)  + " " + std::to_string(dt_mbs);
+
+    std::vector<char*> ngspiceCircuit;
+
+
+    for (const std::string& line : netlist) {
+        ngspiceCircuit.push_back(const_cast<char*>(line.c_str()));
+    }
+
+    ngspiceCircuit.push_back(const_cast<char*>(tranCommand.c_str()));
+    ngspiceCircuit.push_back(".end");
+    ngspiceCircuit.push_back(nullptr); // Null-terminate the array
+
+    if (ngSpice_Circ(ngspiceCircuit.data()) != 0) {
+        std::cerr << "Failed to load the circuit into NGSpice." << std::endl;
+        return;
+    }
+
+    if(runSimulation() == 0) {
+        std::cerr << "Failed to run simulation." << std::endl;
+        return;
+    }
+}
+
 
 // Helper function to read circuit from a file
 std::vector<std::string> ChNgSpice::readCircuitFromFile(const std::string& filename) {
@@ -87,7 +110,6 @@ bool ChNgSpice::waitForCompletion() {
     while (ngSpice_CurPlot() == nullptr) {
         // Polling or waiting for NGSpice to complete
     }
-    std::cout << "Simulation completed." << std::endl;
     return true;
 }
 

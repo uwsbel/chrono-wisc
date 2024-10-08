@@ -1036,7 +1036,7 @@ int main(int argc, char* argv[]) {
     // ======== INITIALIZE THE MOTOR ========
     // ==================================================
 
-    ChElectronicMotor motor(Rotor_body, t_step_electronic, T_sampling_electronic);
+    ChElectronicMotor motor(Rotor_body, t_step_electronic);
     motor.Initialize();
 
     // ==================================================

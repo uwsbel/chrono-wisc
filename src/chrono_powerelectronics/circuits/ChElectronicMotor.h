@@ -25,8 +25,8 @@ namespace powerelectronics {
 class ChElectronicMotor : public ChElectronicCircuit {
 public:
     // Constructors
-    ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step, double t_end);
-    ChElectronicMotor(double t_step, double t_end);
+    ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step);
+    ChElectronicMotor(double t_step);
 
     // Overriden methods from ChElectronicCircuit
     void PreInitialize() override;
@@ -51,7 +51,7 @@ private:
     double R_coil = 69.1;  // Coil resistance [Ohm]
 
     double shaft_angvel = 0.0;  // Angular velocity of the motor shaft
-    ChVector3d spindle_torque;  // Torque vector applied to the spindle
+    ChVector3d spindle_torque{};  // Torque vector applied to the spindle
 };
 
 

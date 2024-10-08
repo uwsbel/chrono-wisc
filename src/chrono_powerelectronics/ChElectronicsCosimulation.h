@@ -37,28 +37,25 @@ public:
     // =============================
     // ======== Constructor ========
     // =============================
-    ChElectronicsCosimulation(std::string netlist, std::string python_sim_dir) {
-        this->Initialize(netlist, python_sim_dir);
+    ChElectronicsCosimulation(std::string netlist) {
+        this->Initialize(netlist);
     }
 
     ChElectronicsCosimulation() {}
 
 
-    void Initialize(std::string circuit_file, std::string python_sim_name) 
+    void Initialize(std::string circuit_file) 
     {
         netlist.InitNetlist(circuit_file, 1e-6, 2e-4);
-
-        this->python_sim_dir = python_sim_name;   
-        this->method_name = "CircuitAnalysis";
-
         this->Initialize();
     }
+
     void Initialize() {
     }
 
     typedef std::map<std::string,std::vector<double>> CircStateMap;
 
-    CircStateMap RunSpice(std::string file_name, double t_step, double t_end);
+    CircStateMap RunSpice(Netlist_V netlist, double t_step, double t_end);
 
     void Cosimulate(CosimResults results, FlowInMap flow_in, PWLInMap pwl_in, double t_step, double t_end);
     
@@ -85,6 +82,10 @@ public:
         sim_step++;
     }
     
+    ChElectronicsNetlist GetNetlist() {
+        return netlist;
+    }
+    
 private:
 
     int sim_step = 1;                               // Initialize the simulation step counter to 1
@@ -92,9 +93,6 @@ private:
     
     ChElectronicsNetlist netlist;
 
-
-    std::string python_sim_dir;                   // Name of the Python module that run and pass the results
-    std::string method_name;
     std::string data_dir;
     
     CosimResults results;

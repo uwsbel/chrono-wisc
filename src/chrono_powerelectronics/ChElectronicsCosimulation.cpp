@@ -23,7 +23,7 @@ namespace powerelectronics {
 
 // ======== Method: allows to run a Spice Netlist simulation and solve the circuit ========
 // CosimResults
-std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(std::string file_name, double t_step, double t_end)
+std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(Netlist_V netlist, double t_step, double t_end)
 {
     std::map<std::string, std::vector<double>> circuit_map;
 
@@ -31,15 +31,7 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(st
         // Create an instance of the ChNgSpice class
         ChNgSpice ngspice;
 
-        // Load the circuit file
-        if (!ngspice.loadCircuitFromFile("../data/Circuit/MotorControl/Circuit_Netlist.cir.run")) {
-            return circuit_map;
-        }
-
-        // Run the simulation
-        if (!ngspice.runSimulation()) {
-            return circuit_map;
-        }
+        ngspice.runTransientAnalysis(netlist,t_step,t_end);
 
         // Extract and display the simulation results
         auto [nodeNames, nodeValues, branchNames, branchValues] = ngspice.extractResults();
@@ -50,6 +42,13 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(st
         for (size_t i = 0; i < nodeNames.size(); ++i) {
             circuit_map[nodeNames[i]] = nodeValues[i];
         }
+
+        std::vector<double> sim_time;
+        
+
+        this->results = CosimResults {
+            sim_time, nodeValues, nodeNames, branchValues, branchNames
+        };
 
         // // Display node names and values
         // std::cout << "\nNode Names and Values:\n";
@@ -78,7 +77,8 @@ std::map<std::string,std::vector<double>> ChElectronicsCosimulation::RunSpice(st
 void ChElectronicsCosimulation::Cosimulate(CosimResults results, FlowInMap flow_in, PWLInMap pwl_in, double t_step, double t_end) 
 {
     this->netlist.UpdateNetlist(results,flow_in,pwl_in,t_step,t_end);
-    this->netlist.WriteNetlist("../data/Circuit/MotorControl/Circuit_Netlist.cir.run");
+
+    // this->netlist.WriteNetlist("../data/Circuit/MotorControl/Circuit_Netlist.cir.run");
 }  
 
 CosimResults ChElectronicsCosimulation::GetResult_V() {

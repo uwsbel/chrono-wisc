@@ -17,13 +17,13 @@
 namespace chrono {
 namespace powerelectronics {
 
-ChElectronicMotor::ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step, double t_end)
-    : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) {
+ChElectronicMotor::ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step)
+    : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step) {
     this->spindle = spindle;
 }
 
-ChElectronicMotor::ChElectronicMotor(double t_step, double t_end)
-    : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step, t_end) {
+ChElectronicMotor::ChElectronicMotor(double t_step)
+    : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step) {
 }
 
 void ChElectronicMotor::PreInitialize() {
@@ -62,8 +62,6 @@ void ChElectronicMotor::PostInitialize() {
 
 void ChElectronicMotor::PreAdvance() {
 
-    std::cout << "PreAdvance" << std::endl;
-
     this->flow_in["LaC"] = L_coil;
     this->flow_in["RaC"] = R_coil;
 
@@ -72,13 +70,10 @@ void ChElectronicMotor::PreAdvance() {
     this->pwl_in["VSW1VAR"] = 1.;
     this->pwl_in["VgenPWMVAR"] = this->VgenPWMVAR;
 
-    std::cout << "PreAdvance#" << std::endl;
-
 }
 
 void ChElectronicMotor::PostAdvance() {
 
-    std::cout << "PostAdvance" << std::endl;
 
     auto res = this->GetResult();
     double IVprobe1 = res["vprobe1"][res["vprobe1"].size() - 1];
@@ -87,6 +82,9 @@ void ChElectronicMotor::PostAdvance() {
 
     ChVector3d torque_vec_norm(0, 0, 1); // Normalized direction vector
     double spindle_torque_mag = this->kt_motor * IVprobe1 * 1e3 * 1e3; // Convert to [kg]-[mm]-[s]
+
+    // std::cout << this->kt_motor << " " << IVprobe1 << " " << spindle_torque_mag << std::endl;
+
     ChVector3d spindle_torque = spindle_torque_mag * torque_vec_norm;
     this->spindle_torque = spindle_torque;
 
@@ -103,7 +101,6 @@ void ChElectronicMotor::PostAdvance() {
         spindle->AccumulateTorque(spindle_torque, false); // Apply torque to the spindle body
     }
 
-    std::cout << "PostAdvance#" << std::endl;
 
 }
 

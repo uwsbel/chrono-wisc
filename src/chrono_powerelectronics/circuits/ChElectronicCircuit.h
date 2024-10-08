@@ -21,7 +21,7 @@
 
 #include "../ChElectronicsCosimResult.h"
 #include "../ChElectronicsCosimulation.h"
-
+#include <chrono>
 // =======================
 // ======== Class ========
 // =======================
@@ -35,10 +35,9 @@ class ChElectronicCircuit {
 public:
 
 
-    ChElectronicCircuit(std::string netlist, double t_step, double t_end) {
-        this->netlist = netlist;
+    ChElectronicCircuit(std::string netlist_file, double t_step) {
+        this->netlist_file = netlist_file;
         this->t_step = t_step;
-        this->t_end = t_end;
     }
 
 
@@ -52,17 +51,31 @@ public:
 
     virtual void Initialize() final {
         this->PreInitialize();
-        cosim.Initialize(netlist, python_simulator);
+        cosim.Initialize(netlist_file);
+        netlist = cosim.GetNetlist().netlist_file;
         this->PostInitialize();
     }
 
     virtual void Advance(double dt_mbs) final {
         this->PreAdvance();
         t_sim_electronics += dt_mbs;
-        this->result = cosim.RunSpice(python_simulator, t_step, t_end);
-        cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, this->pwl_in, t_step, t_end);
+
+        auto runSpiceStart = std::chrono::high_resolution_clock::now();
+        this->result = cosim.RunSpice(this->netlist, this->t_step, dt_mbs);
+        auto runSpiceEnd = std::chrono::high_resolution_clock::now();
+        auto runSpiceTime = std::chrono::duration_cast<std::chrono::microseconds>(runSpiceEnd - runSpiceStart).count();
+        
+        auto cosimStart = std::chrono::high_resolution_clock::now();
+        cosim.Cosimulate(cosim.GetResult_V(), this->flow_in, this->pwl_in, this->t_step, dt_mbs);
+        auto cosimEnd = std::chrono::high_resolution_clock::now();
+        auto cosimTime = std::chrono::duration_cast<std::chrono::microseconds>(cosimEnd - cosimStart).count();
+        
+        this->netlist = cosim.GetNetlist().netlist_file;
 
         this->PostAdvance();
+
+        std::cout << "RunSpice time: " << runSpiceTime << " microseconds" << std::endl;
+        std::cout << "Cosimulate time: " << cosimTime << " microseconds" << std::endl;
     }
 
     void SetInitialPWLIn(PWLInMap map) {
@@ -83,12 +96,12 @@ public:
 
 private:
 
-    std::string netlist;
+    Netlist_V netlist;
+    std::string netlist_file;
+
     ChElectronicsCosimulation cosim;
-    std::string python_simulator = "MainPython_Spice_1";
 
     double t_step;
-    double t_end;
 
 
     double t_sim_electronics = 0;

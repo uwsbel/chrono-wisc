@@ -60,7 +60,6 @@ void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_
     // auto node_v_states = GetVoltageConds(results);
     // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
 
-
     auto branch_states = GetBranchConds(results);
     this->netlist_file = this->UpdateBranchCurrents(this->netlist_file, branch_states);
        
