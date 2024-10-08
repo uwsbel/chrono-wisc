@@ -81,7 +81,7 @@ void ChElectronicMotor::PostAdvance() {
     std::cout << IVprobe1 << std::endl;
 
     ChVector3d torque_vec_norm(0, 0, 1); // Normalized direction vector
-    double spindle_torque_mag = this->kt_motor * IVprobe1 * 1e3 * 1e3; // Convert to [kg]-[mm]-[s]
+    double spindle_torque_mag = this->kt_motor * IVprobe1; //* 1e3 * 1e3; // Convert to [kg]-[mm]-[s]
 
     // std::cout << this->kt_motor << " " << IVprobe1 << " " << spindle_torque_mag << std::endl;
 
@@ -97,7 +97,7 @@ void ChElectronicMotor::PostAdvance() {
     this->VbackemfCVAR = ke_motor * ang_vel;
 
     if (this->spindle != nullptr) {
-        spindle->EmptyAccumulators(); // Clear previous forces/torques
+        // spindle->EmptyAccumulators(); // Clear previous forces/torques
         spindle->AccumulateTorque(spindle_torque, false); // Apply torque to the spindle body
     }
 
