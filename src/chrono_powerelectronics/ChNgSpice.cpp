@@ -52,8 +52,15 @@ bool ChNgSpice::loadCircuitFromFile(const std::string& filename, double dt_mbs) 
 }
 
 void ChNgSpice::runTransientAnalysis(std::vector<std::string> netlist, double t_step, double dt_mbs) {
-    
-    std::string tranCommand = ".tran " + std::to_string(t_step)  + " " + std::to_string(dt_mbs);
+    std::string optCommand = ".options reltol=1e-6 abstol=1e-12";
+
+
+    int t_step_exponent = static_cast<int>(std::floor(std::log10(std::abs(t_step))));
+    double t_step_mantissa = t_step / std::pow(10, t_step_exponent);
+    double t_step_rand = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);;
+    double t_step_new = (t_step_mantissa + t_step_rand) * std::pow(10, t_step_exponent);
+
+    std::string tranCommand = ".tran " + std::to_string(t_step_new)  + " " + std::to_string(dt_mbs);
 
     std::vector<char*> ngspiceCircuit;
 
@@ -62,6 +69,7 @@ void ChNgSpice::runTransientAnalysis(std::vector<std::string> netlist, double t_
         ngspiceCircuit.push_back(const_cast<char*>(line.c_str()));
     }
 
+    // ngspiceCircuit.push_back(const_cast<char*>(optCommand.c_str()));
     ngspiceCircuit.push_back(const_cast<char*>(tranCommand.c_str()));
     ngspiceCircuit.push_back(".end");
     ngspiceCircuit.push_back(nullptr); // Null-terminate the array

@@ -57,13 +57,13 @@ void ChElectronicsNetlist::UpdateNetlist(CosimResults results, FlowInMap flowin_
 
     this->netlist_file = this->UpdateFlowInParams(this->netlist_file, flowin_map);
 
-    // auto node_v_states = GetVoltageConds(results);
-    // this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
+    auto node_v_states = GetVoltageConds(results);
+    this->netlist_file = this->UpdateVoltageICs(this->netlist_file, node_v_states);
 
     auto branch_states = GetBranchConds(results);
     this->netlist_file = this->UpdateBranchCurrents(this->netlist_file, branch_states);
        
-    // std::cout << this->AsString() << std::endl;
+    std::cout << this->AsString() << std::endl;
 
 }
 
@@ -220,6 +220,10 @@ VoltageMap ChElectronicsNetlist::GetVoltageConds(const CosimResults& results) {
 
     // Populate the map with the node names and their corresponding voltage values for the last time step
     for (size_t i = 0; i < results.node_name.size(); ++i) {
+        if(results.node_name[i] == "time" ) { //|| results.node_name[i] == "n5") {
+            continue;
+        }
+
         double last_time_step_voltage = results.node_val[i].back();
         voltageMap[results.node_name[i]] = last_time_step_voltage;
     }

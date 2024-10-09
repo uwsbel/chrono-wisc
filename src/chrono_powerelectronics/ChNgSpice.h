@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <cmath>   // For log10 and floor
+#include <cstdlib> // For rand and RAND_MAX
 
 class ChNgSpice {
 public:

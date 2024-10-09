@@ -58,6 +58,9 @@ public:
 
     virtual void Advance(double dt_mbs) final {
         this->PreAdvance();
+
+        // std::cout << "#########################################################" << std::endl;
+
         t_sim_electronics += dt_mbs;
 
         auto runSpiceStart = std::chrono::high_resolution_clock::now();
@@ -74,8 +77,8 @@ public:
 
         this->PostAdvance();
 
-        std::cout << "RunSpice time: " << runSpiceTime << " microseconds" << std::endl;
-        std::cout << "Cosimulate time: " << cosimTime << " microseconds" << std::endl;
+        // std::cout << "RunSpice time: " << runSpiceTime << " microseconds" << std::endl;
+        // std::cout << "Cosimulate time: " << cosimTime << " microseconds" << std::endl;
     }
 
     void SetInitialPWLIn(PWLInMap map) {
@@ -92,6 +95,13 @@ public:
 
     std::map<std::string,std::vector<double>> GetResult() {
         return this->result;
+    }
+
+    FlowInMap GetFlowIn() {
+        return flow_in;
+    }
+    PWLInMap GetPWLIn() {
+        return pwl_in;
     }
 
 private:

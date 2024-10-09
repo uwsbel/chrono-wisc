@@ -78,7 +78,7 @@ void ChElectronicMotor::PostAdvance() {
     auto res = this->GetResult();
     double IVprobe1 = res["vprobe1"][res["vprobe1"].size() - 1];
 
-    std::cout << IVprobe1 << std::endl;
+    // std::cout << IVprobe1 << std::endl;
 
     ChVector3d torque_vec_norm(0, 0, 1); // Normalized direction vector
     double spindle_torque_mag = this->kt_motor * IVprobe1; //* 1e3 * 1e3; // Convert to [kg]-[mm]-[s]
