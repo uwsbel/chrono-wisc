@@ -432,6 +432,7 @@ set(ChronoEngine_sensor_FILTERS_SOURCES
     filters/ChFilterRadarXYZVisualize.cpp
     filters/ChFilterRadarVisualizeCluster.cpp
     filters/ChFilterTachometerUpdate.cpp
+    filters/ChFilterCameraExposure.cpp
 )
 
 set(ChronoEngine_sensor_FILTERS_HEADERS
@@ -456,6 +457,7 @@ set(ChronoEngine_sensor_FILTERS_HEADERS
     filters/ChFilterRadarXYZVisualize.h
     filters/ChFilterRadarVisualizeCluster.h
     filters/ChFilterTachometerUpdate.h
+    filters/ChFilterCameraExposure.h
 )
 
 source_group("Filters" FILES
