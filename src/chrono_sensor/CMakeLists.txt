@@ -330,6 +330,7 @@ set(ChronoEngine_sensor_SENSORS_SOURCES
     sensors/ChNoiseModel.cpp
     sensors/ChOptixSensor.cpp
     sensors/ChCameraSensor.cpp
+    sensors/ChPhysCameraSensor.cpp
     sensors/ChSegmentationCamera.cpp
     sensors/ChDepthCamera.cpp
     sensors/ChLidarSensor.cpp
@@ -345,6 +346,7 @@ set(ChronoEngine_sensor_SENSORS_HEADERS
     sensors/ChNoiseModel.h
     sensors/ChOptixSensor.h
     sensors/ChCameraSensor.h
+    sensors/ChPhysCameraSensor.h
     sensors/ChSegmentationCamera.h
     sensors/ChDepthCamera.h
     sensors/ChLidarSensor.h
