@@ -23,6 +23,7 @@
 #endif
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
+// #include <iostream>
 
 static __device__ __inline__ float3 CrossProduct(const float3& a, const float3& b){
 
@@ -1055,6 +1056,10 @@ static __device__ __inline__ void DepthShader(PerRayData_depthCamera* prd,
     prd->depth = fminf(prd->max_depth, ray_dist);
 }
 
+static __device__ __inline__ void NormalShader(PerRayData_normalCamera* prd, const float3& world_normal) {
+    prd->normal = world_normal;
+}
+
 extern "C" __global__ void __closesthit__material_shader() {
     // determine parameters that are shared across all ray types
     const MaterialRecordParameters* mat_params = (MaterialRecordParameters*)optixGetSbtDataPointer();
@@ -1107,21 +1112,43 @@ extern "C" __global__ void __closesthit__material_shader() {
                             tangent, ray_dist, ray_orig, ray_dir);
             }
             break;
+        
+        case PHYS_CAMERA_RAY_TYPE:
+            PerRayData_phys_camera* prd_phys_camera_ptr = getPhysCameraPRD();
+            prd_phys_camera_ptr->distance = ray_dist;
+            if (!mat.use_hapke) {
+                CameraShader(prd_phys_camera_ptr, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
+                             tangent, ray_dist, ray_orig, ray_dir);
+            }
+            else {
+                CameraHapkeShader(prd_phys_camera_ptr, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv,
+                                  tangent, ray_dist, ray_orig, ray_dir);
+            }
+            break;
+
         case LIDAR_RAY_TYPE:
             LidarShader(getLidarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
+
         case RADAR_RAY_TYPE:
             RadarShader(getRadarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir,
                         mat_params->translational_velocity, mat_params->angular_velocity, mat_params->objectId);
             break;
+
         case SHADOW_RAY_TYPE:
             ShadowShader(getShadowPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
+
         case SEGMENTATION_RAY_TYPE:
             SemanticShader(getSemanticPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
+
         case DEPTH_RAY_TYPE:
             DepthShader(getDepthCameraPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            break;
+
+        case NORMAL_RAY_TYPE:
+            NormalShader(getNormalCameraPRD(), world_normal);
             break;
     }
 }

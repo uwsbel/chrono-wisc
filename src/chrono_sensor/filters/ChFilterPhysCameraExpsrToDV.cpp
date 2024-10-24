@@ -23,16 +23,16 @@
 // 
 // =============================================================================
 
-#include "chrono_sensor/filters/ChFilterRealCameraExpsrToDV.h"
+#include "chrono_sensor/filters/ChFilterPhysCameraExpsrToDV.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
-#include "chrono_sensor/cuda/real_cam_ops.cuh"
+#include "chrono_sensor/cuda/phys_cam_ops.cuh"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
 #include <chrono>
 
 namespace chrono {
 namespace sensor {
-ChFilterRealCameraExpsrToDV::ChFilterRealCameraExpsrToDV(
-    float ISO, ChVector<float> expsr2dv_gain_vec, ChVector<float> expsr2dv_bias_vec, float expsr2dv_gamma, int crf_type,
+ChFilterPhysCameraExpsrToDV::ChFilterPhysCameraExpsrToDV(
+    float ISO, ChVector3f expsr2dv_gain_vec, ChVector3f expsr2dv_bias_vec, float expsr2dv_gamma, int crf_type,
     std::string name
     )
     : m_ISO(ISO), m_expsr2dv_gamma(expsr2dv_gamma), m_crf_type(crf_type),ChFilter(name)
@@ -46,7 +46,7 @@ ChFilterRealCameraExpsrToDV::ChFilterRealCameraExpsrToDV(
     m_expsr2dv_biases[2] = expsr2dv_bias_vec.z();
 };
 
-CH_SENSOR_API void ChFilterRealCameraExpsrToDV::Initialize(
+CH_SENSOR_API void ChFilterPhysCameraExpsrToDV::Initialize(
     std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut
     ) {
     if (!bufferInOut) {
@@ -77,25 +77,25 @@ CH_SENSOR_API void ChFilterRealCameraExpsrToDV::Initialize(
     bufferInOut = m_buffer_out;
 }
 
-CH_SENSOR_API void ChFilterRealCameraExpsrToDV::Apply() {
+CH_SENSOR_API void ChFilterPhysCameraExpsrToDV::Apply() {
     // set output buffer configuration
     m_buffer_out->Width = m_buffer_in->Width;
     m_buffer_out->Height = m_buffer_in->Height;
     m_buffer_out->LaunchedCount = m_buffer_in->LaunchedCount;
     m_buffer_out->TimeStamp = m_buffer_in->TimeStamp;
     
-    cuda_real_cam_expsr2dv(
+    cuda_phys_cam_expsr2dv(
         m_buffer_in->Buffer.get(), m_buffer_out->Buffer.get(), m_buffer_out->Width, m_buffer_out->Height,
         m_ISO, m_expsr2dv_gains, m_expsr2dv_biases, m_expsr2dv_gamma, m_crf_type, m_cuda_stream
     );
 }
 
-CH_SENSOR_API void ChFilterRealCameraExpsrToDV::SetFilterCtrlParameters(float ISO) {
+CH_SENSOR_API void ChFilterPhysCameraExpsrToDV::SetFilterCtrlParameters(float ISO) {
     m_ISO = ISO;
 }
 
-CH_SENSOR_API void ChFilterRealCameraExpsrToDV::SetFilterModelParameters(
-    ChVector<float> expsr2dv_gain_vec, ChVector<float> expsr2dv_bias_vec, float expsr2dv_gamma, int crf_type
+CH_SENSOR_API void ChFilterPhysCameraExpsrToDV::SetFilterModelParameters(
+    ChVector3f expsr2dv_gain_vec, ChVector3f expsr2dv_bias_vec, float expsr2dv_gamma, int crf_type
 ) {
 	m_expsr2dv_gains[0] = expsr2dv_gain_vec.x();
     m_expsr2dv_gains[1] = expsr2dv_gain_vec.y();

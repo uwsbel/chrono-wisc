@@ -25,7 +25,7 @@
 namespace chrono {
 namespace sensor {
 ChFilterPhysCameraNoise::ChFilterPhysCameraNoise(
-    float expsr_time, ChVector<float> dark_current_vec, ChVector<float> noise_gain_vec, ChVector<float> STD_read_vec,
+    float expsr_time, ChVector3f dark_current_vec, ChVector3f noise_gain_vec, ChVector3f STD_read_vec,
     unsigned int FPN_seed, std::string name
 ) :
     m_expsr_time(expsr_time), m_FPN_seed(FPN_seed), ChFilter(name)
@@ -87,7 +87,7 @@ CH_SENSOR_API void ChFilterPhysCameraNoise::SetFilterCtrlParameters(float expsr_
 }
 
 CH_SENSOR_API void ChFilterPhysCameraNoise::SetFilterModelParameters(
-    ChVector<float> dark_current_vec, ChVector<float> noise_gain_vec, ChVector<float> STD_read_vec
+    ChVector3f dark_current_vec, ChVector3f noise_gain_vec, ChVector3f STD_read_vec
 ) {
 	m_dark_currents[0] = dark_current_vec.x();
     m_dark_currents[1] = dark_current_vec.y();

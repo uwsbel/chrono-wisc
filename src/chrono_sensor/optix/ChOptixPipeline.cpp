@@ -105,6 +105,12 @@ void ChOptixPipeline::Cleanup() {
         OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_camera_raygen_group));
         m_camera_raygen_group = 0;
     }
+
+    if (m_phys_camera_raygen_group) {
+        OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_phys_camera_raygen_group));
+        m_phys_camera_raygen_group = 0;
+    }
+
     // if (m_camera_fov_lens_raygen_group) {
     //     OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_camera_fov_lens_raygen_group));
     //     m_camera_fov_lens_raygen_group = 0;
@@ -118,10 +124,17 @@ void ChOptixPipeline::Cleanup() {
         OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_depthCamera_raygen_group));
         m_depthCamera_raygen_group = 0;
     }
+
+    if (m_normalCamera_raygen_group) {
+        OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_normalCamera_raygen_group));
+        m_normalCamera_raygen_group = 0;
+    }
+
     // if (m_segmentation_fov_lens_raygen_group) {
     //     OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_segmentation_fov_lens_raygen_group));
     //     m_segmentation_fov_lens_raygen_group = 0;
     // }
+
     if (m_lidar_single_raygen_group) {
         OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_lidar_single_raygen_group));
         m_lidar_single_raygen_group = 0;
@@ -362,6 +375,11 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     // camera pinhole raygen
     CreateOptixProgramGroup(m_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_camera_raygen_module, "__raygen__camera");
+    
+    // physics-based camera raygen
+    CreateOptixProgramGroup(m_phys_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+                            m_camera_raygen_module, "__raygen__phys_camera"); // __raygen__phys_camera in camera.cu
+    
     // // camera fov lens raygen
     // CreateOptixProgramGroup(m_camera_fov_lens_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
     //                         m_camera_raygen_module, "__raygen__camera_fov_lens");
@@ -369,6 +387,10 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
 
     CreateOptixProgramGroup(m_depthCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_camera_raygen_module, "__raygen__depthcamera");
+
+    // normal camera single raygen
+    CreateOptixProgramGroup(m_normalCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+                            m_camera_raygen_module, "__raygen__normalcamera");
 
     // segmentation pinhole raygen
     CreateOptixProgramGroup(m_segmentation_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
@@ -466,6 +488,32 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             break;
         }
 
+        case PipelineType::PHYS_CAMERA: {
+            program_groups.push_back(m_phys_camera_raygen_group);
+            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_phys_camera_raygen_group, raygen_record.get()));
+            
+            // set default values
+            raygen_record->data.specific.phys_camera.aperture_num = 1.6f;
+            raygen_record->data.specific.phys_camera.expsr_time = 0.512f;
+            raygen_record->data.specific.phys_camera.ISO = 100.0f;
+            raygen_record->data.specific.phys_camera.focal_length = 0.012f;
+            raygen_record->data.specific.phys_camera.focus_dist = 3.0f;
+            raygen_record->data.specific.phys_camera.max_scene_light_amount = 1000.f;
+            raygen_record->data.specific.phys_camera.sensor_width = 0.013035f;
+            raygen_record->data.specific.phys_camera.pixel_size = 5.86e-6;
+            raygen_record->data.specific.phys_camera.gain_params = {};
+            raygen_record->data.specific.phys_camera.noise_params = {};
+            raygen_record->data.specific.phys_camera.hFOV = 2.f * atanf(0.5f * 0.013035f / 0.012f);
+            raygen_record->data.specific.phys_camera.rgbd_buffer = {};
+            raygen_record->data.specific.phys_camera.use_gi = false;
+            raygen_record->data.specific.phys_camera.use_fog = true;
+            raygen_record->data.specific.phys_camera.gamma = 1.0f;
+            raygen_record->data.specific.phys_camera.lens_model = PINHOLE;
+            raygen_record->data.specific.phys_camera.lens_parameters = {};
+            raygen_record->data.specific.phys_camera.super_sample_factor = 1;
+            break;
+        }
+
             // case PipelineType::CAMERA_FOV_LENS: {
             //     program_groups.push_back(m_camera_fov_lens_raygen_group);
             //     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_camera_fov_lens_raygen_group, raygen_record.get()));
@@ -495,6 +543,16 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             raygen_record->data.specific.depthCamera.lens_model = PINHOLE;     // default value
             raygen_record->data.specific.depthCamera.lens_parameters = {};
             raygen_record->data.specific.depthCamera.max_depth = 1000.f;  // default value
+            break;
+        }
+
+        case PipelineType::NORMAL_CAMERA: {
+            program_groups.push_back(m_normalCamera_raygen_group);
+            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_normalCamera_raygen_group, raygen_record.get()));
+            raygen_record->data.specific.normalCamera.hFOV = 3.14f / 4;   // default value
+            raygen_record->data.specific.normalCamera.frame_buffer = {};  // default value
+            raygen_record->data.specific.normalCamera.lens_model = PINHOLE; // default value
+            raygen_record->data.specific.normalCamera.lens_parameters = {}; // default value
             break;
         }
 

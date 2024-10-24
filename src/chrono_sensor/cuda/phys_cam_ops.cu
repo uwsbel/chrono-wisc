@@ -20,7 +20,7 @@
 #include <cuda_runtime.h>
 
 #include "curand_utils.cuh"
-#include "real_cam_ops.cuh"
+#include "phys_cam_ops.cuh"
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include <iostream>
 #include <math.h>
@@ -33,7 +33,7 @@ namespace sensor {
 #define WAVELENGTH_BLUE 435.8 	// [nm]
 
 
-////---- Functions for cuda_real_cam_defocus_blur ----////
+////---- Functions for cuda_phys_cam_defocus_blur ----////
 
 /// Gaussian 1D discrete function
 /// @param kernel_size Gaussian kernel size, must be odd and positive
@@ -45,7 +45,7 @@ inline __device__ __half Gaussian1D(int x, int kernel_size, float sigma) {
 }
 
 // kernel function
-__global__ void cuda_real_cam_defocus_blur_kernel(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_defocus_blur_kernel(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
                                                   float f, float U, float N, float C, float defocus_gain, float defocus_bias) {
     int pixel_num = img_w * img_h;
     int px_idx = (blockDim.x * blockIdx.x + threadIdx.x);  // index into output buffer
@@ -111,7 +111,7 @@ __global__ void cuda_real_cam_defocus_blur_kernel(__half* buf_in, __half* buf_ou
 }
 
 // host function
-__host__ void cuda_real_cam_defocus_blur(void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h, float f,
+__host__ void cuda_phys_cam_defocus_blur(void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h, float f,
                                          float U, float N, float C, float defocus_gain, float defocus_bias,
                                          CUstream& stream) {
     // Set up kernel launch configuration
@@ -119,17 +119,17 @@ __host__ void cuda_real_cam_defocus_blur(void* buf_in, void* buf_out, unsigned i
     const int blocks_per_grid = (img_w * img_h + threads_per_block - 1) / threads_per_block;
     
     // Launch the kernel
-    cuda_real_cam_defocus_blur_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+    cuda_phys_cam_defocus_blur_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
         (__half*)buf_in, (__half*)buf_out, img_w, img_h, f, U, N, C, defocus_gain, defocus_bias
     );
     cudaDeviceSynchronize();
 }
 
 
-////---- Functions for cuda_real_cam_vignetting ----////
+////---- Functions for cuda_phys_cam_vignetting ----////
 
 // kernel function
-__global__ void cuda_real_cam_vignetting_kernel(__half* buf_in_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_vignetting_kernel(__half* buf_in_out, unsigned int img_w, unsigned int img_h,
                                                   float f, float L, float G_vignet) {
     
     int pixel_num = img_w * img_h;
@@ -151,14 +151,14 @@ __global__ void cuda_real_cam_vignetting_kernel(__half* buf_in_out, unsigned int
 }
 
 // host function
-__host__ void cuda_real_cam_vignetting(void* buf_in_out, unsigned int img_w, unsigned int img_h, float f, float L, 
+__host__ void cuda_phys_cam_vignetting(void* buf_in_out, unsigned int img_w, unsigned int img_h, float f, float L, 
                                        float G_vignet, CUstream& stream) {
     // Set up kernel launch configuration
     const int threads_per_block = 512;
     const int blocks_per_grid = (img_w * img_h + threads_per_block - 1) / threads_per_block;
 
     // Launch the kernel
-    cuda_real_cam_vignetting_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+    cuda_phys_cam_vignetting_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
         (__half*)buf_in_out, img_w, img_h, f, L, G_vignet
     );
     cudaDeviceSynchronize();
@@ -166,10 +166,10 @@ __host__ void cuda_real_cam_vignetting(void* buf_in_out, unsigned int img_w, uns
 
 
 
-////---- Functions for cuda_real_cam_aggregator ----////
+////---- Functions for cuda_phys_cam_aggregator ----////
 
 // kernel function
-__global__ void cuda_real_cam_aggregator_kernel(__half* buf_in_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_aggregator_kernel(__half* buf_in_out, unsigned int img_w, unsigned int img_h,
                                                 float N, float t, float C, float P, float *rgb_QEs, float G_aggregator) {
     int pixel_num = img_w * img_h;
     int px_idx = (blockDim.x * blockIdx.x + threadIdx.x); // pixel index in output buffer
@@ -182,7 +182,7 @@ __global__ void cuda_real_cam_aggregator_kernel(__half* buf_in_out, unsigned int
 }
 
 // host function
-__host__ void cuda_real_cam_aggregator(void* buf_in_out, unsigned int img_w, unsigned int img_h, float N, float t,
+__host__ void cuda_phys_cam_aggregator(void* buf_in_out, unsigned int img_w, unsigned int img_h, float N, float t,
                                        float C, float P, float *host_rgb_QEs, float G_aggregator, CUstream& stream) {
     // Set up kernel launch configuration
     const int threads_per_block = 512;
@@ -194,7 +194,7 @@ __host__ void cuda_real_cam_aggregator(void* buf_in_out, unsigned int img_w, uns
     cudaMemcpy(dev_rgb_QEs, host_rgb_QEs, sizeof(float) * 3, cudaMemcpyHostToDevice);
 
     // Launch the kernel
-    cuda_real_cam_aggregator_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+    cuda_phys_cam_aggregator_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
         (__half*)buf_in_out, img_w, img_h, N, t, C, P, dev_rgb_QEs, G_aggregator
     );
     cudaDeviceSynchronize();
@@ -202,10 +202,10 @@ __host__ void cuda_real_cam_aggregator(void* buf_in_out, unsigned int img_w, uns
 }
 
 
-////---- Functions for cuda_real_cam_noise ----////
+////---- Functions for cuda_phys_cam_noise ----////
 
 // kernel function
-__global__ void cuda_real_cam_noise_kernel(
+__global__ void cuda_phys_cam_noise_kernel(
     __half* buf_in_out, unsigned int img_w, unsigned int img_h, float t, float* dark_currents, float* noise_gains,
     float* sigma_reads, curandState_t* rng_shot, curandState_t* rng_FPN
 ) {
@@ -242,7 +242,7 @@ __global__ void cuda_real_cam_noise_kernel(
 }
 
 // host function
-__host__ void cuda_real_cam_noise(void* buf_in_out, unsigned int img_w, unsigned int img_h, float t, float* host_dark_currents,
+__host__ void cuda_phys_cam_noise(void* buf_in_out, unsigned int img_w, unsigned int img_h, float t, float* host_dark_currents,
                                   float* host_noise_gains, float* host_sigma_reads, curandState_t* rng_shot,
                                   curandState_t* rng_FPN, CUstream& stream) {
     // Set up kernel launch configuration
@@ -259,7 +259,7 @@ __host__ void cuda_real_cam_noise(void* buf_in_out, unsigned int img_w, unsigned
     cudaMemcpy(dev_sigma_reads, host_sigma_reads, sizeof(float) * 3, cudaMemcpyHostToDevice);
 
     // Launch the kernel
-    cuda_real_cam_noise_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+    cuda_phys_cam_noise_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(
         (__half*)buf_in_out, img_w, img_h, t, dev_dark_currents, dev_noise_gains, dev_sigma_reads, rng_shot, rng_FPN
     );
     cudaDeviceSynchronize();
@@ -270,10 +270,10 @@ __host__ void cuda_real_cam_noise(void* buf_in_out, unsigned int img_w, unsigned
 }
 
 
-////---- Functions of cuda_real_cam_expsr2dv ----////
+////---- Functions of cuda_phys_cam_expsr2dv ----////
 
 // kernel function for linear function
-__global__ void cuda_real_cam_expsr2dv_kernel_linear(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_expsr2dv_kernel_linear(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
                                                      float ISO, float* gains, float* biases) {
     
     int pixel_num = img_w * img_h;
@@ -298,7 +298,7 @@ __global__ void cuda_real_cam_expsr2dv_kernel_linear(__half* buf_in, __half* buf
 }
 
 // kernel function for sigmoid function (especially for film sensor)
-__global__ void cuda_real_cam_expsr2dv_kernel_sigmoid(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_expsr2dv_kernel_sigmoid(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
                                                       float ISO, float* gains, float* biases) {
     
     int pixel_num = img_w * img_h;
@@ -326,7 +326,7 @@ __global__ void cuda_real_cam_expsr2dv_kernel_sigmoid(__half* buf_in, __half* bu
 }
 
 // kernel function for gamma_correct (especially for digital imaging sensor)
-__global__ void cuda_real_cam_expsr2dv_kernel_gamma(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
+__global__ void cuda_phys_cam_expsr2dv_kernel_gamma(__half* buf_in, __half* buf_out, unsigned int img_w, unsigned int img_h,
                                                     float ISO, float* gains, float* biases, float gamma) {
     
     int pixel_num = img_w * img_h;
@@ -351,7 +351,7 @@ __global__ void cuda_real_cam_expsr2dv_kernel_gamma(__half* buf_in, __half* buf_
 }
 
 // host function
-__host__ void cuda_real_cam_expsr2dv(void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h,
+__host__ void cuda_phys_cam_expsr2dv(void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h,
                                      float ISO, float* host_gains, float* host_biases, float gamma, int crf_type,
                                      CUstream& stream) {
     // Set up kernel launch configuration
@@ -367,19 +367,19 @@ __host__ void cuda_real_cam_expsr2dv(void* buf_in, void* buf_out, unsigned int i
 
     // Launch the kernel
     if (crf_type == 0) { // gamma correction function
-        cuda_real_cam_expsr2dv_kernel_gamma<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+        cuda_phys_cam_expsr2dv_kernel_gamma<<<blocks_per_grid, threads_per_block, 0, stream>>>(
             (__half*)buf_in, (__half*)buf_out, img_w, img_h, ISO, dev_gains, dev_biases, gamma
         );
         cudaDeviceSynchronize();
     }
     else if (crf_type == 1) { // sigmoid function
-        cuda_real_cam_expsr2dv_kernel_sigmoid<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+        cuda_phys_cam_expsr2dv_kernel_sigmoid<<<blocks_per_grid, threads_per_block, 0, stream>>>(
             (__half*)buf_in, (__half*)buf_out, img_w, img_h, ISO, dev_gains, dev_biases
         );
         cudaDeviceSynchronize();
     }
     else if (crf_type == 2) { // linear function
-        cuda_real_cam_expsr2dv_kernel_linear<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+        cuda_phys_cam_expsr2dv_kernel_linear<<<blocks_per_grid, threads_per_block, 0, stream>>>(
             (__half*)buf_in, (__half*)buf_out, img_w, img_h, ISO, dev_gains, dev_biases
         );
         cudaDeviceSynchronize();

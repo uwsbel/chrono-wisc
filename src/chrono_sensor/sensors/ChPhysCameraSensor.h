@@ -82,7 +82,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		/// Parameters should be given for the forward model
 		/// The backward distortion model will then be used and calculated from the forward parameters given
 		/// @param params the set of 3 radial parameters (k1, k2, k3)
-		void SetRadialLensParameters(ChVector<float> params);
+		void SetRadialLensParameters(ChVector3f params);
 
 		/// Set camera control parameters
 		/// @param aperture_num F-number (or aperture number) = focal_length / aperture_diameter, [1/1]
@@ -100,7 +100,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		/// @param gain_params all gain-related parameters in camera model, [1/1]
 		/// @param noise_params noise model parameters in camera model
 		void SetModelParameters(
-			float sensor_width, float pixel_size, float max_scene_light_amount, ChVector<float> rgb_QE_vec,
+			float sensor_width, float pixel_size, float max_scene_light_amount, ChVector3f rgb_QE_vec,
 			PhysCameraGainParams gain_params, PhysCameraNoiseParams noise_params
 		);
 
@@ -139,7 +139,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		ChMatrix33<float> GetCameraIntrinsicMatrix();
 		
 		/// Get the camera distortion coefficients
-		ChVector<float> GetCameraDistortionCoefficients() { return m_distortion_params; }
+		ChVector3f GetCameraDistortionCoefficients() { return m_distortion_params; }
 
 		/// Get the aperture number
 		/// @return the aperture number, [1/1]
@@ -186,7 +186,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 
 	private:
 		/// calculate the parameters for the inverse polynomial model
-		static LensParams CalcInvRadialModel(ChVector<float> params);
+		static LensParams CalcInvRadialModel(ChVector3f params);
 
 		// camera basic parameters
 		float m_hFOV;								///< the horizontal field of view (FOV) of the sensor, [rad]
@@ -196,7 +196,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		LensParams m_lens_parameters;				///< lens parameters when applicable
 		float m_width;								///< width of the image formed, [px]
 		float m_height;								///< height of the image formed, [px]
-		ChVector<float> m_distortion_params;		///< radial distortion parameters (k1, k2, k3)
+		ChVector3f m_distortion_params;		///< radial distortion parameters (k1, k2, k3)
 
 		// switches to activate artifacts
 		bool m_use_gi;								///< holds whether to use global illumination (GI)
@@ -219,12 +219,12 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		float m_sensor_width;                   	///< equivalent width of the image sensor, [m]
 		float m_pixel_size;                     	///< length of a pixel, [m]
 		float m_max_scene_light_amount;				///< maximum brightness amount of a light source in the scene, [W]
-		ChVector<float> m_rgb_QE_vec;				///< vector of RGB quantum efficiencies, [1/1]
-		ChVector<float> m_expsr2dv_gain_vec;		///< vector of proportional gains in expsr_to_dv filter, [1/1]
-		ChVector<float> m_expsr2dv_bias_vec;		///< vector of biases in expsr_to_dv filter, [dv]
-		ChVector<float> m_noise_dark_current_vec;	///< vector of dark currents in noise filter, [electron/sec]
-		ChVector<float> m_noise_gain_vec;			///< vector of temporal noise gains in noise filter, [1/1]
-		ChVector<float> m_noise_STD_read_vec;		///< vector of STDs of FPN and readout noises in noise filter, [electron]
+		ChVector3f m_rgb_QE_vec;				///< vector of RGB quantum efficiencies, [1/1]
+		ChVector3f m_expsr2dv_gain_vec;		///< vector of proportional gains in expsr_to_dv filter, [1/1]
+		ChVector3f m_expsr2dv_bias_vec;		///< vector of biases in expsr_to_dv filter, [dv]
+		ChVector3f m_noise_dark_current_vec;	///< vector of dark currents in noise filter, [electron/sec]
+		ChVector3f m_noise_gain_vec;			///< vector of temporal noise gains in noise filter, [1/1]
+		ChVector3f m_noise_STD_read_vec;		///< vector of STDs of FPN and readout noises in noise filter, [electron]
 		PhysCameraGainParams m_gain_params;		  	///< all gain-related parameters in camera model, [1/1]
 		PhysCameraNoiseParams m_noise_params;		///< noise model parameters in camera model
 
