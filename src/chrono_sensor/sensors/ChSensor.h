@@ -38,6 +38,8 @@ namespace sensor {
 /// global constanst for use in template parameters
 const char ChFilterR8AccessName[] = "ChFilterR8Access";          /// single channel 8 bit array
 const char ChFilterRGBA8AccessName[] = "ChFilterRGBA8Access";    /// 4 channel 8 bit array
+const char ChFilterRGBA16AccessName[] = "ChFilterRGBA16Access";  /// 4 channel 16 bit array
+const char ChFilterRGBDHalf4AccessName[] = "ChFilterRGBDHalf4Access";  /// 4 channel half array
 const char ChFilterDIAccessName[] = "ChFilterDIAccess";          /// 2 channel float array (Depth+Intenisty)
 const char ChFilterXYZIAccessName[] = "ChFilterXYZIAccess";      /// 4 channel float array (XYZ positions+Intensity)
 const char ChFilterAccelAccessName[] = "ChFilterAccelAccess";    /// Accelerometer data format (3 doubles total)
@@ -49,6 +51,7 @@ const char ChFilterRadarXYZAccessName[] = "ChFilterRadarXYZAccess";
 const char ChFilterTachometerAccessName[] = "ChFilterTachometerAccess";
 
 const char ChFilterDepthAccessName[] = "ChFilterDepthAccess";
+const char ChFilterNormalAccessName[] = "ChFilterNormalAccess";  /// 3 channel float array
 
 /// Base class for a chrono sensor. A specific sensor can inherit from here
 class CH_SENSOR_API ChSensor {

@@ -17,15 +17,15 @@
 // =============================================================================
 
 //============ TODO: refer ChFilterGrayscale.cpp, ChFilterCameraNoise.cpp, ChFilterImageResize
-#include "chrono_sensor/filters/ChFilterRealCameraDefocusBlur.h"
+#include "chrono_sensor/filters/ChFilterPhysCameraDefocusBlur.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
-#include "chrono_sensor/cuda/real_cam_ops.cuh"
+#include "chrono_sensor/cuda/phys_cam_ops.cuh"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
 #include <chrono>
 
 namespace chrono {
 namespace sensor {
-ChFilterRealCameraDefocusBlur::ChFilterRealCameraDefocusBlur(
+ChFilterPhysCameraDefocusBlur::ChFilterPhysCameraDefocusBlur(
     float focal_length, float focus_dist, float aperture_num, float pixel_size, float defocus_gain, float defocus_bias,
     std::string name
 ) :
@@ -33,7 +33,7 @@ ChFilterRealCameraDefocusBlur::ChFilterRealCameraDefocusBlur(
     m_defocus_gain(defocus_gain), m_defocus_bias(defocus_bias), ChFilter(name)
 {}
 
-CH_SENSOR_API void ChFilterRealCameraDefocusBlur::Initialize(
+CH_SENSOR_API void ChFilterPhysCameraDefocusBlur::Initialize(
     std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut
 ) {
     if (!bufferInOut) {
@@ -64,20 +64,20 @@ CH_SENSOR_API void ChFilterRealCameraDefocusBlur::Initialize(
     bufferInOut = m_buffer_out;
 }
 
-CH_SENSOR_API void ChFilterRealCameraDefocusBlur::Apply() {
+CH_SENSOR_API void ChFilterPhysCameraDefocusBlur::Apply() {
     m_buffer_out->Width = m_buffer_in->Width;
     m_buffer_out->Height = m_buffer_in->Height;
     m_buffer_out->LaunchedCount = m_buffer_in->LaunchedCount;
     m_buffer_out->TimeStamp = m_buffer_in->TimeStamp;
 
-    // perform defocus blur operation in real_cam_ops.cu
-    cuda_real_cam_defocus_blur(
+    // perform defocus blur operation in phys_cam_ops.cu
+    cuda_phys_cam_defocus_blur(
         m_buffer_in->Buffer.get(), m_buffer_out->Buffer.get(), m_buffer_out->Width, m_buffer_out->Height,
         m_focal_length, m_focus_dist, m_aperture_num, m_pixel_size, m_defocus_gain, m_defocus_bias, m_cuda_stream
     );
 }
 
-CH_SENSOR_API void ChFilterRealCameraDefocusBlur::SetFilterCtrlParameters(
+CH_SENSOR_API void ChFilterPhysCameraDefocusBlur::SetFilterCtrlParameters(
     float focal_length, float focus_dist, float aperture_num
 ) {
     m_focal_length = focal_length;
@@ -85,7 +85,7 @@ CH_SENSOR_API void ChFilterRealCameraDefocusBlur::SetFilterCtrlParameters(
     m_aperture_num = aperture_num;
 }
 
-CH_SENSOR_API void ChFilterRealCameraDefocusBlur::SetFilterModelParameters(
+CH_SENSOR_API void ChFilterPhysCameraDefocusBlur::SetFilterModelParameters(
     float pixel_size, float defocus_gain, float defocus_bias
 ) {
     m_pixel_size = pixel_size;

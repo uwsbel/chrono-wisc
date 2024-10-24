@@ -28,7 +28,7 @@
 
 #include "chrono_sensor/filters/ChFilter.h"
 #include <cuda.h>
-#include "chrono/core/ChVector.h"
+#include "chrono/core/ChVector3.h"
 
 namespace chrono {
 namespace sensor {
@@ -46,7 +46,7 @@ class CH_SENSOR_API ChFilterPhysCameraExpsrToDV : public ChFilter {
 		/// @param expsr2dv_gamma (gamma) gamma of the gamma correction function if used, [DV]
 		/// @param crf_type type of camera response function (CRF). 0: "gamma_correct", 1: "sigmoid"
 		/// @param name The string name of the filter
-		ChFilterPhysCameraExpsrToDV(float ISO, ChVector<float> expsr2dv_gain_vec, ChVector<float> expsr2dv_bias_vec,
+		ChFilterPhysCameraExpsrToDV(float ISO, ChVector3f expsr2dv_gain_vec, ChVector3f expsr2dv_bias_vec,
 			float expsr2dv_gamma, int crf_type = 0, std::string name = "Vignetting Filter in Phys Camera"
 		);
 
@@ -62,7 +62,7 @@ class CH_SENSOR_API ChFilterPhysCameraExpsrToDV : public ChFilter {
 		/// @param expsr2dv_bias_vec ChVector of bias or intercept, [DV]
 		/// @param expsr2dv_gamma (gamma) gamma of the gamma correction function if used
 		/// @param crf_type type of camera response function (CRF). 0: "gamma_correct", 1: "sigmoid"
-		void SetFilterModelParameters(ChVector<float> expsr2dv_gain_vec, ChVector<float> expsr2dv_bias_vec,
+		void SetFilterModelParameters(ChVector3f expsr2dv_gain_vec, ChVector3f expsr2dv_bias_vec,
 			float expsr2dv_gamma, int crf_type
 		);
 

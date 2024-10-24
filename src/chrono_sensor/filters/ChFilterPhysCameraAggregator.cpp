@@ -19,17 +19,17 @@
 // =============================================================================
 
 //============ TODO: refer ChFilterGrayscale.cpp, ChFilterCameraNoise.cpp, ChFilterImageResize
-#include "chrono_sensor/filters/ChFilterRealCameraAggregator.h"
+#include "chrono_sensor/filters/ChFilterPhysCameraAggregator.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
-#include "chrono_sensor/cuda/real_cam_ops.cuh"
+#include "chrono_sensor/cuda/phys_cam_ops.cuh"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
 #include <chrono>
 
 namespace chrono {
 namespace sensor {
-ChFilterRealCameraAggregator::ChFilterRealCameraAggregator(
+ChFilterPhysCameraAggregator::ChFilterPhysCameraAggregator(
     float aperture_num, float expsr_time, float pixel_size, float max_scene_light_amount,
-    ChVector<float> rgb_QE_vec, float aggregator_gain, std::string name
+    ChVector3f rgb_QE_vec, float aggregator_gain, std::string name
     ):
     m_aperture_num(aperture_num), m_expsr_time(expsr_time), m_pixel_size(pixel_size),
     m_max_scene_light_amount(max_scene_light_amount), m_aggregator_gain(aggregator_gain), ChFilter(name)
@@ -39,7 +39,7 @@ ChFilterRealCameraAggregator::ChFilterRealCameraAggregator(
     m_rgb_QEs[2] = rgb_QE_vec.z();
 };
 
-CH_SENSOR_API void ChFilterRealCameraAggregator::Initialize(
+CH_SENSOR_API void ChFilterPhysCameraAggregator::Initialize(
     std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut
     ) {
     if (!bufferInOut) {
@@ -58,21 +58,21 @@ CH_SENSOR_API void ChFilterRealCameraAggregator::Initialize(
     }
 }
 
-CH_SENSOR_API void ChFilterRealCameraAggregator::Apply() {    
-    cuda_real_cam_aggregator(
+CH_SENSOR_API void ChFilterPhysCameraAggregator::Apply() {    
+    cuda_phys_cam_aggregator(
 		m_in_out->Buffer.get(), m_in_out->Width, m_in_out->Height, m_aperture_num, m_expsr_time, m_pixel_size,
         m_max_scene_light_amount, m_rgb_QEs, m_aggregator_gain, m_cuda_stream
 	);
 
 }
 
-CH_SENSOR_API void ChFilterRealCameraAggregator::SetFilterCtrlParameters(float aperture_num, float expsr_time) {
+CH_SENSOR_API void ChFilterPhysCameraAggregator::SetFilterCtrlParameters(float aperture_num, float expsr_time) {
     m_aperture_num = aperture_num;
     m_expsr_time = expsr_time;
 }
 
-CH_SENSOR_API void ChFilterRealCameraAggregator::SetFilterModelParameters(
-    float pixel_size, float max_scene_light_amount, ChVector<float> rgb_QE_vec, float aggregator_gain
+CH_SENSOR_API void ChFilterPhysCameraAggregator::SetFilterModelParameters(
+    float pixel_size, float max_scene_light_amount, ChVector3f rgb_QE_vec, float aggregator_gain
 ) {
 	m_pixel_size = pixel_size;
     m_max_scene_light_amount = max_scene_light_amount;

@@ -278,6 +278,7 @@ set(ChronoEngine_sensor_CUDA_SOURCES
     cuda/lidar_noise.cu
     cuda/curand_utils.cu
     cuda/image_ops.cu
+    cuda/phys_cam_ops.cu
     cuda/nn_prep.cu
     cuda/lidar_clip.cu
     cuda/radarprocess.cu
@@ -292,6 +293,7 @@ set(ChronoEngine_sensor_CUDA_HEADERS
     cuda/lidar_noise.cuh
     cuda/curand_utils.cuh
     cuda/image_ops.cuh
+    cuda/phys_cam_ops.cuh
     cuda/nn_prep.cuh
     cuda/lidar_clip.cuh
     cuda/radarprocess.cuh
@@ -333,6 +335,7 @@ set(ChronoEngine_sensor_SENSORS_SOURCES
     sensors/ChPhysCameraSensor.cpp
     sensors/ChSegmentationCamera.cpp
     sensors/ChDepthCamera.cpp
+    sensors/ChNormalCamera.cpp
     sensors/ChLidarSensor.cpp
     sensors/ChRadarSensor.cpp
     sensors/ChIMUSensor.cpp
@@ -349,6 +352,7 @@ set(ChronoEngine_sensor_SENSORS_HEADERS
     sensors/ChPhysCameraSensor.h
     sensors/ChSegmentationCamera.h
     sensors/ChDepthCamera.h
+    sensors/ChNormalCamera.h
     sensors/ChLidarSensor.h
     sensors/ChRadarSensor.h
     sensors/ChIMUSensor.h
@@ -435,6 +439,11 @@ set(ChronoEngine_sensor_FILTERS_SOURCES
     filters/ChFilterRadarVisualizeCluster.cpp
     filters/ChFilterTachometerUpdate.cpp
     filters/ChFilterCameraExposure.cpp
+    filters/ChFilterPhysCameraDefocusBlur.cpp
+    filters/ChFilterPhysCameraVignetting.cpp
+    filters/ChFilterPhysCameraAggregator.cpp
+    filters/ChFilterPhysCameraNoise.cpp
+    filters/ChFilterPhysCameraExpsrToDV.cpp
 )
 
 set(ChronoEngine_sensor_FILTERS_HEADERS
@@ -460,6 +469,11 @@ set(ChronoEngine_sensor_FILTERS_HEADERS
     filters/ChFilterRadarVisualizeCluster.h
     filters/ChFilterTachometerUpdate.h
     filters/ChFilterCameraExposure.h
+    filters/ChFilterPhysCameraDefocusBlur.h
+    filters/ChFilterPhysCameraVignetting.h
+    filters/ChFilterPhysCameraAggregator.h
+    filters/ChFilterPhysCameraNoise.h
+    filters/ChFilterPhysCameraExpsrToDV.h
 )
 
 source_group("Filters" FILES

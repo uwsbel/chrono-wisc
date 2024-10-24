@@ -16,8 +16,8 @@
 // 
 // =============================================================================
 
-#ifndef CHFILTERREALCAMERADEFOCUSBLUR_H
-#define CHFILTERREALCAMERADEFOCUSBLUR_H
+#ifndef CHFILTERPHYSCAMERADEFOCUSBLUR_H
+#define CHFILTERPHYSCAMERADEFOCUSBLUR_H
 
 #include "chrono_sensor/filters/ChFilter.h"
 #include <cuda.h>
@@ -29,7 +29,7 @@ namespace sensor {
 /// @{
 
 /// A filter that adjust the brightness of the image according to exposure time and sensitivity coefficients
-class CH_SENSOR_API ChFilterRealCameraDefocusBlur : public ChFilter {
+class CH_SENSOR_API ChFilterPhysCameraDefocusBlur : public ChFilter {
 	public:
 		/// Class constructor
 		/// @param focal_length (f) focal length, [m]
@@ -39,9 +39,9 @@ class CH_SENSOR_API ChFilterRealCameraDefocusBlur : public ChFilter {
 		/// @param defocus_gain proportional gain, [1/1]
 		/// @param defocus_bias defocus-blur diameter bias, [px]
 		/// @param name The string name of the filter
-		ChFilterRealCameraDefocusBlur(
+		ChFilterPhysCameraDefocusBlur(
 			float focal_length, float focus_dist, float aperture_num, float pixel_size, float defocus_gain,
-			float defocus_bias, std::string name = "Defocus Blur Filter in Real Camera"
+			float defocus_bias, std::string name = "Defocus Blur Filter in Phys Camera"
 		);
 
 		/// Apply function

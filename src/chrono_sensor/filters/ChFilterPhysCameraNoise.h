@@ -34,7 +34,7 @@
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
-#include "chrono/core/ChVector.h"
+#include "chrono/core/ChVector3.h"
 
 namespace chrono {
 namespace sensor {
@@ -52,8 +52,8 @@ class CH_SENSOR_API ChFilterPhysCameraNoise : public ChFilter {
 		/// @param STD_read_vec ChVector of standard deviations of read and FPN noises, equivalent [electrons]
 		/// @param FPN_seed seed of random number generator for getting read and FPN noises
 		/// @param name The string name of the filter
-		ChFilterPhysCameraNoise(float expsr_time, ChVector<float> dark_current_vec, ChVector<float> noise_gain_vec,
-			ChVector<float> STD_read_vec, unsigned int FPN_seed, std::string name = "Noise Model Filter in Phys Camera"
+		ChFilterPhysCameraNoise(float expsr_time, ChVector3f dark_current_vec, ChVector3f noise_gain_vec,
+			ChVector3f STD_read_vec, unsigned int FPN_seed, std::string name = "Noise Model Filter in Phys Camera"
 		);
 
 		/// Apply function
@@ -68,7 +68,7 @@ class CH_SENSOR_API ChFilterPhysCameraNoise : public ChFilter {
 		/// @param noise_gain_vec ChVector of temporal noise gains, [1/1]
 		/// @param STD_read_vec ChVector of standard deviations of read and FPN noises, equivalent [electrons]
 		void SetFilterModelParameters(
-			ChVector<float> dark_current_vec, ChVector<float> noise_gain_vec, ChVector<float> STD_read_vec
+			ChVector3f dark_current_vec, ChVector3f noise_gain_vec, ChVector3f STD_read_vec
 		);
 
 		/// Initializes all data needed by the filter access apply function.

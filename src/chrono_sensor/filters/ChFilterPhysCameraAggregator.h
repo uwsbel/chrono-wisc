@@ -18,12 +18,12 @@
 // 
 // =============================================================================
 
-#ifndef CHFILTERREALCAMERAAGGREGATOR_H
-#define CHFILTERREALCAMERAAGGREGATOR_H
+#ifndef CHFILTERPHYSCAMERAAGGREGATOR_H
+#define CHFILTERPHYSCAMERAAGGREGATOR_H
 
 #include "chrono_sensor/filters/ChFilter.h"
 #include <cuda.h>
-#include "chrono/core/ChVector.h"
+#include "chrono/core/ChVector3.h"
 
 namespace chrono {
 namespace sensor {
@@ -32,7 +32,7 @@ namespace sensor {
 /// @{
 
 /// A filter that adjust the brightness of the image according to exposure time and sensitivity coefficients
-class CH_SENSOR_API ChFilterRealCameraAggregator : public ChFilter {
+class CH_SENSOR_API ChFilterPhysCameraAggregator : public ChFilter {
 	public:
 		/// Class constructor
 		/// @param aperture_num (N) aperture number = focal_length / aperture_diameter, [1/1]
@@ -42,9 +42,9 @@ class CH_SENSOR_API ChFilterRealCameraAggregator : public ChFilter {
 		/// @param rgb_QE_vec vector of RGB quantum efficiencies, [1/1]
 		/// @param aggregator_gain (G_aggregator) proportional gain, [1/1]
 		/// @param name The string name of the filter
-		ChFilterRealCameraAggregator(
+		ChFilterPhysCameraAggregator(
 			float aperture_num, float expsr_time, float pixel_size, float max_scene_light_amount,
-			ChVector<float> rgb_QE_vec, float aggregator_gain, std::string name = "Aggregation Filter in Real Camera"
+			ChVector3f rgb_QE_vec, float aggregator_gain, std::string name = "Aggregation Filter in Phys Camera"
 		);
 
 		/// Apply function
@@ -61,7 +61,7 @@ class CH_SENSOR_API ChFilterRealCameraAggregator : public ChFilter {
 		/// @param rgb_QE_vec vector of RGB quantum efficiencies, [1/1]
 		/// @param aggregator_gain (G_aggregator) proportional gain, [1/1]
 		void SetFilterModelParameters(
-			float pixel_size, float max_scene_light_amount, ChVector<float> rgb_QE_vec, float aggregator_gain
+			float pixel_size, float max_scene_light_amount, ChVector3f rgb_QE_vec, float aggregator_gain
 		);
 
 		/// Initializes all data needed by the filter access apply function.

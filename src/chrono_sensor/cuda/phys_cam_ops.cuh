@@ -12,7 +12,7 @@
 // Authors: Bo-Hsun Chen
 // =============================================================================
 //
-// util cuda functions for filters in the real camera 
+// util cuda functions for filters in the physics-based camera 
 //
 // =============================================================================
 #include <cuda_fp16.h>
@@ -35,7 +35,7 @@ namespace sensor {
 /// @param C length of a pixel, [m]
 /// @param G_defocus proportional gain of defocus blur diameter, [1/1]
 /// @param stream cuda stream for computation
-void cuda_real_cam_defocus_blur(
+void cuda_phys_cam_defocus_blur(
     void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h, float f, float U, float N, float C,
     float defocus_gain, float defocus_bias, CUstream& stream
 );
@@ -50,7 +50,7 @@ void cuda_real_cam_defocus_blur(
 /// @param L sensor width, [m]
 /// @param G_vignet proportional gain of illumination falloff, [1/1]
 /// @param stream cuda stream for computation
-void cuda_real_cam_vignetting(
+void cuda_phys_cam_vignetting(
     void* buf_in_out, unsigned int img_w, unsigned int img_h, float f, float L, float G_vignet, CUstream& stream
 );
 
@@ -65,7 +65,7 @@ void cuda_real_cam_vignetting(
 /// @param host_rgb_QEs array of RGB quantum efficiencies, [1/1]
 /// @param G_aggregator proportional gain of illumination aggregation, [1/1]
 /// @param stream CUDA stream for computation
-void cuda_real_cam_aggregator(
+void cuda_phys_cam_aggregator(
     void* buf_in_out, unsigned int img_w, unsigned int img_h, float N, float t, float C, float P, float* host_rgb_QEs,
     float G_aggregator, CUstream& stream
 );
@@ -81,7 +81,7 @@ void cuda_real_cam_aggregator(
 /// @param rng_shot random number generator of shot, dark, and hot-pixel noises
 /// @param rng_FPN random number generator of FPN and read noises
 /// @param stream CUDA stream for computation
-void cuda_real_cam_noise(
+void cuda_phys_cam_noise(
     void* buf_in_out, unsigned int img_w, unsigned int img_h, float t, float* host_dark_cuurents,
     float* host_noise_gains, float* host_sigma_reads, curandState_t* rng_shot, curandState_t* rng_FPN, CUstream& stream
 );
@@ -97,7 +97,7 @@ void cuda_real_cam_noise(
 /// @param gamma gamma of the gamma correction function if used, [DV]
 /// @param crf_type type of the camera response function (CRF), 0: "gamma_correct", 1: "sigmoid"
 /// @param stream CUDA stream for computation
-void cuda_real_cam_expsr2dv(
+void cuda_phys_cam_expsr2dv(
     void* buf_in, void* buf_out, unsigned int img_w, unsigned int img_h, float ISO, float* host_gains, float* host_biases,
     float gamma, int crf_type, CUstream& stream
 );

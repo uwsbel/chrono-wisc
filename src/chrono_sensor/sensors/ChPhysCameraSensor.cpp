@@ -170,7 +170,7 @@ CH_SENSOR_API ChPhysCameraSensor::ChPhysCameraSensor(
 CH_SENSOR_API ChPhysCameraSensor::~ChPhysCameraSensor() {}
 
 
-void ChPhysCameraSensor::SetRadialLensParameters(ChVector<float> params) {
+void ChPhysCameraSensor::SetRadialLensParameters(ChVector3f params) {
     m_distortion_params = params;
     m_lens_parameters = CalcInvRadialModel(params);
 }
@@ -193,7 +193,7 @@ ChMatrix33<float> ChPhysCameraSensor::GetCameraIntrinsicMatrix() {
 };
 
 
-LensParams ChPhysCameraSensor::CalcInvRadialModel(ChVector<float> params) {
+LensParams ChPhysCameraSensor::CalcInvRadialModel(ChVector3f params) {
     // coefficients directory without algorithm from 
     // Drap, P., & Lefèvre, J. (2016). 
     // An Exact Formula for Calculating Inverse Radial Lens Distortions. 
@@ -272,7 +272,7 @@ void ChPhysCameraSensor::SetCtrlParameters(
 
 
 void ChPhysCameraSensor::SetModelParameters(
-    float sensor_width, float pixel_size, float max_scene_light_amount, ChVector<float> rgb_QE_vec,
+    float sensor_width, float pixel_size, float max_scene_light_amount, ChVector3f rgb_QE_vec,
     PhysCameraGainParams gain_params, PhysCameraNoiseParams noise_params
 ) {
     // update model parameters
