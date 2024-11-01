@@ -19,6 +19,7 @@
 #include <cuda_runtime.h>
 #include <vector>
 #include "cuda_utils.cuh"
+#include <curand_kernel.h>
 
 #include <Eigen/Dense>
 #define EIGEN_USE_GPU
@@ -46,6 +47,7 @@ namespace sensor {
 
 
 #define GRAVITY 1.62f
+#define CUDA_PI_F 3.14159265358979323846f
 
 #define CUDA_SAFE_CALL(call)                                                                                 \
     {                                                                                                        \
@@ -243,54 +245,92 @@ __global__ void eject_dust_particles(
     float max_z_velocity,          // Maximum Z velocity for dust particles
     int n_particles,               // Number of terrain particles
     float current_time,           // Current time
-    int curr_n_dust_particles
+    int curr_n_dust_particles,
+    int dpptp
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n_particles && dust_flags[idx] == 1) {
-      
+        //printf("idx: %d\n", idx);
         // Get the index for this dust particle in the output array
-        int dust_idx = curr_n_dust_particles + prefix_sum[idx];
-
+        int dust_idx = (curr_n_dust_particles + prefix_sum[idx]) * dpptp;
+       // printf("idx: %d | offset: %d | prefixsum: %d => %d\n", idx, curr_n_dust_particles * dpptp, prefix_sum[idx], dust_idx);
         // Calculate the index in the flat buffer for this particle's velocity components
         int velocity_idx = idx * 6 + 3;  // Velocity starts at idx+3, idx+4, idx+5
         int pos_idx = 6*idx;
-
+        float3 pos = make_float3(d_points[pos_idx], d_points[pos_idx + 1], d_points[pos_idx + 2]);
         // Extract velocity components from the flat buffer
         float vx = d_points[velocity_idx];
         float vy = d_points[velocity_idx + 1];
         float vz = d_points[velocity_idx + 2];
-
-        float3 pos = make_float3(d_points[idx], d_points[idx + 1], d_points[idx+2]);
+     
+       
         // Compute the magnitude of horizontal velocity in the XY plane
         float v_magnitude = sqrt(vx * vx + vy * vy + vz*vz);
        
         //// Compute the dust particle's initial speed
-        //float dust_speed = alpha * v_magnitude;
+        float dust_speed = v_magnitude;
 
         //// Compute the ejection angle in the XY plane
         //float theta_xy = atan2f(vy, vx);
 
-        //// Random Z velocity using curand
-        //curandState state;
-        //curand_init(1234, idx, 0, &state);
-        //float v_z = min_z_velocity + curand_uniform(&state) * (max_z_velocity - min_z_velocity);
-
         //// Compute velocity components for the dust particle
         //float v_x = dust_speed * cosf(theta_xy);
         //float v_y = dust_speed * sinf(theta_xy);
-
-        float3 vel = make_float3(vx, vy, vz);
+        // Set up random state (one per thread)
+        curandState rand_state;
+        curand_init(1234ULL, idx, 0, &rand_state); // Seed with idx for unique random sequence
+        //printf("JJ: idx: %d | offset: %d | prefixsum: %d => %d\n", idx, curr_n_dust_particles * dpptp, prefix_sum[idx],dust_idx);
+        // Generate random theta (angle in XY plane) and phi (angle from horizontal)
+       
         // Initialize the dust particle
-        DustParticle dustp;
-        dustp.pos = pos;
-        dustp.vel = vel;
-        dustp.pos0 = pos;
-        dustp.vel0 = vel;
-        dustp.t0 = current_time;
-        dustp.isActive = true;
-        dustp.mass = 0.1f;
-        dust_particles[dust_idx] = dustp;
+        float theta_max = 10 * CUDA_PI_F / 180;
+        float phi_min = 0 * CUDA_PI_F / 180;
+        float phi_max = 20 * CUDA_PI_F / 180;
+        float voxeljitter_max = 0.01f;
+        float voxeljitter_min = 0.f;
+        
+        for (int i = 0; i < dpptp; i++) {
+
+            int I = i > 0 ? 1 : 0;
+            float frac = i * (1/dpptp);
+            float theta = CUDA_PI_F - curand_uniform(&rand_state) * 2 * theta_max - theta_max;
+            float phi = phi_min + frac*(phi_max - phi_min);//curand_uniform(&rand_state) * (phi_max - phi_min) + phi_min;
+
+            float v_xy_proj = dust_speed * cos(phi);
+            float v_x = v_xy_proj * cos(theta);
+            float v_y = v_xy_proj * sin(theta);
+            float v_z = dust_speed * sin(phi);
+
+            float3 vel = make_float3(v_x, v_y, v_z);
+           
+            float jitterX = curand_uniform(&rand_state) * (voxeljitter_max - voxeljitter_min) + voxeljitter_min;
+            float jitterY  = curand_uniform(&rand_state) * (voxeljitter_max - voxeljitter_min) + voxeljitter_min;
+            float jitterZ = curand_uniform(&rand_state) * (voxeljitter_max - voxeljitter_min) + voxeljitter_min;
+            //float3 rand_pos = make_float3(pos.x + I*jitterX, pos.y + I*jitterY, pos.z + I*jitterZ);
+            // make_float3(d_points[pos_idx] + I * jitterX, d_points[pos_idx + 1] + I*jitterY, d_points[pos_idx + 2] + I*jitterZ)
+            //printf("idx: %d | offset: %d | prefixsum: %d => %d | dustidx: %d\n", idx, curr_n_dust_particles * dpptp, prefix_sum[idx], dust_idx, dust_idx + i);
+            DustParticle dustp;
+            dustp.pos = make_float3(pos.x + I * jitterX, pos.y + I * jitterY, pos.z);
+            dustp.vel = make_float3(v_x, v_y, v_z);
+            dustp.pos0 = make_float3(pos.x + I * jitterX, pos.y + I * jitterY, pos.z);
+            dustp.vel0 = make_float3(v_x, v_y, v_z);
+            dustp.t0 = current_time;
+            dustp.isActive = true;
+            dustp.mass = 0.1f;
+            dust_particles[dust_idx + i] = dustp;
+        /*   printf("dust idx: %d |Acc: %d | t: %f | vel: %f,%f,%f | pos: %f,%f,%f\n", dust_idx + i,
+                   dust_particles[dust_idx + i].isActive, dust_particles[dust_idx + i].t0,
+                   dust_particles[dust_idx + i].vel.x, dust_particles[dust_idx + i].vel.y,
+                   dust_particles[dust_idx + i].vel.z, dust_particles[dust_idx + i].pos.x,
+                   dust_particles[dust_idx + i].pos.y, dust_particles[dust_idx + i].pos.z);*/
+           //
+
+        }
+
         //printf("cn: %d |idx: %d | dust idx: %d | dpos: (%f,%f,%f)\n", curr_n_dust_particles, idx, dust_idx, dust_particles[dust_idx].pos.x, dust_particles[dust_idx].pos.y, dust_particles[dust_idx].pos.z);
+      /*  if (vel.z > 0.f) {
+            printf("idx: %d | t: %f | vel: %f,%f,%f | pos: %f,%f,%f\n", dust_idx, dustp.t0, vel.x,vel.y,vel.z, pos.x,pos.y,pos.z);
+        }*/
     }
 }
 
@@ -305,6 +345,10 @@ __global__ void update_dust_particle_positions(DustParticle* d_dust,  // Array o
         //printf("idx: %d | pos: (%f,%f,%f)\n", idx, particle.pos.x, particle.pos.y, particle.pos.z);
         float delta_time = curr_time - particle.t0;
         // Update position using the velocity and time step
+        float3 oldpos = particle.pos;
+        float3 oldvel = particle.vel;
+        float oldtime = particle.t0;
+        bool oldActive = particle.isActive;
         particle.pos.x = particle.pos.x + particle.vel.x * delta_time;
         particle.pos.y = particle.pos.y + particle.vel.y * delta_time;
         particle.pos.z = particle.pos.z + particle.vel.z * delta_time - 0.5f * GRAVITY * delta_time * delta_time;  // Z is affected by gravity
@@ -313,13 +357,20 @@ __global__ void update_dust_particle_positions(DustParticle* d_dust,  // Array o
         particle.vel.z = particle.vel.z -  GRAVITY * delta_time;
         particle.t0 = curr_time;
         // Deactivate the particle if it has fallen below its original Z position
-        if (particle.pos.z < particle.pos0.z) {
-            particle.isActive = false;
-        }
-
-        /*if (fabs(particle.pos.x) > 5.f || fabs(particle.pos.y) > 5.f || fabs(particle.pos.z) > 5.f) {
+      /*  if (particle.pos.z < particle.pos0.z) {
             particle.isActive = false;
         }*/
+     
+       /* if (fabs(particle.pos.x) > 5.f || fabs(particle.pos.y) > 5.f || fabs(particle.pos.z) > 10.f) {
+            particle.isActive = false;
+            
+        }*/
+
+        /* printf("nAcc: %d | idx: %d | Prev: t: %f, pos: (%f,%f,%f), vel: (%f,%f,%f), Acc:%d | Curr: t: %f, pos: (%f,%f,%f), vel: (%f,%f,%f), Acc: %d\n",
+            n_active_particles,idx,oldtime, oldpos.x, oldpos.y, oldpos.z, oldvel.x, oldvel.y, oldvel.z, oldActive, curr_time, particle.pos.x,
+            particle.pos.y, particle.pos.z, particle.vel.x, particle.vel.y, particle.vel.z, particle.isActive);*/
+
+      
     }
 }
 
@@ -347,7 +398,7 @@ __global__ void precompute_dust_flags(
         float v_magnitude = sqrt(vx * vx + vy * vy + vz * vz);
 
         // Set flag to 1 if terrain velocity exceeds threshold, else 0
-        dust_flags[idx] = (v_magnitude > threshold_velocity && pos_z > z_thresh) ? 1 : 0;
+        dust_flags[idx] = (v_magnitude > threshold_velocity && pos_z >= z_thresh && pos_z <= 2.55f) ? 1 : 0;
     }
 }
 
@@ -405,59 +456,59 @@ __global__ void compact_active_particles(
         //printf("idx: %d | pos: (%f,%f,%f) | new idx: %d | cpos: (%f,%f,%f)\n", idx, pos.x, pos.y, pos.z, new_idx, compacted_particles[new_idx][0], compacted_particles[new_idx][1], compacted_particles[new_idx][2]);
     }
 }
-void extract_active_particles(DustParticle* d_particles,
-                              int n_particles,
-                              nanovdb::Vec3f* d_active_particles,
-                              int& active_particle_count) {
-    // Allocate memory for flags and prefix sum
-    int* d_active_flags;
-    int* d_prefix_sum;
-
-    cudaMalloc(&d_active_flags, n_particles * sizeof(int));
-    cudaMalloc(&d_prefix_sum, n_particles * sizeof(int));
-
-    // Step 1: Mark active particles
-    int block_size = 1024;
-    int grid_size = (n_particles + block_size - 1) / block_size;
-    mark_active_particles<<<grid_size, block_size>>>(d_particles, d_active_flags, n_particles);
-
-    // Step 2: Compute prefix sum
-    compute_prefix_sum(d_active_flags, d_prefix_sum, n_particles);
-
-    // Step 3: Get the number of active particles from the last element of the prefix sum + last flag
-    cudaMemcpy(&active_particle_count, &d_prefix_sum[n_particles - 1], sizeof(int), cudaMemcpyDeviceToHost);
-
-    int h_last_flag;
-    cudaMemcpy(&h_last_flag, &d_active_flags[n_particles - 1], sizeof(int), cudaMemcpyDeviceToHost);
-    active_particle_count += h_last_flag;
-
-    // If no active particles, clean up and return
-    if (active_particle_count == 0) {
-        cudaFree(d_active_flags);
-        cudaFree(d_prefix_sum);
-        return;
-    }
-
-    // Step 4: Allocate memory for compacted active particles
-    cudaMalloc(&d_active_particles, active_particle_count * sizeof(nanovdb::Vec3f));
-
-    // Step 5: Compact the active particles into the new array
-    compact_active_particles<<<grid_size, block_size>>>(d_particles, d_active_particles, d_active_flags, d_prefix_sum, n_particles);
-
-
-    
-    nanovdb::Vec3f* h_active_particles = new nanovdb::Vec3f[active_particle_count];
-    cudaMemcpy(h_active_particles, d_active_particles, active_particle_count * sizeof(nanovdb::Vec3f),
-               cudaMemcpyDeviceToHost);
-    for (int i = 0; i < active_particle_count; i++) {
-        nanovdb::Vec3f p = h_active_particles[i];
-        printf("i: %d | p: (%f,%f,%f)\n", i, p[0], p[1], p[2]);
-    }
-
-    // Free intermediate arrays
-    cudaFree(d_active_flags);
-    cudaFree(d_prefix_sum);
-}
+//void extract_active_particles(DustParticle* d_particles,
+//                              int n_particles,
+//                              nanovdb::Vec3f* d_active_particles,
+//                              int& active_particle_count) {
+//    // Allocate memory for flags and prefix sum
+//    int* d_active_flags;
+//    int* d_prefix_sum;
+//
+//    cudaMalloc(&d_active_flags, n_particles * sizeof(int));
+//    cudaMalloc(&d_prefix_sum, n_particles * sizeof(int));
+//
+//    // Step 1: Mark active particles
+//    int block_size = 1024;
+//    int grid_size = (n_particles + block_size - 1) / block_size;
+//    mark_active_particles<<<grid_size, block_size>>>(d_particles, d_active_flags, n_particles);
+//
+//    // Step 2: Compute prefix sum
+//    compute_prefix_sum(d_active_flags, d_prefix_sum, n_particles);
+//
+//    // Step 3: Get the number of active particles from the last element of the prefix sum + last flag
+//    cudaMemcpy(&active_particle_count, &d_prefix_sum[n_particles - 1], sizeof(int), cudaMemcpyDeviceToHost);
+//
+//    int h_last_flag;
+//    cudaMemcpy(&h_last_flag, &d_active_flags[n_particles - 1], sizeof(int), cudaMemcpyDeviceToHost);
+//    active_particle_count += h_last_flag;
+//
+//    // If no active particles, clean up and return
+//    if (active_particle_count == 0) {
+//        cudaFree(d_active_flags);
+//        cudaFree(d_prefix_sum);
+//        return;
+//    }
+//
+//    // Step 4: Allocate memory for compacted active particles
+//    cudaMalloc(&d_active_particles, active_particle_count * sizeof(nanovdb::Vec3f));
+//
+//    // Step 5: Compact the active particles into the new array
+//    compact_active_particles<<<grid_size, block_size>>>(d_particles, d_active_particles, d_active_flags, d_prefix_sum, n_particles);
+//
+//
+//    
+//    nanovdb::Vec3f* h_active_particles = new nanovdb::Vec3f[active_particle_count];
+//    cudaMemcpy(h_active_particles, d_active_particles, active_particle_count * sizeof(nanovdb::Vec3f),
+//               cudaMemcpyDeviceToHost);
+//    for (int i = 0; i < active_particle_count; i++) {
+//        nanovdb::Vec3f p = h_active_particles[i];
+//        printf("i: %d | p: (%f,%f,%f)\n", i, p[0], p[1], p[2]);
+//    }
+//
+//    // Free intermediate arrays
+//    cudaFree(d_active_flags);
+//    cudaFree(d_prefix_sum);
+//}
 
 
 
@@ -718,10 +769,11 @@ nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<open
 void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, void* h_points, int n, float threshold_vel, void** dust_particles_ptr, int& num_dust_particles, float time, int& frame, float z_thresh) {
     
     printf("\n######### RUNNING DUST SIMULATION ############\n");
-    float alpha = 0.9f;               // Scaling factor for dust velocity
+    float alpha = 1.f;               // Scaling factor for dust velocity
     //float threshold_velocity = 50.0f;  // Velocity threshold for ejecting dust
-    float min_z_velocity = 0.5f;
+    float min_z_velocity = 1.5f;
     float max_z_velocity = 1.5f;
+    int dpptp = 10;  // # dust particles ejected per terrain particle
 
     DustParticle* d_dust = (DustParticle*) *dust_particles_ptr;
 
@@ -757,7 +809,7 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     CUDA_SAFE_CALL(cudaMalloc(&d_dust_flags, n * sizeof(int)));
     CUDA_SAFE_CALL(cudaMalloc(&d_prefix_sum, n * sizeof(int)));
 
-    int threadsPerBlock = 1024;
+    int threadsPerBlock = 512;
     int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
     printf("Computing num dust particles to eject.......\n");
     precompute_dust_flags<<<blocksPerGrid, threadsPerBlock>>>(d_points, d_dust_flags, threshold_vel, z_thresh, n);
@@ -775,27 +827,27 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     CUDA_SAFE_CALL(cudaMemcpy(&h_last_flag, &d_dust_flags[n - 1], sizeof(int), cudaMemcpyDeviceToHost));
 
     h_num_new_dust_particles += h_last_flag;
-    printf("Ejecting %d dust particles!\n", h_num_new_dust_particles);
-    if (h_num_new_dust_particles == 0)
+    printf("Ejecting %d dust particles x %d =  %d!\n", h_num_new_dust_particles, dpptp, h_num_new_dust_particles*dpptp);
+    if (h_num_new_dust_particles == 0 && num_dust_particles == 0)
         return;
-
+   
     if (num_dust_particles == 0) {
         printf("Fitst Pass! Initializing dust array\n");
-        CUDA_SAFE_CALL(cudaMalloc(&d_dust, h_num_new_dust_particles * sizeof(DustParticle)));
+        CUDA_SAFE_CALL(cudaMalloc(&d_dust, h_num_new_dust_particles * dpptp * sizeof(DustParticle)));
     } else if(h_num_new_dust_particles > 0){
-        printf("Resizing dust array from %d to %d....\n", num_dust_particles, h_num_new_dust_particles + num_dust_particles);
+        printf("Resizing dust array from %d to %d....\n", num_dust_particles*dpptp, (h_num_new_dust_particles + num_dust_particles)*dpptp);
         //resize_dust_array(h_num_new_dust_particles+num_dust_particles, num_dust_particles, d_dust);
         DustParticle* new_dust_array;
-        int new_capacity = h_num_new_dust_particles+num_dust_particles;
+        int new_capacity = (h_num_new_dust_particles+num_dust_particles)*dpptp;
         CUDA_SAFE_CALL(cudaMalloc(&new_dust_array, new_capacity * sizeof(DustParticle)));
 
         // Copy existing particles to the new array if it exists
         if (num_dust_particles > 0) {
             //cudaMemcpy(new_dust_array, d_dust, num_dust_particles * sizeof(DustParticle), cudaMemcpyDeviceToDevice);
             printf("Copying old dust array into new one...\n");
-            threadsPerBlock = 1024;
-            blocksPerGrid = (num_dust_particles + threadsPerBlock - 1) / threadsPerBlock;
-            copyParticlesKernel<<<blocksPerGrid, threadsPerBlock>>>(new_dust_array, d_dust, num_dust_particles);
+            threadsPerBlock = 512;
+            blocksPerGrid = (num_dust_particles*dpptp + threadsPerBlock - 1) / threadsPerBlock;
+            copyParticlesKernel<<<blocksPerGrid, threadsPerBlock>>>(new_dust_array, d_dust, num_dust_particles*dpptp);
             CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
             CUDA_SAFE_CALL(cudaDeviceSynchronize());
         }
@@ -810,26 +862,29 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     //cudaDeviceSynchronize();
     
     printf("Ejecting dust particles!\n");
+    threadsPerBlock = 512;
     blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
     eject_dust_particles<<<blocksPerGrid, threadsPerBlock>>>(d_points, d_dust_flags, d_prefix_sum, d_dust, alpha,
                                                              min_z_velocity, max_z_velocity, n, time,
-                                                            num_dust_particles);
+                                                            num_dust_particles, dpptp);
     CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     int old_num_dust_particles = num_dust_particles;
     num_dust_particles += h_num_new_dust_particles;
 
+
+
     printf("Advancing Simulation: Time: %f\n", time);
-    blocksPerGrid = (num_dust_particles + threadsPerBlock - 1) / threadsPerBlock;
-    update_dust_particle_positions<<<blocksPerGrid, threadsPerBlock>>>(d_dust, num_dust_particles, time);
+    blocksPerGrid = (num_dust_particles*dpptp + threadsPerBlock - 1) / threadsPerBlock;
+    update_dust_particle_positions<<<blocksPerGrid, threadsPerBlock>>>(d_dust, num_dust_particles*dpptp, time);
     CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
     // Update dust particles ptr
     *dust_particles_ptr = (void*)d_dust;
 
-    DustParticle* h_dust = new DustParticle[num_dust_particles];
-    CUDA_SAFE_CALL(cudaMemcpy(h_dust, d_dust, num_dust_particles * sizeof(DustParticle), cudaMemcpyDeviceToHost));
+    /*DustParticle* h_dust = new DustParticle[num_dust_particles*dpptp];
+    CUDA_SAFE_CALL(cudaMemcpy(h_dust, d_dust, num_dust_particles*dpptp * sizeof(DustParticle), cudaMemcpyDeviceToHost));*/
   /*  for (int i = 0; i < num_dust_particles; i++) {
         float3 pos = h_dust[i].pos;
         printf("idx: %d | p: (%f,%f,%f) | Active: %d\n", i, pos.x,pos.y,pos.z, h_dust[i].isActive);
@@ -840,32 +895,32 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
 
 
     // Extract active particles
-    printf("Extracting active particles out of %d particles....\n", num_dust_particles);
+    printf("Extracting active particles out of %d particles....\n", num_dust_particles*dpptp);
     nanovdb::Vec3f* d_active_particles = nullptr;  // Compacted array of active particles
     int active_particle_count = 0;
 
     int* d_acc_active_flags;
     int* d_acc_prefix_sum;
 
-    CUDA_SAFE_CALL(cudaMalloc(&d_acc_active_flags, num_dust_particles * sizeof(int)));
-    CUDA_SAFE_CALL(cudaMalloc(&d_acc_prefix_sum, num_dust_particles * sizeof(int)));
+    CUDA_SAFE_CALL(cudaMalloc(&d_acc_active_flags, num_dust_particles*dpptp * sizeof(int)));
+    CUDA_SAFE_CALL(cudaMalloc(&d_acc_prefix_sum, num_dust_particles*dpptp * sizeof(int)));
 
     // Step 1: Mark active particles
-    int block_size = 1024;
-    int grid_size = (num_dust_particles + block_size - 1) / block_size;
-    mark_active_particles<<<grid_size, block_size>>>(d_dust, d_acc_active_flags, num_dust_particles);
+    int block_size = 512;
+    int grid_size = (num_dust_particles*dpptp + block_size - 1) / block_size;
+    mark_active_particles<<<grid_size, block_size>>>(d_dust, d_acc_active_flags, num_dust_particles * dpptp);
     CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     // Step 2: Compute prefix sum
-    compute_prefix_sum(d_acc_active_flags, d_acc_prefix_sum, num_dust_particles);
+    compute_prefix_sum(d_acc_active_flags, d_acc_prefix_sum, num_dust_particles*dpptp);
     CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     // Step 3: Get the number of active particles from the last element of the prefix sum + last flag
-    CUDA_SAFE_CALL(cudaMemcpy(&active_particle_count, &d_acc_prefix_sum[num_dust_particles - 1], sizeof(int),
+    CUDA_SAFE_CALL(cudaMemcpy(&active_particle_count, &d_acc_prefix_sum[num_dust_particles*dpptp - 1], sizeof(int),
                              cudaMemcpyDeviceToHost));
 
     int h_acc_last_flag;
-    CUDA_SAFE_CALL(cudaMemcpy(&h_acc_last_flag, &d_acc_active_flags[num_dust_particles - 1], sizeof(int),
+    CUDA_SAFE_CALL(cudaMemcpy(&h_acc_last_flag, &d_acc_active_flags[num_dust_particles*dpptp - 1], sizeof(int),
                              cudaMemcpyDeviceToHost));
     active_particle_count += h_acc_last_flag;
 
@@ -881,7 +936,7 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
 
     // Step 5: Compact the active particles into the new array
     compact_active_particles<<<grid_size, block_size>>>(d_dust, d_active_particles, d_acc_active_flags, d_acc_prefix_sum,
-                                                        num_dust_particles);
+                                                        num_dust_particles*dpptp);
     CUDA_SAFE_CALL(cudaGetLastError());  // Check if kernel launch failed
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
@@ -916,6 +971,7 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
 
     CUDA_SAFE_CALL(cudaFree(d_dust_flags));
     CUDA_SAFE_CALL(cudaFree(d_prefix_sum));
+    CUDA_SAFE_CALL(cudaFree(d_points));
 
 
      // Create CudaPointsToGrod
@@ -925,109 +981,133 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     using BufferT = nanovdb::CudaDeviceBuffer;
 
     float voxel_size = .001f;
-    printf("Creating NanoVDB Grid with %d points w/ voxel size: %f!\n", active_particle_count, voxel_size);
-    nanovdb::CudaPointsToGrid<BuildT> converter(voxel_size);  // unit map
-    // converter.setPointType(nanovdb::PointType::World32);
-    converter.setVerbose();
-    nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = converter.getHandle(d_active_particles, active_particle_count);
-    printf("Done Creating NanoVDB Grid with %d points!\n", n);
+    //printf("Creating NanoVDB Grid with %d points w/ voxel size: %f!\n", active_particle_count, voxel_size);
+    //nanovdb::CudaPointsToGrid<BuildT> converter(voxel_size);  // unit map
+    //// converter.setPointType(nanovdb::PointType::World32);
+    //converter.setVerbose();
+    //nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> handle = converter.getHandle(d_active_particles, active_particle_count);
+    //printf("Done Creating NanoVDB Grid with %d points!\n", n);
 
-    nanovdb::NanoGrid<BuildT>* grid = handle.deviceGrid<BuildT>();
-    handle.deviceDownload();
-    nanovdb::NanoGrid<BuildT>* grid_h = handle.grid<BuildT>();
-    auto* tree = grid_h->treePtr();
-    const uint32_t maxPointsPerVoxel = converter.maxPointsPerVoxel();
-    const uint32_t maxPointsPerLeaf = converter.maxPointsPerLeaf();
+    //nanovdb::NanoGrid<BuildT>* grid = handle.deviceGrid<BuildT>();
+    //handle.deviceDownload();
+    //nanovdb::NanoGrid<BuildT>* grid_h = handle.grid<BuildT>();
+    //auto* tree = grid_h->treePtr();
+    //const uint32_t maxPointsPerVoxel = converter.maxPointsPerVoxel();
+    //const uint32_t maxPointsPerLeaf = converter.maxPointsPerLeaf();
 
-    printf("############### VDB GRID INFORMATION ################\n");
-    printf("Grid Size: %d\n", grid_h->gridSize());
-    printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
-    printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
-    printf("Point Count: %d\n", (int)grid_h->pointCount());
-    printf("Upper Internal Nodes: %d\n", grid_h->tree().nodeCount(2));
-    printf("Lower Internal Nodes: %d\n", grid_h->tree().nodeCount(1));
-    printf("Leaf Nodes: %d\n", grid_h->tree().nodeCount(0));
-    printf("Active Voxels: %d\n", grid_h->activeVoxelCount());
-    printf("Size of nanovdb::Point: %\nd", sizeof(BuildT));
-    printf("maxPointsPerVoxel: %d\n maxPointsPerLeaf: %d\n", maxPointsPerVoxel, maxPointsPerLeaf);
+    //printf("############### VDB GRID INFORMATION ################\n");
+    //printf("Grid Size: %d\n", grid_h->gridSize());
+    //printf("Grid Class: %s\n", nanovdb::toStr(handle.gridMetaData()->gridClass()));
+    //printf("Grid Type: %s\n", nanovdb::toStr(handle.gridType(0)));
+    //printf("Point Count: %d\n", (int)grid_h->pointCount());
+    //printf("Upper Internal Nodes: %d\n", grid_h->tree().nodeCount(2));
+    //printf("Lower Internal Nodes: %d\n", grid_h->tree().nodeCount(1));
+    //printf("Leaf Nodes: %d\n", grid_h->tree().nodeCount(0));
+    //printf("Active Voxels: %d\n", grid_h->activeVoxelCount());
+    //printf("Size of nanovdb::Point: %\nd", sizeof(BuildT));
+    //printf("maxPointsPerVoxel: %d\n maxPointsPerLeaf: %d\n", maxPointsPerVoxel, maxPointsPerLeaf);
 
-    float wBBoxDimZ = (float)grid_h->worldBBox().dim()[2] * 2;
-    nanovdb::Vec3<float> wBBoxCenter =
-        nanovdb::Vec3<float>(grid_h->worldBBox().min() + grid_h->worldBBox().dim() * 0.5f);
-    nanovdb::CoordBBox treeIndexBbox = grid_h->tree().bbox();
+    //float wBBoxDimZ = (float)grid_h->worldBBox().dim()[2] * 2;
+    //nanovdb::Vec3<float> wBBoxCenter =
+    //    nanovdb::Vec3<float>(grid_h->worldBBox().min() + grid_h->worldBBox().dim() * 0.5f);
+    //nanovdb::CoordBBox treeIndexBbox = grid_h->tree().bbox();
 
-    std::cout << "WorldBbox Center: (" << wBBoxCenter[0] << "," << wBBoxCenter[1] << "," << wBBoxCenter[2] << ")"
-              << std::endl;
-    std::cout << "WorldBBox Dimensions: [" << grid_h->worldBBox().dim()[0] << "," << grid_h->worldBBox().dim()[1] << ","
-              << grid_h->worldBBox().dim()[2] << "]" << std::endl;
-    std::cout << "WolrdBBox Bounds: "
-              << "[" << grid_h->worldBBox().min()[0] << "," << grid_h->worldBBox().min()[1] << ","
-              << grid_h->worldBBox().min()[2] << "] -> [" << grid_h->worldBBox().max()[0] << ","
-              << grid_h->worldBBox().max()[1] << "," << grid_h->worldBBox().max()[2] << "]" << std::endl;
+    //std::cout << "WorldBbox Center: (" << wBBoxCenter[0] << "," << wBBoxCenter[1] << "," << wBBoxCenter[2] << ")"
+    //          << std::endl;
+    //std::cout << "WorldBBox Dimensions: [" << grid_h->worldBBox().dim()[0] << "," << grid_h->worldBBox().dim()[1] << ","
+    //          << grid_h->worldBBox().dim()[2] << "]" << std::endl;
+    //std::cout << "WolrdBBox Bounds: "
+    //          << "[" << grid_h->worldBBox().min()[0] << "," << grid_h->worldBBox().min()[1] << ","
+    //          << grid_h->worldBBox().min()[2] << "] -> [" << grid_h->worldBBox().max()[0] << ","
+    //          << grid_h->worldBBox().max()[1] << "," << grid_h->worldBBox().max()[2] << "]" << std::endl;
 
-    std::cout << "Bounds: "
-              << "[" << treeIndexBbox.min()[0] << "," << treeIndexBbox.min()[1] << "," << treeIndexBbox.min()[2]
-              << "] -> [" << treeIndexBbox.max()[0] << "," << treeIndexBbox.max()[1] << "," << treeIndexBbox.max()[2]
-              << "]" << std::endl;
+    //std::cout << "Bounds: "
+    //          << "[" << treeIndexBbox.min()[0] << "," << treeIndexBbox.min()[1] << "," << treeIndexBbox.min()[2]
+    //          << "] -> [" << treeIndexBbox.max()[0] << "," << treeIndexBbox.max()[1] << "," << treeIndexBbox.max()[2]
+    //          << "]" << std::endl;
 
-    printf("############### END #############\n");
+    //printf("############### END #############\n");
 
     nanovdb::build::Grid<float> density_grid(0.f);
     density_grid.setTransform(voxel_size);
     density_grid.setName("density");
-    nanovdb::PointAccessor<Vec3T, BuildT> acc(*grid_h);
+    //nanovdb::PointAccessor<Vec3T, BuildT> acc(*grid_h);
     int nvoxels = 0;
-    int nskipped = 0;
-    int numVoxels = grid_h->activeVoxelCount();
-    float voxel_density = voxel_size * voxel_size * voxel_size;
-    nanovdb::Coord* h_coords = new nanovdb::Coord[numVoxels];
-    Vec3T* h_normals = new Vec3T[numVoxels];
+    //int nskipped = 0;
+    //int numVoxels = grid_h->activeVoxelCount();
+    //float voxel_density = voxel_size * voxel_size * voxel_size;
+    //nanovdb::Coord* h_coords = new nanovdb::Coord[numVoxels];
+    //Vec3T* h_normals = new Vec3T[numVoxels];
     float MIN_DENSITY = 0.f;
     float MAX_DENSITY = FLT_MIN;
-    const Vec3T *start = nullptr, *stop = nullptr;
-    for (auto it2 = grid_h->tree().root().cbeginChild(); it2; ++it2) {
-        for (auto it1 = it2->cbeginChild(); it1; ++it1) {
-            for (auto it0 = it1->cbeginChild(); it0; ++it0) {
-                for (auto vox = it0->cbeginValueOn(); vox; ++vox) {
-                    nanovdb::Coord ijk = vox.getCoord();
-                    nanovdb::Coord ijkW = grid_h->indexToWorld(ijk);
-                    h_coords[nvoxels++] = ijk;
+    //const Vec3T *start = nullptr, *stop = nullptr;
+    //for (auto it2 = grid_h->tree().root().cbeginChild(); it2; ++it2) {
+    //    for (auto it1 = it2->cbeginChild(); it1; ++it1) {
+    //        for (auto it0 = it1->cbeginChild(); it0; ++it0) {
+    //            for (auto vox = it0->cbeginValueOn(); vox; ++vox) {
+    //                nanovdb::Coord ijk = vox.getCoord();
+    //                nanovdb::Coord ijkW = grid_h->indexToWorld(ijk);
+    //                h_coords[nvoxels++] = ijk;
 
-                    const auto* leaf = acc.get<nanovdb::GetLeaf<BuildT>>(ijk);
-                    const uint64_t count = acc.voxelPoints(ijk, start, stop);
-                    float curr_density = density_grid.getValue(ijk);
-                    for (uint64_t j = 0; j < count; ++j) {
-                        curr_density++;
-                    }
-                    density_grid.setValue(ijk, curr_density);
+    //                const auto* leaf = acc.get<nanovdb::GetLeaf<BuildT>>(ijk);
+    //                const uint64_t count = acc.voxelPoints(ijk, start, stop);
+    //                float curr_density = density_grid.getValue(ijk);
+    //                for (uint64_t j = 0; j < count; ++j) {
+    //                    curr_density++;
+    //                }
+    //                density_grid.setValue(ijk, curr_density);
 
-                    if (curr_density >= MAX_DENSITY) {   
-                        MAX_DENSITY = curr_density;
-                    }
-                    
+    //                if (curr_density >= MAX_DENSITY) {   
+    //                    MAX_DENSITY = curr_density;
+    //                }
+    //                
 
-                }  // loop over active voxels in the leaf node
-            }      // loop over child nodes of the lower internal nodes
-        }          // loop over child nodes of the upper internal nodes
-    }              // loop over child nodes of the root
+    //            }  // loop over active voxels in the leaf node
+    //        }      // loop over child nodes of the lower internal nodes
+    //    }          // loop over child nodes of the upper internal nodes
+    //}   
+    
+    for (int i = 0; i < active_particle_count; i++) {
+        nanovdb::Vec3f p = h_active_particles[i];
+        nanovdb::Coord ijk(p[0] / voxel_size, p[1] / voxel_size, p[2] / voxel_size);
+
+        //std::cout << "p:" << p[0] << "," << p[1] << "," << p[2] << "|, "<< "Coord: " << ijk[0] << "," << ijk[1] << "," << ijk[2] << std::endl;
+        float density = density_grid.getValue(ijk)+1;
+        density_grid.setValue(ijk, density);
+
+        if (density >= MAX_DENSITY) {
+             MAX_DENSITY = density;
+        }
+    }
+
+    for (int i = 0; i < active_particle_count; i++) {
+        nanovdb::Vec3f p = h_active_particles[i];
+        nanovdb::Coord ijk(p[0] / voxel_size, p[1] / voxel_size, p[2] / voxel_size);
+        float density = density_grid.getValue(ijk) + 1;
+        float norm_density = (density - MIN_DENSITY) / (MAX_DENSITY - MIN_DENSITY);
+        density_grid.setValue(ijk, norm_density);
+    }
+
+
+    // loop over child nodes of the root
 
     std::cout << "Iterated over " << nvoxels << "MAX DENSITY: " << MAX_DENSITY << ", MIN DENSITY: " << MIN_DENSITY <<  std::endl;
     // Normalize density grid
-    for (auto it2 = grid_h->tree().root().cbeginChild(); it2; ++it2) {
-        for (auto it1 = it2->cbeginChild(); it1; ++it1) {
-            for (auto it0 = it1->cbeginChild(); it0; ++it0) {
-                for (auto vox = it0->cbeginValueOn(); vox; ++vox) {
-                    nanovdb::Coord ijk = vox.getCoord();
-                    nanovdb::Coord ijkW = grid_h->indexToWorld(ijk);
-                    //h_coords[nvoxels++] = ijk;
-                    float curr_density = density_grid.getValue(ijk);
-                    float norm_density = (curr_density - MIN_DENSITY) / (MAX_DENSITY - MIN_DENSITY);
-                    density_grid.setValue(ijk, norm_density);
+    //for (auto it2 = grid_h->tree().root().cbeginChild(); it2; ++it2) {
+    //    for (auto it1 = it2->cbeginChild(); it1; ++it1) {
+    //        for (auto it0 = it1->cbeginChild(); it0; ++it0) {
+    //            for (auto vox = it0->cbeginValueOn(); vox; ++vox) {
+    //                nanovdb::Coord ijk = vox.getCoord();
+    //                nanovdb::Coord ijkW = grid_h->indexToWorld(ijk);
+    //                //h_coords[nvoxels++] = ijk;
+    //                float curr_density = density_grid.getValue(ijk);
+    //                float norm_density = (curr_density - MIN_DENSITY) / (MAX_DENSITY - MIN_DENSITY);
+    //                density_grid.setValue(ijk, norm_density);
 
-                }  // loop over active voxels in the leaf node
-            }      // loop over child nodes of the lower internal nodes
-        }          // loop over child nodes of the upper internal nodes
-    }              // loop over child nodes of the root
+    //            }  // loop over active voxels in the leaf node
+    //        }      // loop over child nodes of the lower internal nodes
+    //    }          // loop over child nodes of the upper internal nodes
+    //}              // loop over child nodes of the root
 
     dustHandle = nanovdb::createNanoGrid<nanovdb::build::Grid<float>, float, BufferT>(density_grid);
     dustHandle.deviceUpload();
@@ -1036,7 +1116,7 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     // nanovdb::NanoGrid<float>* density_grid_d = density.deviceGrid<Vec3T>();
     printGridInformation<float>(grid_density_h, dustHandle, "DENSITY GRID");
 
-    // Save density grid
+    //// Save density grid
     printf("\nSAVING DUST DENSITY GRID....\n");
     try {
         char formatted_name[13];  // 4 for "dust", 3 for the number, 1 for space, and 1 for null terminator
@@ -1050,6 +1130,9 @@ void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, 
     }
     printf("SAVING DONE!\n");
 
+
+    
+     CUDA_SAFE_CALL(cudaFree(d_active_particles));
     printf("########## END DUST SIMULATION ############");
 }   
 

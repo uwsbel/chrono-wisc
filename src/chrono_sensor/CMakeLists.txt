@@ -134,7 +134,7 @@ list(APPEND LIBRARIES ${CUDA_CUDA_LIBRARY})
 
 if(USE_NVDB)
   list(APPEND LIBRARIES OpenVDB::nanovdb)
-  #list(APPEND LIBRARIES OpenVDB::openvdb)
+  # list(APPEND LIBRARIES OpenVDB::openvdb)
   if(VDB_MSVC_RUNTIME_SELECTION)
     message(STATUS "Setting MSVC runtime for OpenVDB")
     set_target_properties(ChronoEngine_sensor PROPERTIES

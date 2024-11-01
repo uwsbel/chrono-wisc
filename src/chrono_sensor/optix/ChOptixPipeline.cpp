@@ -716,28 +716,28 @@ CUdeviceptr ChOptixPipeline::GetShapeList() {
 
     for (int i = 0; i < m_shapes.size(); i++) {
         Shape s = m_shapes[i];
-        std::cout << "Shape: " << i << ", area: "<< m_shape_areas[i] <<  " pmf: " << m_shape_areas[i]/m_total_shape_area << " cdf: " << m_shape_areas_cdf[i]/m_total_shape_area;
+        //std::cout << "Shape: " << i << ", area: "<< m_shape_areas[i] <<  " pmf: " << m_shape_areas[i]/m_total_shape_area << " cdf: " << m_shape_areas_cdf[i]/m_total_shape_area;
         switch (s.type) {
             case ShapeType::SPHERE: {
                 SphereParameters sphere = m_spheres[s.index];
-                std::cout << " |Sphere area: " << sphere.area << " radius: " << sphere.radius << std::endl;
+                //std::cout << " |Sphere area: " << sphere.area << " radius: " << sphere.radius << std::endl;
                 break;
             }
             case ShapeType::BOX: {
                 BoxParameters box = m_boxes[s.index];
-                std::cout << " |Box area: " << box.area << " dimensions: " << box.lengths.x << " " << box.lengths.y << " " << box.lengths.z <<  std::endl;
+                //std::cout << " |Box area: " << box.area << " dimensions: " << box.lengths.x << " " << box.lengths.y << " " << box.lengths.z <<  std::endl;
                 break;
             }
             case ShapeType::MESH: {
                 MeshParameters mesh = m_mesh_pool[s.index];
-                std::cout << " |Mesh area: " << mesh.area << std::endl;
+                //std::cout << " |Mesh area: " << mesh.area << std::endl;
                 break;
             }
             default:
                 break;
         }
     }
-    std::cout << "Total Area: " << m_total_shape_area << std::endl;
+    //std::cout << "Total Area: " << m_total_shape_area << std::endl;
 
     return md_shapes;
 }
@@ -1133,7 +1133,7 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
             triangleAreas.push_back(area);  
             triangleAreasCDF.push_back(totalArea);
         }
-        std::cout << "Total Area of Mesh: " << totalArea << std::endl;
+       // std::cout << "Total Area of Mesh: " << totalArea << std::endl;
         assert(triangleAreas.size() > 0);
 
 

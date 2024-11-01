@@ -76,6 +76,7 @@ extern "C" __global__ void __raygen__camera() {
     }   
     
     curandState_t rng = camera.rng_buffer[image_index];
+    bool is_transparent = false;
     for (int sample = 0; sample < nsamples; sample++) {
        
 
@@ -153,7 +154,9 @@ extern "C" __global__ void __raygen__camera() {
         color_result += prd.color;
         normal_result = (prd.normal * inv_nsamples); //?
         albedo_result = (prd.albedo * inv_nsamples);
-        tranparency = prd.transparency;
+        tranparency = (prd.transparency);
+        if (!is_transparent && (prd.transparency) < 1e-6)
+            is_transparent = true;
 
 
         //camera.frame_buffer[image_index] = make_half4(corrected_color.x, corrected_color.y, corrected_color.z, 1.f);
@@ -177,17 +180,23 @@ extern "C" __global__ void __raygen__camera() {
     }
    // printf("C1 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
     color_result = color_result * inv_nsamples;
+    //tranparency =  tranparency;
 
-    half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma),
-                                       pow(color_result.z, 1.0f / gamma), 1.f);
+    half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), tranparency);
+    //half4 corrected_color = make_half4(1,0.5,0.25,0);
    // printf("C2 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
 
 
-    camera.frame_buffer[image_index].x += corrected_color.x;
-    camera.frame_buffer[image_index].y += corrected_color.y;
-    camera.frame_buffer[image_index].z += corrected_color.z;
-    camera.frame_buffer[image_index].w = 1.f;
-    //printf("Frame Buff4: (%f,%f,%f)\n", camera.frame_buffer[image_index].x, camera.frame_buffer[image_index].y,  camera.frame_buffer[image_index].z);
+    camera.frame_buffer[image_index].x = corrected_color.x;
+    camera.frame_buffer[image_index].y = corrected_color.y;
+    camera.frame_buffer[image_index].z = corrected_color.z;
+    camera.frame_buffer[image_index].w = corrected_color.w;
+    //if (!(color_result.x > 0 && color_result.z > 0) && color_result.y > 0) {
+    //printf("Frame Buff4: (%f,%f,%f,%f)\n", __half2float(camera.frame_buffer[image_index].x),
+    //       __half2float(camera.frame_buffer[image_index].y), 
+    //       __half2float(camera.frame_buffer[image_index].z),
+    //       __half2float(camera.frame_buffer[image_index].w));
+    //}
     //color_result = color_result * inv_nsamples;
     //normal_result = normal_result * inv_nsamples; // should the normals be averaged?
     //albedo_result = albedo_result * inv_nsamples;

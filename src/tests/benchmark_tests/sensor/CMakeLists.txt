@@ -3,8 +3,10 @@ if(NOT ENABLE_MODULE_SENSOR)
 endif()
 
 
-SET(LIBRARIES ChronoEngine ChronoEngine_sensor ${SENSOR_LIBRARIES})
+SET(LIBRARIES ChronoEngine ChronoEngine_sensor)
+message(STATUS "LIBRARIES: ${LIBRARIES}")
 INCLUDE_DIRECTORIES( ${CH_INCLUDES} ${CH_SENSOR_INCLUDES} )
+message(STATUS "INCLUDE_DIRECTORIES: ${CH_INCLUDES} ${CH_SENSOR_INCLUDES}")
 
 
 # message(STATUS "\n\nbenchmark include directories: ${CH_IRRLICHT_INCLUDES}\n\n")

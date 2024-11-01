@@ -224,13 +224,15 @@ int main(int argc, char* argv[]) {
     ChSystemNSC sysMBS;
     ChSystemFsi sysFSI(&sysMBS);
 
-    ChVector3d gravity = ChVector3d(0, 0, -9.81);
-    sysMBS.SetGravitationalAcceleration(gravity);
-    sysFSI.SetGravitationalAcceleration(gravity);
 
     // Read JSON file with simulation parameters
     std::string inputJson = GetChronoDataFile("fsi/input_json/demo_FSI_Rassor_granular_NSC.json");
     sysFSI.ReadParametersFromFile(inputJson);
+
+    
+    ChVector3d gravity = ChVector3d(0, 0, -9.81);
+    sysMBS.SetGravitationalAcceleration(gravity);
+    sysFSI.SetGravitationalAcceleration(gravity);
 
     // overwrite artificial viscosity 
     //sysFSI.SetArtificialViscosity(artificial_viscosity, 0.0);
@@ -376,10 +378,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Create a Sensor manager
-    float intensity = 1.0;
+    float intensity = 10.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sysMBS);
-    manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
-    manager->scene->SetAmbientLight({.1, .1, .1});
+    manager->scene->AddPointLight({0, 5, 5}, {intensity, intensity, intensity}, 500);
+    manager->scene->SetAmbientLight({0, 0,0});
     manager->scene->SetVoxelSize(sysFSI.GetInitialSpacing());
     manager->scene->SetWindowSize(5);
     Background b;
@@ -444,11 +446,10 @@ int main(int argc, char* argv[]) {
 
     ChTimer timer;
     ChTimer sensorTimer;
-    std::vector<openvdb::Vec3R> vdbBuffer;
     std::vector<float> h_points;
     int n_pts;
 
-     unsigned int sensor_render_steps = (unsigned int)round(1 / (update_rate * dT));
+    int sensor_render_steps = (unsigned int)round(1 / (update_rate * dT));
     while (time < total_time) {
 
         //// RASSOR 2.0, drum spinning counter clock wise
@@ -726,7 +727,8 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
             }
         }
 
-    } else {
+    } 
+    else {
         voxelBodyList.resize(coords.size());
         idList.resize(coords.size());
         offsetXList.resize(coords.size());

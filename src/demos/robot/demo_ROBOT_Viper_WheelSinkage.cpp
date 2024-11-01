@@ -32,6 +32,7 @@
 #include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChSegmentationCamera.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/filters/ChFilterAccess.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
@@ -148,7 +149,7 @@ bool save = true;
 // Render camera images
 bool vis = true;
 // Output directory
-const std::string sensor_out_dir = "SENSOR_OUTPUT/";
+const std::string sensor_out_dir = "SENSOR_OUTPUT/ViperWheelSinkage";
 
 bool use_gi = false;
 
@@ -205,7 +206,8 @@ int activeVoxels = 0;
 // forward declarations
 void createVoxelGrid(std::vector<float> points,
                      ChSystemNSC& sys,
-                     std::shared_ptr<ChScene> scene);  // std::vector<openvdb::Vec3R>&
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat);  // std::vector<openvdb::Vec3R>&
 std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts);
 
 template <typename ValueType>
@@ -248,9 +250,9 @@ int main(int argc, char* argv[]) {
     std::string inputJson = GetChronoDataFile("fsi/input_json/demo_ROBOT_Viper_RealSlope.json");
 
     total_mass = 440.0;
-    slope_angle = 20.0 / 180.0 * CH_PI;
+    slope_angle = 0.0 / 180.0 * CH_PI;
     wheel_AngVel = 0.8;
-    out_dir = GetChronoOutputPath() + "FSI_Viper_RealSlope/";
+    out_dir = GetChronoOutputPath() + "FSI_Viper_Slope_WheelSinkage/";
     /*  if (argc == 4) {
           total_mass = std::stod(argv[1]);
           slope_angle = std::stod(argv[2]) / 180.0 * CH_PI;
@@ -361,39 +363,19 @@ int main(int argc, char* argv[]) {
     //
     // SENSOR SIMULATION BEGIN
     //
-    // auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
-    // vis_mat->SetAmbientColor({0.f, 0.f, 0.f});
-    // vis_mat->SetDiffuseColor({0.71f, 0.54f, 0.26f});  // 0.701f, 0.762f, 0.770f
-    // vis_mat->SetSpecularColor({0, 0, 0});
-    // vis_mat->SetUseSpecularWorkflow(true);
-    // vis_mat->SetRoughness(.5f);
-    // vis_mat->SetClassID(30000);
-    // vis_mat->SetInstanceID(50000);
 
-    auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
-    vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({0.29f, 0.29f, 0.235f});
-    vis_mat->SetSpecularColor({1, 1, 1});
-    vis_mat->SetUseSpecularWorkflow(true);
-    vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::VDB);
-    vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
-    vis_mat->SetClassID(30000);
-    vis_mat->SetInstanceID(20000);
-
-
-    auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400, 400, 200, 1000, true);
-    vol_bbox->SetPos({0, 0, 0});
-    vol_bbox->SetFixed(true);
-    // sysMBS.Add(vol_bbox);
-    {
-        auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
-        if (shape->GetNumMaterials() == 0) {
-            shape->AddMaterial(vis_mat);
-        } else {
-            shape->GetMaterials()[0] = vis_mat;
-        }
-    }
+    //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400, 400, 200, 1000, true);
+    //vol_bbox->SetPos({0, 0, 0});
+    //vol_bbox->SetFixed(true);
+    //// sysMBS.Add(vol_bbox);
+    //{
+    //    auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
+    //    if (shape->GetNumMaterials() == 0) {
+    //        shape->AddMaterial(vis_mat);
+    //    } else {
+    //        shape->GetMaterials()[0] = vis_mat;
+    //    }
+    //}
 
     // Load regolith meshes
     std::string mesh_name_prefix = "sensor/geometries/regolith/particle_";
@@ -409,6 +391,16 @@ int main(int argc, char* argv[]) {
         regolith_meshes.push_back(trimesh_shape);
     }
 
+    auto regolith_material = chrono_types::make_shared<ChVisualMaterial>();
+    regolith_material->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
+    regolith_material->SetDiffuseColor({1, 1, 1});  // 0.29f, 0.29f, 0.235f
+    regolith_material->SetSpecularColor({1, 1, 1});
+    regolith_material->SetUseSpecularWorkflow(true);
+    regolith_material->SetRoughness(1.0f);
+    regolith_material->SetBSDF((unsigned int)BSDFType::HAPKE);
+    regolith_material->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
+    regolith_material->SetClassID(30000);
+    regolith_material->SetInstanceID(20000);
 
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
     floor->SetPos({0, 0, 0});
@@ -429,8 +421,8 @@ int main(int argc, char* argv[]) {
     Integrator integrator = Integrator::LEGACY;
     bool use_denoiser = false;
 
-    // manager->scene->SetFSIParticles(h_points);
-    // manager->scene->SetFSINumFSIParticles(n_pts);
+
+
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
     chrono::ChFrame<double> offset_pose1(
@@ -476,6 +468,29 @@ int main(int argc, char* argv[]) {
     if (save)
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Wheel_Cam_RealSlope/"));
     manager->AddSensor(cam2);
+
+
+    auto seg = chrono_types::make_shared<ChSegmentationCamera>(rover->GetChassis()->GetBody(),   // body camera is attached to
+                                                               update_rate,   // update rate in Hz
+                                                               offset_pose2,  // offset pose
+                                                               image_width,   // image width
+                                                               image_height,  // image height
+                                                               fov,           // camera's horizontal field of view
+                                                               lens_model);   // FOV
+    seg->SetName("Semantic Segmentation Camera");
+    seg->SetLag(lag);
+    seg->SetCollectionWindow(exposure_time);
+    
+
+    // Render the semantic mask
+    if (vis)
+        seg->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Semantic Segmentation"));
+
+    // Save the semantic mask
+    if (save)
+        seg->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "segmentation/"));
+
+    manager->AddSensor(seg);
 
     chrono::ChFrame<double> offset_pose3({-2.f, 0, .5f}, QuatFromAngleAxis(.2, {0, 1, 0}));
     // chrono::ChFrame<double> offset_pose3({0, 0, 5.f}, Q_from_AngAxis(CH_PI_2, {0, 1, 0}));
@@ -565,7 +580,7 @@ int main(int argc, char* argv[]) {
             // n_pts = sysFSI.GetNumFluidMarkers();
             // manager->scene->SetFSIParticles(h_points.data());
             // manager->scene->SetFSINumFSIParticles(h_points.size()/6);
-            createVoxelGrid(h_points, sysMBS, manager->scene);
+            createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
         }
         manager->Update();
 
@@ -603,7 +618,7 @@ int main(int argc, char* argv[]) {
 }
 
 
-void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene) {
+void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
     std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
     openvdb::initialize();
     // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
@@ -648,16 +663,7 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
     printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
     printf("############### END #############\n");
 
-    auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
-    vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({1, 1, 1});  // 0.29f, 0.29f, 0.235f
-    vis_mat->SetSpecularColor({1, 1, 1});
-    vis_mat->SetUseSpecularWorkflow(true);
-    vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
-    vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
-    vis_mat->SetClassID(30000);
-    vis_mat->SetInstanceID(20000);
+
 
     // int voxelCount = 0;
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;

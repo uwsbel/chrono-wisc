@@ -847,7 +847,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
     for (int i = 0; i < l.size(); i++) {
         Light light = l[i];
         if (light.type == LightType::SPOT_LIGHT && light.parent_id >= 0) {
-            std::cout << "Moving Spot Light" << std::endl;
+            //std::cout << "Moving Spot Light" << std::endl;
             scene->UpdateLight(i);
         }
     }
@@ -913,7 +913,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
 
 
         // Make dust grid
-        if (m_system->GetChTime() > 1.f) {
+        if (m_system->GetChTime() > 0.f) {
             nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> dustHandle;
             createDustGrid(dustHandle, d_pts, n, scene->GetThresholdVelocity(), &m_dust_particles, m_num_dust_particles,
                            m_system->GetChTime(), m_frame, scene->GetZThreshold());

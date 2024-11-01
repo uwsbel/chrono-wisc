@@ -109,8 +109,8 @@ std::shared_ptr<openvdb::FloatGrid> readVDBGrid(std::string fileName) {
     baseGrid = file.readGrid("density");
 
     openvdb::FloatGrid::Ptr grid = openvdb::gridPtrCast<openvdb::FloatGrid>(baseGrid);
-    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(0.1);
-    grid->setTransform(linearTransform);
+    openvdb::math::Transform::Ptr linearTransform = openvdb::math::Transform::createLinearTransform(0.01);
+    //grid->setTransform(linearTransform);
     // Print Grid information
     openvdb::Vec3d minBBox = grid->evalActiveVoxelBoundingBox().min().asVec3d();
     openvdb::Vec3d maxBBox = grid->evalActiveVoxelBoundingBox().max().asVec3d();
@@ -157,7 +157,7 @@ void processVDBFiles(const std::string& directory) {
     // Call readVDB on each .vdb file
     int i = 0;
     int fromRange = 0;
-    int toRange = fromRange + 2;
+    int toRange = fromRange + 75;
     for (const auto& file : vdbFiles) {
         if (++i < fromRange)
             continue;
@@ -205,8 +205,8 @@ int main(int argc, char* argv[]) {
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
-    vis_mat->SetAbsorptionCoefficient(.000001f);
-    vis_mat->SetScatteringCoefficient(.001f);
+    vis_mat->SetAbsorptionCoefficient(.001f);
+    vis_mat->SetScatteringCoefficient(.01f);
 
 
     auto ground_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
@@ -216,7 +216,7 @@ int main(int argc, char* argv[]) {
 
     // Make VDB Grid
     //std::string vdbGridsDir = "D:\\workspace\\data\\VDBVolumes\\DustShockwaveVDB";
-    std::string vdbGridsDir = "D:\\workspace\\data\\VDBVolumes\\CRM";
+    std::string vdbGridsDir = "D:\\workspace\\data\\VDBVolumes\\DUST";
     processVDBFiles(vdbGridsDir);
     //std::shared_ptr<openvdb::FloatGrid> grid = readVDBGrid(vdbGridPath);
 
@@ -225,7 +225,7 @@ int main(int argc, char* argv[]) {
     //(float)volDims[0], (float)volDims[1], (float)volDims[2]
     std::cout << "Vol Dims: " << (float)volDims[0] << "," << (float)volDims[1] << "," << (float)volDims[2] << std::endl;
      //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>((float)volDims[0]*10, (float)volDims[1]*10, (float)volDims[2]*10, 1000,true);
-     auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400,400,400, 1000,true);
+     auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(4000,4000,4000, 1000,true);
      vol_bbox->SetPos({0, 0, 0});
      vol_bbox->SetFixed(true);
      sys.Add(vol_bbox);
@@ -241,26 +241,27 @@ int main(int argc, char* argv[]) {
     // -----------------------
     // Create a sensor manager
     // -----------------------
-    float intensity = 1.0;
+    float intensity = 10.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
-    manager->scene->AddPointLight({50, 50, 5}, {intensity, intensity, intensity}, 5000);
-    manager->scene->AddPointLight({100, 50, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({0, 0, 10}, {intensity, intensity, intensity}, 5000);
+   /* manager->scene->AddPointLight({100, 50, 5}, {intensity, intensity, intensity}, 5000);
     manager->scene->AddPointLight({0, 50, 5}, {intensity, intensity, intensity}, 5000);
     manager->scene->AddPointLight({50, 100, 5}, {intensity, intensity, intensity}, 5000);
-    manager->scene->AddPointLight({50, 0, 5}, {intensity, intensity, intensity}, 5000);
+    manager->scene->AddPointLight({50, 0, 5}, {intensity, intensity, intensity}, 5000);*/
     manager->scene->SetAmbientLight({1.f, 1.f, 1.f});
     Background b;
     b.mode = BackgroundMode::SOLID_COLOR;
     b.color_zenith = ChVector3f(0,0,0);  //0.1f, 0.2f, 0.4f
    /* b.mode = BackgroundMode::ENVIRONMENT_MAP;
     b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");*/
-    manager->scene->SetBackground(b);
+    //manager->scene->SetBackground(b);
     // ------------------------------------------------
     // Create a camera and add it to the sensor manager
     // ------------------------------------------------
     //-800, 0, 50
     //-50,45,15
-    chrono::ChFrame<double> offset_pose1({50, 50, 180}, QuatFromAngleAxis(90 * (CH_PI / 180), {0, 1, 0}));
+    chrono::ChFrame<double> offset_pose1({0, 0, 5}, QuatFromAngleAxis(90 * (CH_PI / 180), {0, 1, 0}));
+    //chrono::ChFrame<double> offset_pose1({-2.f, 0, .5f}, QuatFromAngleAxis(.2, {0, 1, 0}));
     auto cam = chrono_types::make_shared<ChCameraSensor>(vol_bbox,   // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -286,7 +287,7 @@ int main(int argc, char* argv[]) {
 
     manager->AddSensor(cam);
 
-     chrono::ChFrame<double> offset_pose2({-50, 10, 50}, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
+     chrono::ChFrame<double> offset_pose2({-5, 0, 5}, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
     auto cam2 = chrono_types::make_shared<ChCameraSensor>(vol_bbox,      // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose2,  // offset pose
@@ -310,7 +311,7 @@ int main(int argc, char* argv[]) {
         // Save the current image to a png file at the specified path
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "side/"));
 
-    manager->AddSensor(cam2);
+    //manager->AddSensor(cam2);
 
     // ---------------
     // Simulate system

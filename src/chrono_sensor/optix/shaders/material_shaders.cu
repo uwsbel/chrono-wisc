@@ -987,14 +987,17 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
        float3 reflected_color = make_float3(0.0f);
        {
            for (int i = 0; i < params.num_lights; i++) {
-               Light light = params.lights[i];
-               if (light.type != LightType::POINT_LIGHT)
-                   continue;
-               PointLight& l = static_cast<PointLight&>(light);
-               float dist_to_light = Length(l.pos - hit_point);
+               Light l = params.lights[i];
+               LightSample ls;
+               ls.hitpoint = hit_point;
+               ls.wo = -ray_dir;
+               ls.n = world_normal;
+               SampleLight(l, &ls);
+               
+               float dist_to_light = ls.dist; //Length(l.pos - hit_point);
                //printf("dist_to_light:%.4f\n", dist_to_light);
                if (1) {//dist_to_light < 2 * l.max_range{ // Sun should have infinity range, so this condition will always be true for ths sun
-                   float3 dir_to_light = normalize(l.pos - hit_point);
+                   float3 dir_to_light = ls.dir; //normalize(l.pos - hit_point);
                    float cos_i = Dot(dir_to_light, world_normal);
                    //printf("cos_i:%.2f",cos_i);
                    if (cos_i > 0) {
@@ -1013,7 +1016,8 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                        float3 light_attenuation = prd_shadow.attenuation;
 
                        float point_light_falloff  = 1.0f; // ??
-                       float3 incoming_light_ray = l.color * cos_i * light_attenuation; // Add attenuation later
+                       float3 incoming_light_ray = ls.L * light_attenuation * cos_i;
+                       //float3 incoming_light_ray = l.color * cos_i * light_attenuation; // Add attenuation later
                        //printf("incoming_light_ray: (%.2f,%.2f,%.2f)\n", incoming_light_ray.x, incoming_light_ray.y, incoming_light_ray.z);
                        if (fmaxf(incoming_light_ray) > 0.0f) {
                            
@@ -1150,8 +1154,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
     nanovdb::Vec3d rayOrigIdx = grid->worldToIndex(ray_orig_v);
 
     nanovdb::Ray<float> ray(rayOrigIdx, rayDirIdx, ray_dist, 1e20);
-    /*   printf("VolShader: ray_dist: %f| hitP: %f,%f,%f | hitP Idx: %f,%f,%f | rayStartIdx: %f %f %f | rayDirIdx:
-       %f,%f,%f\n", ray_dist, hitPoint.x, hitPoint.y, hitPoint.z, hitPointIdx[0], hitPointIdx[1], hitPointIdx[2],
+    /*printf("VolShader: ray_dist: %f| hitP: %f,%f,%f | hitP Idx: %f,%f,%f | rayStartIdx: %f %f %f | rayDirIdx: %f,%f,%f\n", ray_dist, hitPoint.x, hitPoint.y, hitPoint.z, hitPointIdx[0], hitPointIdx[1], hitPointIdx[2],
        ray.start()[0], ray.start()[1], ray.start()[2], rayDirIdx[0], rayDirIdx[1], rayDirIdx[2]);*/
 
     nanovdb::Coord ijk = nanovdb::RoundDown<nanovdb::Coord>(ray.start());  // first hit of bbox
@@ -1163,7 +1166,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
     nanovdb::HDDA<nanovdb::Ray<float>, nanovdb::Coord> hdda(ray, acc.getDim(ijk, ray));
     const auto v0 = acc.getValue(ijk);
 
-    // printf("Start Value: %f | Start Idx: %f,%f,%f\n", v0, ijk.asVec3d()[0], ijk.asVec3d()[1], ijk.asVec3d()[2]);
+    //printf("Start Value: %f | Start Idx: %f,%f,%f\n", v0, ijk.asVec3d()[0], ijk.asVec3d()[1], ijk.asVec3d()[2]);
     static const float Delta = 1e-3; //1.0001f;
     int nsteps = 0;
     float transmittance = 1.0f;
@@ -1195,10 +1198,10 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
             nanovdb::Vec3f volPntIdx =
                 grid->indexToWorld(ijk.asVec3s());  // TODO: Make VDB to chrono data type conversion function
             float3 volPnt = make_float3(volPntIdx[0], volPntIdx[1], volPntIdx[2]);
-            // printf("density: %f\n", v);
-            transmittance *= exp((-v * extinctionCoeff * Delta));
+      
+            transmittance *= exp((-v * extinctionCoeff * 1.0001));
             outScattering = scatteringCoeff * v;
-
+            //printf("density: %f| trans: %f | outscat: %f\n", v, transmittance, outScattering);
             for (int i = 0; i < params.num_lights; i++) {
                 Light l = params.lights[i];
                 if (l.type != LightType::POINT_LIGHT)
@@ -1206,7 +1209,8 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                 float dist_to_light = Length(l.pos - volPnt);
                 if (dist_to_light < 2 * l.max_range) {
                     float3 dir_to_light = normalize(l.pos - volPnt);
-                    float VdL = Dot(-1 * normalize(ray_dir), -1 * dir_to_light);
+                    float VdL = Dot(-1 *ray_dir, dir_to_light);
+                    //printf("VdL: %f | dirL: (%f,%f,%f) | dirR: (%f,%f,%f)\n", VdL, dir_to_light.x, dir_to_light.y, dir_to_light.z, ray_dir.x, ray_dir.y, ray_dir.z);
                     if (VdL > 0) {
                         float3 light_attenuation = make_float3(0);  // TODO: shoot shadow ray
                         {
@@ -1232,7 +1236,7 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                                 }
                                 while (shdda.step() && acc.isActive(shdda.voxel())) {  // in the narrow band
                                     sV = acc.getValue(shdda.voxel());
-                                    sTransmittance *= exp((-sV * extinctionCoeff * Delta));  // density
+                                    sTransmittance *= exp((-sV * extinctionCoeff * 1.0001f));  // density
                                     ssteps++;
                                 }
                             }
@@ -1242,11 +1246,13 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
                         float point_light_falloff =
                             (l.max_range * l.max_range / (dist_to_light * dist_to_light + l.max_range * l.max_range));
 
-                        float3 incoming_light_ray = l.color * light_attenuation * point_light_falloff * VdL;
+                        float3 incoming_light_ray = l.color * light_attenuation * point_light_falloff * VdL * mat.emissive_power;
                         float phase = SchlickPhase(VdL, k);
                         inScattering = params.ambient_light_color + incoming_light_ray * phase;
 
-                        volumeLight += transmittance * inScattering * outScattering * Delta;
+                        volumeLight += transmittance * inScattering * outScattering * 1.0001f * volAlbedo;
+                        // print transmittance, inScattering, outScattering, Delta, volAlbedo
+                        //printf("transmittance: %f | inScattering: (%f,%f,%f) | outScattering: %f | Delta: %f | volAlbedo: (%f,%f,%f)\n", transmittance, inScattering.x, inScattering.y, inScattering.z, outScattering, Delta, volAlbedo.x, volAlbedo.y, volAlbedo.z);
                     }
                 }
             }
@@ -1257,11 +1263,12 @@ static __device__ inline void CameraVolumetricShader(PerRayData_camera* prd_came
     float alpha = 1 - clamp(transmittance, 0, 1);
     if (nsteps > 0) {
         prd_camera->transparency = 1 - alpha;
-        prd_camera->color += volumeLight;  // make_float3(1-alpha, 1-alpha, 1-alpha);
+        prd_camera->color = volumeLight;  // make_float3(1-alpha, 1-alpha, 1-alpha);
+        //printf("transparency: %f | color: (%f,%f,%f)\n", prd_camera->transparency, prd_camera->color.x,prd_camera->color.y,prd_camera->color.z);
         // prd_camera->color += make_float3(0, 0, 1);
     } else {
-        // prd_camera->transparency = 1.f;
-        prd_camera->color += make_float3(0, 0, 0);  // 0.1f, 0.2f, 0.4f
+        prd_camera->transparency = 1.f;
+        prd_camera->color = make_float3(0, 0, 0);  // 0.1f, 0.2f, 0.4f
     }
 #endif
 }
@@ -2388,7 +2395,7 @@ extern "C" __global__ void __closesthit__material_shader() {
                             break;
                         }
                         case BSDFType::VDBVOL: {
-                            CameraVolumetricShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,
+                           CameraVolumetricShader(getCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,
                                          world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
                             break;
                         }

@@ -154,6 +154,7 @@ __global__ void image_half4_to_uchar4_kernel(__half* bufIn, unsigned char* bufOu
     int idx = (blockDim.x * blockIdx.x + threadIdx.x);  // index into output buffer
     if (idx < N) {
         bufOut[idx] = (unsigned char)(clamp(__half2float(bufIn[idx]), 0.f, 1.f) * 255.f);
+        //printf("bufIn[%d] = %f, bufOut[%d] = %d\n", idx, __half2float(bufIn[idx]), idx, bufOut[idx]);
     }
 }
 
