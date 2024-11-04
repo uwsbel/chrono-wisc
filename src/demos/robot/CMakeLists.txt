@@ -36,6 +36,7 @@ if(ENABLE_MODULE_VEHICLE)
 	  if(ENABLE_MODULE_FSI)
 		set(DEMOS ${DEMOS}
 			demo_ROBOT_Viper_SPH
+      demo_ROBOT_MoonRanger_SPH_DBP
 		)
 	  endif()
 	endif()

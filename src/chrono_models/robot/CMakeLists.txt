@@ -69,6 +69,15 @@ source_group("copters" FILES ${CRM_COPTERS_FILES})
 
 #-----------------------------------------------------------------------------
 
+set(CRM_MOONRANGER_FILES
+    moonranger/Moonranger.cpp
+    moonranger/Moonranger.h
+)
+
+source_group("moonranger" FILES ${CRM_MOONRANGER_FILES})
+
+#-----------------------------------------------------------------------------
+
 set(INDUSTRIAL_FILES
     industrial/IndustrialRobot.h industrial/IndustrialRobot.cpp
 	industrial/IndustrialRobotSCARA.h industrial/IndustrialRobotSCARA.cpp
@@ -105,6 +114,7 @@ add_library(ChronoModels_robot
             ${CRM_TURTLEBOT_FILES}
             ${CRM_COPTERS_FILES}
 			${INDUSTRIAL_FILES}
+            ${CRM_MOONRANGER_FILES}
             )
 
 set_target_properties(ChronoModels_robot PROPERTIES

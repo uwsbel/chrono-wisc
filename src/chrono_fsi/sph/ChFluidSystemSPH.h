@@ -77,7 +77,7 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
         KernelType kernel_type;        ///< kernel type (default: CUBIC_CPLINE)
         int num_bce_layers;            ///< number of BCE layers (boundary and solids, default: 3)
         double initial_spacing;        ///< initial particle spacing (default: 0.01)
-        double d0_multiplier;           ///< kernel length multiplier, h = d0_multiplier * initial_spacing (default: 1.2)
+        double d0_multiplier;          ///< kernel length multiplier, h = d0_multiplier * initial_spacing (default: 1.2)
         double max_velocity;           ///< maximum velocity (default: 1.0)
         double xsph_coefficient;       ///< XSPH coefficient (default: 0.5)
         double shifting_coefficient;   ///< shifting beta coefficient (default: 1.0)
@@ -372,6 +372,45 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
                           double height,
                           bool solid,
                           bool polar = true);
+
+    void CreateBCE_On_Wheel_Grouser_Hollow_without_grousers(std::vector<ChVector3d>& posRadBCE,
+                                                            double wheel_rad,
+                                                            double wheel_w,
+                                                            double gro_h,
+                                                            double gro_w,
+                                                            int gro_num,
+                                                            double marker_spacing,
+                                                            bool cartesian);
+    /// Hollow wheel function for Moon Ranger
+    void CreateBCE_On_Wheel_Grouser_Hollow(std::vector<ChVector3d>& posRadBCE,
+                                           double wheel_rad,
+                                           double wheel_w,
+                                           double gro_h,
+                                           double gro_w,
+                                           int gro_num,
+                                           double marker_spacing,
+                                           bool cartesian);
+    // Wei functions to make custom BCEs for a wheel
+    void CreateBCE_On_Wheel_Grouser(std::vector<ChVector3d>& posRadBCE,
+                                    double wheel_rad,
+                                    double wheel_w,
+                                    double gro_h,
+                                    double gro_w,
+                                    int gro_num,
+                                    double kernel_h,
+                                    bool cartesian);
+
+    // Wei functions to make custom BCEs for a wheel
+    void AddWheelBCE_Grouser(std::shared_ptr<ChBody> body,
+                             const ChFrame<>& frame,
+                             double radius,
+                             double wide,
+                             double grouser_height,
+                             double grouser_wide,
+                             int grouser_num,
+                             bool cartesian,
+                             bool hollow = false,
+                             bool without_grousers = false);
 
     /// Add BCE markers for a cone of specified radius and height and associate them with the given body.
     /// The cone is assumed centered at the origin of the provided frame and aligned with its Z axis.
