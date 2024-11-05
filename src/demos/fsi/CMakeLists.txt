@@ -20,6 +20,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_AngleRepose
    demo_FSI_SphereDrop
    demo_FSI_Moonranger_SingleWheel
+   demo_FSI_Moonranger_SingleWheel_DBP
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
