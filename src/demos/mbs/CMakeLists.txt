@@ -23,6 +23,7 @@ set(DEMOS
   demo_MBS_hydraulic_actuator
   demo_MBS_hydraulic_crane
   demo_MBS_hydraulic_crane_cosim
+  demo_MBS_spring_unitChange
 )
 
 # Add demos that can only work with Irrlicht
