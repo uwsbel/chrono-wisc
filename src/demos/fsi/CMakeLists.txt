@@ -21,6 +21,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_SphereDrop
    demo_FSI_Moonranger_SingleWheel
    demo_FSI_Moonranger_SingleWheel_DBP
+   demo_FSI_Moonranger_SingleWheel_DBP_units
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
