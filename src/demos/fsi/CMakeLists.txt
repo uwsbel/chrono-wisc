@@ -19,6 +19,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_Flap
    demo_FSI_AngleRepose
    demo_FSI_SphereDrop
+   demo_FSI_Fording
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
@@ -39,6 +40,12 @@ list(APPEND LIBS "ChronoEngine")
 if(ENABLE_MODULE_VSG)
     include_directories(${CH_VSG_INCLUDES})
     list(APPEND LIBS "ChronoEngine_vsg")
+endif()
+
+if(ENABLE_MODULE_VEHICLE)
+    include_directories(${CH_VSG_INCLUDES})
+    list(APPEND LIBS "ChronoEngine_vehicle")
+    list(APPEND LIBS "ChronoModels_vehicle")
 endif()
 
 if(ENABLE_MODULE_OPENGL)
