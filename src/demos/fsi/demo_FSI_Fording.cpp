@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <ctime>
 
-#include "chrono/physics/ChSystemNSC.h"
+#include "chrono/physics/ChSystemSMC.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
@@ -46,7 +46,10 @@ using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::vehicle;
 
-std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystem& sys, const ChCoordsys<>& init_pos);
+std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
+                                              ChFluidSystemSPH& sysSPH,
+                                              ChFsiSystemSPH& sysFSI,
+                                              const ChCoordsys<>& init_pos);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 //------------------------------------------------------------------
@@ -86,13 +89,12 @@ int main(int argc, char* argv[]) {
     ChSystemSMC sysMBS;
     ChFluidSystemSPH sysSPH;
     ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
-
+    sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
 
     // Create vehicle
     std::cout << "Create vehicle..." << std::endl;
     ChVector3d veh_init_pos(1.5, 0, 1.8);
-    auto vehicle = CreateVehicle(sysMBS, ChCoordsys<>(veh_init_pos, QUNIT));
 
     // Use the specified input JSON file
     sysSPH.ReadParametersFromFile(inputJson);
@@ -102,7 +104,7 @@ int main(int argc, char* argv[]) {
     ChVector3d plate_size(0.9 * fxDim, 0.7 * fyDim, 4 * initSpace0);
     double plate_density = 400;
 
-    ChVector3d plate_center(0, 0, fzDim + plate_size.z() * 0.5 + initSpace0);
+    ChVector3d plate_center(0, 0, fzDim + plate_size.z() * 0.5);
 
     // Set frequency of proximity search
     sysSPH.SetNumProximitySearchSteps(ps_freq);
@@ -141,11 +143,6 @@ int main(int argc, char* argv[]) {
                               ChVector3d(bxDim, byDim, bzDim),                //
                               ChVector3i(2, 0, -1));
 
-    // Common contact material and geometry
-    ChContactMaterialData cmat;
-    cmat.Y = 1e8;
-    cmat.mu = 0.9f;
-    cmat.cr = 0.05f;
     double plate_volume = plate_size.x() * plate_size.y() * plate_size.z();
     double plate_mass = plate_volume * plate_density;
     ChVector3d plate_inertia(
@@ -154,21 +151,29 @@ int main(int argc, char* argv[]) {
         (1.0 / 12.0) * plate_mass * (plate_size.x() * plate_size.x() + plate_size.y() * plate_size.y())   // I_zz
     );
 
-    // Now add a body to the system, a box representing the plate, floating on top of the water
+    auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
+    cmaterial->SetYoungModulus(1e8);
+    cmaterial->SetFriction(0.9f);
+    cmaterial->SetRestitution(0.4f);
+
     auto plate_bottom = chrono_types::make_shared<ChBody>();
     plate_bottom->SetPos(plate_center);
     plate_bottom->SetFixed(false);
     plate_bottom->EnableCollision(true);
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(cmat);
-    geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(ChVector3d(0, 0, 0), QUNIT, plate_size, 0));
 
+    auto plate_collision_shape = chrono_types::make_shared<ChCollisionShapeBox>(cmaterial, plate_size);
+    plate_bottom->AddCollisionShape(plate_collision_shape, ChFrame<>());
+    auto plate_visualization_shape = chrono_types::make_shared<ChVisualShapeBox>(plate_size);
+    plate_bottom->AddVisualShape(plate_visualization_shape, ChFrame<>());
     plate_bottom->SetMass(plate_mass);
     plate_bottom->SetInertiaXX(plate_inertia);
-    geometry.CreateVisualizationAssets(plate_bottom, VisualizationType::COLLISION);
     sysMBS.AddBody(plate_bottom);
     sysFSI.AddFsiBody(plate_bottom);
-    sysSPH.AddBoxBCE(plate_bottom, ChFrame<>(VNULL, QNULL), plate_size, true);
+    sysSPH.AddBoxBCE(plate_bottom, ChFrame<>(), plate_size, true);
+
+    auto vehicle = CreateVehicle(sysMBS, sysSPH, sysFSI, ChCoordsys<>(veh_init_pos, QUNIT));
+
+    // Now add a body to the system, a box representing the plate, floating on top of the water
 
     // Now add a body to the system, a box representing the plate, floating on top of the water
     // auto plate_top = chrono_types::make_shared<ChBody>();
@@ -340,7 +345,10 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
     return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
 }
 
-std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystem& sys, const ChCoordsys<>& init_pos) {
+std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
+                                              ChFluidSystemSPH& sysSPH,
+                                              ChFsiSystemSPH& sysFSI,
+                                              const ChCoordsys<>& init_pos) {
     std::string vehicle_json = "Polaris/Polaris.json";
     std::string engine_json = "Polaris/Polaris_EngineSimpleMap.json";
     std::string transmission_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
@@ -362,32 +370,36 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystem& sys, const ChCoordsys<>&
     vehicle->InitializePowertrain(powertrain);
 
     // Create and initialize the tires
-    vehicle->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
-    vehicle->GetWheel(0, LEFT)->EnableCollision(true);
-    vehicle->GetWheel(0, RIGHT)->EnableCollision(true);
-    vehicle->GetWheel(1, LEFT)->EnableCollision(true);
-    vehicle->GetWheel(1, RIGHT)->EnableCollision(true);
-    ChContactMaterialData mat_info;
-    auto material = mat_info.CreateMaterial(ChContactMethod::NSC);
-    material->SetFriction(0.9);
-    material->SetRestitution(0.05);
-    auto ct_shape = chrono_types::make_shared<ChCollisionShapeCylinder>(material, 0.4, 0.2);
-    vehicle->GetWheel(0, RIGHT)->GetSpindle()->AddCollisionShape(
-        ct_shape, ChFrame<>(ChVector3d(0, 0, -0.5), QuatFromAngleX(CH_PI_2)));
-    vehicle->GetWheel(0, LEFT)->GetSpindle()->AddCollisionShape(
-        ct_shape, ChFrame<>(ChVector3d(0, 0, -0.5), QuatFromAngleX(CH_PI_2)));
-    vehicle->GetWheel(1, RIGHT)->GetSpindle()->AddCollisionShape(
-        ct_shape, ChFrame<>(ChVector3d(0, 0, -0.5), QuatFromAngleX(CH_PI_2)));
-    vehicle->GetWheel(1, LEFT)->GetSpindle()->AddCollisionShape(
-        ct_shape, ChFrame<>(ChVector3d(0, 0, -0.5), QuatFromAngleX(CH_PI_2)));
-    vehicle->SetWheelCollide(true);
-
     for (auto& axle : vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
             auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
-            vehicle->InitializeTire(tire, wheel, VisualizationType::COLLISION);
+            vehicle->InitializeTire(tire, wheel, VisualizationType::MESH);
         }
     }
 
+    auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
+    cmaterial->SetYoungModulus(1e8);
+    cmaterial->SetFriction(0.9f);
+    cmaterial->SetRestitution(0.4f);
+    std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
+
+    auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
+    double scale_ratio = 1.0;
+    trimesh->LoadWavefrontMesh(GetChronoDataFile(mesh_filename), false, true);
+    trimesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
+    trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
+    auto wheel_shape = chrono_types::make_shared<ChCollisionShapeTriangleMesh>(cmaterial, trimesh, false, false, 0.005);
+
+    // Create wheel BCE markers
+    for (auto& axle : vehicle->GetAxles()) {
+        for (auto& wheel : axle->GetWheels()) {
+            std::vector<ChVector3d> points;
+            wheel->GetSpindle()->AddCollisionShape(wheel_shape);
+            wheel->GetSpindle()->EnableCollision(true);
+            sysSPH.CreatePoints_Mesh(*trimesh, sysSPH.GetInitialSpacing(), points);
+            sysSPH.AddPointsBCE(wheel->GetSpindle(), points, ChFrame<>(), true);
+            sysFSI.AddFsiBody(wheel->GetSpindle());
+        }
+    }
     return vehicle;
 }
