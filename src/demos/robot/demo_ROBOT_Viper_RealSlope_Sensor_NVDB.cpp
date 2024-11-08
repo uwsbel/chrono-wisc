@@ -286,6 +286,8 @@ int main(int argc, char* argv[]) {
     sysMBS.SetGravitationalAcceleration(gravity);
     sysFSI.SetGravitationalAcceleration(gravity);
 
+    slope_angle = 0;
+
     // Get the simulation stepsize
     dT = sysFSI.GetStepSize();
 
@@ -854,14 +856,14 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
     rover->SetDriver(driver);
     rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
-    //rover->Initialize(ChFrame<>(init_loc, QUNIT));
+    rover->Initialize(ChFrame<>(init_loc, QUNIT));
     double xRot = init_loc.x() * cos(-slope_angle) + init_loc.z() * sin(-slope_angle);
     double yRot = init_loc.y();
     double zRot = -init_loc.x() * sin(-slope_angle) + init_loc.z() * cos(-slope_angle);
 
     // Create a new rotated vector
     ChVector3d rotatedRoverInitLoc(xRot, yRot, zRot);
-    rover->Initialize(ChFrame<>(rotatedRoverInitLoc, QuatFromAngleY(-slope_angle)));
+    //rover->Initialize(ChFrame<>(rotatedRoverInitLoc, QuatFromAngleY(-slope_angle)));
 
 
     // Create the wheel's BCE particles
@@ -874,20 +876,39 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     std::vector<ChVector3d> BCE_wheel;
     sysFSI.CreateMeshPoints(*trimesh, initSpace0, BCE_wheel);
 
+    //rover->GetChassis()->GetBody()->GetVisualModelFrame().SetRot(QuatFromAngleY(-slope_angle));
+    ChFramed chassisVisFrame(rotatedRoverInitLoc, QuatFromAngleY(-slope_angle));
+    //rover->GetChassis()->GetBody()->GetVisualModel()->GetShapeInstances()[0].second.
+    //rover->GetChassis()->GetBody()->UpdateVisualModel();
     // Add BCE particles and mesh of wheels to the system
     for (int i = 0; i < 4; i++) {
         std::shared_ptr<ChBodyAuxRef> wheel_body;
+        std::shared_ptr<ChBodyAuxRef> lower_arm;
+        std::shared_ptr<ChBodyAuxRef> upper_arm;
+        std::shared_ptr<ChBodyAuxRef> upright;
         if (i == 0) {
             wheel_body = rover->GetWheel(ViperWheelID::V_LF)->GetBody();
+            lower_arm = rover->GetLowerArm(ViperWheelID::V_LF)->GetBody();
+            upper_arm = rover->GetUpperArm(ViperWheelID::V_LF)->GetBody();
+            upright = rover->GetUpright(ViperWheelID::V_LF)->GetBody();
         }
         if (i == 1) {
             wheel_body = rover->GetWheel(ViperWheelID::V_RF)->GetBody();
+            lower_arm = rover->GetLowerArm(ViperWheelID::V_RF)->GetBody();
+            upper_arm = rover->GetUpperArm(ViperWheelID::V_RF)->GetBody();
+            upright = rover->GetUpright(ViperWheelID::V_RF)->GetBody();
         }
         if (i == 2) {
             wheel_body = rover->GetWheel(ViperWheelID::V_LB)->GetBody();
+            lower_arm = rover->GetLowerArm(ViperWheelID::V_LB)->GetBody();
+            upper_arm = rover->GetUpperArm(ViperWheelID::V_LB)->GetBody();
+            upright = rover->GetUpright(ViperWheelID::V_LB)->GetBody();
         }
         if (i == 3) {
             wheel_body = rover->GetWheel(ViperWheelID::V_RB)->GetBody();
+            lower_arm = rover->GetLowerArm(ViperWheelID::V_RB)->GetBody();
+            upper_arm = rover->GetUpperArm(ViperWheelID::V_RB)->GetBody();
+            upright = rover->GetUpright(ViperWheelID::V_RB)->GetBody();
         }
 
         sysFSI.AddFsiBody(wheel_body);
@@ -896,6 +917,11 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         } else {
             sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
         }
+
+      /*  wheel_body->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));
+        lower_arm->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));
+        upper_arm->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));
+        upright->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));*/
     }
     //// Create a body for the rigid soil container
     //auto box = chrono_types::make_shared<ChBodyEasyBox>(10, 10, 0.02, 1000, false, false);
