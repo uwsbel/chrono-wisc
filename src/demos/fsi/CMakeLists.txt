@@ -20,6 +20,8 @@ set(DEMOS ${DEMOS}
    demo_FSI_AngleRepose
    demo_FSI_SphereDrop
    demo_FSI_Fording
+   demo_FSI_Fording_twoblocks
+   demo_FSI_Fording_twoblocks_Mulipass
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
