@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     double output_fps = 20;
     bool render = true;
     double render_fps = 100;
-    bool snapshots = false;
+    bool snapshots = true;
     int ps_freq = 1;
 
     // Dimension of the fluid domain
@@ -91,10 +91,13 @@ int main(int argc, char* argv[]) {
     ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
+    cmaterial->SetYoungModulus(1e8);
+    cmaterial->SetFriction(0.9f);
+    cmaterial->SetRestitution(0.4f);
 
     // Create vehicle
     std::cout << "Create vehicle..." << std::endl;
-    ChVector3d veh_init_pos(1.5, 0, 1.8);
 
     // Use the specified input JSON file
     sysSPH.ReadParametersFromFile(inputJson);
@@ -110,8 +113,10 @@ int main(int argc, char* argv[]) {
     sysSPH.SetNumProximitySearchSteps(ps_freq);
 
     // Set up the periodic boundary condition (only in Y direction)
-    ChVector3d cMin = ChVector3d(-bxDim / 2 - 10.0 * initSpace0, -byDim / 2 - 1.0 * initSpace0 / 2.0, -2.0 * bzDim);
-    ChVector3d cMax = ChVector3d(bxDim / 2 + 10.0 * initSpace0, byDim / 2 + 1.0 * initSpace0 / 2.0, 2.0 * bzDim);
+    ChVector3d cMin =
+        ChVector3d(-bxDim / 2 - bxDim - 20.0 * initSpace0, -byDim / 2 - 1.0 * initSpace0 / 2.0, -2.0 * bzDim);
+    ChVector3d cMax =
+        ChVector3d(bxDim / 2 + bxDim + 20.0 * initSpace0, byDim / 2 + 1.0 * initSpace0 / 2.0, 2.0 * bzDim);
     sysSPH.SetBoundaries(cMin, cMax);
 
     // Create Fluid region and discretize with SPH particles
@@ -136,12 +141,59 @@ int main(int argc, char* argv[]) {
     auto ground = chrono_types::make_shared<ChBody>();
     ground->SetFixed(true);
     ground->EnableCollision(true);
+
+    ground->AddVisualShape(chrono_types::make_shared<ChVisualShapeBox>(
+                               ChVector3d(bxDim + 4 * initSpace0, byDim + 0 * initSpace0, 2 * initSpace0)),
+                           ChFrame<>(ChVector3d(0, 0, -initSpace0), QUNIT));
+
+    ground->AddVisualShape(
+        chrono_types::make_shared<ChVisualShapeBox>(ChVector3d(2 * initSpace0, byDim, bzDim + 4 * initSpace0)),
+        ChFrame<>(ChVector3d(+bxDim / 2 + initSpace0, 0, bzDim / 2), QUNIT));
+
+    ground->AddCollisionShape(chrono_types::make_shared<ChCollisionShapeBox>(
+                                  cmaterial, ChVector3d(2 * initSpace0, byDim, bzDim + 4 * initSpace0)),
+                              ChFrame<>(ChVector3d(+bxDim / 2 + initSpace0, 0, bzDim / 2), QUNIT));
+
+    ground->AddVisualShape(
+        chrono_types::make_shared<ChVisualShapeBox>(ChVector3d(2 * initSpace0, byDim, bzDim + 4 * initSpace0)),
+        ChFrame<>(ChVector3d(-bxDim / 2 - initSpace0, 0, bzDim / 2), QUNIT));
+    ground->AddCollisionShape(chrono_types::make_shared<ChCollisionShapeBox>(
+                                  cmaterial, ChVector3d(2 * initSpace0, byDim, bzDim + 4 * initSpace0)),
+                              ChFrame<>(ChVector3d(-bxDim / 2 - initSpace0, 0, bzDim / 2), QUNIT));
+
     sysMBS.AddBody(ground);
 
     sysSPH.AddBoxContainerBCE(ground,                                         //
                               ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT),  //
                               ChVector3d(bxDim, byDim, bzDim),                //
                               ChVector3i(2, 0, -1));
+
+    // Add a box on the left and the right
+    auto left_box = chrono_types::make_shared<ChBody>();
+    left_box->SetPos(ChVector3d(-bxDim / 2 - bxDim / 2 - 3 * initSpace0, 0, bzDim + initSpace0));
+    left_box->SetFixed(true);
+    left_box->EnableCollision(true);
+    left_box->AddVisualShape(chrono_types::make_shared<ChVisualShapeBox>(ChVector3d(bxDim, byDim, 2 * initSpace0)),
+                             ChFrame<>());
+    left_box->AddCollisionShape(
+        chrono_types::make_shared<ChCollisionShapeBox>(cmaterial, ChVector3d(bxDim, byDim, 2 * initSpace0)),
+        ChFrame<>());
+    sysMBS.AddBody(left_box);
+    sysFSI.AddFsiBody(left_box);
+    sysSPH.AddBoxBCE(left_box, ChFrame<>(), ChVector3d(bxDim, byDim, 2 * initSpace0), true);
+
+    auto right_box = chrono_types::make_shared<ChBody>();
+    right_box->SetPos(ChVector3d(bxDim / 2 + bxDim / 2 + 3 * initSpace0, 0, bzDim + initSpace0));
+    right_box->SetFixed(true);
+    right_box->EnableCollision(true);
+    right_box->AddVisualShape(chrono_types::make_shared<ChVisualShapeBox>(ChVector3d(bxDim, byDim, 2 * initSpace0)),
+                              ChFrame<>());
+    right_box->AddCollisionShape(
+        chrono_types::make_shared<ChCollisionShapeBox>(cmaterial, ChVector3d(bxDim, byDim, 2 * initSpace0)),
+        ChFrame<>());
+    sysMBS.AddBody(right_box);
+    sysFSI.AddFsiBody(right_box);
+    sysSPH.AddBoxBCE(right_box, ChFrame<>(), ChVector3d(bxDim, byDim, 2 * initSpace0), true);
 
     double plate_volume = plate_size.x() * plate_size.y() * plate_size.z();
     double plate_mass = plate_volume * plate_density;
@@ -150,11 +202,6 @@ int main(int argc, char* argv[]) {
         (1.0 / 12.0) * plate_mass * (plate_size.x() * plate_size.x() + plate_size.z() * plate_size.z()),  // I_yy
         (1.0 / 12.0) * plate_mass * (plate_size.x() * plate_size.x() + plate_size.y() * plate_size.y())   // I_zz
     );
-
-    auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
-    cmaterial->SetYoungModulus(1e8);
-    cmaterial->SetFriction(0.9f);
-    cmaterial->SetRestitution(0.4f);
 
     auto plate_bottom = chrono_types::make_shared<ChBody>();
     plate_bottom->SetPos(plate_center);
@@ -171,6 +218,7 @@ int main(int argc, char* argv[]) {
     sysFSI.AddFsiBody(plate_bottom);
     sysSPH.AddBoxBCE(plate_bottom, ChFrame<>(), plate_size, true);
 
+    ChVector3d veh_init_pos(-bxDim / 2 - bxDim / 3, 0, 1.8);
     auto vehicle = CreateVehicle(sysMBS, sysSPH, sysFSI, ChCoordsys<>(veh_init_pos, QUNIT));
 
     // Now add a body to the system, a box representing the plate, floating on top of the water
@@ -249,12 +297,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Start the simulation
+    DriverInputs driver_inputs = {0, 0, 0};
     double dT = sysFSI.GetStepSizeCFD();
     double time = 0;
     int sim_frame = 0;
     int out_frame = 0;
     int render_frame = 0;
 
+    double x_max = bxDim / 2 + bxDim / 3;
     ChTimer timer;
     timer.start();
     while (time < t_end) {
@@ -266,6 +316,20 @@ int main(int argc, char* argv[]) {
             sysSPH.SaveSolidData(out_dir + "/fsi", time);
 
             out_frame++;
+        }
+
+        // Ramp up throttle to value requested by the cruise controller
+        if (time < 0.4) {
+            driver_inputs.m_throttle = 0;
+            driver_inputs.m_braking = 1;
+        } else {
+            driver_inputs.m_throttle = std::min(0.5 * time, 1.0);
+            driver_inputs.m_braking = 0;
+        }
+
+        if (vehicle->GetPos().x() > x_max) {
+            driver_inputs.m_throttle = 0;
+            driver_inputs.m_braking = 1;
         }
 
         // Render FSI system
@@ -287,8 +351,7 @@ int main(int argc, char* argv[]) {
 
         // Call the FSI solver
         sysFSI.DoStepDynamics(dT);
-        // Synchronize systems
-        driver.Synchronize(time);
+        vehicle->Synchronize(time, driver_inputs);
         sysMBS.DoStepDynamics(dT);
         vehicle->Advance(dT);
 
