@@ -64,7 +64,7 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
         double mu_fric_2;       ///< mu_2 constant in mu=mu(I) (default: 0.7)
         double average_diam;    ///< average particle diameter (default: 0.005)
         double cohesion_coeff;  ///< cohesion coefficient (default: 0)
-
+        double zeta;            ///< zeta coefficient (default: 4.96333)
         ElasticMaterialProperties();
     };
 
@@ -171,6 +171,9 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     /// Enable solution of elastic SPH (for continuum representation of granular dynamics).
     /// By default, a ChSystemFSI solves an SPH fluid dynamics problem.
     void SetElasticSPH(const ElasticMaterialProperties& mat_props);
+
+    /// Enable solution of elastic SPH with solid dynamics (for continuum representation of granular dynamics).
+    void SetElasticSPH_Solid(const ElasticMaterialProperties& mat_props);
 
     /// Checks the applicability of user set parameters for SPH and throws an exception if necessary.
     void CheckSPHParameters();

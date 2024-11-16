@@ -168,7 +168,7 @@ __global__ void reorderDataD(uint* gridMarkerIndexD,     // input: sorted partic
     sortedRhoPreMuD[index] = rhoPreMu;
 
     // For granular material
-    if (paramsD.elastic_SPH) {
+    if (paramsD.elastic_SPH || paramsD.elastic_SPH_solid) {
         Real3 tauXxYyZz = tauXxYyZzD[originalIndex];
         Real3 tauXyXzYz = tauXyXzYzD[originalIndex];
         if (!IsFinite(tauXxYyZz)) {

@@ -27,8 +27,9 @@ namespace fsi {
 
 /// Physics problem type.
 enum class PhysicsProblem {
-    CFD,  ///< incompressible fluid problem
-    CRM   ///< continuous granular problem
+    CFD,       ///< incompressible fluid problem
+    CRM,       ///< continuous granular problem
+    CRM_SOLID  ///< continuous granular problem with solid dynamics
 };
 
 /// SPH method.
@@ -65,7 +66,7 @@ enum class SolverType { JACOBI, BICGSTAB, GMRES, CR, CG, SAP };
 /// These flags are used to identify sides of a box container and can be combined using unary boolean operations.
 namespace BoxSide {
 enum Enum {
-    NONE = 0x0000,  
+    NONE = 0x0000,
     X_POS = 1 << 0,
     X_NEG = 1 << 1,
     Y_POS = 1 << 2,

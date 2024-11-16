@@ -45,7 +45,7 @@ struct SimParams {
     BoundaryType boundary_type;    ///< Boundary type (Adami or Holmes)
     KernelType kernel_type;        ///< Kernel type (Quadratic, cubic spline, quintinc spline, quintic Wendland)
 
-    bool elastic_SPH;              ///< Set physics problem: CFD (false) or CRM granular (true)
+    bool elastic_SPH;  ///< Set physics problem: CFD (false) or CRM granular (true)
 
     int3 gridSize;          ///< dx, dy, dz distances between particle centers
     Real3 worldOrigin;      ///< Origin point
@@ -172,6 +172,10 @@ struct SimParams {
     Real settlingTime;       ///< Time for the granular to settle down
 
     int num_proximity_search_steps;  ///< Number of steps between updates to neighbor lists
+
+    // Stuff for the elastic SPH solid
+    bool elastic_SPH_solid;
+    Real zeta;  ///< This is the coffiecient for the shear contribution to the acceleration
 };
 
 /// @} fsi_physics

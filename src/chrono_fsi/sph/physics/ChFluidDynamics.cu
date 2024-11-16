@@ -330,6 +330,8 @@ __global__ void UpdateFluidD(Real4* posRadD,
 
         tauXxYyZzD[index] = updatedTauXxYyZz - mR3(p_tr);
         tauXyXzYzD[index] = updatedTauXyXzYz;
+    } else if (paramsD.elastic_SPH_solid) {
+        tauXyXzYzD[index] += derivTauXyXzYzD[index] * dT;
     }
 
     //-------------

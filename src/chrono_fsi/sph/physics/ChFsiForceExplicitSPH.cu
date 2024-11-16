@@ -583,6 +583,59 @@ __device__ inline Real3 CubicEigen(Real4 c1, Real4 c2, Real4 c3) {
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
+__device__ inline Real4 DifVelocityRho_Solid(Real3 dist3,
+                                             Real d,
+                                             Real4 posRadA,
+                                             Real4 posRadB,
+                                             Real3 velMasA,
+                                             Real3 velMasB,
+                                             Real4 rhoPresMuA,
+                                             Real4 rhoPresMuB) {
+    if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
+        return mR4(0.0);
+
+    Real3 gradW = GradW3h(paramsD.kernel_type, dist3, paramsD.ooh);
+
+    // Continuty equation
+    Real derivRho = paramsD.markerMass * dot(velMasA - velMasB, gradW);
+
+    if (paramsD.USE_Delta_SPH) {  // Probably do not need this, for now will just switch it off
+        // diffusion term in continuity equation, this helps smoothing out the large oscillation in pressure
+        // field see S. Marrone et al., "delta-SPH model for simulating violent impact flows", Computer Methods in
+        // Applied Mechanics and Engineering, 200(2011), pp 1526 --1542.
+        Real Psi = paramsD.density_delta * paramsD.h * paramsD.Cs * paramsD.markerMass / rhoPresMuB.x * 2. *
+                   (rhoPresMuA.x - rhoPresMuB.x) / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+        derivRho += Psi * dot(dist3, gradW);
+    }
+
+    Real3 derivV;
+    //  pressure component
+    derivV = -paramsD.markerMass *
+             (rhoPresMuA.y / (rhoPresMuA.x * rhoPresMuA.x) + rhoPresMuB.y / (rhoPresMuB.x * rhoPresMuB.x)) * gradW;
+    Real vAB_dot_rAB = dot(velMasA - velMasB, dist3);
+    switch (paramsD.viscosity_type) {
+        case ViscosityType::ARTIFICIAL_UNILATERAL: {
+            // artificial viscosity part, see Monaghan 1997, mainly for water
+            if (vAB_dot_rAB < 0) {
+                Real mu_ab = paramsD.h * vAB_dot_rAB / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+                Real Pi_ab = -paramsD.Ar_vis_alpha * paramsD.Cs * 2. / (rhoPresMuA.x + rhoPresMuB.x) *
+                             paramsD.markerMass * mu_ab;
+                derivV.x -= Pi_ab * gradW.x;
+                derivV.y -= Pi_ab * gradW.y;
+                derivV.z -= Pi_ab * gradW.z;
+            }
+            break;
+        }
+        case ViscosityType::LAMINAR: {
+            // TODO: Does not apply, exception should have been caught earlier
+            break;
+        }
+    }
+
+    return mR4(derivV, derivRho);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
 __device__ inline Real4 DifVelocityRho(Real3 dist3,
                                        Real d,
                                        Real4 posRadA,
@@ -915,11 +968,8 @@ __global__ void Navier_Stokes(uint* indexOfIndex,
     Real3 inner_sum = mR3(0.0);
     Real sum_w_i = W3h(paramsD.kernel_type, 0, paramsD.ooh) * paramsD.volume0;
 
-    for (int n = NLStart; n < NLEnd; n++) {
+    for (int n = NLStart + 1; n < NLEnd; n++) {
         uint j = neighborList[n];
-        if (j == index) {
-            continue;
-        }
         Real3 posRadB = mR3(sortedPosRad[j]);
         Real3 dist3 = Distance(posRadA, posRadB);
         Real dd = dist3.x * dist3.x + dist3.y * dist3.y + dist3.z * dist3.z;
@@ -1004,6 +1054,88 @@ __global__ void Navier_Stokes(uint* indexOfIndex,
         sortedXSPHandShift[index] = inner_sum;
     } else {
         sortedXSPHandShift[index] = inner_sum * det_r_max / (det_r_A + 1e-9);
+    }
+}
+
+// Hack for the Elastic bodies - for now the same as the fluid case
+__global__ void Boundary_NavierStokesSolid_Holmes(const uint* activityIdentifierD,
+                                                  const uint* numNeighborsPerPart,
+                                                  const uint* neighborList,
+                                                  const Real4* sortedPosRadD,
+                                                  const Real2* sortedKernelSupport,
+                                                  Real3* bceAcc,
+                                                  Real4* sortedRhoPresMuD,
+                                                  Real3* sortedVelMasD,
+                                                  volatile bool* error_flag) {
+    uint index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= countersD.numAllMarkers)
+        return;
+
+    if (activityIdentifierD[index] == 0) {
+        return;
+    }
+
+    // Ignore all fluid particles
+    if (IsFluidParticle(sortedRhoPresMuD[index].w)) {
+        return;
+    }
+
+    Real3 posRadA = mR3(sortedPosRadD[index]);
+    Real SuppRadii = paramsD.h_multiplier * paramsD.h;
+    uint NLStart = numNeighborsPerPart[index];
+    uint NLEnd = numNeighborsPerPart[index + 1];
+    Real sum_pw = 0.0f;
+    Real3 sum_rhorw = mR3(0.0);
+    Real sum_w = 0.0f;
+    Real3 sum_vw = mR3(0.0);
+
+    // Requirements for the Holmes method
+    Real2 kernelSupport = sortedKernelSupport[index];
+    Real chi_BCE = kernelSupport.x / kernelSupport.y;
+    Real dBCE = SuppRadii * (2.0 * chi_BCE - 1.0);
+    int predicateBCE = (dBCE < 0.0);
+    dBCE = predicateBCE ? 0.01 * SuppRadii : dBCE;
+    Real3 prescribedVel = (IsBceSolidMarker(sortedRhoPresMuD[index].w)) ? (sortedVelMasD[index]) : mR3(0.0);
+    Real3 velMasB_new = mR3(0.0);
+
+    for (int n = NLStart + 1; n < NLEnd; n++) {
+        uint j = neighborList[n];
+
+        // only consider fluid neighbors
+        if (IsBceMarker(sortedRhoPresMuD[j].w)) {
+            continue;
+        }
+
+        Real3 posRadB = mR3(sortedPosRadD[j]);
+        Real3 rij = Distance(posRadA, posRadB);
+        Real d = length(rij);
+        Real W3 = W3h(paramsD.kernel_type, d, paramsD.ooh);
+        sum_w += W3;
+        sum_pw += sortedRhoPresMuD[j].y * W3;
+        sum_rhorw += sortedRhoPresMuD[j].x * rij * W3;
+        sum_vw += sortedVelMasD[j] * W3;
+
+        // Compute the shortest perpendicular distance with the information about kernel support
+        Real chi_Fluid = sortedKernelSupport[j].x / sortedKernelSupport[j].y;
+        Real dFluid = SuppRadii * (2.0 * chi_Fluid - 1.0);
+        int predicateFluid = (dFluid < 0.0);
+        dFluid = predicateFluid ? 0.01 * SuppRadii : dFluid;
+
+        Real dFluidBCE = dBCE / dFluid;
+        // Use predication to avoid branching
+        int predicateAB = (dFluidBCE > 0.5);
+        dFluidBCE = predicateAB ? 0.5 : dFluidBCE;
+
+        velMasB_new = dFluidBCE * (prescribedVel - sortedVelMasD[j]) + prescribedVel;
+    }
+
+    sortedVelMasD[index] = velMasB_new;
+    if (sum_w > EPSILON) {
+        sortedRhoPresMuD[index].y = (sum_pw + dot(paramsD.gravity - bceAcc[index], sum_rhorw)) / sum_w;
+        sortedRhoPresMuD[index].x = InvEos(sortedRhoPresMuD[index].y, paramsD.eos_type);
+    } else {
+        sortedRhoPresMuD[index].y = 0.0f;
+        sortedVelMasD[index] = mR3(0.0);
     }
 }
 
@@ -1185,6 +1317,66 @@ __global__ void Boundary_Elastic_Holmes(const uint* activityIdentifierD,
     } else {
         sortedTauXxYyZz[index] = mR3(0.0);
         sortedTauXyXzYz[index] = mR3(0.0);
+    }
+}
+
+// Hack for the Elastic bodies - for now the same as the fluid case
+__global__ void Boundary_NavierStokesSolid_Adami(const uint* activityIdentifierD,
+                                                 const uint* numNeighborsPerPart,
+                                                 const uint* neighborList,
+                                                 const Real4* sortedPosRadD,
+                                                 Real3* bceAcc,
+                                                 Real4* sortedRhoPresMuD,
+                                                 Real3* sortedVelMasD,
+                                                 volatile bool* error_flag) {
+    uint index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= countersD.numAllMarkers)
+        return;
+
+    if (activityIdentifierD[index] == 0) {
+        return;
+    }
+
+    // Ignore all fluid particles
+    if (IsFluidParticle(sortedRhoPresMuD[index].w)) {
+        return;
+    }
+
+    Real3 posRadA = mR3(sortedPosRadD[index]);
+    uint NLStart = numNeighborsPerPart[index];
+    uint NLEnd = numNeighborsPerPart[index + 1];
+    Real sum_pw = 0.0f;
+    Real3 sum_rhorw = mR3(0.0);
+    Real sum_w = 0.0f;
+    Real3 sum_vw = mR3(0.0);
+
+    for (int n = NLStart + 1; n < NLEnd; n++) {
+        uint j = neighborList[n];
+
+        // only consider fluid neighbors
+        if (IsBceMarker(sortedRhoPresMuD[j].w)) {
+            continue;
+        }
+
+        Real3 posRadB = mR3(sortedPosRadD[j]);
+        Real3 rij = Distance(posRadA, posRadB);
+        Real d = length(rij);
+        Real W3 = W3h(paramsD.kernel_type, d, paramsD.ooh);
+        sum_w += W3;
+        sum_pw += sortedRhoPresMuD[j].y * W3;
+        sum_rhorw += sortedRhoPresMuD[j].x * rij * W3;
+        sum_vw += sortedVelMasD[j] * W3;
+    }
+
+    if (sum_w > EPSILON) {
+        Real3 prescribedVel = (IsBceSolidMarker(sortedRhoPresMuD[index].w)) ? (2.0f * sortedVelMasD[index]) : mR3(0.0);
+        sortedVelMasD[index] = prescribedVel - sum_vw / sum_w;
+        sortedRhoPresMuD[index].y = (sum_pw + dot(paramsD.gravity - bceAcc[index], sum_rhorw)) / sum_w;
+        sortedRhoPresMuD[index].x = InvEos(sortedRhoPresMuD[index].y, paramsD.eos_type);
+    } else {
+        sortedVelMasD[index] = mR3(0.0);
+        sortedRhoPresMuD[index].y = 0.0f;
+        sortedVelMasD[index] = mR3(0.0);
     }
 }
 
@@ -1543,6 +1735,198 @@ __global__ void NS_SSR(const uint* activityIdentifierD,
     sortedDerivTauXxYyZz[index] = mR3(dTauxx, dTauyy, dTauzz);
     sortedDerivTauXyXzYz[index] = mR3(dTauxy, dTauxz, dTauyz);
 }
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Navier_Stokes_Solid(const uint* activityIdentifierD,
+                                    const Real4* sortedPosRad,
+                                    const Real3* sortedVelMas,
+                                    const Real4* sortedRhoPreMu,
+                                    const Real3* sortedTauXyXzYz,
+                                    const uint* numNeighborsPerPart,
+                                    const uint* neighborList,
+                                    Real4* sortedDerivVelRho,
+                                    Real3* sortedDerivTauXyXzYz,
+                                    Real3* sortedXSPHandShift,
+                                    uint* sortedFreeSurfaceIdD,
+                                    volatile bool* error_flag) {
+    uint id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id >= countersD.numAllMarkers)
+        return;
+
+    // uint index = sortedActivityIdD[id];
+    uint index = id;
+    if (activityIdentifierD[index] == 0) {
+        return;
+    }
+
+    if (IsBceWallMarker(sortedRhoPreMu[index].w))
+        return;
+
+    Real3 posRadA = mR3(sortedPosRad[index]);
+    Real3 velMasA = sortedVelMas[index];
+    Real4 rhoPresMuA =
+        sortedRhoPreMu[index];  // The pressure from here is used in computations -> This is computed in calcRho_kernel
+    Real3 TauXyXzYzA = sortedTauXyXzYz[index];
+    Real4 derivVelRho = mR4(0.0);
+    Real3 deltaV = mR3(0.0);
+    Real3 dTauXyXzYz = mR3(0.0);
+
+    uint NLStart = numNeighborsPerPart[index];
+    uint NLEnd = numNeighborsPerPart[index + 1];
+
+    // Calculate the correction matrix for gradient operator
+    Real G_i[9] = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+    if (paramsD.USE_Consistent_G) {
+        Real mGi[9] = {0.0};
+        for (int n = NLStart; n < NLEnd; n++) {
+            uint j = neighborList[n];
+            Real3 posRadB = mR3(sortedPosRad[j]);
+            Real3 rij = Distance(posRadA, posRadB);
+            Real3 grad_i_wij = GradW3h(paramsD.kernel_type, rij, paramsD.ooh);
+            Real3 grw_vj = grad_i_wij * paramsD.volume0;
+            mGi[0] -= rij.x * grw_vj.x;
+            mGi[1] -= rij.x * grw_vj.y;
+            mGi[2] -= rij.x * grw_vj.z;
+            mGi[3] -= rij.y * grw_vj.x;
+            mGi[4] -= rij.y * grw_vj.y;
+            mGi[5] -= rij.y * grw_vj.z;
+            mGi[6] -= rij.z * grw_vj.x;
+            mGi[7] -= rij.z * grw_vj.y;
+            mGi[8] -= rij.z * grw_vj.z;
+        }
+        Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
+                    mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
+        if (abs(Det) > 0.01) {
+            Real OneOverDet = 1.0 / Det;
+            G_i[0] = (mGi[4] * mGi[8] - mGi[5] * mGi[7]) * OneOverDet;
+            G_i[1] = -(mGi[1] * mGi[8] - mGi[2] * mGi[7]) * OneOverDet;
+            G_i[2] = (mGi[1] * mGi[5] - mGi[2] * mGi[4]) * OneOverDet;
+            G_i[3] = -(mGi[3] * mGi[8] - mGi[5] * mGi[6]) * OneOverDet;
+            G_i[4] = (mGi[0] * mGi[8] - mGi[2] * mGi[6]) * OneOverDet;
+            G_i[5] = -(mGi[0] * mGi[5] - mGi[2] * mGi[3]) * OneOverDet;
+            G_i[6] = (mGi[3] * mGi[7] - mGi[4] * mGi[6]) * OneOverDet;
+            G_i[7] = -(mGi[0] * mGi[7] - mGi[1] * mGi[6]) * OneOverDet;
+            G_i[8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) * OneOverDet;
+        }
+    }
+
+    Real radii = paramsD.d0 * Real(1.241);  // 1.129;
+    Real invRadii = 1 / radii;
+
+    Real vA = length(velMasA);
+    Real vAdT = vA * paramsD.dT;
+    Real bs_vAdT = paramsD.beta_shifting * vAdT;
+
+    Real3 inner_sum = mR3(0.0);
+    Real sum_w_i = W3h(paramsD.kernel_type, 0, paramsD.ooh) * paramsD.volume0;
+    Real w_ini_inv = 1 / W3h(paramsD.kernel_type, paramsD.d0, paramsD.ooh);
+    int N_ = 1;
+    int N_s = 0;
+
+    // Get the interaction from neighbor particles
+    // NLStart + 1 because the first element in neighbor list is the particle itself
+    for (int n = NLStart + 1; n < NLEnd; n++) {
+        uint j = neighborList[n];
+        Real4 rhoPresMuB = sortedRhoPreMu[j];
+        if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
+            continue;  // No BCE-BCE interaction
+
+        Real3 posRadB = mR3(sortedPosRad[j]);
+        Real3 dist3 = Distance(posRadA, posRadB);
+        Real d = length(dist3);
+        Real invd = 1 / d;
+        Real3 velMasB = sortedVelMas[j];
+        Real3 TauXyXzYzB = sortedTauXyXzYz[j];
+
+        // Correct the kernel function gradient
+        Real w_AB = W3h(paramsD.kernel_type, d, paramsD.ooh);
+        Real3 gradW = GradW3h(paramsD.kernel_type, dist3, paramsD.ooh);
+        if (paramsD.USE_Consistent_G) {
+            Real3 gradW_new;
+            gradW_new.x = G_i[0] * gradW.x + G_i[1] * gradW.y + G_i[2] * gradW.z;
+            gradW_new.y = G_i[3] * gradW.x + G_i[4] * gradW.y + G_i[5] * gradW.z;
+            gradW_new.z = G_i[6] * gradW.x + G_i[7] * gradW.y + G_i[8] * gradW.z;
+            gradW = gradW_new;
+        }
+        // Calculate dv/dt with pressure componenet and artificial viscosity as well as Density
+
+        derivVelRho += DifVelocityRho_Solid(dist3, d, sortedPosRad[index], sortedPosRad[j], velMasA, velMasB,
+                                            rhoPresMuA, rhoPresMuB);
+
+        // Use the weird integral from the previous time step to get the shear contribution of acceleration
+        derivVelRho.x += TauXyXzYzA.x;
+        derivVelRho.y += TauXyXzYzA.y;
+        derivVelRho.z += TauXyXzYzA.z;
+
+        Real vAB_dot_rAB = dot(velMasA - velMasB, dist3);
+        // Shear stress component (Equation from https://www.sciencedirect.com/science/article/pii/S0021999124003218)
+        Real vAB_dot_rAB_over_dist = vAB_dot_rAB / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+
+        // This is not actually stress rate but the weird thing in the bracket of the above paper
+        dTauXyXzYz += 2 * paramsD.zeta * paramsD.G_shear * vAB_dot_rAB_over_dist * gradW * paramsD.markerMass /
+                      (rhoPresMuB.x * rhoPresMuA.x);
+        // Do integration for the kernel function, calculate the XSPH term
+        if (d > paramsD.h * 1.0e-9f) {
+            Real Wab = W3h(paramsD.kernel_type, d, paramsD.ooh);
+
+            // Integration of the kernel function
+            sum_w_i += Wab * paramsD.volume0;
+
+            // XSPH
+            if (IsSphParticle(rhoPresMuB.w))
+                deltaV += paramsD.volume0 * (velMasB - velMasA) * Wab;
+
+            N_ = N_ + 1;
+        }
+
+        // Find particles that have contact with this particle
+        if (IsFluidParticle(rhoPresMuB.w) && d < 1.25f * radii) {
+            Real Pen = (radii - d) * invRadii;
+            Real3 r_0 = bs_vAdT * invd * dist3;
+            Real3 r_s = r_0 * Pen;
+            if (d < 1.0f * radii) {
+                inner_sum += 3.0f * r_s;
+            } else if (d < 1.1f * radii) {
+                inner_sum += 1.0f * r_s;
+            } else {
+                inner_sum += 0.1f * 1.0f * (-r_0);
+            }
+
+            N_s = N_s + 1;
+        }
+    }
+
+    // Check particles who have not enough neighbor particles (only for granular now)
+    if (sum_w_i < paramsD.C_Wi) {
+        sortedFreeSurfaceIdD[index] = 1;
+    } else {
+        sortedFreeSurfaceIdD[index] = 0;
+    }
+
+    // Calculate the shifting vector
+    Real det_r_max = 0.05f * vAdT;
+    Real det_r_A = length(inner_sum);
+    if (det_r_A < det_r_max) {
+        sortedXSPHandShift[index] = inner_sum;
+    } else {
+        sortedXSPHandShift[index] = inner_sum * det_r_max / (det_r_A + 1e-9f);
+    }
+
+    // Add the XSPH term into the shifting vector
+    sortedXSPHandShift[index] += paramsD.EPS_XSPH * deltaV * paramsD.dT;
+
+    // Get the shifting velocity
+    sortedXSPHandShift[index] = sortedXSPHandShift[index] / paramsD.dT;
+
+    // Add gravity and other body force to fluid markers
+    if (IsSphParticle(rhoPresMuA.w)) {
+        Real3 totalFluidBodyForce3 = paramsD.bodyForce3 + paramsD.gravity;
+        derivVelRho += mR4(totalFluidBodyForce3, 0.0f);
+    }
+
+    sortedDerivVelRho[index] = derivVelRho;
+    sortedDerivTauXyXzYz[index] = dTauXyXzYz;
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void CalcVel_XSPH_D(uint* indexOfIndex,
                                Real3* vel_XSPH_Sorted_D,
@@ -1741,6 +2125,49 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
             U1CAST(m_data_mgr.freeSurfaceIdD), error_flagD);
         cudaCheckErrorFlag(error_flagD, "NS_SSR");
 
+    }
+    // Modelling solids with SPH
+    else if (m_data_mgr.paramsH->elastic_SPH_solid) {
+        if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
+            Boundary_NavierStokesSolid_Adami<<<numBlocks, numThreads>>>(
+                U1CAST(m_data_mgr.activityIdentifierD), U1CAST(m_data_mgr.numNeighborsPerPart),
+                U1CAST(m_data_mgr.neighborList), mR4CAST(m_sortedSphMarkers_D->posRadD), mR3CAST(m_data_mgr.bceAcc),
+                mR4CAST(m_sortedSphMarkers_D->rhoPresMuD), mR3CAST(m_sortedSphMarkers_D->velMasD), error_flagD);
+            cudaCheckErrorFlag(error_flagD, "Boundary_NavierStokesSolid_Adami");
+        } else {
+            thrust::device_vector<Real2> sortedKernelSupport(m_data_mgr.countersH->numAllMarkers);
+            // Calculate the kernel support of each particle
+            calcKernelSupport<<<numBlocks, numThreads>>>(
+                mR4CAST(m_sortedSphMarkers_D->posRadD), mR4CAST(m_sortedSphMarkers_D->rhoPresMuD),
+                mR2CAST(sortedKernelSupport), U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted),
+                U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), error_flagD);
+            cudaCheckErrorFlag(error_flagD, "calcKernelSupport");
+            // https://onlinelibrary-wiley-com.ezproxy.library.wisc.edu/doi/pdfdirect/10.1002/nag.898
+            Boundary_NavierStokesSolid_Holmes<<<numBlocks, numThreads>>>(
+                U1CAST(m_data_mgr.activityIdentifierD), U1CAST(m_data_mgr.numNeighborsPerPart),
+                U1CAST(m_data_mgr.neighborList), mR4CAST(m_sortedSphMarkers_D->posRadD), mR2CAST(sortedKernelSupport),
+                mR3CAST(m_data_mgr.bceAcc), mR4CAST(m_sortedSphMarkers_D->rhoPresMuD),
+                mR3CAST(m_sortedSphMarkers_D->velMasD), error_flagD);
+            cudaCheckErrorFlag(error_flagD, "Boundary_NavierStokesSolid_Holmes");
+        }
+
+        // Find the index which is related to the wall boundary particle
+        thrust::device_vector<uint> indexOfIndex(m_data_mgr.countersH->numAllMarkers);
+        thrust::device_vector<uint> identityOfIndex(m_data_mgr.countersH->numAllMarkers);
+        calIndexOfIndex<<<numBlocks, numThreads>>>(U1CAST(indexOfIndex), U1CAST(identityOfIndex),
+                                                   U1CAST(m_data_mgr.markersProximity_D->gridMarkerIndexD));
+        thrust::remove_if(indexOfIndex.begin(), indexOfIndex.end(), identityOfIndex.begin(), thrust::identity<int>());
+
+        // execute the kernel
+        // TOUnderstand: Why is the blocks NumBlocks1 and threads NumThreads1?
+        // execute the kernel Navier_Stokes and Shear_Stress_Rate in one kernel
+        Navier_Stokes_Solid<<<numBlocks, numThreads>>>(
+            U1CAST(m_data_mgr.activityIdentifierD), mR4CAST(m_sortedSphMarkers_D->posRadD),
+            mR3CAST(m_sortedSphMarkers_D->velMasD), mR4CAST(m_sortedSphMarkers_D->rhoPresMuD),
+            mR3CAST(m_sortedSphMarkers_D->tauXyXzYzD), U1CAST(m_data_mgr.numNeighborsPerPart),
+            U1CAST(m_data_mgr.neighborList), mR4CAST(m_data_mgr.derivVelRhoD), mR3CAST(m_data_mgr.derivTauXyXzYzD),
+            mR3CAST(m_data_mgr.vel_XSPH_D), U1CAST(m_data_mgr.freeSurfaceIdD), error_flagD);
+        cudaCheckErrorFlag(error_flagD, "NS_SSR");
     } else {  // For fluid
         if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
             Boundary_NavierStokes_Adami<<<numBlocks, numThreads>>>(

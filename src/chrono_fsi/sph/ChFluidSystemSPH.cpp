@@ -150,6 +150,7 @@ void ChFluidSystemSPH::InitParams() {
     ElasticMaterialProperties mat_props;
     SetElasticSPH(mat_props);
     m_paramsH->elastic_SPH = false;        // default: fluid dynamics
+    m_paramsH->elastic_SPH_solid = false;  // default: fluid dynamics
     m_paramsH->Ar_vis_alpha = Real(0.02);  // Does this mess with one for CRM?
 
     m_paramsH->Cs = 10 * m_paramsH->v_Max;
@@ -422,6 +423,24 @@ void ChFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
             m_paramsH->C_Wi = doc["Elastic SPH"]["kernel threshold"].GetDouble();
     }
 
+    if (doc.HasMember("Elastic SPH Solid")) {
+        m_paramsH->elastic_SPH_solid = doc["Elastic SPH Solid"].GetBool();
+        if (doc["Elastic SPH Solid"].HasMember("zeta"))
+            m_paramsH->zeta = doc["Elastic SPH Solid"]["zeta"].GetDouble();
+
+        if (doc["Elastic SPH Solid"].HasMember("Poisson ratio"))
+            m_paramsH->Nu_poisson = doc["Elastic SPH Solid"]["Poisson ratio"].GetDouble();
+
+        if (doc["Elastic SPH Solid"].HasMember("Young modulus"))
+            m_paramsH->E_young = doc["Elastic SPH Solid"]["Young modulus"].GetDouble();
+
+        if (doc["Elastic SPH Solid"].HasMember("Artificial viscosity alpha"))
+            m_paramsH->Ar_vis_alpha = doc["Elastic SPH Solid"]["Artificial viscosity alpha"].GetDouble();
+
+        if (doc["Elastic SPH Solid"].HasMember("kernel threshold"))
+            m_paramsH->C_Wi = doc["Elastic SPH Solid"]["kernel threshold"].GetDouble();
+    }
+
     // Geometry Information
     if (doc.HasMember("Geometry Inf")) {
         if (doc["Geometry Inf"].HasMember("BoxDimensionX"))
@@ -689,6 +708,7 @@ ChFluidSystemSPH::FluidProperties::FluidProperties() : density(1000), viscosity(
 
 void ChFluidSystemSPH::SetCfdSPH(const FluidProperties& fluid_props) {
     m_paramsH->elastic_SPH = false;
+    m_paramsH->elastic_SPH_solid = false;
 
     SetDensity(fluid_props.density);
 
@@ -704,11 +724,12 @@ ChFluidSystemSPH::ElasticMaterialProperties::ElasticMaterialProperties()
       mu_fric_s(0.7),
       mu_fric_2(0.7),
       average_diam(0.005),
-      cohesion_coeff(0) {}
+      cohesion_coeff(0),
+      zeta(4.96333) {}
 
 void ChFluidSystemSPH::SetElasticSPH(const ElasticMaterialProperties& mat_props) {
     m_paramsH->elastic_SPH = true;
-
+    m_paramsH->elastic_SPH_solid = false;
     SetDensity(mat_props.density);
 
     m_paramsH->E_young = Real(mat_props.Young_modulus);
@@ -723,6 +744,13 @@ void ChFluidSystemSPH::SetElasticSPH(const ElasticMaterialProperties& mat_props)
     m_paramsH->INV_G_shear = 1.0 / m_paramsH->G_shear;
     m_paramsH->K_bulk = m_paramsH->E_young / (3.0 * (1.0 - 2.0 * m_paramsH->Nu_poisson));
     m_paramsH->Cs = sqrt(m_paramsH->K_bulk / m_paramsH->rho0);
+}
+
+void ChFluidSystemSPH::SetElasticSPH_Solid(const ElasticMaterialProperties& mat_props) {
+    m_paramsH->elastic_SPH = false;
+    m_paramsH->elastic_SPH_solid = true;
+    m_paramsH->zeta = Real(mat_props.zeta);
+    SetElasticSPH(mat_props);
 }
 
 ChFluidSystemSPH::SPHParameters::SPHParameters()
@@ -799,10 +827,14 @@ void ChFluidSystemSPH::SetLinSolverParameters(const LinSolverParameters& linsolv
 //--------------------------------------------------------------------------------------------------------------------------------
 
 PhysicsProblem ChFluidSystemSPH::GetPhysicsProblem() const {
+    if (m_paramsH->elastic_SPH_solid)
+        return PhysicsProblem::CRM_SOLID;
     return (m_paramsH->elastic_SPH ? PhysicsProblem::CRM : PhysicsProblem::CFD);
 }
 
 std::string ChFluidSystemSPH::GetPhysicsProblemString() const {
+    if (m_paramsH->elastic_SPH_solid)
+        return "CRM_SOLID";
     return (m_paramsH->elastic_SPH ? "CRM" : "CFD");
 }
 
@@ -1055,7 +1087,7 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
             double z = m_data_mgr->sphMarkers_H->posRadH[i].z;
             double p = m_paramsH->rho0 * m_paramsH->gravity.z * (z - m_paramsH->pressure_height);
             m_data_mgr->sphMarkers_H->rhoPresMuH[i].y = p;
-            if (m_paramsH->elastic_SPH) {
+            if (m_paramsH->elastic_SPH || m_paramsH->elastic_SPH_solid) {
                 m_data_mgr->sphMarkers_H->tauXxYyZzH[i].x = -p;
                 m_data_mgr->sphMarkers_H->tauXxYyZzH[i].y = -p;
                 m_data_mgr->sphMarkers_H->tauXxYyZzH[i].z = -p;
@@ -1327,7 +1359,7 @@ void ChFluidSystemSPH::WriteParticleFile(const std::string& filename, OutputMode
 }
 
 void ChFluidSystemSPH::SaveParticleData(const std::string& dir) const {
-    if (m_paramsH->elastic_SPH) {
+    if (m_paramsH->elastic_SPH || m_paramsH->elastic_SPH_solid) {
         sph::SaveParticleDataCRM(dir, m_output_level,                                                         //
                                  m_data_mgr->sphMarkers_D->posRadD, m_data_mgr->sphMarkers_D->velMasD,        //
                                  m_data_mgr->derivVelRhoOriginalD, m_data_mgr->sphMarkers_D->rhoPresMuD,      //
