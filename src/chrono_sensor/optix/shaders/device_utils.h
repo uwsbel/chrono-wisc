@@ -139,19 +139,6 @@ __device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
 }
 
 
-__device__ __inline__ PerRayData_transientCamera* getTransientCameraPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
-}
-
-
 __device__ __inline__ PerRayData_normalCamera* getNormalCameraPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();

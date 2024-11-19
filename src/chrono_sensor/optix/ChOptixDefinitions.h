@@ -48,7 +48,7 @@ enum RayType {
     SEGMENTATION_RAY_TYPE = 4, /// semantic camera rays 
     DEPTH_RAY_TYPE = 5,        /// depth camera rays
     TRANSIENT_RAY_TYPE = 6,
-    LASER_SAMPLE_RAY_TYPE = 7
+    LASER_SAMPLE_RAY_TYPE = 7,
     PHYS_CAMERA_RAY_TYPE = 8,  /// physics-based camera rays
     NORMAL_RAY_TYPE = 9        /// normal camera rays
 };
@@ -558,11 +558,6 @@ struct PerRayData_laserSampleRay {
     float path_length;
     float depth;
     bool sample_laser;
-};
-
-/// Data associated with a single physics-based camera ray
-struct PerRayData_phys_camera : PerRayData_camera {
-    float distance;           ///< the distance from the camera to the first hit
 };
 
 /// Data associated with a single physics-based camera ray

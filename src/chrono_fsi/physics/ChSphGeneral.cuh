@@ -582,6 +582,8 @@ __global__ void neighborSearchID(const Real4* sortedPosRad,
                                  uint* neighborList,
                                  volatile bool* isErrorD);
 
+__global__ void kernel_convert_Real4_to_float_buffer(Real4* posD, Real3* velD, float* output, int n, size_t fluidStart);
+
 }  // namespace fsi
 }  // namespace chrono
 #endif

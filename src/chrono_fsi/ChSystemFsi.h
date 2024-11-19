@@ -546,6 +546,9 @@ class CH_FSI_API ChSystemFsi {
     /// Utility function for creating points filling a closed mesh.
     static void CreateMeshPoints(ChTriangleMeshConnected& mesh, double delta, std::vector<ChVector3d>& points);
 
+    // Nevi added this
+    std::vector<float> GetParticleData();
+
   public:
     PhysicsProblem GetPhysicsProblem() const;
     std::string GetPhysicsProblemString() const;

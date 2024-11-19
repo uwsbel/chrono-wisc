@@ -279,6 +279,9 @@ class ChSystemFsi_impl : public ChFsiBase {
     std::shared_ptr<FsiData> fsiData;  ///< simulation FSI data
 
     std::shared_ptr<ProximityDataD> markersProximity_D;  ///< Information of neighbor search on the device
+
+    // Nevi added this
+    std::vector<float> GetParticleData();
   private:
     void ArrangeDataManager();
     void ConstructReferenceArray();

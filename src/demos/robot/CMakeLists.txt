@@ -41,11 +41,6 @@ if(ENABLE_MODULE_VEHICLE)
   endif()
 endif()
 
-if(ENABLE_MODULE_IRRLICHT)
-  set(DEMOS ${DEMOS}
-      demo_ROBOT_LittleHexy
-  )
-endif()
 
 	if(ENABLE_MODULE_VSG OR ENABLE_MODULE_OPENGL)
 	  if(ENABLE_MODULE_FSI)

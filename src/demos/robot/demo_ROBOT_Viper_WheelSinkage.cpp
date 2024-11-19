@@ -44,11 +44,13 @@
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 #include "chrono_sensor/optix/ChNVDBVolume.h"
 
+#ifdef USE_SENSOR_NVDB
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/LevelSetUtil.h>
 #include <openvdb/tools/ParticlesToLevelSet.h>
 #include <openvdb/points/PointConversion.h>
 #include <openvdb/points/PointCount.h>
+#endif
 
 #include <execution>
 #include <random>
@@ -69,7 +71,7 @@ double slope_angle;
 double total_mass;
 
 // output directories and settings
-std::string out_dir = "/root/sbel/outputs/FSI_Viper_RealSlope_SlopeAngle_";
+std::string out_dir = "/root/sbel/outputs/FSI_Viper_WheelSinkage";
 
 // Dimension of the space domain
 double bxDim = 6.0;
@@ -203,12 +205,12 @@ std::vector<float> offsetXList = {};
 std::vector<float> offsetYList = {};
 int activeVoxels = 0;
 
+#ifdef USE_SENSOR_NVDB
 // forward declarations
 void createVoxelGrid(std::vector<float> points,
                      ChSystemNSC& sys,
                      std::shared_ptr<ChScene> scene,
                      std::shared_ptr<ChVisualMaterial> vis_mat);  // std::vector<openvdb::Vec3R>&
-std::vector<openvdb::Vec3R> floatToVec3R(float* floatBuffer, int npts);
 
 template <typename ValueType>
 class FloatBufferAttrVector {
@@ -220,9 +222,6 @@ class FloatBufferAttrVector {
 
     size_t size() const { return mData.size() / 6; }
     void getPos(size_t n, ValueType& xyz) const {
-        /*xyz[0] = mData[6 * n];
-        xyz[1] = mData[6 * n + 1];
-        xyz[2] = mData[6 * n + 2];*/
         xyz = ValueType(mData[6 * n], mData[6 * n + 1], mData[6 * n + 2]);
     }
     // void get(ValueType& value, size_t n) const { value = mData[n]; }
@@ -232,7 +231,12 @@ class FloatBufferAttrVector {
     const const std::vector<float> mData;
     const openvdb::Index mStride;
 };  // PointAttributeVector
-
+#else
+void createVoxelGrid(std::vector<float> points,
+                     ChSystemNSC& sys,
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat);
+#endif
 int num_meshes = 100;
 std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh 
 
@@ -247,7 +251,7 @@ int main(int argc, char* argv[]) {
 
     // Use JSON file to set the FSI parameters
 
-    std::string inputJson = GetChronoDataFile("fsi/input_json/demo_ROBOT_Viper_RealSlope.json");
+    std::string inputJson = GetChronoDataFile("fsi/input_json/demo_FSI_Viper_granular_NSC.json");
 
     total_mass = 440.0;
     slope_angle = 0.0 / 180.0 * CH_PI;
@@ -298,34 +302,36 @@ int main(int argc, char* argv[]) {
     kernelLength = sysFSI.GetKernelLength();
 
     // // Set the initial particle spacing
-    // sysFSI.SetInitialSpacing(iniSpacing);
+    //sysFSI.SetInitialSpacing(iniSpacing);
 
     // // Set the SPH kernel length
-    // sysFSI.SetKernelLength(kernelLength);
+   // sysFSI.SetKernelLength(kernelLength);
 
     // // Set the terrain density
-    // sysFSI.SetDensity(density);
+    //sysFSI.SetDensity(density);
 
     // // Set the simulation stepsize
-    // sysFSI.SetStepSize(dT);
+    //sysFSI.SetStepSize(dT);
 
     // Set the simulation domain size
     sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
     // Set SPH discretization type, consistent or inconsistent
-    sysFSI.SetDiscreType(false, false);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
-    // Set wall boundary condition
-    sysFSI.SetWallBC(BceVersion::ADAMI);
+    // Setup the solver based on the input value of the prameters
+    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
 
-    // Set rigid body boundary condition
-    sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
+    //// Set wall boundary condition - obsolete
+    //sysFSI.SetWallBC(BceVersion::ADAMI);
+
+    //// Set rigid body boundary condition
+    //sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
 
     // Set cohsion of the granular material
     sysFSI.SetCohesionForce(0.0);
 
-    // Setup the solver based on the input value of the prameters
-    sysFSI.SetSPHMethod(FluidDynamics::WCSPH);
+  
 
     // Set the periodic boundary condition
     ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 10);
@@ -363,19 +369,6 @@ int main(int argc, char* argv[]) {
     //
     // SENSOR SIMULATION BEGIN
     //
-
-    //auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400, 400, 200, 1000, true);
-    //vol_bbox->SetPos({0, 0, 0});
-    //vol_bbox->SetFixed(true);
-    //// sysMBS.Add(vol_bbox);
-    //{
-    //    auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
-    //    if (shape->GetNumMaterials() == 0) {
-    //        shape->AddMaterial(vis_mat);
-    //    } else {
-    //        shape->GetMaterials()[0] = vis_mat;
-    //    }
-    //}
 
     // Load regolith meshes
     std::string mesh_name_prefix = "sensor/geometries/regolith/particle_";
@@ -574,15 +567,15 @@ int main(int argc, char* argv[]) {
         }
 
                     
-        if (current_step % sensor_render_steps == 0) {
+        if (current_step % sensor_render_steps == 0 && current_step > 0) {
             //timerNVDB.start();
             h_points = sysFSI.GetParticleData();
-            // n_pts = sysFSI.GetNumFluidMarkers();
-            // manager->scene->SetFSIParticles(h_points.data());
-            // manager->scene->SetFSINumFSIParticles(h_points.size()/6);
-            createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
+            #ifdef USE_SENSOR_NVDB
+                createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
+            #else
+            #endif
+            manager->Update();
         }
-        manager->Update();
 
         rover->Update();
 
@@ -617,9 +610,9 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-
+#ifdef USE_SENSOR_NVDB
 void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
-    std::cout << "Creating OpenVDB Voxel Grid" << std::endl;
+    std::cout << "Creating OpenVDB Voxel Grid for " << points.size()/6 << "particles " << std::endl;
     openvdb::initialize();
     // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
     const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points);
@@ -740,6 +733,185 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
                     int index = voxelBodyList.size();
                     voxelBodyList.push_back(voxelBody);
                     {
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                    if (shape->GetNumMaterials() == 0) {
+                        shape->AddMaterial(vis_mat);
+                    }
+                    else {
+                        shape->GetMaterials()[0] = vis_mat;
+                    }
+                    }
+                    idList.emplace_back(index);
+                    offsetXList.emplace_back(offsetX);
+                    offsetYList.emplace_back(offsetY);
+                }
+                voxelCount++;
+            }
+        }
+
+    }
+ else {
+ voxelBodyList.resize(coords.size());
+ idList.resize(coords.size());
+ offsetXList.resize(coords.size());
+ offsetYList.resize(coords.size());
+
+ // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
+
+ // Use std::for_each with parallel execution
+ std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
+     // Calculate the index based on the position in the loop
+     int i = &coord - &coords[0];  // Get the current index
+
+     thread_local std::mt19937 generator(std::random_device{}());
+     std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+     std::uniform_real_distribution<float> randpos(-.005f, .005f);
+     std::uniform_real_distribution<float> randscale(1.f, 1.5);
+     // Compute voxel position in world space
+     openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+
+     // Create voxelBody if necessary
+     if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
+         std::shared_ptr<ChBody> voxelBody;
+         if (true) {
+             // std::cout << "Adding Mesh " << i << std::endl;
+             int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+             auto trimesh_shape = regolith_meshes[meshIndex];
+             trimesh_shape->SetScale(randscale(generator));
+             ////std::cout << "OK" << std::endl;
+             // auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+             // trimesh_shape->SetMesh(mmesh);
+             ////std::cout << "OK1" << std::endl;
+             // trimesh_shape->SetName("RegolithMesh");
+             // trimesh_shape->SetMutable(false);
+             if (trimesh_shape->GetNumMaterials() == 0) {
+                 trimesh_shape->AddMaterial(vis_mat);
+             }
+             else {
+                 trimesh_shape->GetMaterials()[0] = vis_mat;
+             }
+             voxelBody = chrono_types::make_shared<ChBody>();
+             voxelBody->AddVisualShape(trimesh_shape);
+
+         }
+         else {
+             // Create a sphere voxel
+             voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+
+             auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+             if (shape->GetNumMaterials() == 0) {
+                 shape->AddMaterial(vis_mat);
+             }
+             else {
+                 shape->GetMaterials()[0] = vis_mat;
+             }
+         }
+
+         float offsetX = randpos(generator);
+         float offsetY = randpos(generator);
+         // Set the position and other properties of the voxel body
+         ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+         double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+         double yRot = voxelPos.y();
+         double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+         // Create a new rotated vector
+         ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+         voxelBody->SetPos(rotatedVoxelPos);
+         voxelBody->SetFixed(true);
+
+         // Directly assign the voxelBody and index to the preallocated list positions
+         voxelBodyList[i] = voxelBody;
+         idList[i] = i;  // Assign index to idList slot
+         offsetXList[i] = offsetX;
+         offsetYList[i] = offsetY;
+     }
+     });
+    }
+    prevActiveVoxels = coords.size();
+    std::wcout << "Num Voxels: " << coords.size() << std::endl;
+    scene->SetSprites(voxelBodyList);
+    firstInst = false;
+}
+#else
+void createVoxelGrid(std::vector<float> points,
+    ChSystemNSC& sys,
+    std::shared_ptr<ChScene> scene,
+    std::shared_ptr<ChVisualMaterial> vis_mat) {
+
+    std::cout << "Creating CPU Voxel Grid for " << points.size() / 6 << "particles " << std::endl;
+    float spacing = iniSpacing / 2.f;
+    float r = spacing / 2;
+    int pointsPerVoxel = 1;
+    float voxelSize = spacing;  
+    std::cout << "VoxelSize=" << voxelSize << std::endl;
+
+    activeVoxels = points.size() / 6;
+    
+    int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
+    int numAdds = 0;
+    int numUpdates = 0;
+
+
+    if (!firstInst) {
+        thread_local std::mt19937 generator(std::random_device{}());
+        std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+        std::uniform_real_distribution<float> randpos(-.005f, .005f);
+        std::uniform_real_distribution<float> randscale(1.f, 1.5);
+        int voxelCount = 0;
+        for (int i = 0; i < activeVoxels; i++) {
+                 ChVector3d voxelPos(points[6*i],points[6*i + 1],points[6*i+2]);
+                if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
+                    numUpdates++;
+                    auto voxelBody = voxelBodyList[idList[voxelCount]];
+                    float offsetX = offsetXList[idList[voxelCount]];
+                    float offsetY = offsetYList[idList[voxelCount]];
+                    ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                    double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                    double yRot = voxelPos.y();
+                    double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                    // Create a new rotated vector
+                    ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                    voxelBody->SetPos(rotatedVoxelPos);
+                    voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                    // voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+                }
+                // Create a sphere for each point
+                else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
+                    numAdds++;
+                    std::shared_ptr<ChBody> voxelBody;
+                    if (true) {
+                        // std::cout << "Adding Mesh " << i << std::endl;
+                        int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                        auto trimesh_shape = regolith_meshes[meshIndex];
+                        trimesh_shape->SetScale(randscale(generator));
+                        if (trimesh_shape->GetNumMaterials() == 0) {
+                            trimesh_shape->AddMaterial(vis_mat);
+                        } else {
+                            trimesh_shape->GetMaterials()[0] = vis_mat;
+                        }
+                        voxelBody = chrono_types::make_shared<ChBody>();
+                        voxelBody->AddVisualShape(trimesh_shape);
+                    } else {
+                        auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+                    }
+                    float offsetX = randpos(generator);
+                    float offsetY = randpos(generator);
+                    // Set the position and other properties of the voxel body
+                    ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                    double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                    double yRot = voxelPos.y();
+                    double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                    ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                    voxelBody->SetPos(rotatedVoxelPos);
+                    voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                    voxelBody->SetFixed(true);
+
+                    int index = voxelBodyList.size();
+                    voxelBodyList.push_back(voxelBody);
+                    {
                         auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
                         if (shape->GetNumMaterials() == 0) {
                             shape->AddMaterial(vis_mat);
@@ -752,29 +924,27 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
                     offsetYList.emplace_back(offsetY);
                 }
                 voxelCount++;
-            }
         }
 
     } else {
-        voxelBodyList.resize(coords.size());
-        idList.resize(coords.size());
-        offsetXList.resize(coords.size());
-        offsetYList.resize(coords.size());
+        voxelBodyList.resize(activeVoxels);
+        idList.resize(activeVoxels);
+        offsetXList.resize(activeVoxels);
+        offsetYList.resize(activeVoxels);
 
         // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
 
         // Use std::for_each with parallel execution
-        std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
+        std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
             // Calculate the index based on the position in the loop
-            int i = &coord - &coords[0];  // Get the current index
+            int i = &point - &points[0];  // Get the current index
 
             thread_local std::mt19937 generator(std::random_device{}());
             std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
             std::uniform_real_distribution<float> randpos(-.005f, .005f);
             std::uniform_real_distribution<float> randscale(1.f, 1.5);
             // Compute voxel position in world space
-            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
-
+            ChVector3d voxelPos(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
             // Create voxelBody if necessary
             if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
                 std::shared_ptr<ChBody> voxelBody;
@@ -783,12 +953,6 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
                     int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
                     auto trimesh_shape = regolith_meshes[meshIndex];
                     trimesh_shape->SetScale(randscale(generator));
-                    ////std::cout << "OK" << std::endl;
-                    // auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
-                    // trimesh_shape->SetMesh(mmesh);
-                    ////std::cout << "OK1" << std::endl;
-                    // trimesh_shape->SetName("RegolithMesh");
-                    // trimesh_shape->SetMutable(false);
                     if (trimesh_shape->GetNumMaterials() == 0) {
                         trimesh_shape->AddMaterial(vis_mat);
                     } else {
@@ -830,11 +994,13 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
             }
         });
     }
-    prevActiveVoxels = coords.size();
-    std::wcout << "Num Voxels: " << coords.size() << std::endl;
+    prevActiveVoxels = activeVoxels;
+    std::wcout << "Num Voxels: " << activeVoxels << std::endl;
     scene->SetSprites(voxelBodyList);
     firstInst = false;
+
 }
+#endif
 //------------------------------------------------------------------
 // Create the objects of the MBD system. Rigid bodies and their
 // BCE representations are created and added to the systems

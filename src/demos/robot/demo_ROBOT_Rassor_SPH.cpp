@@ -255,13 +255,13 @@ int main(int argc, char* argv[]) {
     sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
     // Set SPH discretization type, consistent or inconsistent
-    sysFSI.SetDiscreType(false, false);
-
-    // Set wall boundary condition
-    sysFSI.SetWallBC(BceVersion::ADAMI);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
     // Setup the solver based on the input value of the prameters
-    sysFSI.SetSPHMethod(FluidDynamics::WCSPH);
+    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
+
+
+
 
     // Set the periodic boundary condition
     double initSpace0 = sysFSI.GetInitialSpacing();
@@ -299,7 +299,8 @@ int main(int argc, char* argv[]) {
     sysFSI.Initialize();
 
     // Get the body from the FSI system for visualization
-    std::vector<std::shared_ptr<ChBody>>& FSI_Bodies = sysFSI.GetFsiBodies();
+    //std::vector<std::shared_ptr<ChBody>>& FSI_Bodies = sysFSI.GetFsiBodies();
+
 
     // Write position and velocity to file
     std::ofstream ofile;
@@ -543,13 +544,20 @@ int main(int argc, char* argv[]) {
         std::cout << "  pos: " << body->GetPos() << std::endl;
         std::cout << "  vel: " << body->GetPosDt() << std::endl;
         sensorTimer.reset();
-            
-        if (current_step % sensor_render_steps == 0) {
+        
+        rover->Update();
+
+        if (current_step % sensor_render_steps == 0 && current_step > 0) {
             h_points = sysFSI.GetParticleData();
             //n_pts = sysFSI.GetNumFluidMarkers();
             //manager->scene->SetFSIParticles(h_points.data());
             //manager->scene->SetFSINumFSIParticles(h_points.size()/6);
             createVoxelGrid(h_points, sysMBS, manager->scene);
+
+            
+            sensorTimer.start();
+            manager->Update();
+            sensorTimer.stop();
         }
 
        
@@ -566,12 +574,6 @@ int main(int argc, char* argv[]) {
         // /*   if (!visFSI->Render())
         //        break;*/
         //}
-
-        rover->Update();
-
-        sensorTimer.start();
-        manager->Update();
-        sensorTimer.stop();
 
         timer.start();
         sysFSI.DoStepDynamics_FSI();

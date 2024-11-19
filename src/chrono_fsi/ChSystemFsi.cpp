@@ -2251,5 +2251,10 @@ thrust::device_vector<Real4> ChSystemFsi::GetParticleAccelerations(const thrust:
     return m_sysFSI->GetParticleAccelerations(indices);
 }
 
+// Nevi added this
+std::vector<float> ChSystemFsi::GetParticleData() {
+    return m_sysFSI->GetParticleData();
+};
+
 }  // end namespace fsi
 }  // end namespace chrono

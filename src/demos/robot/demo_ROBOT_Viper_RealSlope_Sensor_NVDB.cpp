@@ -313,19 +313,14 @@ int main(int argc, char* argv[]) {
     sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
     // Set SPH discretization type, consistent or inconsistent
-    sysFSI.SetDiscreType(false, false);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
-    // Set wall boundary condition
-    sysFSI.SetWallBC(BceVersion::ADAMI);
+    // Setup the solver based on the input value of the prameters
+    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
 
-    // Set rigid body boundary condition
-    sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
 
     // Set cohsion of the granular material
     sysFSI.SetCohesionForce(0.0);
-
-    // Setup the solver based on the input value of the prameters
-    sysFSI.SetSPHMethod(FluidDynamics::WCSPH);
 
     // Set the periodic boundary condition
     ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 10);

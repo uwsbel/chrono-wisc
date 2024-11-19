@@ -211,16 +211,15 @@ int main(int argc, char* argv[]) {
     mat_props.friction_angle = CH_PI / 10;  // default
     mat_props.dilation_angle = CH_PI / 10;  // default
     mat_props.cohesion_coeff = 0;           // default
-    mat_props.kernel_threshold = 0.8;
+    //mat_props.kernel_threshold = 0.8;
 
     sysFSI.SetElasticSPH(mat_props);
     sysFSI.SetDensity(density);
     sysFSI.SetCohesionForce(cohesion);
 
     sysFSI.SetActiveDomain(ChVector3d(active_box_hdim));
-    sysFSI.SetDiscreType(false, false);
-    sysFSI.SetWallBC(BceVersion::ADAMI);
-    sysFSI.SetSPHMethod(FluidDynamics::WCSPH);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
+    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
     sysFSI.SetStepSize(step_size);
 
     sysFSI.SetOutputLength(0);
@@ -276,14 +275,14 @@ int main(int argc, char* argv[]) {
 
     // Create the wheel BCE markers
     cout << "Create wheel BCE markers..." << endl;
-    //auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
-    //double scale_ratio = 1.0;
-    //trimesh->LoadWavefrontMesh(GetChronoDataFile(wheel_obj), false, true);
-    //trimesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
-    //trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
+    auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
+    double scale_ratio = 1.0;
+    trimesh->LoadWavefrontMesh(GetChronoDataFile(wheel_obj), false, true);
+    trimesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
+    trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
 
-    //std::vector<ChVector3d> BCE_wheel;
-    //sysFSI.CreateMeshPoints(*trimesh, sysFSI.GetInitialSpacing(), BCE_wheel);
+    std::vector<ChVector3d> BCE_wheel;
+    sysFSI.CreateMeshPoints(*trimesh, sysFSI.GetInitialSpacing(), BCE_wheel);
 
     //// Add BCE particles and mesh of wheels to the system
     //for (int i = 0; i < 4; i++) {
@@ -317,14 +316,14 @@ int main(int argc, char* argv[]) {
         }
 
         sysFSI.AddFsiBody(wheel_body);
-        // if (i == 0 || i == 2) {
-        //     sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, Q_from_AngZ(CH_PI)), true);
-        // } else {
-        //     sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
-        // }
-        double inner_radius = wheel_radius - grouser_height;
-        sysFSI.AddWheelBCE_Grouser(wheel_body, ChFrame<>(), inner_radius, wheel_wide - sysFSI.GetInitialSpacing(), grouser_height,
-                                   grouser_wide, grouser_num, sysFSI.GetKernelLength(), false);
+         if (i == 0 || i == 2) {
+            sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
+         } else {
+             sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
+        }
+        //double inner_radius = wheel_radius - grouser_height;
+        //sysFSI.AddWheelBCE_Grouser(wheel_body, ChFrame<>(), inner_radius, wheel_wide - sysFSI.GetInitialSpacing(), grouser_height,
+        //                           grouser_wide, grouser_num, sysFSI.GetKernelLength(), false);
 
         // wheel_body->GetCollisionModel()->AddCylinder();
     }
@@ -333,7 +332,7 @@ int main(int argc, char* argv[]) {
     cout << "Initialize CRM terrain..." << endl;
     terrain.Initialize();
 
-    auto aabb = terrain.GetBoundingBox();
+    auto aabb = terrain.GetSPHBoundingBox();
     cout << "  SPH particles:     " << sysFSI.GetNumFluidMarkers() << endl;
     cout << "  Bndry BCE markers: " << sysFSI.GetNumBoundaryMarkers() << endl;
     cout << "  AABB:              " << aabb.min << "   " << aabb.max << endl;
@@ -539,36 +538,36 @@ int main(int argc, char* argv[]) {
         vis_type = ChVisualSystem::Type::OpenGL;
 #endif
 
-    std::shared_ptr<ChFsiVisualization> visFSI;
-    if (visualization) {
-        switch (vis_type) {
-            case ChVisualSystem::Type::OpenGL:
-#ifdef CHRONO_OPENGL
-                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI, verbose);
-#endif
-                break;
-            case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
-                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI, verbose);
-#endif
-                break;
-            }
-        }
-
-        visFSI->SetTitle("Viper rover on CRM deformable terrain");
-        visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(init_loc + ChVector3d(0, 6, 0.5), init_loc);
-        visFSI->SetCameraMoveScale(0.2f);
-        visFSI->EnableFluidMarkers(visualization_sph);
-        visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
-        visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetSPHColorCallback(
-            chrono_types::make_shared<HeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
-        visFSI->AttachSystem(&sys);
-        visFSI->Initialize();
-    }
+//    std::shared_ptr<ChFsiVisualization> visFSI;
+//    if (visualization) {
+//        switch (vis_type) {
+//            case ChVisualSystem::Type::OpenGL:
+//#ifdef CHRONO_OPENGL
+//                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI, verbose);
+//#endif
+//                break;
+//            case ChVisualSystem::Type::VSG: {
+//#ifdef CHRONO_VSG
+//                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI, verbose);
+//#endif
+//                break;
+//            }
+//        }
+//
+//        visFSI->SetTitle("Viper rover on CRM deformable terrain");
+//        visFSI->SetSize(1280, 720);
+//        visFSI->AddCamera(init_loc + ChVector3d(0, 6, 0.5), init_loc);
+//        visFSI->SetCameraMoveScale(0.2f);
+//        visFSI->EnableFluidMarkers(visualization_sph);
+//        visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
+//        visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
+//        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
+//        visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
+//        visFSI->SetSPHColorCallback(
+//            chrono_types::make_shared<HeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
+//        visFSI->AttachSystem(&sys);
+//        visFSI->Initialize();
+//    }
 
     // Start the simulation
     int render_steps = (visualizationFPS > 0) ? (int)std::round((1.0 / visualizationFPS) / step_size) : 1;
@@ -582,11 +581,11 @@ int main(int argc, char* argv[]) {
     while (t < tend) {
         rover->Update();
 
-        // Run-time visualization
-        if (visualization && frame % render_steps == 0) {
-            if (!visFSI->Render())
-                break;
-        }
+        //// Run-time visualization
+        //if (visualization && frame % render_steps == 0) {
+        //    if (!visFSI->Render())
+        //        break;
+        //}
        /* if (!visualization) {
             std::cout << sysFSI.GetSimTime() << "  " << sysFSI.GetRTF() << std::endl;
         }*/

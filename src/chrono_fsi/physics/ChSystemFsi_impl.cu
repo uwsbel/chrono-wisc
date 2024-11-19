@@ -552,5 +552,48 @@ thrust::device_vector<Real4> ChSystemFsi_impl::GetParticleForces(const thrust::d
     return forces;
 }
 
+// Nevi added this
+std::vector<float> ChSystemFsi_impl::GetParticleData() {
+
+    Real4* r4_pts_d = mR4CAST(sortedSphMarkers2_D->posRadD.data());
+    Real3* vel_d = mR3CAST(sortedSphMarkers2_D->velMasD.data());
+
+    thrust::host_vector<int4>& refArr = fsiData->referenceArray;
+    bool haveHelper = (refArr[0].z == -3) ? true : false;
+    bool haveGhost = (refArr[0].z == -2 || refArr[1].z == -2) ? true : false;
+
+    size_t fluidStart = refArr[haveHelper + haveGhost].x;
+    size_t fluidEnd = refArr[haveHelper + haveGhost].y;
+
+    int n = fluidEnd - fluidStart; //sphMarkersD2->posRadD.size();
+    printf("Converting %d Real4 points to float buffer...\n", n);
+    float* pts_d;
+    cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));
+
+    uint nBlocks, nThreads;
+    int blockSize = 1024;
+    computeGridSize(n, blockSize, nBlocks, nThreads);
+    kernel_convert_Real4_to_float_buffer<<<nBlocks, nThreads>>>(r4_pts_d, vel_d, pts_d, n, fluidStart);
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA kernel launch error: %s\n", cudaGetErrorString(err));
+        // Handle the error...
+    }
+    err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA kernel execution error: %s\n", cudaGetErrorString(err));
+        // Handle the error...
+    }
+
+    //float* pts_h = (float*)malloc(6 * n * sizeof(float));
+    std::vector<float> pts_h(6 * n, 0.f);
+    cudaMemcpy(pts_h.data(), pts_d, 6 * n * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaFree(pts_d);
+    printf("Conversion Done: Converted %d particles!\n", n);
+    return pts_h;
+}
+
 }  // end namespace fsi
 }  // end namespace chrono
