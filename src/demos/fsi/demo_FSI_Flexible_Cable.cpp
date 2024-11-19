@@ -12,9 +12,10 @@
 // Author: Milad Rakhsha, Wei Hu, Pei Li, Radu Serban
 // =============================================================================
 
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 #include <ctime>
+#include <iomanip>
 
 #include "chrono/physics/ChSystemSMC.h"
 
@@ -41,6 +42,9 @@
 #endif
 #ifdef CHRONO_VSG
     #include "chrono_fsi/visualization/ChFsiVisualizationVSG.h"
+#endif
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChGnuPlot.h"
 #endif
 
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
@@ -95,21 +99,36 @@ bool GetProblemSpecs(int argc,
                      double& output_fps,
                      bool& render,
                      double& render_fps,
-                     bool& snapshots);
+                     bool& snapshots,
+                     int& ps_freq);
+
+// -----------------------------------------------------------------------------
+
+class PositionVisibilityCallback : public ChParticleCloud::VisibilityCallback {
+  public:
+    PositionVisibilityCallback() {}
+
+    virtual bool get(unsigned int n, const ChParticleCloud& cloud) const override {
+        auto p = cloud.GetParticlePos(n);
+        return p.y() > 0;
+    };
+};
 
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
     // Parse command line arguments
-    std::string inputJSON = GetChronoDataFile("fsi/input_json/demo_FSI_Flexible_Cable_Granular.json");
+    std::string inputJSON = GetChronoDataFile("fsi/input_json/demo_FSI_Flexible_Cable_Explicit.json");
     double t_end = 10.0;
     bool verbose = true;
     bool output = false;
     double output_fps = 20;
     bool render = true;
-    double render_fps = 100;
+    double render_fps = 400;
     bool snapshots = false;
-    if (!GetProblemSpecs(argc, argv, inputJSON, t_end, verbose, output, output_fps, render, render_fps, snapshots)) {
+    int ps_freq = 1;
+    if (!GetProblemSpecs(argc, argv, inputJSON, t_end, verbose, output, output_fps, render, render_fps, snapshots,
+                         ps_freq)) {
         return 1;
     }
 
@@ -131,13 +150,7 @@ int main(int argc, char* argv[]) {
     sysFSI.SetBoundaries(cMin, cMax);
 
     // Set SPH discretization type, consistent or inconsistent
-    sysFSI.SetDiscreType(false, false);
-
-    // Set wall boundary condition
-    sysFSI.SetWallBC(BceVersion::ADAMI);
-
-    // Set rigid body boundary condition
-    sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
     // Create SPH particles of fluid region
     chrono::utils::ChGridSampler<> sampler(initSpace0);
@@ -152,34 +165,57 @@ int main(int argc, char* argv[]) {
     // Create solids
     auto mesh = Create_MB_FE(sysMBS, sysFSI);
 
+    sysFSI.SetNumProximitySearchSteps(ps_freq);
+
     // Initialize FSI system
     sysFSI.Initialize();
 
+    out_dir = out_dir + std::to_string(ps_freq);
+
     // Create oputput directories
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
-        cerr << "Error creating directory " << out_dir << endl;
-        return 1;
-    }
-    out_dir = out_dir + "/" + sysFSI.GetPhysicsProblemString() + "_" + sysFSI.GetSphSolverTypeString();
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
-        cerr << "Error creating directory " << out_dir << endl;
-        return 1;
-    }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
-        cerr << "Error creating directory " << out_dir + "/particles" << endl;
-        return 1;
-    }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
-        cerr << "Error creating directory " << out_dir + "/fsi" << endl;
-        return 1;
-    }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
-        cerr << "Error creating directory " << out_dir + "/vtk" << endl;
-        return 1;
-    }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
-        cerr << "Error creating directory " << out_dir + "/snapshots" << endl;
-        return 1;
+    if (output || snapshots) {
+        if (output) {
+            if (!filesystem::create_directory(filesystem::path(out_dir))) {
+                cerr << "Error creating directory " << out_dir << endl;
+                return 1;
+            }
+            out_dir = out_dir + "/" + sysFSI.GetPhysicsProblemString() + "_" + sysFSI.GetSphMethodTypeString();
+            if (!filesystem::create_directory(filesystem::path(out_dir))) {
+                cerr << "Error creating directory " << out_dir << endl;
+                return 1;
+            }
+
+            if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+                cerr << "Error creating directory " << out_dir + "/particles" << endl;
+                return 1;
+            }
+            if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+                cerr << "Error creating directory " << out_dir + "/fsi" << endl;
+                return 1;
+            }
+            if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
+                cerr << "Error creating directory " << out_dir + "/vtk" << endl;
+                return 1;
+            }
+        }
+        if (snapshots) {
+            if (!output) {
+                // Create output directories if it does not exist
+                if (!filesystem::create_directory(filesystem::path(out_dir))) {
+                    cerr << "Error creating directory " << out_dir << endl;
+                    return 1;
+                }
+                out_dir = out_dir + "/" + sysFSI.GetPhysicsProblemString() + "_" + sysFSI.GetSphMethodTypeString();
+                if (!filesystem::create_directory(filesystem::path(out_dir))) {
+                    cerr << "Error creating directory " << out_dir << endl;
+                    return 1;
+                }
+            }
+            if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+                cerr << "Error creating directory " << out_dir + "/snapshots" << endl;
+                return 1;
+            }
+        }
     }
 
     // Create a run-tme visualizer
@@ -214,6 +250,7 @@ int main(int argc, char* argv[]) {
         }
 
         visFSI->SetTitle("Chrono::FSI flexible cable");
+        visFSI->SetVerbose(verbose);
         visFSI->SetSize(1920, 1200);
         visFSI->SetCameraMoveScale(1.0f);
         visFSI->EnableBoundaryMarkers(true);
@@ -222,6 +259,7 @@ int main(int argc, char* argv[]) {
         visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetSPHColorCallback(chrono_types::make_shared<VelocityColorCallback>(0, 2.5));
+        visFSI->SetSPHVisibilityCallback(chrono_types::make_shared<PositionVisibilityCallback>());
         visFSI->AttachSystem(&sysMBS);
         visFSI->Initialize();
     }
@@ -247,8 +285,24 @@ int main(int argc, char* argv[]) {
     int out_frame = 0;
     int render_frame = 0;
 
+    // Initial position of top most node
+    auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(0));
+    std::cout << "Initial position of top node: " << node->GetPos().x() << " " << node->GetPos().y() << " "
+              << node->GetPos().z() << std::endl;
+    ChVector3d init_pos = node->GetPos();
+
+    // Record Top node displacement
+    ChFunctionInterp displacement_recorder;
+    double displacement = 0;
     ChTimer timer;
     timer.start();
+
+    std::string out_file = out_dir + "/results.txt";
+    std::ofstream ofile;
+    if (output) {
+        ofile.open(out_file, std::ios::trunc);
+    }
+
     while (time < t_end) {
         if (verbose)
             cout << sim_frame << " time: " << time << endl;
@@ -283,6 +337,15 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
+        ChVector3d pos = node->GetPos();
+        displacement =
+            sqrt(pow(pos.x() - init_pos.x(), 2) + pow(pos.y() - init_pos.y(), 2) + pow(pos.z() - init_pos.z(), 2));
+
+        displacement_recorder.AddPoint(time, displacement);
+
+        if (output) {
+            ofile << time << "\t" << pos.x() << "\t" << pos.y() << "\t" << pos.z() << "\n";
+        }
 
         sysFSI.DoStepDynamics_FSI();
 
@@ -293,6 +356,16 @@ int main(int argc, char* argv[]) {
     cout << "\nSimulation time: " << timer() << " seconds\n" << endl;
 
     return 0;
+
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChGnuPlot gplot(out_dir + "/height.gpl");
+    gplot.SetGrid();
+    std::string speed_title = "Displacement of top node in cable";
+    gplot.SetTitle(speed_title);
+    gplot.SetLabelX("time (s)");
+    gplot.SetLabelY("displacement (m)");
+    gplot.Plot(displacement_recorder, "", " with lines lt -1 lw 2 lc rgb'#3333BB' ");
+#endif
 }
 
 // -----------------------------------------------------------------------------
@@ -349,13 +422,9 @@ std::shared_ptr<fea::ChMesh> Create_MB_FE(ChSystemSMC& sysMBS, ChSystemFsi& sysF
     // Add the mesh to the MBS system
     sysMBS.Add(mesh);
 
-    // fluid representation of flexible bodies
-    bool multilayer = true;
-    bool removeMiddleLayer = true;
-    sysFSI.AddFEAmeshBCE(mesh, node_nbrs, _1D_elementsNodes_mesh, std::vector<std::vector<int>>(),
-                         true, false, multilayer, removeMiddleLayer, 1, 0);
-
-    sysFSI.AddFsiMesh(mesh, _1D_elementsNodes_mesh, std::vector<std::vector<int>>());
+    // Add the mesh to the FSI system (only these meshes interact with the fluid)
+    sysFSI.SetBcePattern1D(BcePatternMesh1D::STAR, false);
+    sysFSI.AddFsiMesh(mesh);
 
     return mesh;
 }
@@ -371,8 +440,9 @@ bool GetProblemSpecs(int argc,
                      double& output_fps,
                      bool& render,
                      double& render_fps,
-                     bool& snapshots) {
-    ChCLI cli(argv[0], "Flexible plate FSI demo");
+                     bool& snapshots,
+                     int& ps_freq) {
+    ChCLI cli(argv[0], "Flexible cable FSI demo");
 
     cli.AddOption<std::string>("Input", "inputJSON", "Problem specification file [JSON format]", inputJSON);
     cli.AddOption<double>("Input", "t_end", "Simulation duration [s]", std::to_string(t_end));
@@ -385,6 +455,8 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<bool>("Visualization", "no_vis", "Disable run-time visualization");
     cli.AddOption<double>("Visualization", "render_fps", "Render frequency [fps]", std::to_string(render_fps));
     cli.AddOption<bool>("Visualization", "snapshots", "Enable writing snapshot image files");
+
+    cli.AddOption<int>("Proximity Search", "ps_freq", "Frequency of Proximity Search", std::to_string(ps_freq));
 
     if (!cli.Parse(argc, argv)) {
         cli.Help();
@@ -401,6 +473,7 @@ bool GetProblemSpecs(int argc,
 
     output_fps = cli.GetAsType<double>("output_fps");
     render_fps = cli.GetAsType<double>("render_fps");
+    ps_freq = cli.GetAsType<int>("ps_freq");
 
     return true;
 }

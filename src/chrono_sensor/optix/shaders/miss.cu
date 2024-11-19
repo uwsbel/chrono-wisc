@@ -25,9 +25,15 @@ extern "C" __global__ void __miss__shader() {
     RayType raytype = (RayType)optixGetPayload_2();
 
     switch (raytype) {
+        case PHYS_CAMERA_RAY_TYPE: 
         case CAMERA_RAY_TYPE: {
             const CameraMissParameters& camera_miss = miss->camera_miss;
-            PerRayData_camera* prd = getCameraPRD();
+            PerRayData_camera* prd;
+            if (raytype == PHYS_CAMERA_RAY_TYPE) {
+                prd = reinterpret_cast<PerRayData_phys_camera*>(getPhysCameraPRD());
+            } else {
+                prd = getCameraPRD();
+            }
 
             if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
                 // evironment map assumes z up
@@ -52,7 +58,7 @@ extern "C" __global__ void __miss__shader() {
             // apply fog model
             if (prd->use_fog && params.fog_scattering > 0.f) {
                 float blend_alpha = expf(-params.fog_scattering * optixGetRayTmax());
-                prd->color = blend_alpha * prd->color + (1 - blend_alpha) * params.fog_color*prd->contrib_to_pixel;
+                prd->color = blend_alpha * prd->color + (1 - blend_alpha) * params.fog_color * prd->contrib_to_pixel;
             }
 
             break;
@@ -101,6 +107,10 @@ extern "C" __global__ void __miss__shader() {
         case DEPTH_RAY_TYPE: {
             PerRayData_depthCamera* prd = getDepthCameraPRD();
             prd->depth = prd->max_depth; // set miss hit to max depth
+            break;
+        }
+        case NORMAL_RAY_TYPE: {
+            // leave as default values
             break;
         }
     }

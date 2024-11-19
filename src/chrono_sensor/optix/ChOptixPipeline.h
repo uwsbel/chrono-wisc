@@ -49,14 +49,16 @@ struct Record {
 
 /// The type of ray tracing used to model the sensor
 enum class PipelineType {
-    CAMERA,  ///< camera rendering pipeline
-    // CAMERA_FOV_LENS,        ///< FOV lens model
-    SEGMENTATION,  ///< segmentation camera pipeline
-    DEPTH_CAMERA, /// < depth camera pipeline>   
-    // SEGMENTATION_FOV_LENS,  ///< FOV lens segmentation camera
-    LIDAR_SINGLE,  ///< single sample lidar
-    LIDAR_MULTI,   ///< multi sample lidar
-    RADAR,         ///< radar model
+    CAMERA,                     ///< camera rendering pipeline
+    PHYS_CAMERA,                ///< physics-based camera rendering pipeline
+    // CAMERA_FOV_LENS,            ///< FOV lens model
+    SEGMENTATION,               ///< segmentation camera pipeline
+    DEPTH_CAMERA,               ///< depth camera pipeline
+    NORMAL_CAMERA,              ///< normal camera pipeline
+    // SEGMENTATION_FOV_LENS,      ///< FOV lens segmentation camera
+    LIDAR_SINGLE,               ///< single sample lidar
+    LIDAR_MULTI,                ///< multi sample lidar
+    RADAR,                      ///< radar model
     TANSIENT,      ///< transient camera model
 
 };
@@ -227,6 +229,8 @@ class CH_SENSOR_API ChOptixPipeline {
 
     // program groups - we only make one of each - do not clear when rebuilding root
     OptixProgramGroup m_camera_raygen_group = 0;
+    OptixProgramGroup m_phys_camera_raygen_group = 0;
+
     // OptixProgramGroup m_camera_fov_lens_raygen_group = 0;
     OptixProgramGroup m_segmentation_raygen_group = 0;
 
@@ -236,6 +240,8 @@ class CH_SENSOR_API ChOptixPipeline {
 
     OptixProgramGroup m_transientCamera_raygen_group = 0;
     
+    OptixProgramGroup m_normalCamera_raygen_group = 0;
+
     // OptixProgramGroup m_segmentation_fov_lens_raygen_group = 0;
     OptixProgramGroup m_lidar_single_raygen_group = 0;
     OptixProgramGroup m_lidar_multi_raygen_group = 0;

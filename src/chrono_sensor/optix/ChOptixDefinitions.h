@@ -49,6 +49,8 @@ enum RayType {
     DEPTH_RAY_TYPE = 5,        /// depth camera rays
     TRANSIENT_RAY_TYPE = 6,
     LASER_SAMPLE_RAY_TYPE = 7
+    PHYS_CAMERA_RAY_TYPE = 8,  /// physics-based camera rays
+    NORMAL_RAY_TYPE = 9        /// normal camera rays
 };
 
 /// The type of lens model that camera can use for rendering
@@ -180,6 +182,25 @@ struct LensParams {
     float a8;
 };
 
+struct PhysCameraGainParams {
+    float defocus_gain;
+    float defocus_bias;
+    float vignetting_gain;
+    float aggregator_gain;
+    float3 expsr2dv_gains;
+    float3 expsr2dv_biases;
+    float expsr2dv_gamma;
+    // std::string expsr2dv_crf_type;
+    int expsr2dv_crf_type; // camera response function type, 0: gamma_correct, 1: sigmoid, 2: linear
+};
+
+struct PhysCameraNoiseParams {
+    float3 dark_currents;   // dark currents and hot-pixel noises, [electron/sec]
+    float3 noise_gains;     // temporal noise gains, [1/1]
+    float3 STD_reads;       // STDs of FPN and readout noises, [electron]
+    int FPN_rng_seed;       // seed of random number generator for readout and FPN noises
+};
+
 /// The parameters needed to define a camera
 struct CameraParameters {
     float hFOV;                        ///< horizontal field of view
@@ -228,6 +249,33 @@ struct TransientCameraParameters {
 };
 
 
+/// The parameters needed to define a physics-based camera
+struct PhysCameraParameters {
+    float hFOV;                         ///< horizontal field of view
+    CameraLensModelType lens_model;     ///< lens model to use
+    LensParams lens_parameters;         ///< lens fitting parameters (if applicable)
+    unsigned int super_sample_factor;   ///< number of samples per pixel in each dimension
+    float gamma;                        ///< camera's gamma value
+    bool use_gi;                        ///< whether to use global illumination
+    bool use_fog;                       ///< whether to use the scene fog model
+    float aperture_num;          		///< F-number (or aperture number) = focal_length / aperture_diameter, [1/1]
+    float expsr_time;                   ///< exposure time, [sec]
+    float ISO;                          ///< ISO exposure gain, [1/1]
+    float focal_length;                 ///< focal length, [m]
+    float focus_dist;                   ///< focus distance, [m]
+    float max_scene_light_amount;		///< maximum light amount in the scene, [lumen]
+    float sensor_width;                 ///< equivalent width of the image sensor, [m]
+    float pixel_size;                   ///< length of a pixel, [m]
+    PhysCameraGainParams gain_params;	///< gain parameters in camera model, [1/1]
+    PhysCameraNoiseParams noise_params;	///< noise model parameters in camera model
+    half4* rgbd_buffer;                 ///< buffer in RGBD format for camera pixels and distance map
+    half4* albedo_buffer;               ///< the material color of the first hit. Only initialized if using global illumination
+    half4* normal_buffer;               ///< The screen-space normal of the first hit. Only initialized if using global illumination
+                                        ///< (screenspace normal)
+    // float* distance_buffer;             ///< buffer of distances between the camera pixel to the first hit point
+    curandState_t* rng_buffer;          ///< The random number generator object. Only initialized if using global illumination
+};
+
 // Parameters for specifying a depth camera
 struct DepthCameraParameters {
     float hFOV;                      ///< horizontal field of view
@@ -236,6 +284,15 @@ struct DepthCameraParameters {
     float* frame_buffer;             ///< buffer of class and instance ids
     curandState_t* rng_buffer;       ///< only initialized if using global illumination
     float max_depth;                 ///< maximum depth value for the depth camera
+};
+
+// Parameters for specifying a normal camera
+struct NormalCameraParameters {
+    float hFOV;                      ///< horizontal field of view
+    CameraLensModelType lens_model;  ///< lens model to use
+    LensParams lens_parameters;      ///< lens fitting parameters (if applicable)
+    float3* frame_buffer;             ///< buffer of class and instance ids to put normal vector
+    curandState_t* rng_buffer;       ///< only initialized if using global illumination
 };
 
 /// Parameters need to define a camera that generates semantic segmentation data
@@ -295,11 +352,13 @@ struct RaygenParameters {
     float4 rot1;  ///< sensor rotation at t1
     union {
         CameraParameters camera;                ///< the specific data when modeling a camera
+        PhysCameraParameters phys_camera;       ///< the specific data when modeling a physics-based camera
         SemanticCameraParameters segmentation;  ///< the specific data when modeling a semantic segementation camera
         LidarParameters lidar;                  ///< the specific data when modeling a lidar
         RadarParameters radar;                  ///< the specific data when modeling a radar
         DepthCameraParameters depthCamera;      /// < the specific data when modeling a depth camera
         TransientCameraParameters transientCamera; /// < the specific data when modeling a transient camera
+        NormalCameraParameters normalCamera;    /// < the specific data when modeling a normal camera
     } specific;                                 ///< the data for the specific sensor
 };
 
@@ -501,9 +560,24 @@ struct PerRayData_laserSampleRay {
     bool sample_laser;
 };
 
+/// Data associated with a single physics-based camera ray
+struct PerRayData_phys_camera : PerRayData_camera {
+    float distance;           ///< the distance from the camera to the first hit
+};
+
+/// Data associated with a single physics-based camera ray
+struct PerRayData_phys_camera : PerRayData_camera {
+    float distance;           ///< the distance from the camera to the first hit
+};
+
 struct PerRayData_depthCamera {
     float depth;
     float max_depth;
+};
+
+/// Data associated with a single normal camera ray
+struct PerRayData_normalCamera {
+    float3 normal;            ///< the global normal vector of the first hit
 };
 
 /// Data associated with a single segmentation camera ray

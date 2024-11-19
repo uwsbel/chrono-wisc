@@ -28,6 +28,7 @@
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
 #include "chrono_sensor/sensors/ChTransientSensor.h"
+#include "chrono_sensor/sensors/ChPhysCameraSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/sensors/ChTransientSensor.h"
@@ -252,6 +253,7 @@ void ChOptixEngine::UpdateSensors(std::shared_ptr<ChScene> scene) {
             cudaDeviceSynchronize();  // TODO: do we need to synchronize here?
 
             // update the scene for the optix context
+            UpdateCameraParameters(to_be_updated, scene);
             UpdateCameraTransforms(to_be_updated, scene);
 
             m_geometry->UpdateBodyTransformsEnd((float)m_system->GetChTime());
@@ -746,6 +748,23 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
     m_params.surface_area_cdf_buffer = reinterpret_cast<float*>(m_pipeline->GetSurfaceAreaCDF());
 
     cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
+}
+
+void ChOptixEngine::UpdateCameraParameters(std::vector<int>& to_be_updated, std::shared_ptr<ChScene> scene) {
+    // go through all the sensors to be updated
+    for (unsigned int i = 0; i < to_be_updated.size(); i++) {
+        int id = to_be_updated[i];
+        auto p_sensor = m_assignedSensor[id];
+
+        // update parameters of physics-based cameras
+        if (auto p_phys_cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(p_sensor)) {
+            // update filter parameters
+            p_phys_cam->UpdateFilterParameters();
+            
+            // update raygen_record parameters
+            m_assignedRenderers[id]->m_raygen_record->data.specific.phys_camera.hFOV = p_phys_cam->GetHFOV();
+        }
+    }
 }
 
 void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std::shared_ptr<ChScene> scene) {

@@ -108,6 +108,12 @@ __device__ __inline__ PerRayData_camera* getCameraPRD() {
     return reinterpret_cast<PerRayData_camera*>(ints_as_pointer(opt0, opt1));
 }
 
+__device__ __inline__ PerRayData_phys_camera* getPhysCameraPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_phys_camera*>(ints_as_pointer(opt0, opt1));
+}
+
 __device__ __inline__ PerRayData_semantic* getSemanticPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
@@ -133,6 +139,24 @@ __device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
 }
 
 
+__device__ __inline__ PerRayData_transientCamera* getTransientCameraPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
+}
+
+__device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
+}
+
+
+__device__ __inline__ PerRayData_normalCamera* getNormalCameraPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_normalCamera*>(ints_as_pointer(opt0, opt1));
+}
 
 __device__ __inline__ PerRayData_lidar* getLidarPRD() {
     unsigned int opt0 = optixGetPayload_0();
@@ -167,6 +191,19 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
     return prd;
 };
 
+__device__ __inline__ PerRayData_phys_camera default_phys_camera_prd() {
+    PerRayData_phys_camera prd = {};
+    prd.color = make_float3(0.f, 0.f, 0.f);
+    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
+    prd.rng = curandState_t();
+    prd.depth = 2;
+    prd.use_gi = false;
+    prd.albedo = make_float3(0.f, 0.f, 0.f);
+    prd.normal = make_float3(0.f, 0.f, 0.f);
+    prd.distance = 0.f;
+    prd.use_fog = true;
+    return prd;
+};
 
 __device__ __inline__ PerRayData_depthCamera default_depthCamera_prd(float maxDepth) {
     PerRayData_depthCamera prd = {};
@@ -206,6 +243,12 @@ __device__ __inline__ PerRayData_laserSampleRay default_laserSampleRay_prd() {
     prd.sample_laser = false;
     prd.depth = 0;
 }
+
+__device__ __inline__ PerRayData_normalCamera default_normalCamera_prd() {
+    PerRayData_normalCamera prd = {};
+    prd.normal = make_float3(0.f, 0.f, 0.f);
+    return prd;
+};
 
 __device__ __inline__ PerRayData_semantic default_semantic_prd() {
     PerRayData_semantic prd = {};
