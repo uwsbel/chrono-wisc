@@ -573,6 +573,7 @@ int main(int argc, char* argv[]) {
             #ifdef USE_SENSOR_NVDB
                 createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
             #else
+                createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
             #endif
             manager->Update();
         }
