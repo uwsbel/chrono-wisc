@@ -23,7 +23,7 @@ if(ENABLE_MODULE_VEHICLE)
 		  demo_ROBOT_Viper_Rigid
 		  demo_ROBOT_Viper_SCM
       demo_ROBOT_Rassor_Rigid
-      # demo_ROBOT_Rassor_SPH
+      demo_ROBOT_Rassor_SPH
 	  )
 
 	  if(ENABLE_MODULE_SENSOR)
