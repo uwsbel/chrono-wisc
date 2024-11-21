@@ -50,9 +50,10 @@
 #include <openvdb/tools/ParticlesToLevelSet.h>
 #include <openvdb/points/PointConversion.h>
 #include <openvdb/points/PointCount.h>
+#include <execution>
 #endif
 
-#include <execution>
+
 #include <random>
 
 // Chrono namespaces
@@ -936,9 +937,10 @@ void createVoxelGrid(std::vector<float> points,
         // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
 
         // Use std::for_each with parallel execution
-        std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
+        //std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
+        for (int i = 0; i < points.size()/6; i++) {
             // Calculate the index based on the position in the loop
-            int i = &point - &points[0];  // Get the current index
+            //int i = &point - &points[0];  // Get the current index
 
             thread_local std::mt19937 generator(std::random_device{}());
             std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
@@ -993,10 +995,11 @@ void createVoxelGrid(std::vector<float> points,
                 offsetXList[i] = offsetX;
                 offsetYList[i] = offsetY;
             }
-        });
+        //});
+        }
     }
     prevActiveVoxels = activeVoxels;
-    std::wcout << "Num Voxels: " << activeVoxels << std::endl;
+    std::cout << "Num Voxels: " << voxelBodyList.size() << std::endl;
     scene->SetSprites(voxelBodyList);
     firstInst = false;
 
