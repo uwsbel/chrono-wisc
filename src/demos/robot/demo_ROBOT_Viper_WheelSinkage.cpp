@@ -235,7 +235,6 @@ class FloatBufferAttrVector {
 #else
 void createVoxelGrid(std::vector<float> points,
                      ChSystemNSC& sys,
-                     ChSystemFsi& sysFSI,
                      std::shared_ptr<ChScene> scene,
                      std::shared_ptr<ChVisualMaterial> vis_mat);
 #endif
@@ -575,7 +574,7 @@ int main(int argc, char* argv[]) {
             #ifdef USE_SENSOR_NVDB
                 createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
             #else
-                createVoxelGrid(h_points, sysMBS, sysFSI, manager->scene, regolith_material);
+                createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
             #endif
             manager->Update();
         }
@@ -617,7 +616,6 @@ int main(int argc, char* argv[]) {
 void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
     std::cout << "Creating OpenVDB Voxel Grid for " << points.size()/6 << "particles " << std::endl;
     openvdb::initialize();
-
     // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
     const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points);
     float spacing = iniSpacing/2.f;
@@ -840,24 +838,22 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
 #else
 void createVoxelGrid(std::vector<float> points,
     ChSystemNSC& sys,
-    ChSystemFsi& sysFSI,
     std::shared_ptr<ChScene> scene,
     std::shared_ptr<ChVisualMaterial> vis_mat) {
-    std::vector<ChVector3d> chpoints = sysFSI.GetParticlePositions();
-    std::cout << "Creating CPU Voxel Grid for " << chpoints.size() << "particles " << std::endl;
+
+    std::cout << "Creating CPU Voxel Grid for " << points.size() / 6 << "particles " << std::endl;
     float spacing = iniSpacing / 2.f;
-    float r = spacing / 2;
+    float r = spacing;
     int pointsPerVoxel = 1;
     float voxelSize = spacing;  
     std::cout << "VoxelSize=" << voxelSize << std::endl;
 
-    activeVoxels = chpoints.size();
+    activeVoxels = points.size() / 6;
     
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
     int numAdds = 0;
     int numUpdates = 0;
 
-   
 
     if (!firstInst) {
         thread_local std::mt19937 generator(std::random_device{}());
@@ -866,14 +862,13 @@ void createVoxelGrid(std::vector<float> points,
         std::uniform_real_distribution<float> randscale(1.f, 1.5);
         int voxelCount = 0;
         for (int i = 0; i < activeVoxels; i++) {
-                //ChVector3d voxelPos(points[6*i],points[6*i + 1],points[6*i+2]);
-                ChVector3d voxelPos = chpoints[i];
+                 ChVector3d pos(points[6*i],points[6*i + 1],points[6*i+2]);
                 if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
                     numUpdates++;
                     auto voxelBody = voxelBodyList[idList[voxelCount]];
                     float offsetX = offsetXList[idList[voxelCount]];
                     float offsetY = offsetYList[idList[voxelCount]];
-                    ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                    ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
                     double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
                     double yRot = voxelPos.y();
                     double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
@@ -943,7 +938,7 @@ void createVoxelGrid(std::vector<float> points,
 
         // Use std::for_each with parallel execution
         //std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
-        for (int i = 0; i < chpoints.size(); i++) {
+        for (int i = 0; i < points.size()/6; i++) {
             // Calculate the index based on the position in the loop
             //int i = &point - &points[0];  // Get the current index
 
@@ -952,8 +947,7 @@ void createVoxelGrid(std::vector<float> points,
             std::uniform_real_distribution<float> randpos(-.005f, .005f);
             std::uniform_real_distribution<float> randscale(1.f, 1.5);
             // Compute voxel position in world space
-            //ChVector3d voxelPos(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
-            ChVector3d voxelPos = chpoints[i];
+            ChVector3d pos(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
             // Create voxelBody if necessary
             if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
                 std::shared_ptr<ChBody> voxelBody;
@@ -985,7 +979,7 @@ void createVoxelGrid(std::vector<float> points,
                 float offsetX = randpos(generator);
                 float offsetY = randpos(generator);
                 // Set the position and other properties of the voxel body
-                ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
                 double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
                 double yRot = voxelPos.y();
                 double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
