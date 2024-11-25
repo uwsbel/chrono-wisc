@@ -52,7 +52,7 @@ enum IMUNoiseModel {
     NORMAL_DRIFT,  // gaussian drifting noise with noncorrelated equal distributions
     IMU_NONE       // no noise added
 };
-IMUNoiseModel imu_noise_type = NORMAL_DRIFT;
+IMUNoiseModel imu_noise_type = IMU_NONE;
 
 // IMU update rate in Hz
 int imu_update_rate = 100;
@@ -190,7 +190,7 @@ int main(int argc, char* argv[]) {
 
     // add an accelerometer, gyroscope, and magnetometer to one of the pendulum legs
     auto imu_offset_pose = chrono::ChFrame<double>({0, 0, 0}, QuatFromAngleAxis(0, {1, 0, 0}));
-    auto acc = chrono_types::make_shared<ChAccelerometerSensor>(pendulum_leg_1,    // body to which the IMU is attached
+    auto acc = chrono_types::make_shared<ChAccelerometerSensor>(base,    // body to which the IMU is attached
                                                                 imu_update_rate,   // update rate
                                                                 imu_offset_pose,   // offset pose from body
                                                                 acc_noise_model);  // IMU noise model
@@ -200,7 +200,7 @@ int main(int argc, char* argv[]) {
     acc->PushFilter(chrono_types::make_shared<ChFilterAccelAccess>());  // Add a filter to access the imu data
     manager->AddSensor(acc);                                            // Add the IMU sensor to the sensor manager
 
-    auto gyro = chrono_types::make_shared<ChGyroscopeSensor>(pendulum_leg_1,     // body to which the IMU is attached
+    auto gyro = chrono_types::make_shared<ChGyroscopeSensor>(base,     // body to which the IMU is attached
                                                              imu_update_rate,    // update rate
                                                              imu_offset_pose,    // offset pose from body
                                                              gyro_noise_model);  // IMU noise model
@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
     gyro->PushFilter(chrono_types::make_shared<ChFilterGyroAccess>());  // Add a filter to access the imu data
     manager->AddSensor(gyro);                                           // Add the IMU sensor to the sensor manager
 
-    auto mag = chrono_types::make_shared<ChMagnetometerSensor>(plate,            // body to which the IMU is attached
+    auto mag = chrono_types::make_shared<ChMagnetometerSensor>(base,            // body to which the IMU is attached
                                                                imu_update_rate,  // update rate
                                                                imu_offset_pose,  // offset pose from body
                                                                mag_noise_model,  // IMU noise model

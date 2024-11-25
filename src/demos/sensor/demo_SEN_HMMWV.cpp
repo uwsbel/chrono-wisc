@@ -18,6 +18,8 @@
 // =============================================================================
 
 #include "chrono/utils/ChUtilsInputOutput.h"
+#include "chrono/utils/ChUtilsCreators.h"
+
 
 #include "chrono_vehicle/ChConfigVehicle.h"
 #include "chrono_vehicle/ChVehicleModelData.h"
@@ -33,7 +35,10 @@
 #include "chrono_sensor/sensors/ChCameraSensor.h"
 // #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/ChSensorManager.h"
-// #include "chrono_sensor/filters/ChFilterAccess.h"
+#include "chrono_sensor/filters/ChFilterAccess.h"
+#include "chrono_sensor/sensors/ChIMUSensor.h"
+#include "chrono_sensor/sensors/ChNoiseModel.h"
+
 // #include "chrono_sensor/filters/ChFilterPCfromDepth.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
 // #include "chrono_sensor/filters/ChFilterSave.h"
@@ -51,7 +56,7 @@ using namespace chrono::sensor;
 // -----------------------------------------------------------------------------
 
 // Initial vehicle location and orientation
-ChVector3d initLoc(0, 0, 1.0);
+ChVector3d initLoc(-45, 0, 1.0);
 ChQuaternion<> initRot(1, 0, 0, 0);
 
 enum DriverMode { DEFAULT, RECORD, PLAYBACK };
@@ -125,6 +130,25 @@ float lidar_max_distance = 100.0f;
 // Simulation parameters
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// IMU parameters
+// -----------------------------------------------------------------------------
+// Noise model attached to the sensor
+enum IMUNoiseModel {
+    NORMAL_DRIFT,  // gaussian drifting noise with noncorrelated equal distributions
+    IMU_NONE       // no noise added
+};
+IMUNoiseModel imu_noise_type = IMU_NONE;
+
+// IMU update rate in Hz
+float imu_update_rate = 100.0f;
+
+// IMU lag (in seconds) between sensing and when data becomes accessible
+float imu_lag = 0.f;
+
+// IMU collection time (in seconds) of each sample
+float imu_collection_time = 0.f;
+
 // Simulation step sizes
 double step_size = 2e-3;
 double tire_step_size = step_size;
@@ -153,6 +177,8 @@ bool sensor_save = false;
 // Visualize sensor data
 bool sensor_vis = true;
 
+// Located in Madison, WI
+ChVector3d gps_reference(-89.400, 43.070, 260.0);
 // =============================================================================
 
 int main(int argc, char* argv[]) {
@@ -314,120 +340,140 @@ int main(int argc, char* argv[]) {
     b.color_zenith = {0.4f, 0.5f, 0.6f};
     manager->scene->SetBackground(b);
 
-    // ------------------------------------------------
-    // Create a camera and add it to the sensor manager
-    // ------------------------------------------------
-    auto cam = chrono_types::make_shared<ChCameraSensor>(
-        my_hmmwv.GetChassisBody(),                                              // body camera is attached to
-        cam_update_rate,                                                        // update rate in Hz
-        chrono::ChFrame<double>({-8, 0, 3}, QuatFromAngleAxis(.2, {0, 1, 0})),  // offset pose
-        image_width,                                                            // image width
-        image_height,                                                           // image height
-        cam_fov,
-        super_samples);  // fov, lag, exposure
-    cam->SetName("Camera Sensor");
-    // cam->SetLag(0);
-    cam->SetCollectionWindow(exposure_time);
-    cam->SetCollectionWindow(0);
+    std::shared_ptr<ChNoiseModel> acc_noise_model;
+    std::shared_ptr<ChNoiseModel> gyro_noise_model;
+    std::shared_ptr<ChNoiseModel> mag_noise_model;
+    switch (imu_noise_type) {
+        case NORMAL_DRIFT:
+            // Set the imu noise model to a gaussian model
+            acc_noise_model =
+                chrono_types::make_shared<ChNoiseNormalDrift>(100.f,                              // double updateRate,
+                                                              ChVector3d({0., 0., 0.}),           // double mean,
+                                                              ChVector3d({0.001, 0.001, 0.001}),  // double stdev,
+                                                              .0001,                              // double bias_drift,
+                                                              .1);                                // double tau_drift,
+            gyro_noise_model =
+                chrono_types::make_shared<ChNoiseNormalDrift>(100.f,                     // float updateRate,
+                                                              ChVector3d({0., 0., 0.}),  // float mean,
+                                                              ChVector3d({0.0075, 0.0075, 0.0075}),  // float stdev,
+                                                              .001,  // double bias_drift,
+                                                              .1);   // double tau_drift,
+            mag_noise_model =
+                chrono_types::make_shared<ChNoiseNormal>(ChVector3d({0., 0., 0.}),            // float mean,
+                                                         ChVector3d({0.001, 0.001, 0.001}));  // float stdev,
+            break;
+        case IMU_NONE:
+            // Set the imu noise model to none (does not affect the data)
+            acc_noise_model = chrono_types::make_shared<ChNoiseNone>();
+            gyro_noise_model = chrono_types::make_shared<ChNoiseNone>();
+            mag_noise_model = chrono_types::make_shared<ChNoiseNone>();
+            break;
+    }
 
-    if (sensor_vis)
-        // Renders the image
-        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height));
+    auto imu_offset_pose = chrono::ChFrame<double>({0, 0, 1.45}, QuatFromAngleAxis(0, {1, 0, 0}));
+    auto acc =
+        chrono_types::make_shared<ChAccelerometerSensor>(my_hmmwv.GetChassisBody(),  // body to which the IMU is attached
+                                                         imu_update_rate,         // update rate
+                                                         imu_offset_pose,         // offset pose from body
+                                                         acc_noise_model);        // IMU noise model
+    acc->SetName("IMU - Accelerometer");
+    acc->SetLag(imu_lag);
+    acc->SetCollectionWindow(imu_collection_time);
+    acc->PushFilter(chrono_types::make_shared<ChFilterAccelAccess>());  // Add a filter to access the imu data
+    manager->AddSensor(acc);                                            // Add the IMU sensor to the sensor manager
 
-    // if (sensor_save)
-    //     // Save the current image to a png file at the specified path
-    //     cam->PushFilter(chrono_types::make_shared<ChFilterSave>(sens_dir + "/cam1/"));
+    auto gyro =
+        chrono_types::make_shared<ChGyroscopeSensor>(my_hmmwv.GetChassisBody(),  // body to which the IMU is attached
+                                                     imu_update_rate,                     // update rate
+                                                     imu_offset_pose,         // offset pose from body
+                                                     gyro_noise_model);       // IMU noise model
+    gyro->SetName("IMU - Gyroscope");
+    gyro->SetLag(imu_lag);
+    gyro->SetCollectionWindow(imu_collection_time);
+    gyro->PushFilter(chrono_types::make_shared<ChFilterGyroAccess>());  // Add a filter to access the imu data
+    manager->AddSensor(gyro);                                           // Add the IMU sensor to the sensor manager
 
-    // Provides the host access to this RGBA8 buffer
-    // cam->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
+    auto mag =
+        chrono_types::make_shared<ChMagnetometerSensor>(my_hmmwv.GetChassisBody(),  // body to which the IMU is attached
+                                                        imu_update_rate,                     // update rate
+                                                        imu_offset_pose,         // offset pose from body
+                                                        mag_noise_model,
+                                                        gps_reference);  // IMU noise model
+    mag->SetName("IMU - Magnetometer");
+    mag->SetLag(imu_lag);
+    mag->SetCollectionWindow(imu_collection_time);
+    mag->PushFilter(chrono_types::make_shared<ChFilterMagnetAccess>());  // Add a filter to access the imu data
+    manager->AddSensor(mag);
 
-    // add sensor to the manager
-    manager->AddSensor(cam);
-
-    // -------------------------------------------------------
-    // Create a second camera and add it to the sensor manager
-    // -------------------------------------------------------
-    auto cam2 = chrono_types::make_shared<ChCameraSensor>(
-        my_hmmwv.GetChassisBody(),                                               // body camera is attached to
-        cam_update_rate,                                                         // update rate in Hz
-        chrono::ChFrame<double>({1, 0, .875}, QuatFromAngleAxis(0, {1, 0, 0})),  // offset pose
-        image_width,                                                             // image width
-        image_height,                                                            // image height
-        cam_fov,
-        super_samples);  // fov, lag, exposure
-    cam2->SetName("Camera Sensor");
-    // cam2->SetLag(0);
-    // cam2->SetCollectionWindow(0);
-
-    if (sensor_vis)
-        // Renders the image
-        cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height));
-
-    // if (sensor_save)
-    //     // Save the current image to a png file at the specified path
-    //     cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sens_dir + "/cam2/"));
-
-    // Provides the host access to this RGBA8 buffer
-    // cam2->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
-
-    // add sensor to the manager
-    manager->AddSensor(cam2);
-
-    // -----------------------------------------------
-    // Create a lidar and add it to the sensor manager
-    // -----------------------------------------------
-    // auto lidar = chrono_types::make_shared<ChLidarSensor>(
-    //     my_hmmwv.GetChassisBody(),                                         // body to which the IMU is attached
-    //     lidar_update_rate,                                                 // update rate
-    //     chrono::ChFrame<double>({0, 0, 2}, QuatFromAngleAxis(0, {1, 0, 0})),  // offset pose from body
-    //     horizontal_samples,                                                // horizontal samples
-    //     vertical_samples,                                                  // vertical samples/channels
-    //     lidar_hfov,                                                        // horizontal field of view
-    //     lidar_vmax, lidar_vmin, lidar_max_distance                         // vertical field of view
-    // );
-    // lidar->SetName("Lidar Sensor");
-    // lidar->SetLag(1 / lidar_update_rate);
-    // lidar->SetCollectionWindow(0);
-
-    // if (sensor_vis)
-    //     // Renders the raw lidar data
-    //     lidar->PushFilter(
-    //         chrono_types::make_shared<ChFilterVisualize>(horizontal_samples, vertical_samples, "Raw Lidar Data"));
-
-    // // Convert the range,intensity data to a point cloud (XYZI)
-    // lidar->PushFilter(chrono_types::make_shared<ChFilterPCfromDepth>());
-
-    // if (sensor_vis)
-    //     // Renders the point cloud
-    //     lidar->PushFilter(chrono_types::make_shared<ChFilterVisualizePointCloud>(640, 480, 3.0f, "Lidar Point
-    //     Cloud"));
-
-    // if (sensor_save)
-    //     // Save the XYZI data
-    //     lidar->PushFilter(chrono_types::make_shared<ChFilterSavePtCloud>(sens_dir + "/lidar/"));
-
-    // // Provides the host access to this XYZI buffer
-    // lidar->PushFilter(chrono_types::make_shared<ChFilterXYZIAccess>());
-
-    // // add sensor to the manager
-    // manager->AddSensor(lidar);
 
     // ---------------
     // Simulate system
     // ---------------
     float orbit_radius = 15.f;
     float orbit_rate = 1;
+    chrono::sensor::UserAccelBufferPtr bufferAcc;
+    chrono::sensor::UserGyroBufferPtr bufferGyro;
+    chrono::sensor::UserMagnetBufferPtr bufferMag;
+    // Create a CSV writer to record the IMU data
+    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        std::cout << "Error creating directory " << out_dir << std::endl;
+        return 1;
+    }
+    utils::ChWriterCSV imu_csv(" ");
+    unsigned int imu_last_launch = 0;
 
     while (vis->Run()) {
         time = my_hmmwv.GetSystem()->GetChTime();
-
+        if (time < 5){
+            driver.SetThrottle(0.4);
+            driver.SetSteering(0.0);
+        }
+        else if (time > 5 && time < 7){
+            driver.SetThrottle(0.4);
+            driver.SetSteering(0.3);
+        }
+        else if (time > 7 && time < 9){
+            driver.SetThrottle(0.4);
+            driver.SetSteering(0.0);
+        }
+        else if (time > 9 && time < 11){
+            driver.SetThrottle(0.4);
+            driver.SetSteering(-0.3);
+        }
+        else{
+            driver.SetThrottle(0.0);
+            driver.SetSteering(0.0);
+            driver.SetBraking(1.0);
+        }
         // End simulation
         if (time >= t_end)
             break;
 
-        cam->SetOffsetPose(
-            chrono::ChFrame<double>({-orbit_radius * cos(time * orbit_rate), -orbit_radius * sin(time * orbit_rate), 3},
-                                    QuatFromAngleAxis(time * orbit_rate, {0, 0, 1})));
+        // Get the most recent imu data
+        bufferAcc = acc->GetMostRecentBuffer<UserAccelBufferPtr>();
+        bufferGyro = gyro->GetMostRecentBuffer<UserGyroBufferPtr>();
+        bufferMag = mag->GetMostRecentBuffer<UserMagnetBufferPtr>();
+        if (bufferAcc->Buffer && bufferGyro->Buffer && bufferMag->Buffer &&
+            bufferMag->LaunchedCount > imu_last_launch) {
+            // Save the imu data to file
+            AccelData acc_data = bufferAcc->Buffer[0];
+            GyroData gyro_data = bufferGyro->Buffer[0];
+            MagnetData mag_data = bufferMag->Buffer[0];
+
+            imu_csv << std::fixed << std::setprecision(6);
+            imu_csv << acc_data.X;
+            imu_csv << acc_data.Y;
+            imu_csv << acc_data.Z;
+            imu_csv << gyro_data.Roll;
+            imu_csv << gyro_data.Pitch;
+            imu_csv << gyro_data.Yaw;
+            imu_csv << mag_data.X;
+            imu_csv << mag_data.Y;
+            imu_csv << mag_data.Z;
+            imu_csv << std::endl;
+            imu_last_launch = bufferMag->LaunchedCount;
+            std::cout<< "IMU DATA: " << acc_data.X << " " << acc_data.Y << " " << acc_data.Z << " " << gyro_data.Roll << " " << gyro_data.Pitch << " " << gyro_data.Yaw << " " << mag_data.X << " " << mag_data.Y << " " << mag_data.Z << std::endl;
+        }
 
         // Render scene and output POV-Ray data
         if (step_number % render_steps == 0) {
@@ -484,6 +530,7 @@ int main(int argc, char* argv[]) {
     if (driver_mode == RECORD) {
         driver_csv.WriteToFile(driver_file);
     }
-
+    std::string imu_file = out_dir + "/hmmwv.csv";
+    imu_csv.WriteToFile(imu_file);
     return 0;
 }

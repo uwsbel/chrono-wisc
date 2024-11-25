@@ -22,6 +22,8 @@
 #include "chrono/core/ChRealtimeStep.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/utils/ChUtilsCreators.h"
+
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
@@ -132,7 +134,7 @@ enum IMUNoiseModel {
     NORMAL_DRIFT,  // gaussian drifting noise with noncorrelated equal distributions
     IMU_NONE       // no noise added
 };
-IMUNoiseModel imu_noise_type = NORMAL_DRIFT;
+IMUNoiseModel imu_noise_type = IMU_NONE;
 
 // IMU update rate in Hz
 float imu_update_rate = 100.0f;
@@ -503,11 +505,56 @@ int main(int argc, char* argv[]) {
 
     float orbit_radius = 10.f;
     float orbit_rate = 1;
+    chrono::sensor::UserAccelBufferPtr bufferAcc;
+    chrono::sensor::UserGyroBufferPtr bufferGyro;
+    chrono::sensor::UserMagnetBufferPtr bufferMag;
+    // Create a CSV writer to record the IMU data
+    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        std::cout << "Error creating directory " << out_dir << std::endl;
+        return 1;
+    }
+    utils::ChWriterCSV imu_csv(" ");
+    unsigned int imu_last_launch = 0;
 
     ChRealtimeStepTimer realtime_timer;
     while (vis->Run()) {
         double time = gator.GetSystem()->GetChTime();
 
+        if (time < 5){
+            driver.SetThrottle(0.5);
+            driver.SetSteering(0.0);
+        }
+        else{
+            driver.SetThrottle(0.0);
+            driver.SetSteering(0.0);
+            driver.SetBraking(1.0);
+        }
+
+        // Get the most recent imu data
+        bufferAcc = acc->GetMostRecentBuffer<UserAccelBufferPtr>();
+        bufferGyro = gyro->GetMostRecentBuffer<UserGyroBufferPtr>();
+        bufferMag = mag->GetMostRecentBuffer<UserMagnetBufferPtr>();
+        if (bufferAcc->Buffer && bufferGyro->Buffer && bufferMag->Buffer &&
+            bufferMag->LaunchedCount > imu_last_launch) {
+            // Save the imu data to file
+            AccelData acc_data = bufferAcc->Buffer[0];
+            GyroData gyro_data = bufferGyro->Buffer[0];
+            MagnetData mag_data = bufferMag->Buffer[0];
+
+            imu_csv << std::fixed << std::setprecision(6);
+            imu_csv << acc_data.X;
+            imu_csv << acc_data.Y;
+            imu_csv << acc_data.Z;
+            imu_csv << gyro_data.Roll;
+            imu_csv << gyro_data.Pitch;
+            imu_csv << gyro_data.Yaw;
+            imu_csv << mag_data.X;
+            imu_csv << mag_data.Y;
+            imu_csv << mag_data.Z;
+            imu_csv << std::endl;
+            imu_last_launch = bufferMag->LaunchedCount;
+            std::cout<< "IMU DATA: " << acc_data.X << " " << acc_data.Y << " " << acc_data.Z << " " << gyro_data.Roll << " " << gyro_data.Pitch << " " << gyro_data.Yaw << " " << mag_data.X << " " << mag_data.Y << " " << mag_data.Z << std::endl;
+        }
         cam->SetOffsetPose(
             chrono::ChFrame<double>({-orbit_radius * cos(time * orbit_rate), -orbit_radius * sin(time * orbit_rate), 3},
                                     QuatFromAngleAxis(time * orbit_rate, {0, 0, 1})));
@@ -550,6 +597,9 @@ int main(int argc, char* argv[]) {
         // Spin in place for real time to catch up
         realtime_timer.Spin(step_size);
     }
+
+    std::string imu_file = out_dir + "/gator_avg_w250.csv";
+    imu_csv.WriteToFile(imu_file);
 
     return 0;
 }

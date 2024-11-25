@@ -31,12 +31,24 @@ ChFilterAccelerometerUpdate::ChFilterAccelerometerUpdate(std::shared_ptr<ChNoise
 CH_SENSOR_API void ChFilterAccelerometerUpdate::Apply() {
     // default sensor values
     ChVector3d acc = {0, 0, 0};
-
+    int window_size = 100;
     if (m_accSensor->m_keyframes.size() > 0) {
-        for (auto c : m_accSensor->m_keyframes) {
-            acc += c;
+        if(m_accSensor->m_keyframes.size() < window_size) {
+            for(auto c : m_accSensor->m_keyframes) {
+                acc += c;
+            }
+            acc /= (float)(m_accSensor->m_keyframes.size());
+        } else {
+            for(int i = m_accSensor->m_keyframes.size() - window_size; i < m_accSensor->m_keyframes.size(); i++) {
+                acc += m_accSensor->m_keyframes[i];
+            }
+            acc /= (float)(window_size);
         }
-        acc /= (float)(m_accSensor->m_keyframes.size());
+
+            //  for(auto c : m_accSensor->m_keyframes) {
+            //     acc += c;
+            // }
+            // acc /= (float)(m_accSensor->m_keyframes.size());
     }
 
     if (m_noise_model) {

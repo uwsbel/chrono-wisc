@@ -14,7 +14,7 @@ else
     PY_LIB="libpython${PY_VER}.so"
 fi
 
-ROS_SETUP_SCRIPT="$HOME/Packages/ros_ws/install/setup.sh"
+ROS_SETUP_SCRIPT="/opt/ros/humble/setup.bash"
 if [ -f "$ROS_SETUP_SCRIPT" ]; then
   source $ROS_SETUP_SCRIPT
 fi
@@ -32,9 +32,9 @@ cmake -G "Ninja" -DCMAKE_INSTALL_PREFIX=$PREFIX \
  -DCH_INSTALL_PYTHON_PACKAGE=$SP_DIR \
  -DCH_PYCHRONO_DATA_PATH=../../../../share/chrono/data \
  -DCH_PYCHRONO_SHADER_PATH=../../../../lib/sensor_ptx \
- -DPYTHON_EXECUTABLE:FILEPATH=$PYTHON \
- -DPYTHON_INCLUDE_DIR:PATH=$PREFIX/include/python${PY_VER} \
- -DPYTHON_LIBRARY:FILEPATH=$PREFIX/lib/${PY_LIB} \
+ -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3.10 \
+ -DPYTHON_INCLUDE_DIR:PATH=/usr/include/python3.10 \
+ -DPYTHON_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libpython3.10.so \
  -DCMAKE_BUILD_TYPE=$CONFIGURATION \
  -DENABLE_MODULE_IRRLICHT=ON \
  -DENABLE_MODULE_POSTPROCESS=ON \
@@ -51,15 +51,15 @@ cmake -G "Ninja" -DCMAKE_INSTALL_PREFIX=$PREFIX \
  -DBUILD_TESTING=OFF \
  -DBUILD_BENCHMARKING=OFF \
  -DBUILD_GMOCK=OFF \
- -DENABLE_MODULE_CASCADE=ON \
+ -DENABLE_MODULE_CASCADE=OFF \
  -DOpenCASCADE_DIR=$HOME/Packages/opencascade-7.4.0/adm \
  -DENABLE_MODULE_PARDISO_MKL=ON \
  -DMKL_INCLUDE_DIR=$BUILD_PREFIX/include \
  -DMKL_RT_LIBRARY=$BUILD_PREFIX/lib/libmkl_rt.so \
- -DEIGEN3_INCLUDE_DIR=$HOME/Packages/eigen-3.4.0 \
- -DIRRLICHT_INSTALL_DIR=$HOME/Packages/irrlicht-1.8.5 \
- -DOptiX_INSTALL_DIR=$HOME/Packages/optix-7.7.0 \
- -DNUMPY_INCLUDE_DIR=$NP_INCL \
+ -DEIGEN3_INCLUDE_DIR=/usr/include/eigen3 \
+ -DIRRLICHT_INSTALL_DIR=/usr/include/irrlicht \
+ -DOptiX_INSTALL_DIR=/home/harry/optix \
+ -DNUMPY_INCLUDE_DIR=/usr/lib/python3/dist-packages/numpy/core/include \
  -Durdfdom_DIR=$HOME/Packages/urdf/lib/urdfdom/cmake \
  -Durdfdom_headers_DIR=$HOME/Packages/urdf/lib/urdfdom_headers/cmake \
  -Dconsole_bridge_DIR=$HOME/Packages/urdf/lib/console_bridge/cmake \

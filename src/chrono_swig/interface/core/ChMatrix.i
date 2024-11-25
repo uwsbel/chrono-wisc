@@ -44,7 +44,7 @@ defines the Python function return ($result) from the C++ args ($1, $2...)
     int i;
     for(i = 0; i < $2; ++i)
         PyList_SET_ITEM(list, i, PyFloat_FromDouble($1[i]));
-    $result = SWIG_Python_AppendOutput($result, list);
+    $result = SWIG_AppendOutput($result, list);
 }
 
 %typemap(in) (int numel, double* q) %{
@@ -86,7 +86,7 @@ defines the Python function return ($result) from the C++ args ($1, $2...)
     int i;
     for(i = 0; i < $2; ++i)
         PyList_SET_ITEM(list, i, PyLong_FromLong($1[i]));
-    $result = SWIG_Python_AppendOutput($result, list);
+    $result = SWIG_AppendOutput($result, list);
 }
 
 
