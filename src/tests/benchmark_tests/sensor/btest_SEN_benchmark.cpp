@@ -255,7 +255,6 @@ int main(int argc, char* argv[]) {
     int step = 0;
     float end_dist = 5;
     float move_rate = (end_dist/end_time) * step_size;
-    offset_pose2.GetRotMat()
     while (ch_time < end_time) {
         // Update sensor manager
         // Will render/save/filter automatically

@@ -209,7 +209,6 @@ int activeVoxels = 0;
 #ifdef USE_SENSOR_NVDB
 // forward declarations
 void createVoxelGrid(std::vector<float> points,
-                     ChSystemNSC& sys,
                      std::shared_ptr<ChScene> scene,
                      std::shared_ptr<ChVisualMaterial> vis_mat);  // std::vector<openvdb::Vec3R>&
 
@@ -234,7 +233,6 @@ class FloatBufferAttrVector {
 };  // PointAttributeVector
 #else
 void createVoxelGrid(std::vector<float> points,
-                     ChSystemNSC& sys,
                      std::shared_ptr<ChScene> scene,
                      std::shared_ptr<ChVisualMaterial> vis_mat);
 #endif
@@ -482,7 +480,7 @@ int main(int argc, char* argv[]) {
 
     // Save the semantic mask
     if (save)
-        seg->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "segmentation/"));
+        seg->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "segmentation/"));
 
     manager->AddSensor(seg);
 
@@ -574,7 +572,7 @@ int main(int argc, char* argv[]) {
             #ifdef USE_SENSOR_NVDB
                 createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
             #else
-                createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
+                createVoxelGrid(h_points, manager->scene, regolith_material);
             #endif
             manager->Update();
         }
@@ -613,7 +611,7 @@ int main(int argc, char* argv[]) {
 }
 
 #ifdef USE_SENSOR_NVDB
-void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
+void createVoxelGrid(std::vector<float> points, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
     std::cout << "Creating OpenVDB Voxel Grid for " << points.size()/6 << "particles " << std::endl;
     openvdb::initialize();
     // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
@@ -837,7 +835,6 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
 }
 #else
 void createVoxelGrid(std::vector<float> points,
-    ChSystemNSC& sys,
     std::shared_ptr<ChScene> scene,
     std::shared_ptr<ChVisualMaterial> vis_mat) {
 
@@ -901,7 +898,7 @@ void createVoxelGrid(std::vector<float> points,
                     float offsetX = randpos(generator);
                     float offsetY = randpos(generator);
                     // Set the position and other properties of the voxel body
-                    ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                    ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
                     double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
                     double yRot = voxelPos.y();
                     double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);

@@ -28,15 +28,19 @@ if(ENABLE_MODULE_VEHICLE)
     set(DEMOS ${DEMOS}
         demo_ROBOT_Curiosity_SCM_Sensor
         demo_ROBOT_Viper_SCM_Sensor
-        demo_ROBOT_Viper_dust
     )
     if(ENABLE_MODULE_FSI)
+      if(USE_NVDB)
+          set(DEMOS ${DEMOS}
+            demo_ROBOT_Viper_RealSlope_Sensor_NVDB
+            demo_ROBOT_CRMTerrain_Viper_Sensor
+            demo_ROBOT_Rassor_SPH
+            demo_ROBOT_Viper_dust
+          )
+      endif()
       set(DEMOS ${DEMOS}
-        demo_ROBOT_Viper_RealSlope_Sensor_NVDB
-        demo_ROBOT_CRMTerrain_Viper_Sensor
-        demo_ROBOT_Rassor_SPH
-        demo_ROBOT_Viper_WheelSinkage
-      )
+      demo_ROBOT_Viper_WheelSinkage
+      demo_ROBOT_SingleWheel_Sensor)
     endif()
   endif()
 endif()

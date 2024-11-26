@@ -315,7 +315,7 @@ int main(int argc, char* argv[]) {
                                                           image_height,  // image height
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // supersample factor for antialiasing
-                                                          lens_model, false, 2.2);  // FOV
+                                                          lens_model, false);  // FOV
     cam2->SetName("Antialiasing Camera Sensor");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);
