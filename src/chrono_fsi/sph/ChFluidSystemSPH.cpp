@@ -394,6 +394,7 @@ void ChFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
     // this part is for modeling granular material dynamics using elastic SPH
     if (doc.HasMember("Elastic SPH")) {
         m_paramsH->elastic_SPH = true;
+        m_paramsH->elastic_SPH_solid = false;
 
         if (doc["Elastic SPH"].HasMember("Poisson ratio"))
             m_paramsH->Nu_poisson = doc["Elastic SPH"]["Poisson ratio"].GetDouble();
@@ -424,7 +425,8 @@ void ChFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
     }
 
     if (doc.HasMember("Elastic SPH Solid")) {
-        m_paramsH->elastic_SPH_solid = doc["Elastic SPH Solid"].GetBool();
+        m_paramsH->elastic_SPH = false;
+        m_paramsH->elastic_SPH_solid = true;
         if (doc["Elastic SPH Solid"].HasMember("zeta"))
             m_paramsH->zeta = doc["Elastic SPH Solid"]["zeta"].GetDouble();
 
@@ -750,7 +752,19 @@ void ChFluidSystemSPH::SetElasticSPH_Solid(const ElasticMaterialProperties& mat_
     m_paramsH->elastic_SPH = false;
     m_paramsH->elastic_SPH_solid = true;
     m_paramsH->zeta = Real(mat_props.zeta);
-    SetElasticSPH(mat_props);
+    SetDensity(mat_props.density);
+    m_paramsH->E_young = Real(mat_props.Young_modulus);
+    m_paramsH->Nu_poisson = Real(mat_props.Poisson_ratio);
+    m_paramsH->mu_I0 = Real(mat_props.mu_I0);
+    m_paramsH->mu_fric_s = Real(mat_props.mu_fric_s);
+    m_paramsH->mu_fric_2 = Real(mat_props.mu_fric_2);
+    m_paramsH->ave_diam = Real(mat_props.average_diam);
+    m_paramsH->Coh_coeff = Real(mat_props.cohesion_coeff);
+
+    m_paramsH->G_shear = m_paramsH->E_young / (2.0 * (1.0 + m_paramsH->Nu_poisson));
+    m_paramsH->INV_G_shear = 1.0 / m_paramsH->G_shear;
+    m_paramsH->K_bulk = m_paramsH->E_young / (3.0 * (1.0 - 2.0 * m_paramsH->Nu_poisson));
+    m_paramsH->Cs = pow(m_paramsH->E_young / (3 * (1 - 2 * m_paramsH->Nu_poisson) * m_paramsH->rho0), 0.5);
 }
 
 ChFluidSystemSPH::SPHParameters::SPHParameters()
@@ -1174,6 +1188,13 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
         } else {
             cout << "  Boundary treatment: Adami" << endl;
         }
+
+        if (m_paramsH->elastic_SPH) {
+            cout << "  Elastic SPH" << endl;
+        }
+        if (m_paramsH->elastic_SPH_solid) {
+            cout << "  Elastic SPH solid" << endl;
+        }
         switch (m_paramsH->kernel_type) {
             case KernelType::QUADRATIC:
                 cout << "  Kernel type: Quadratic" << endl;
@@ -1188,7 +1209,6 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
                 cout << "  Kernel type: Wendland Quintic" << endl;
                 break;
         }
-
         cout << "  num_neighbors: " << m_paramsH->num_neighbors << endl;
         cout << "  rho0: " << m_paramsH->rho0 << endl;
         cout << "  invrho0: " << m_paramsH->invrho0 << endl;

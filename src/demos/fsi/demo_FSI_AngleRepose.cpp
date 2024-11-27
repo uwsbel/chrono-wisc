@@ -100,15 +100,15 @@ bool GetProblemSpecs(int argc,
 
 int main(int argc, char* argv[]) {
     // Default values
-    double t_end = 10.0;
+    double t_end = 1.0;
     bool verbose = false;
     bool output = true;
     double output_fps = 20;
-    bool snapshots = false;
+    bool snapshots = true;
     int ps_freq = 1;
     double cylinder_radius = 0.5;
     double cylinder_height = 1.0;
-    double init_spacing = 0.01;
+    double init_spacing = 0.05;
     bool render = true;
     double render_fps = 100;
     // Parse command-line arguments
@@ -150,15 +150,17 @@ int main(int argc, char* argv[]) {
 
     // Create SPH particle locations using a sampler
     chrono::utils::ChGridSampler<> sampler(init_spacing);
-    ChVector3d cylinderCenter(0.0, 0.0, -bzDim / 2 + cylinder_height / 2 + 2 * init_spacing);
+    ChVector3d cylinderCenter(0.0, 0.0, -bzDim / 2 + cylinder_height / 2 + 2 * init_spacing + 0.5);
     std::vector<ChVector3d> points = sampler.SampleCylinderZ(cylinderCenter, cylinder_radius, cylinder_height / 2);
-
+    // ChVector3d cylinderCenter(0.0, 0.0, -bzDim / 2 + cylinder_radius / 2 + 2 * init_spacing + 0.5);
+    // std::vector<ChVector3d> points =
+    //     sampler.SampleBox(cylinderCenter, ChVector3d(cylinder_radius, cylinder_radius, cylinder_radius));
     // Add fluid particles
     double gz = std::abs(sysSPH.GetGravitationalAcceleration().z());
     for (const auto& p : points) {
         double pre_ini = sysSPH.GetDensity() * gz * (-(p.z() + cylinder_height / 2) + cylinder_height);
         double rho_ini = sysSPH.GetDensity() + pre_ini / (sysSPH.GetSoundSpeed() * sysSPH.GetSoundSpeed());
-        sysSPH.AddSPHParticle(p, rho_ini, pre_ini, sysSPH.GetViscosity(), ChVector3d(0));
+        sysSPH.AddSPHParticle(p, rho_ini, pre_ini, sysSPH.GetViscosity(), ChVector3d(0), ChVector3d(0), ChVector3d(0));
     }
 
     // Add a box
@@ -269,6 +271,8 @@ int main(int argc, char* argv[]) {
             visFSI->AddCamera(ChVector3d(0, -3 * byDim, bzDim), ChVector3d(0, 0, 0));
             visFSI->SetCameraMoveScale(0.1f);
             visFSI->EnableFluidMarkers(true);
+            visFSI->SetLightIntensity(0.9);
+            visFSI->SetLightDirection(-CH_PI_2, CH_PI / 6);
             visFSI->EnableBoundaryMarkers(true);
             visFSI->EnableRigidBodyMarkers(false);
             visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);

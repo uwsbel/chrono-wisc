@@ -1852,19 +1852,21 @@ __global__ void Navier_Stokes_Solid(const uint* activityIdentifierD,
 
         derivVelRho += DifVelocityRho_Solid(dist3, d, sortedPosRad[index], sortedPosRad[j], velMasA, velMasB,
                                             rhoPresMuA, rhoPresMuB);
-
         // Use the weird integral from the previous time step to get the shear contribution of acceleration
-        derivVelRho.x += TauXyXzYzA.x;
-        derivVelRho.y += TauXyXzYzA.y;
-        derivVelRho.z += TauXyXzYzA.z;
+        // derivVelRho.x += TauXyXzYzA.x / rhoPresMuA.x;
+        // derivVelRho.y += TauXyXzYzA.y / rhoPresMuA.x;
+        // derivVelRho.z += TauXyXzYzA.z / rhoPresMuA.x;
 
         Real vAB_dot_rAB = dot(velMasA - velMasB, dist3);
         // Shear stress component (Equation from https://www.sciencedirect.com/science/article/pii/S0021999124003218)
-        Real vAB_dot_rAB_over_dist = vAB_dot_rAB / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+        Real vAB_dot_rAB_over_dist = vAB_dot_rAB / (d + paramsD.epsMinMarkersDis * paramsD.h);
 
         // This is not actually stress rate but the weird thing in the bracket of the above paper
-        dTauXyXzYz += 2 * paramsD.zeta * paramsD.G_shear * vAB_dot_rAB_over_dist * gradW * paramsD.markerMass /
-                      (rhoPresMuB.x * rhoPresMuA.x);
+        dTauXyXzYz = 2 * paramsD.zeta * paramsD.G_shear * vAB_dot_rAB_over_dist * gradW * paramsD.markerMass /
+                     (rhoPresMuB.x * rhoPresMuA.x);
+        derivVelRho.x += dTauXyXzYz.x;
+        derivVelRho.y += dTauXyXzYz.y;
+        derivVelRho.z += dTauXyXzYz.z;
         // Do integration for the kernel function, calculate the XSPH term
         if (d > paramsD.h * 1.0e-9f) {
             Real Wab = W3h(paramsD.kernel_type, d, paramsD.ooh);
@@ -2087,7 +2089,6 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
         (time < 1e-6 ||
          int(round(time / m_data_mgr.paramsH->dT)) % m_data_mgr.paramsH->num_proximity_search_steps == 0))
         neighborSearch();
-
     // Execute the kernel
     if (m_data_mgr.paramsH->elastic_SPH) {  // For granular material
         if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
