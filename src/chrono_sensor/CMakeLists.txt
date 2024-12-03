@@ -101,7 +101,6 @@ endif()
 # ------------------------------------------------------------------------------
 
 find_package(OptiX REQUIRED)
-
 message(STATUS "OptiX include directory: ${OptiX_INCLUDE}")
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -418,6 +417,7 @@ set(ChronoEngine_sensor_FILTERS_SOURCES
     filters/ChFilterLidarNoise.cpp
   	filters/ChFilterVisualize.cpp
     filters/ChFilterSave.cpp
+    filters/ChFilterSaveHDR.cpp
     filters/ChFilterSavePtCloud.cpp
   	filters/ChFilterGrayscale.cpp
     filters/ChFilterLidarReduce.cpp
@@ -442,6 +442,7 @@ set(ChronoEngine_sensor_FILTERS_HEADERS
     filters/ChFilterLidarNoise.h
   	filters/ChFilterVisualize.h
     filters/ChFilterSave.h
+    filters/ChFilterSaveHDR.h
     filters/ChFilterSavePtCloud.h
   	filters/ChFilterGrayscale.h
     filters/ChFilterLidarReduce.h
