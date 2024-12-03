@@ -84,6 +84,7 @@
 #include "chrono_sensor/filters/ChFilterPCfromDepth.h"
 #include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_sensor/filters/ChFilterSavePtCloud.h"
+#include "chrono_sensor/filters/ChFilterSaveHDR.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 #include "chrono_sensor/filters/ChFilterVisualizePointCloud.h"
@@ -223,6 +224,7 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChFilterVisualize)
 %shared_ptr(chrono::sensor::ChFilterSave)
 %shared_ptr(chrono::sensor::ChFilterSavePtCloud)
+%shared_ptr(chrono::sensor::ChFilterSaveHDR)
 %shared_ptr(chrono::sensor::ChFilterOptixRender)
 %shared_ptr(chrono::sensor::ChFilterPCfromDepth)
 %shared_ptr(chrono::sensor::ChFilterAccelerometerUpdate)
@@ -321,6 +323,7 @@ using namespace chrono::sensor;
 %include "chrono_sensor/filters/ChFilterPCfromDepth.h"
 %include "chrono_sensor/filters/ChFilterSave.h"
 %include "chrono_sensor/filters/ChFilterSavePtCloud.h"
+%include "chrono_sensor/filters/ChFilterSaveHDR.h"
 %include "chrono_sensor/filters/ChFilterVisualize.h"
 %include "chrono_sensor/filters/ChFilterVisualizePointCloud.h"
 %include "chrono_sensor/filters/ChFilterImageOps.h"

@@ -24,7 +24,9 @@
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/utils/ChUtilsCreators.h"
+#include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_sensor/filters/ChFilterSaveHDR.h"
 
 #include "chrono/assets/ChVisualShapeModelFile.h"
 
@@ -88,7 +90,8 @@ double step_size = 1e-2;
 float end_time = 200.0f;
 
 // Save camera images
-bool save = false;
+bool save = true;
+bool hdr = true;
 
 // Render camera images
 bool vis = true;
@@ -270,9 +273,14 @@ int main(int argc, char* argv[]) {
     // Provides the host access to this RGBA8 buffer
     cam->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
 
-    if (save)
-        // Save the current image to a png file at the specified path
-        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "rgb/"));
+    if (save) {
+        if (hdr) {
+            cam->PushFilter(chrono_types::make_shared<ChFilterSaveHDR>(out_dir + "rgb/"));
+        } else {
+            // Save the current image to a png file at the specified path
+            cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "rgb/"));
+        }
+    }
 
     // Filter the sensor to grayscale
     cam->PushFilter(chrono_types::make_shared<ChFilterGrayscale>());
@@ -347,7 +355,7 @@ int main(int argc, char* argv[]) {
         depth->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Depth Camera"));
 
     // Set max depth of the depth camera
-    depth->SetMaxDepth(30.f); // meters
+    depth->SetMaxDepth(30.f);  // meters
     // Note: With Depth camera, an access filter is already added to the filter graph internally. DO NOT add another.
     // Add the depth camera to the sensor manager
     manager->AddSensor(depth);
@@ -421,7 +429,6 @@ int main(int argc, char* argv[]) {
         depth->SetOffsetPose(chrono::ChFrame<double>(
             {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
             QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
-            
 
         // Access the depth buffer from depth camera
         depth_ptr = depth->GetMostRecentBuffer<UserDepthBufferPtr>();
@@ -435,7 +442,7 @@ int main(int argc, char* argv[]) {
             float depth = depth_ptr->Buffer[depth_ptr->Height * depth_ptr->Width / 2].depth;
             std::cout << "Depth buffer recieved from depth camera. Camera resolution: " << depth_ptr->Width << "x"
                       << depth_ptr->Height << ", frame= " << depth_ptr->LaunchedCount << ", t=" << depth_ptr->TimeStamp
-                      << ", depth ["<<depth_ptr->Height * depth_ptr->Width / 2 << "] ="<< depth << "m" << std::endl
+                      << ", depth [" << depth_ptr->Height * depth_ptr->Width / 2 << "] =" << depth << "m" << std::endl
                       << std::endl;
         }
 

@@ -28,6 +28,7 @@
 #include "chrono_sensor/filters/ChFilterLidarNoise.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
 #include "chrono_sensor/filters/ChFilterSave.h"
+#include "chrono_sensor/filters/ChFilterSaveHDR.h"
 #include "chrono_sensor/filters/ChFilterSavePtCloud.h"
 #include "chrono_sensor/filters/ChFilterGrayscale.h"
 #include "chrono_sensor/filters/ChFilterLidarReduce.h"
@@ -535,6 +536,9 @@ std::shared_ptr<ChFilter> CreateFilterJSON(const Value& value) {
     } else if (type.compare("ChFilterSave") == 0) {
         std::string data_path = GetStringMemberWithDefault(value, "Data Path");
         filter = chrono_types::make_shared<ChFilterSave>(data_path);
+    } else if (type.compare("ChFilterSaveHDR") == 0) {
+        std::string data_path = GetStringMemberWithDefault(value, "Data Path");
+        filter = chrono_types::make_shared<ChFilterSaveHDR>(data_path);
     } else if (type.compare("ChFilterSavePtCloud") == 0) {
         std::string data_path = GetStringMemberWithDefault(value, "Data Path");
         filter = chrono_types::make_shared<ChFilterSavePtCloud>(data_path);
