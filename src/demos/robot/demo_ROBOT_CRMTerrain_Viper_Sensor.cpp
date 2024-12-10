@@ -581,27 +581,18 @@ int main(int argc, char* argv[]) {
     while (t < tend) {
         rover->Update();
 
-        //// Run-time visualization
-        //if (visualization && frame % render_steps == 0) {
-        //    if (!visFSI->Render())
-        //        break;
-        //}
-       /* if (!visualization) {
-            std::cout << sysFSI.GetSimTime() << "  " << sysFSI.GetRTF() << std::endl;
-        }*/
-       
-        if(frame % sensor_render_steps == 0) {
+        if(frame % sensor_render_steps == 0 && frame > 0) {
             //std::cout << "Adding VDB grid" << std::endl;
             h_points = sysFSI.GetParticleData();
             std::cout << "\n##### Adding " << h_points.size()/6 << " to VDB Grid####\n" << std::endl;
-            //n_pts = sysFSI.GetNumFluidMarkers();
             manager->scene->SetFSIParticles(h_points.data());
             manager->scene->SetFSINumFSIParticles(h_points.size()/6);
          
             createVoxelGrid(h_points, sys, manager->scene);
+            manager->Update();
         }
       
-        manager->Update();
+       
         sysFSI.DoStepDynamics_FSI();
         t += step_size;
         frame++;

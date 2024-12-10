@@ -38,7 +38,7 @@ __hostdev__ struct DustParticle {
     float3 vel;
     float3 pos0;
     float3 vel0;
-    float mass;
+    int lifespan;
     bool isActive;
     float t0;
 };

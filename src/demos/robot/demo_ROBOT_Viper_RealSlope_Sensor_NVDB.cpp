@@ -32,6 +32,7 @@
 #include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChSegmentationCamera.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/filters/ChFilterAccess.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
@@ -51,6 +52,7 @@
 
 #include <execution>
 #include <random>
+#include <filesystem>
 
 // Chrono namespaces
 using namespace chrono;
@@ -68,7 +70,7 @@ double slope_angle;
 double total_mass;
 
 // output directories and settings
-std::string out_dir = "/root/sbel/outputs/FSI_Viper_RealSlope_SlopeAngle_";
+std::string out_dir = "FSI_Viper_RealSlope";
 
 // Dimension of the space domain
 double bxDim = 6.0;
@@ -79,11 +81,11 @@ double bzDim = 0.2;
 ChVector3d init_loc(1.0 - bxDim / 2.0 + .25f, 0, bzDim + 0.4);
 
 // Simulation time and stepsize
-double total_time = 20.0;
+double total_time = 10.0;
 double dT;
 
 // Save data as csv files to see the results off-line using Paraview
-bool output = false;
+bool output = true;
 int out_fps = 10;
 
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
@@ -127,7 +129,7 @@ NoiseModel noise_model = NONE;
 // Either PINHOLE or SPHERICAL
 CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
 // Update rate in Hz
-float update_rate = 30;
+float update_rate = 100;
 // Image width and height
 unsigned int image_width = 1280;
 unsigned int image_height = 720;
@@ -235,20 +237,88 @@ int num_meshes = 100;
 std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh 
 
 
+void saveVectorToBinaryFile(const std::vector<float>& data, const std::string& dir, int fileNumber) {
+    // Generate the file name with directory
+    std::string fileName = dir + "/fluid" + std::to_string(fileNumber) + ".dat";
+
+    // Open the file in binary mode
+    std::ofstream outFile(fileName, std::ios::binary);
+    if (!outFile) {
+        std::cerr << "Error: Could not open file " << fileName << " for writing." << std::endl;
+        return;
+    }
+
+    // Write the size of the vector (optional, for later reading)
+    size_t dataSize = data.size();
+    outFile.write(reinterpret_cast<const char*>(&dataSize), sizeof(size_t));
+
+    // Write the vector contents
+    outFile.write(reinterpret_cast<const char*>(data.data()), dataSize * sizeof(float));
+
+    // Close the file
+    outFile.close();
+
+    std::cout << "Data successfully saved to " << fileName << std::endl;
+}
+
+std::vector<float> loadVectorFromBinaryFile(const std::string& dir, int fileNumber) {
+    // Generate the file name with directory
+    std::string fileName = dir + "/fluid" + std::to_string(fileNumber) + ".dat";
+
+    // Open the file in binary mode
+    std::ifstream inFile(fileName, std::ios::binary);
+    if (!inFile) {
+        throw std::runtime_error("Error: Could not open file " + fileName + " for reading.");
+    }
+
+    // Read the size of the vector
+    size_t dataSize = 0;
+    inFile.read(reinterpret_cast<char*>(&dataSize), sizeof(size_t));
+
+    // Read the vector contents
+    std::vector<float> data(dataSize);
+    inFile.read(reinterpret_cast<char*>(data.data()), dataSize * sizeof(float));
+
+    // Close the file
+    inFile.close();
+
+    std::cout << "Data successfully loaded from " << fileName << std::endl;
+    return data;
+}
+
+int countFilesInDirectory(const std::string& dir) {
+    namespace fs = std::filesystem;
+
+    // Check if the directory exists
+    if (!fs::exists(dir) || !fs::is_directory(dir)) {
+        throw std::runtime_error("Error: Directory " + dir + " does not exist or is not a valid directory.");
+    }
+
+    // Count files in the directory
+    int fileCount = 0;
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (entry.is_regular_file()) {
+            ++fileCount;
+        }
+    }
+
+    return fileCount;
+}
+
 int main(int argc, char* argv[]) {
     // The path to the Chrono data directory
     // SetChronoDataPath(CHRONO_DATA_DIR);
-
+    bool runFSIOnline = true;
     // Create a physical system and a corresponding FSI system
     ChSystemNSC sysMBS;
     ChSystemFsi sysFSI(&sysMBS);
 
     // Use JSON file to set the FSI parameters
 
-    std::string inputJson = GetChronoDataFile("fsi/input_json/demo_ROBOT_Viper_RealSlope.json");
-
+    std::string inputJson = GetChronoDataFile("fsi/input_json/demo_ROBOT_Viper_RealSlope.json"); //
+    
     total_mass = 440.0;
-    slope_angle = 20.0 / 180.0 * CH_PI;
+    slope_angle = 5.0 / 180.0 * CH_PI;
     wheel_AngVel = 0.8;
     out_dir = GetChronoOutputPath() + "FSI_Viper_RealSlope/";
     /*  if (argc == 4) {
@@ -297,6 +367,8 @@ int main(int argc, char* argv[]) {
     // Get the SPH kernel length
     kernelLength = sysFSI.GetKernelLength();
 
+    sysFSI.SetNumProximitySearchSteps(8);
+
     // // Set the initial particle spacing
     // sysFSI.SetInitialSpacing(iniSpacing);
 
@@ -337,52 +409,48 @@ int main(int argc, char* argv[]) {
     std::vector<ChVector3d> points = sampler.SampleBox(boxCenter, boxHalfDim);
 
     // Add SPH particles from the sampler points to the FSI system
-    auto gz = std::abs(gravity.z());
-    int numPart = (int)points.size();
-    for (int i = 0; i < numPart; i++) {
-        double pre_ini = sysFSI.GetDensity() * gz * (-points[i].z() + bzDim);
-        sysFSI.AddSPHParticle(points[i], sysFSI.GetDensity(), 0, sysFSI.GetViscosity(),
-                              ChVector3d(0),         // initial velocity
-                              ChVector3d(-pre_ini),  // tauxxyyzz
-                              ChVector3d(0)          // tauxyxzyz
-        );
+    if (runFSIOnline) {
+        auto gz = std::abs(gravity.z());
+        int numPart = (int)points.size();
+        for (int i = 0; i < numPart; i++) {
+            double pre_ini = sysFSI.GetDensity() * gz * (-points[i].z() + bzDim);
+            sysFSI.AddSPHParticle(points[i], sysFSI.GetDensity(), 0, sysFSI.GetViscosity(),
+                                  ChVector3d(0),         // initial velocity
+                                  ChVector3d(-pre_ini),  // tauxxyyzz
+                                  ChVector3d(0)          // tauxyxzyz
+            );
+        }
     }
 
     // Create MBD and BCE particles for the solid domain
     CreateSolidPhase(sysMBS, sysFSI);
 
     // Complete construction of the FSI system
-    sysFSI.Initialize();
+    if (runFSIOnline)
+        sysFSI.Initialize();
 
 
     //
     // SENSOR SIMULATION BEGIN
     //
-    // auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
-    // vis_mat->SetAmbientColor({0.f, 0.f, 0.f});
-    // vis_mat->SetDiffuseColor({0.71f, 0.54f, 0.26f});  // 0.701f, 0.762f, 0.770f
-    // vis_mat->SetSpecularColor({0, 0, 0});
-    // vis_mat->SetUseSpecularWorkflow(true);
-    // vis_mat->SetRoughness(.5f);
-    // vis_mat->SetClassID(30000);
-    // vis_mat->SetInstanceID(50000);
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
-    vis_mat->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({0.29f, 0.29f, 0.235f});
+    vis_mat->SetAmbientColor({1, 1, 1});        // 0.65f,0.65f,0.65f
+    vis_mat->SetDiffuseColor({0.5, 0.5, 0.5});  // 0.29f, 0.29f, 0.235f
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::VDB);
+    vis_mat->SetAbsorptionCoefficient(1e-4);
+    vis_mat->SetScatteringCoefficient(0.01);
+    vis_mat->SetEmissivePower(100.f);
+    vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
-    vis_mat->SetClassID(30000);
-    vis_mat->SetInstanceID(20000);
 
 
     auto vol_bbox = chrono_types::make_shared<ChNVDBVolume>(400, 400, 200, 1000, true);
     vol_bbox->SetPos({0, 0, 0});
     vol_bbox->SetFixed(true);
-    // sysMBS.Add(vol_bbox);
+    sysMBS.Add(vol_bbox);
     {
         auto shape = vol_bbox->GetVisualModel()->GetShapeInstances()[0].first;
         if (shape->GetNumMaterials() == 0) {
@@ -412,17 +480,45 @@ int main(int argc, char* argv[]) {
     floor->SetFixed(true);
     sysMBS.Add(floor);
 
+    if (!runFSIOnline) {
+        sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+
+        sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
+        ChCollisionModel::SetDefaultSuggestedEnvelope(0.0025);
+        ChCollisionModel::SetDefaultSuggestedMargin(0.0025);
+
+        auto ground_mat = chrono_types::make_shared<ChContactMaterialNSC>();
+        auto viperfloor = chrono_types::make_shared<ChBodyEasyBox>(6, 4, 0.2, 1000, false, true, ground_mat);
+        viperfloor->SetPos({0, 0, 0});
+        viperfloor->SetFixed(true);
+        auto white = chrono_types::make_shared<ChVisualMaterial>();
+        white->SetDiffuseColor({1,1,1});
+        //viperfloor->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(white);
+        sysMBS.Add(viperfloor);
+    }
+
+    
+
     // Create a Sensor manager
     float intensity = 1.0;
     auto manager = chrono_types::make_shared<ChSensorManager>(&sysMBS);
-    manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
+    //manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
+    manager->scene->AddPointLight({0, -5, 3}, {intensity, intensity, intensity}, 500);
+    manager->scene->AddPointLight({-5, 0, 3}, {intensity, intensity, intensity}, 500);
     manager->scene->SetAmbientLight({.1, .1, .1});
     Background b;
-    b.mode = BackgroundMode::ENVIRONMENT_MAP;
-    b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
+    //b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    //b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = ChVector3f(0, 0, 0);
     manager->scene->SetBackground(b);
     manager->SetVerbose(false);
     manager->SetRayRecursions(4);
+    manager->scene->SetVoxelSize(sysFSI.GetInitialSpacing());
+    manager->scene->SetWindowSize(5);
+    manager->SetRayRecursions(4);
+    manager->scene->SetThresholdVelocity(.2f);
+    manager->scene->SetZThreshold(0.16f);
     Integrator integrator = Integrator::LEGACY;
     bool use_denoiser = false;
 
@@ -431,7 +527,7 @@ int main(int argc, char* argv[]) {
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
     chrono::ChFrame<double> offset_pose1(
-        {0, 5, 1}, QuatFromAngleAxis(-CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+        {0, -5, 1}, QuatFromAngleAxis(CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -473,6 +569,29 @@ int main(int argc, char* argv[]) {
     if (save)
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Wheel_Cam_RealSlope/"));
     manager->AddSensor(cam2);
+
+        auto seg =
+        chrono_types::make_shared<ChSegmentationCamera>(rover->GetChassis()->GetBody(),  // body camera is attached to
+                                                        update_rate,                     // update rate in Hz
+                                                        offset_pose2,                    // offset pose
+                                                        image_width,                     // image width
+                                                        image_height,                    // image height
+                                                        fov,          // camera's horizontal field of view
+                                                        lens_model);  // FOV
+    seg->SetName("Semantic Segmentation Camera");
+    seg->SetLag(lag);
+    seg->SetCollectionWindow(exposure_time);
+
+    // Render the semantic mask
+    if (vis)
+        seg->PushFilter(
+            chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Semantic Segmentation"));
+
+    // Save the semantic mask
+    if (save)
+        seg->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "segmentation/"));
+
+    manager->AddSensor(seg);
 
     chrono::ChFrame<double> offset_pose3({-2.f, 0, .5f}, QuatFromAngleAxis(.2, {0, 1, 0}));
     // chrono::ChFrame<double> offset_pose3({0, 0, 5.f}, Q_from_AngAxis(CH_PI_2, {0, 1, 0}));
@@ -516,7 +635,7 @@ int main(int argc, char* argv[]) {
 
     if (save)
         cam4->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Top_Cam_RealSensor/"));
-    manager->AddSensor(cam4);
+    //manager->AddSensor(cam4);
 
     // Add NanoVDB particles
 
@@ -531,7 +650,7 @@ int main(int argc, char* argv[]) {
 
 
     // Start the simulation
-    unsigned int output_steps = (unsigned int)round(1 / (out_fps * dT));
+    unsigned int output_steps = (unsigned int)round(1 / (update_rate * dT));
     unsigned int render_steps = (unsigned int)round(1 / (render_fps * dT));
     double time = 0.0;
     int current_step = 0;
@@ -545,6 +664,17 @@ int main(int argc, char* argv[]) {
     float addNVDBTime = 0.0f;
     int sensor_render_steps = (unsigned int)round(1 / (update_rate * dT));
     std::vector<float> h_points;
+    int fileNo = 0;
+    std::vector<std::vector<float>> h_points_data;
+    if (!runFSIOnline) {
+        int num_files = 150; //countFilesInDirectory(out_dir);
+        std::cout << "Loading " << num_files << " from " << out_dir <<  std::endl;
+        for (int i = 1; i < num_files; i++) {
+            std::cout << "Reading file: " << out_dir + "/fluid" + std::to_string(i) +  ".dat" << std::endl;
+            h_points_data.push_back(loadVectorFromBinaryFile(out_dir,i));
+        }
+
+    }
     while (time < total_time) {
         std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << timer()/time <<  std::endl;
         if (add_rocks) {
@@ -555,39 +685,42 @@ int main(int argc, char* argv[]) {
                 rock_body->SetFixed(true);
         }
 
-                    
-        if (current_step % sensor_render_steps == 0) {
+        //if (runFSIOnline)
+            rover->Update();            
+        if (current_step % sensor_render_steps == 0 && current_step > 0) {
             //timerNVDB.start();
-            h_points = sysFSI.GetParticleData();
-            // n_pts = sysFSI.GetNumFluidMarkers();
-            // manager->scene->SetFSIParticles(h_points.data());
-            // manager->scene->SetFSINumFSIParticles(h_points.size()/6);
+            if (runFSIOnline)
+             h_points = sysFSI.GetParticleData();
+            else 
+             h_points = h_points_data[fileNo];
+            //h_points = sysFSI.GetParticleData();
+            manager->scene->SetFSIParticles(h_points.data());
+            manager->scene->SetFSINumFSIParticles(h_points.size()/6);
             createVoxelGrid(h_points, sysMBS, manager->scene);
+            manager->Update();
+            fileNo++;
         }
-        manager->Update();
-
-        rover->Update();
-
+ 
         std::cout << "  pos: " << body->GetPos() << std::endl;
         std::cout << "  vel: " << body->GetPosDt() << std::endl;
-        if (output) {
-            ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
-            if (current_step % output_steps == 0) {
-                sysFSI.PrintParticleToFile(out_dir + "/particles");
-                sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
-                SaveParaViewFiles(sysFSI, sysMBS, time);
+        if (runFSIOnline && output) {
+            //ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
+            if (current_step % output_steps == 0 && current_step > 0) {
+                //sysFSI.PrintParticleToFile(out_dir + "/particles");
+                //sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
+                //SaveParaViewFiles(sysFSI, sysMBS, time);
+                saveVectorToBinaryFile(h_points, out_dir, fileNo);
             }
         }
 
-        //// Render system
-        // if (render && current_step % render_steps == 0) {
-        //    if (!fsi_vis.Render())
-        //        break;
-        //}
-
-        timer.start();
-        sysFSI.DoStepDynamics_FSI();
-        timer.stop();
+        if (runFSIOnline) {
+            timer.start();
+            sysFSI.DoStepDynamics_FSI();
+            timer.stop();
+        } else {
+            sysMBS.DoStepDynamics(dT);
+        }
+   
 
         time += dT;
         current_step++;
@@ -912,7 +1045,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         } else {
             sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
         }
-
+    
       /*  wheel_body->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));
         lower_arm->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));
         upper_arm->GetVisualModelFrame().SetRot(QuatFromAngleY(slope_angle));

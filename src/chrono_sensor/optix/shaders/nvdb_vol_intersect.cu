@@ -193,8 +193,11 @@ extern "C" __global__ void __intersection__nvdb_vol_intersect() {
             // Get grid accessor
             nanovdb::DefaultReadAccessor<BuildT> drAcc = grid->tree().getAccessor();
             nanovdb::DefaultReadAccessor<Vec3T> nAcc = normal_grid->tree().getAccessor();
-           
             
+         
+            const nanovdb::Coord& cd = nanovdb::Coord(0);
+            nAcc.get<nanovdb::GetValue<nanovdb::Vec3f>>(cd);
+            nAcc.set<nanovdb::SetValue<nanovdb::Vec3f>>(cd, nanovdb::Vec3f(1.f));
             const Vec3T eye = grid->worldToIndex(ray_orig_v);
             const Vec3T dir = grid->worldToIndexDir(ray_dir_v);
 
