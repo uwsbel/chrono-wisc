@@ -450,6 +450,7 @@ set(ChronoEngine_fea_elements_FILES
     fea/ChElementBeamANCF_3243.cpp
     fea/ChElementBeamANCF_3333.cpp
     fea/ChElementShellANCF_3423.cpp
+	fea/ChElementShellANCF_3423T.cpp
     fea/ChElementShellANCF_3833.cpp
     fea/ChElementShellANCF_3443.cpp
     fea/ChElementShellBST.cpp
@@ -480,6 +481,7 @@ set(ChronoEngine_fea_elements_FILES
     fea/ChElementHexaANCF_3843.h
     fea/ChElementShell.h
     fea/ChElementShellANCF_3423.h
+	fea/ChElementShellANCF_3423T.h
     fea/ChElementShellANCF_3443.h
     fea/ChElementShellANCF_3833.h
     fea/ChElementShellReissner4.h
