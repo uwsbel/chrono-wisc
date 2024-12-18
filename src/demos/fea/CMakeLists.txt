@@ -43,7 +43,8 @@ if(ENABLE_MODULE_IRRLICHT OR ENABLE_MODULE_VSG)
         demo_FEA_shellsANCF_3833
         demo_FEA_hexaANCF_3813
         demo_FEA_loads_dynamics
-		demo_FEA_shellsANCF_3423_SimpleAirlessTire
+        demo_FEA_shellsANCF_3423_SimpleAirlessTire
+        demo_FEA_AirlessTire_SingleWheelTest
     )
     
     # Add demos that require Matlab
