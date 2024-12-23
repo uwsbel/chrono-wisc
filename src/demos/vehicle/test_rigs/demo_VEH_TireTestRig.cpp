@@ -37,6 +37,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -69,7 +70,7 @@ ChContactMethod contact_method = ChContactMethod::NSC;
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // Tire model
-enum class TireType { RIGID, TMEASY, FIALA, PAC89, PAC02, ANCF4, ANCF8, ANCF_TOROIDAL, REISSNER };
+enum class TireType { RIGID, TMEASY, FIALA, PAC89, PAC02, ANCF4, ANCF8, ANCF_TOROIDAL, ANCF_AIRLESS, REISSNER };
 TireType tire_type = TireType::TMEASY;
 
 // Terrain type (RIGID or SCM)
@@ -111,6 +112,10 @@ int main() {
         ancf_tire->SetDivWidth(8);
         ancf_tire->SetPressure(320e3);
         ancf_tire->SetAlpha(0.15);
+        ancf_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim, tire_collision_family);
+        tire = ancf_tire;
+    } else if (tire_type == TireType::ANCF_AIRLESS) {
+        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
         ancf_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim, tire_collision_family);
         tire = ancf_tire;
     } else if (use_JSON) {

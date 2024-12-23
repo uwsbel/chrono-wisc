@@ -9,7 +9,7 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Milad Rakhsha, Radu Serban
+// Authors: Milad Rakhsha, Radu Serban, Michael Taylor
 // =============================================================================
 //
 // Demo on using ANCF shell elements
@@ -396,7 +396,7 @@ int main(int argc, char* argv[]) {
                 element->AddLayer(tSpoke, 0 * CH_DEG_TO_RAD, mat);
 
                 // Set other element properties
-                element->SetAlphaDamp(0.0);  // Structural damping for this element
+                element->SetAlphaDamp(alpha);  // Structural damping for this element
 
                 // Add element to mesh
                 mesh->AddElement(element);
@@ -496,12 +496,14 @@ int main(int argc, char* argv[]) {
 
 
     // Simulation loop
-
+    double time = 0;
     while (vis->Run()) {
         vis->BeginScene();
         vis->Render();
         vis->EndScene();
         sys.DoStepDynamics(0.001);
+        //std::cout << "Simulation Time: " << time << "s \n"; 
+        time += 0.001;
     }
 
     return 0;

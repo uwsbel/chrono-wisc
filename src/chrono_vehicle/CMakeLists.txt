@@ -593,6 +593,8 @@ set(CV_WV_TIRE_FILES
     wheeled_vehicle/tire/FEATire.cpp
     wheeled_vehicle/tire/ANCFToroidalTire.h
     wheeled_vehicle/tire/ANCFToroidalTire.cpp
+	wheeled_vehicle/tire/ANCFAirlessTire.h
+    wheeled_vehicle/tire/ANCFAirlessTire.cpp
     wheeled_vehicle/tire/ReissnerToroidalTire.h
     wheeled_vehicle/tire/ReissnerToroidalTire.cpp
     wheeled_vehicle/tire/Pac02Tire.h
