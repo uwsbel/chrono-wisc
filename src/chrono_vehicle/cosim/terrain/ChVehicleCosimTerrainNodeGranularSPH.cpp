@@ -62,7 +62,9 @@ ChVehicleCosimTerrainNodeGranularSPH::ChVehicleCosimTerrainNodeGranularSPH(doubl
     : ChVehicleCosimTerrainNodeChrono(Type::GRANULAR_SPH, length, width, ChContactMethod::SMC),
       m_terrain(nullptr),
       m_depth(0),
-      m_active_box_size(0) {
+      m_active_box_size(0),
+      m_show_geometry(true),
+      m_show_bce(true) {
     // Create the system and set default method-specific solver settings
     m_system = new ChSystemSMC;
 
@@ -81,7 +83,9 @@ ChVehicleCosimTerrainNodeGranularSPH::ChVehicleCosimTerrainNodeGranularSPH(doubl
 ChVehicleCosimTerrainNodeGranularSPH::ChVehicleCosimTerrainNodeGranularSPH(const std::string& specfile)
     : ChVehicleCosimTerrainNodeChrono(Type::GRANULAR_SPH, 0, 0, ChContactMethod::SMC),
       m_terrain(nullptr),
-      m_active_box_size(0) {
+      m_active_box_size(0),
+      m_show_geometry(true),
+      m_show_bce(true) {
     // Create systems
     m_system = new ChSystemSMC;
 
@@ -143,6 +147,11 @@ void ChVehicleCosimTerrainNodeGranularSPH::SetPropertiesSPH(const std::string& s
 
     // Cache the name of the specfile (used when the CRMTerrain is actually constructed)
     m_specfile = specfile;
+}
+
+void ChVehicleCosimTerrainNodeGranularSPH::SetSolidVisualization(bool show_geometry, bool show_bce) {
+    m_show_geometry = show_geometry;
+    m_show_bce = show_bce;
 }
 
 // -----------------------------------------------------------------------------
@@ -253,7 +262,9 @@ void ChVehicleCosimTerrainNodeGranularSPH::CreateRigidProxy(unsigned int i) {
     body->SetFixed(true);  // proxy body always fixed
 
     // Create visualization asset (use collision shapes)
-    m_geometry[i_shape].CreateVisualizationAssets(body, VisualizationType::COLLISION);
+    if (m_show_geometry) {
+        m_geometry[i_shape].CreateVisualizationAssets(body, VisualizationType::COLLISION);
+    }
 
     // Create collision shapes (only if obstacles are present)
     auto num_obstacles = m_obstacles.size();
@@ -278,6 +289,127 @@ void ChVehicleCosimTerrainNodeGranularSPH::CreateRigidProxy(unsigned int i) {
     // Update dimension of FSI active domain based on shape AABB
     m_active_box_size = std::max(m_active_box_size, m_aabb[i_shape].Size().Length());
 }
+
+// Set state of proxy rigid body.
+void ChVehicleCosimTerrainNodeGranularSPH::UpdateRigidProxy(unsigned int i, BodyState& rigid_state) {
+    auto proxy = std::static_pointer_cast<ProxyBodySet>(m_proxies[i]);
+    proxy->bodies[0]->SetPos(rigid_state.pos);
+    proxy->bodies[0]->SetPosDt(rigid_state.lin_vel);
+    proxy->bodies[0]->SetRot(rigid_state.rot);
+    proxy->bodies[0]->SetAngVelParent(rigid_state.ang_vel);
+    proxy->bodies[0]->SetAngAccParent(VNULL);
+}
+
+// Collect resultant contact force and torque on rigid proxy body.
+void ChVehicleCosimTerrainNodeGranularSPH::GetForceRigidProxy(unsigned int i, TerrainForce& rigid_contact) {
+    auto proxy = std::static_pointer_cast<ProxyBodySet>(m_proxies[i]);
+    rigid_contact.point = ChVector3d(0, 0, 0);
+    rigid_contact.force = proxy->bodies[0]->GetAccumulatedForce();
+    rigid_contact.moment = proxy->bodies[0]->GetAccumulatedTorque();
+}
+
+// -----------------------------------------------------------------------------
+// Create bodies with triangular contact geometry as proxies for the mesh faces.
+// Used for flexible bodies.
+// Assign to each body an identifier equal to the index of its corresponding mesh face.
+// Maintain a list of all bodies associated with the object.
+// Add all proxy bodies to the same collision family and disable collision between any
+// two members of this family.
+void ChVehicleCosimTerrainNodeGranularSPH::CreateMeshProxy(unsigned int i) {
+    if (m_verbose) {
+        cout << "[Terrain node] Create mesh proxy " << i << endl;
+    }
+
+    // Get shape associated with the given object
+    int i_shape = m_obj_map[i];
+
+    // Create the proxy associated with the given object
+    auto proxy = chrono_types::make_shared<ProxyMesh>();
+
+    // Note: it is assumed that there is one and only one mesh defined!
+    const auto& trimesh_shape = m_geometry[i_shape].coll_meshes[0];
+    const auto& trimesh = trimesh_shape.trimesh;
+    auto material = m_geometry[i_shape].materials[trimesh_shape.matID].CreateMaterial(m_method);
+
+    // Create a contact surface mesh constructed from the provided trimesh
+    auto surface = chrono_types::make_shared<fea::ChContactSurfaceMesh>(material);
+    surface->ConstructFromTrimesh(trimesh, m_radius);
+
+    // Create maps from pointer-based to index-based for the nodes in the mesh contact surface.
+    // Note that here, the contact surface includes all faces in the geometry trimesh..
+    int vertex_index = 0;
+    for (const auto& tri : surface->GetTrianglesXYZ()) {
+        if (proxy->ptr2ind_map.insert({tri->GetNode(0), vertex_index}).second) {
+            proxy->ind2ptr_map.insert({vertex_index, tri->GetNode(0)});
+            ++vertex_index;
+        }
+        if (proxy->ptr2ind_map.insert({tri->GetNode(1), vertex_index}).second) {
+            proxy->ind2ptr_map.insert({vertex_index, tri->GetNode(1)});
+            ++vertex_index;
+        }
+        if (proxy->ptr2ind_map.insert({tri->GetNode(2), vertex_index}).second) {
+            proxy->ind2ptr_map.insert({vertex_index, tri->GetNode(2)});
+            ++vertex_index;
+        }
+    }
+
+    assert(proxy->ptr2ind_map.size() == surface->GetNumVertices());
+    assert(proxy->ind2ptr_map.size() == surface->GetNumVertices());
+
+    // Construct the FEA mesh and add to it the contact surface.
+    // Do not add nodes to the mesh, else they will be polluted during integration
+    proxy->mesh = chrono_types::make_shared<fea::ChMesh>();
+    proxy->mesh->AddContactSurface(surface);
+
+    if (m_show_geometry) {
+        auto vis_mesh = chrono_types::make_shared<ChVisualShapeFEA>();
+        vis_mesh->SetFEMdataType(ChVisualShapeFEA::DataType::CONTACTSURFACES);
+        vis_mesh->SetWireframe(true);
+        proxy->mesh->AddVisualShapeFEA(vis_mesh);
+    }
+
+    // Add mesh to MBS and FSI systems
+    m_system->AddMesh(proxy->mesh);
+    m_terrain->AddFeaMesh(proxy->mesh, false);
+    
+    m_proxies[i] = proxy;
+}
+
+// Set position, orientation, and velocity of proxy bodies based on mesh faces.
+void ChVehicleCosimTerrainNodeGranularSPH::UpdateMeshProxy(unsigned int i, MeshState& mesh_state) {
+    // Get the proxy (contact surface) associated with this object
+    auto proxy = std::static_pointer_cast<ProxyMesh>(m_proxies[i]);
+
+    int num_vertices = (int)mesh_state.vpos.size();
+
+    for (int in = 0; in < num_vertices; in++) {
+        auto& node = proxy->ind2ptr_map[in];
+        node->SetPos(mesh_state.vpos[in]);
+        node->SetPosDt(mesh_state.vvel[in]);
+    }
+}
+
+// Collect forces on the nodes
+void ChVehicleCosimTerrainNodeGranularSPH::GetForceMeshProxy(unsigned int i, MeshContact& mesh_contact) {
+    static constexpr double zero_force_length2 = 1e-10;
+    auto proxy = std::static_pointer_cast<ProxyMesh>(m_proxies[i]);
+
+    ChVector3d force;
+    mesh_contact.nv = 0;
+    for (const auto& node : proxy->ptr2ind_map) {
+        const auto& f = node.first->GetForce();
+        if (f.Length2() > zero_force_length2) {
+            mesh_contact.vidx.push_back(node.second);
+            mesh_contact.vforce.push_back(node.first->GetForce());
+            mesh_contact.nv++;
+        }
+    }
+    ////if (i == 0 && mesh_contact.nv > 0) {
+    ////    cout << " num contact nodes: " << mesh_contact.nv << endl;
+    ////}
+}
+
+// -----------------------------------------------------------------------------
 
 // Once all proxy bodies are created, complete construction of the underlying FSI system.
 void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects) {
@@ -308,7 +440,8 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
             m_vsys->SetCameraMoveScale(0.2f);
             m_vsys->EnableFluidMarkers(true);
             m_vsys->EnableBoundaryMarkers(false);
-            m_vsys->EnableRigidBodyMarkers(true);
+            m_vsys->EnableRigidBodyMarkers(m_show_bce);
+            m_vsys->EnableFlexBodyMarkers(m_show_bce);
             m_vsys->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
             m_vsys->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
             m_vsys->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(
@@ -320,32 +453,6 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
         }
     }
 }
-
-// Set state of proxy rigid body.
-void ChVehicleCosimTerrainNodeGranularSPH::UpdateRigidProxy(unsigned int i, BodyState& rigid_state) {
-    auto proxy = std::static_pointer_cast<ProxyBodySet>(m_proxies[i]);
-    proxy->bodies[0]->SetPos(rigid_state.pos);
-    proxy->bodies[0]->SetPosDt(rigid_state.lin_vel);
-    proxy->bodies[0]->SetRot(rigid_state.rot);
-    proxy->bodies[0]->SetAngVelParent(rigid_state.ang_vel);
-    proxy->bodies[0]->SetAngAccParent(VNULL);
-}
-
-// Collect resultant contact force and torque on rigid proxy body.
-void ChVehicleCosimTerrainNodeGranularSPH::GetForceRigidProxy(unsigned int i, TerrainForce& rigid_contact) {
-    auto proxy = std::static_pointer_cast<ProxyBodySet>(m_proxies[i]);
-    rigid_contact.point = ChVector3d(0, 0, 0);
-    rigid_contact.force = proxy->bodies[0]->GetAccumulatedForce();
-    rigid_contact.moment = proxy->bodies[0]->GetAccumulatedTorque();
-}
-
-// -----------------------------------------------------------------------------
-
-void ChVehicleCosimTerrainNodeGranularSPH::CreateMeshProxy(unsigned int i) {}
-
-void ChVehicleCosimTerrainNodeGranularSPH::UpdateMeshProxy(unsigned int i, MeshState& mesh_state) {}
-
-void ChVehicleCosimTerrainNodeGranularSPH::GetForceMeshProxy(unsigned int i, MeshContact& mesh_contact) {}
 
 // -----------------------------------------------------------------------------
 
@@ -362,11 +469,8 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnRender() {
     if (!m_vsys)
         return;
 
-    if (m_track) {
-        auto proxy = std::static_pointer_cast<ProxyBodySet>(m_proxies[0]);  // proxy for first object
-        ChVector3d cam_point = proxy->bodies[0]->GetPos();                  // position of first body in proxy set
-        m_vsys->UpdateCamera(m_cam_pos, cam_point);
-    }
+    if (m_track)
+        m_vsys->UpdateCamera(m_cam_pos, m_chassis_loc);
 
     auto ok = m_vsys->Render();
     if (!ok)
