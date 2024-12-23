@@ -34,6 +34,14 @@
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_ANCFTire.h"
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_FialaTire.h"
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_ReissnerTire.h"
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_RigidTire.h"
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_TMeasyTire.h"
+#include "chrono_models/vehicle/hmmwv/tire/HMMWV_Pac89Tire.h"
+#include "chrono_models/vehicle/hmmwv/HMMWV_Wheel.h"
+
 #ifdef CHRONO_IRRLICHT
     #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 using namespace chrono::irrlicht;
@@ -65,35 +73,19 @@ ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // Tire model
 enum class TireType { RIGID, TMEASY, FIALA, PAC89, PAC02, ANCF4, ANCF8, ANCF_TOROIDAL, ANCF_AIRLESS, REISSNER };
-TireType tire_type = TireType::TMEASY;
+TireType tire_type = TireType::ANCF_AIRLESS;
 
 // Terrain type (RIGID or SCM)
 enum class TerrainType { RIGID, SCM };
 TerrainType terrain_type = TerrainType::RIGID;
 
-// Tire specification file
-////std::string tire_json = "hmmwv/tire/HMMWV_RigidTire.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_TMeasyTire.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_FialaTire.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_Pac89Tire.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_Pac02Tire.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_ANCF4Tire_Lumped.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_ANCF8Tire_Lumped.json";
-////std::string tire_json = "hmmwv/tire/HMMWV_ReissnerTire.json";
-std::string tire_json = "Polaris/Polaris_TMeasyTire.json";
-////std::string tire_json = "Polaris/Polaris_RigidTire.json";
-////std::string tire_json = "Polaris/Polaris_RigidMeshTire.json";
-////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
-
-// Wheel specification file
-////std::string wheel_json = "hmmwv/wheel/HMMWV_Wheel.json";
-std::string wheel_json = "Polaris/Polaris_Wheel.json";
-
 double render_fps = 120;
 bool debug_output = false;
 bool gnuplot_output = true;
 bool blender_output = false;
-
+////std::string wheel_json = "hmmwv/wheel/HMMWV_Wheel.json";
+std::string wheel_json = "Polaris/Polaris_Wheel.json";
+bool use_JSON = false;
 // -----------------------------------------------------------------------------
 
 int main() {
@@ -102,7 +94,6 @@ int main() {
     // --------------------------------
 
     auto wheel = ReadWheelJSON(vehicle::GetDataFile(wheel_json));
-    auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
 
     std::shared_ptr<ChTire> tire;
     if (tire_type == TireType::ANCF_TOROIDAL) {
@@ -114,11 +105,9 @@ int main() {
         ancf_tire->SetDivWidth(8);
         ancf_tire->SetPressure(320e3);
         ancf_tire->SetAlpha(0.15);
-        ancf_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim, tire_collision_family);
         tire = ancf_tire;
     } else if (tire_type == TireType::ANCF_AIRLESS) {
         auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
-        ancf_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim, tire_collision_family);
         tire = ancf_tire;
     } else if (use_JSON) {
         std::string tire_file;
@@ -166,27 +155,29 @@ int main() {
             case TireType::ANCF4: {
                 auto ancf4_tire = chrono_types::make_shared<hmmwv::HMMWV_ANCFTire>(
                     "ANCF tire", hmmwv::HMMWV_ANCFTire::ElementType::ANCF_4);
-                ancf4_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim,
-                                                  tire_collision_family);
                 tire = ancf4_tire;
                 break;
             }
             case TireType::ANCF8: {
                 auto ancf8_tire = chrono_types::make_shared<hmmwv::HMMWV_ANCFTire>(
                     "ANCF tire", hmmwv::HMMWV_ANCFTire::ElementType::ANCF_8);
-                ancf8_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim,
-                                                  tire_collision_family);
                 tire = ancf8_tire;
                 break;
             }
             case TireType::REISSNER: {
                 auto reissner_tire = chrono_types::make_shared<hmmwv::HMMWV_ReissnerTire>("Reissner tire");
-                reissner_tire->SetContactSurfaceType(tire_contact_surface_type, tire_contact_surface_dim,
-                                                     tire_collision_family);
                 tire = reissner_tire;
                 break;
             }
         }
+    }
+
+    bool handling_tire = std::dynamic_pointer_cast<ChForceElementTire>(tire) != nullptr;
+    bool fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(tire) != nullptr;
+
+    if (handling_tire && terrain_type == TerrainType::SCM) {
+        cerr << "ERROR: Handling tire models cannot be used with SCM terrain." << endl;
+        return 1;
     }
 
     // Set tire contact surface (relevant for FEA tires only)

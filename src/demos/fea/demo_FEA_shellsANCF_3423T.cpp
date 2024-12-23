@@ -49,7 +49,8 @@ int main(int argc, char* argv[]) {
     std::cout << "-----------------------------------------------------------\n";
     std::cout << "-----------------------------------------------------------\n";
 
-    //Create a demo of an "I" shape using 4 elements.  2 regular Shell 3423 elements on the top and bottom and 2 Shell 3423 T elements in the middle.
+    // Create a demo of an "I" shape using 4 elements.  2 regular Shell 3423 elements on the top and bottom and 2 Shell
+    // 3423 T elements in the middle.
 
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
     auto mesh = chrono_types::make_shared<ChMesh>();
@@ -60,7 +61,7 @@ int main(int argc, char* argv[]) {
     double plate_width = 0.1;
     double plate_thickness = 0.01;
 
-    double TOffset = 0; // 0 = "I" in the center of the horizontal plates
+    double TOffset = 0;  // 0 = "I" in the center of the horizontal plates
 
     // Create the nodes for the top plate
     auto node_1Top = chrono_types::make_shared<ChNodeFEAxyzD>(ChVector3d(0.0, -0.5 * plate_width, 0.5 * vert_plate_len),
@@ -72,17 +73,16 @@ int main(int argc, char* argv[]) {
     auto node_4Top = chrono_types::make_shared<ChNodeFEAxyzD>(ChVector3d(0.0, 0.5 * plate_width, 0.5 * vert_plate_len),
                                                               ChVector3d(0.0, 0.0, 1.0));
 
-
     // Creat the nodes for the middle of the "I" that both "T"s will connect to
-    auto node_B = chrono_types::make_shared<ChNodeFEAxyzD>(
-        ChVector3d(0.5 * horiz_plate_len, -0.5 * plate_width, 0.0), ChVector3d(1.0, 0.0, 0.0));
-    auto node_C = chrono_types::make_shared<ChNodeFEAxyzD>(
-        ChVector3d(0.5 * horiz_plate_len, 0.5 * plate_width, 0.0),
+    auto node_B = chrono_types::make_shared<ChNodeFEAxyzD>(ChVector3d(0.5 * horiz_plate_len, -0.5 * plate_width, 0.0),
+                                                           ChVector3d(1.0, 0.0, 0.0));
+    auto node_C = chrono_types::make_shared<ChNodeFEAxyzD>(ChVector3d(0.5 * horiz_plate_len, 0.5 * plate_width, 0.0),
                                                            ChVector3d(1.0, 0.0, 0.0));
 
-    // Create the nodes for the bottom plate (Note that node 3 is under node 1, etc. so that the position vector gradient for the T-Up element points along the positive x axis
-    auto node_3Bot = chrono_types::make_shared<ChNodeFEAxyzD>(ChVector3d(0.0, -0.5 * plate_width, -0.5 * vert_plate_len),
-                                                              ChVector3d(0.0, 0.0, 1.0));
+    // Create the nodes for the bottom plate (Note that node 3 is under node 1, etc. so that the position vector
+    // gradient for the T-Up element points along the positive x axis
+    auto node_3Bot = chrono_types::make_shared<ChNodeFEAxyzD>(
+        ChVector3d(0.0, -0.5 * plate_width, -0.5 * vert_plate_len), ChVector3d(0.0, 0.0, 1.0));
     auto node_4Bot = chrono_types::make_shared<ChNodeFEAxyzD>(
         ChVector3d(horiz_plate_len, -0.5 * plate_width, -0.5 * vert_plate_len), ChVector3d(0.0, 0.0, 1.0));
     auto node_1Bot = chrono_types::make_shared<ChNodeFEAxyzD>(
@@ -106,18 +106,17 @@ int main(int argc, char* argv[]) {
     mesh->AddNode(node_3Bot);
     mesh->AddNode(node_4Bot);
 
-    //Print the locations of the nodes and thier position vector gradients to help with debugging
-    std::cout << "node_1Top " << node_1Top->GetPos() << ", " << node_1Top->GetSlope1() << std::endl; 
-    std::cout << "node_2Top " << node_2Top->GetPos() << ", " << node_2Top->GetSlope1() << std::endl; 
-    std::cout << "node_3Top " << node_3Top->GetPos() << ", " << node_3Top->GetSlope1() << std::endl; 
-    std::cout << "node_4Top " << node_4Top->GetPos() << ", " << node_4Top->GetSlope1() << std::endl; 
-    std::cout << "node_B " <<    node_B->GetPos()    << ", " << node_B->GetSlope1()    << std::endl;
-    std::cout << "node_C " <<    node_C->GetPos()    << ", " << node_C->GetSlope1()    << std::endl;
-    std::cout << "node_1Bot " << node_1Bot->GetPos() << ", " << node_1Bot->GetSlope1() << std::endl; 
-    std::cout << "node_2Bot " << node_2Bot->GetPos() << ", " << node_2Bot->GetSlope1() << std::endl; 
-    std::cout << "node_3Bot " << node_3Bot->GetPos() << ", " << node_3Bot->GetSlope1() << std::endl; 
-    std::cout << "node_4Bot " << node_4Bot->GetPos() << ", " << node_4Bot->GetSlope1() << std::endl; 
-
+    // Print the locations of the nodes and thier position vector gradients to help with debugging
+    std::cout << "node_1Top " << node_1Top->GetPos() << ", " << node_1Top->GetSlope1() << std::endl;
+    std::cout << "node_2Top " << node_2Top->GetPos() << ", " << node_2Top->GetSlope1() << std::endl;
+    std::cout << "node_3Top " << node_3Top->GetPos() << ", " << node_3Top->GetSlope1() << std::endl;
+    std::cout << "node_4Top " << node_4Top->GetPos() << ", " << node_4Top->GetSlope1() << std::endl;
+    std::cout << "node_B " << node_B->GetPos() << ", " << node_B->GetSlope1() << std::endl;
+    std::cout << "node_C " << node_C->GetPos() << ", " << node_C->GetSlope1() << std::endl;
+    std::cout << "node_1Bot " << node_1Bot->GetPos() << ", " << node_1Bot->GetSlope1() << std::endl;
+    std::cout << "node_2Bot " << node_2Bot->GetPos() << ", " << node_2Bot->GetSlope1() << std::endl;
+    std::cout << "node_3Bot " << node_3Bot->GetPos() << ", " << node_3Bot->GetSlope1() << std::endl;
+    std::cout << "node_4Bot " << node_4Bot->GetPos() << ", " << node_4Bot->GetSlope1() << std::endl;
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
@@ -127,8 +126,7 @@ int main(int argc, char* argv[]) {
     ChVector3d G(8.0769231e6, 8.0769231e6, 8.0769231e6);
     auto mat = chrono_types::make_shared<ChMaterialShellANCF>(rho, E, nu, G);
 
-
-    //Create the top plate
+    // Create the top plate
     auto elementTop = chrono_types::make_shared<ChElementShellANCF_3423>();
     elementTop->SetNodes(node_1Top, node_2Top, node_3Top, node_4Top);
     // Set element dimensions
@@ -176,8 +174,6 @@ int main(int argc, char* argv[]) {
     // Add element to mesh
     mesh->AddElement(elementTUp);
 
-
-
     // Add the mesh to the system
     sys.Add(mesh);
 
@@ -185,26 +181,26 @@ int main(int argc, char* argv[]) {
     // Options for visualization in irrlicht
     // -------------------------------------
 
-    auto visualizemeshA = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshA = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshA->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_SPEED_NORM);
     visualizemeshA->SetColorscaleMinMax(0.0, 5.50);
     visualizemeshA->SetShrinkElements(true, 0.85);
     visualizemeshA->SetSmoothFaces(true);
     mesh->AddVisualShapeFEA(visualizemeshA);
 
-    auto visualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshB->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     visualizemeshB->SetWireframe(true);
     visualizemeshB->SetDrawInUndeformedReference(true);
     mesh->AddVisualShapeFEA(visualizemeshB);
 
-    auto visualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_DOT_POS);
     visualizemeshC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizemeshC->SetSymbolsThickness(0.004);
     mesh->AddVisualShapeFEA(visualizemeshC);
 
-    auto visualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshD->SetFEMglyphType(ChVisualShapeFEA::GlyphType::ELEM_TENS_STRAIN);
     visualizemeshD->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizemeshD->SetSymbolsScale(1);
@@ -222,27 +218,25 @@ int main(int argc, char* argv[]) {
     // ----------------------------------
 
     //// Set up solver
-    //auto solver = chrono_types::make_shared<ChSolverMINRES>();
-    //sys.SetSolver(solver);
-    //solver->SetMaxIterations(100);
-    //solver->SetTolerance(1e-10);
-    //solver->EnableDiagonalPreconditioner(true);
+    // auto solver = chrono_types::make_shared<ChSolverMINRES>();
+    // sys.SetSolver(solver);
+    // solver->SetMaxIterations(100);
+    // solver->SetTolerance(1e-10);
+    // solver->EnableDiagonalPreconditioner(true);
 
     //// Set up integrator
-    //auto stepper = chrono_types::make_shared<ChTimestepperHHT>(&sys);
-    //sys.SetTimestepper(stepper);
+    // auto stepper = chrono_types::make_shared<ChTimestepperHHT>(&sys);
+    // sys.SetTimestepper(stepper);
     //// Alternative way of changing the integrator:
     //////sys.SetTimestepperType(ChTimestepper::Type::HHT);
     //////auto stepper = std::static_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper());
 
-    //stepper->SetAlpha(-0.2);
-    //stepper->SetMaxIters(5);
-    //stepper->SetAbsTolerances(1e-2);
-    //stepper->SetStepControl(true);
-    //stepper->SetMinStepSize(1e-4);
+    // stepper->SetAlpha(-0.2);
+    // stepper->SetMaxIters(5);
+    // stepper->SetAbsTolerances(1e-2);
+    // stepper->SetStepControl(true);
+    // stepper->SetMinStepSize(1e-4);
     //////stepper->SetVerbose(true);
-
-
 
     // Set up solver
     auto solver = chrono_types::make_shared<ChSolverSparseLU>();
@@ -261,11 +255,10 @@ int main(int argc, char* argv[]) {
     stepper->SetAlpha(-0.2);
     stepper->SetMaxIters(50);
     stepper->SetAbsTolerances(1e-5);
-    //stepper->SetStepControl(true);
-    //stepper->SetMinStepSize(1e-4);
+    // stepper->SetStepControl(true);
+    // stepper->SetMinStepSize(1e-4);
     stepper->SetModifiedNewton(true);
     ////stepper->SetVerbose(true);
-
 
     // Simulation loop
 
@@ -276,7 +269,7 @@ int main(int argc, char* argv[]) {
         vis->EndScene();
         sys.DoStepDynamics(0.001);
         time += 0.001;
-        //std::cout << "Time = " << time << std::endl;
+        // std::cout << "Time = " << time << std::endl;
     }
 
     return 0;

@@ -55,16 +55,16 @@ int main(int argc, char* argv[]) {
     //-------------------------------------------------
     // Define the geometry
     //-------------------------------------------------
-    double rOut = 0.45;    // meters; Radius of the midsurface of the outer ring of elements
-    double rIn = 0.225;    // meters; Radius of the rigid hub
-    double width = 0.4;    // meters; Width of the Tire
-    double tOut = 0.005;   // meters; thickness of the outer ring of elements
-    double tSpoke = 0.003; // meters; thickness of the spoke elements
-    int numSpokes = 16;  // Number of spokes in the wheel
+    double rOut = 0.45;     // meters; Radius of the midsurface of the outer ring of elements
+    double rIn = 0.225;     // meters; Radius of the rigid hub
+    double width = 0.4;     // meters; Width of the Tire
+    double tOut = 0.005;    // meters; thickness of the outer ring of elements
+    double tSpoke = 0.003;  // meters; thickness of the spoke elements
+    int numSpokes = 16;     // Number of spokes in the wheel
 
-    int numElWidth = 3;       // Number of elements in the width direction
-    int numElSpokeLen = 3;    // Number of elements along the length of the spoke
-    int numElOutPerSpoke = 3; // Number of elements along the length of the spoke
+    int numElWidth = 3;        // Number of elements in the width direction
+    int numElSpokeLen = 3;     // Number of elements along the length of the spoke
+    int numElOutPerSpoke = 3;  // Number of elements along the length of the spoke
 
     double scale = 0.01;
     //-------------------------------------------------
@@ -73,31 +73,33 @@ int main(int argc, char* argv[]) {
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     //  Approximate fiberglass
-    //  Density and Young's modulus were taken from: https://en.wikipedia.org/wiki/Glass_fiber 
-    //  Poisson's ratio was taken from: https://matweb.com/search/DataSheet.aspx?MatGUID=d9c18047c49147a2a7c0b0bb1743e812
-     double rho = 2580; //kg/m^3
-     double E = 76e9; //Pa
-     double nu = 0.2; // Poisson's ratio
-     double G = E / (2 * (1 + nu)); // Shear Modulus Pa
-     ChVector3d Evec(E, E, E);
-     ChVector3d nuVec(nu, nu, nu);
-     ChVector3d Gvec(G, G, G);
-     auto mat = chrono_types::make_shared<ChMaterialShellANCF>(rho, Evec, nuVec, Gvec);
-     double alpha = 0.02; //Damping
-
+    //  Density and Young's modulus were taken from: https://en.wikipedia.org/wiki/Glass_fiber
+    //  Poisson's ratio was taken from:
+    //  https://matweb.com/search/DataSheet.aspx?MatGUID=d9c18047c49147a2a7c0b0bb1743e812
+    double rho = 2580;              // kg/m^3
+    double E = 76e9;                // Pa
+    double nu = 0.2;                // Poisson's ratio
+    double G = E / (2 * (1 + nu));  // Shear Modulus Pa
+    ChVector3d Evec(E, E, E);
+    ChVector3d nuVec(nu, nu, nu);
+    ChVector3d Gvec(G, G, G);
+    auto mat = chrono_types::make_shared<ChMaterialShellANCF>(rho, Evec, nuVec, Gvec);
+    double alpha = 0.02;  // Damping
 
     //-------------------------------------------------
     // Derived geometry
     //-------------------------------------------------
-    int numNodesWidth = numElWidth + 1; //Number of nodes across the width of the tire
-    int numElsOutCir = numSpokes * numElOutPerSpoke;  //number of elements forming a circle in the outer ring
+    int numNodesWidth = numElWidth + 1;               // Number of nodes across the width of the tire
+    int numElsOutCir = numSpokes * numElOutPerSpoke;  // number of elements forming a circle in the outer ring
     int numElsOutCirTot = numElsOutCir * numElWidth;  // number of elements forming the complete outer ring
-    int numNodesOutRingSlice = numElsOutCir;          //number of nodes in a slice normal to the width of the tire
-    int numNodesOutRingTotal = numElsOutCir * (numElWidth + 1);  //total number of nodes in the outer band/ring of the tire
+    int numNodesOutRingSlice = numElsOutCir;          // number of nodes in a slice normal to the width of the tire
+    int numNodesOutRingTotal =
+        numElsOutCir * (numElWidth + 1);  // total number of nodes in the outer band/ring of the tire
 
-    double widthEl = width / numElWidth;   // width of each element
-    double radiansElOuter = CH_2PI / numElsOutCir; //arc spand by a single element in the outer ring
-    double lenElOuter = 2.0 * rOut * std::sin(0.5*radiansElOuter);  //Corresponding length of each element in the outer ring
+    double widthEl = width / numElWidth;            // width of each element
+    double radiansElOuter = CH_2PI / numElsOutCir;  // arc spand by a single element in the outer ring
+    double lenElOuter =
+        2.0 * rOut * std::sin(0.5 * radiansElOuter);  // Corresponding length of each element in the outer ring
 
     double lenElSpk = (rOut - rIn) / numElSpokeLen;
     int numNodesSpokeSlice = numElSpokeLen;
@@ -110,7 +112,6 @@ int main(int argc, char* argv[]) {
     std::cout << " Number of Elements: " << numElsOutCirTot + numSpokes * numElSpokeLen * numElWidth << "\n";
     std::cout << "-----------------------------------------------------------\n";
 
-
     //-------------------------------------------------
     // Create the rigid hub
     //-------------------------------------------------
@@ -120,8 +121,8 @@ int main(int argc, char* argv[]) {
     hub->EnableCollision(false);
 
     auto cyl = chrono_types::make_shared<ChVisualShapeCylinder>(rIn, width);
-    hub->AddVisualShape(cyl, ChFrame<>(ChVector3d(0, 0, 0), ChQuaternion(std::cos(CH_PI_4), std::sin(CH_PI_4), 0.0, 0.0)));
-
+    hub->AddVisualShape(cyl,
+                        ChFrame<>(ChVector3d(0, 0, 0), ChQuaternion(std::cos(CH_PI_4), std::sin(CH_PI_4), 0.0, 0.0)));
 
     //-------------------------------------------------
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
@@ -150,10 +151,10 @@ int main(int argc, char* argv[]) {
         node->SetMass(0);
 
         // Fix all nodes along the axis X=0
-        //if (i % (numElsOutCir + 1) == 0)
+        // if (i % (numElsOutCir + 1) == 0)
         //    node->SetFixed(true);
-        //node->SetFixed(true);
-        //if (i == 0)
+        // node->SetFixed(true);
+        // if (i == 0)
         //    node->SetFixed(true);
 
         // Add node to mesh
@@ -241,19 +242,16 @@ int main(int argc, char* argv[]) {
 
             // Add element to mesh
             mesh->AddElement(element);
-
         }
     }
     if (debugItems) {
         std::cout << std::endl << std::endl;
     }
 
-
-
     //-------------------------------------------------
     // Create the spokes, one by one
     //-------------------------------------------------
-    //int spoke = 0;{
+    // int spoke = 0;{
     for (int spoke = 0; spoke < numSpokes; spoke++) {
         if (debugItems) {
             std::cout << "Spoke # " << spoke << std::endl << std::endl;
@@ -281,10 +279,10 @@ int main(int argc, char* argv[]) {
             //// Fix all nodes along the axis X=0
             // if (i % (numDiv_x + 1) == 0)
             //     node->SetFixed(true);
-            //node->SetFixed(true);
+            // node->SetFixed(true);
 
-            //Constrain the nodes on the hub to the hub
-            if ((i % numNodesSpokeSlice) == (numNodesSpokeSlice-1)) {
+            // Constrain the nodes on the hub to the hub
+            if ((i % numNodesSpokeSlice) == (numNodesSpokeSlice - 1)) {
                 auto constraintxyz = chrono_types::make_shared<ChLinkNodeFrame>();
                 constraintxyz->Initialize(node, hub);
                 sys.Add(constraintxyz);
@@ -308,7 +306,6 @@ int main(int argc, char* argv[]) {
                     sph_p,
                     ChFrame<>(ChVector3d(loc_x + scale * dir_x, loc_y + scale * dir_y, loc_z + scale * dir_z), QUNIT));
             }
-
         }
         if (debugItems) {
             std::cout << std::endl << std::endl;
@@ -413,26 +410,26 @@ int main(int argc, char* argv[]) {
     // Options for visualization in irrlicht
     // -------------------------------------
 
-    auto visualizemeshA = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshA = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshA->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_SPEED_NORM);
     visualizemeshA->SetColorscaleMinMax(0.0, 5.50);
     visualizemeshA->SetShrinkElements(true, 0.85);
     visualizemeshA->SetSmoothFaces(true);
     mesh->AddVisualShapeFEA(visualizemeshA);
 
-    auto visualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshB->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     visualizemeshB->SetWireframe(true);
     visualizemeshB->SetDrawInUndeformedReference(true);
     mesh->AddVisualShapeFEA(visualizemeshB);
 
-    auto visualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_DOT_POS);
     visualizemeshC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizemeshC->SetSymbolsThickness(0.004);
     mesh->AddVisualShapeFEA(visualizemeshC);
 
-    auto visualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto visualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>();
     visualizemeshD->SetFEMglyphType(ChVisualShapeFEA::GlyphType::ELEM_TENS_STRAIN);
     visualizemeshD->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizemeshD->SetSymbolsScale(1);
@@ -449,27 +446,25 @@ int main(int argc, char* argv[]) {
     // ----------------------------------
 
     //// Set up solver
-    //auto solver = chrono_types::make_shared<ChSolverMINRES>();
-    //sys.SetSolver(solver);
-    //solver->SetMaxIterations(100);
-    //solver->SetTolerance(1e-10);
-    //solver->EnableDiagonalPreconditioner(true);
+    // auto solver = chrono_types::make_shared<ChSolverMINRES>();
+    // sys.SetSolver(solver);
+    // solver->SetMaxIterations(100);
+    // solver->SetTolerance(1e-10);
+    // solver->EnableDiagonalPreconditioner(true);
 
     //// Set up integrator
-    //auto stepper = chrono_types::make_shared<ChTimestepperHHT>(&sys);
-    //sys.SetTimestepper(stepper);
+    // auto stepper = chrono_types::make_shared<ChTimestepperHHT>(&sys);
+    // sys.SetTimestepper(stepper);
     //// Alternative way of changing the integrator:
     //////sys.SetTimestepperType(ChTimestepper::Type::HHT);
     //////auto stepper = std::static_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper());
 
-    //stepper->SetAlpha(-0.2);
-    //stepper->SetMaxIters(5);
-    //stepper->SetAbsTolerances(1e-2);
-    //stepper->SetStepControl(true);
-    //stepper->SetMinStepSize(1e-4);
+    // stepper->SetAlpha(-0.2);
+    // stepper->SetMaxIters(5);
+    // stepper->SetAbsTolerances(1e-2);
+    // stepper->SetStepControl(true);
+    // stepper->SetMinStepSize(1e-4);
     //////stepper->SetVerbose(true);
-
-
 
     // Set up solver
     auto solver = chrono_types::make_shared<ChSolverSparseLU>();
@@ -493,8 +488,6 @@ int main(int argc, char* argv[]) {
     stepper->SetModifiedNewton(true);
     ////stepper->SetVerbose(true);
 
-
-
     // Simulation loop
     double time = 0;
     while (vis->Run()) {
@@ -502,7 +495,7 @@ int main(int argc, char* argv[]) {
         vis->Render();
         vis->EndScene();
         sys.DoStepDynamics(0.001);
-        //std::cout << "Simulation Time: " << time << "s \n"; 
+        // std::cout << "Simulation Time: " << time << "s \n";
         time += 0.001;
     }
 
