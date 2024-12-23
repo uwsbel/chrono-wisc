@@ -596,10 +596,10 @@ void ChTireTestRig::CreateTerrainCRM() {
     mat_props.density = m_params_crm.density;
     mat_props.Young_modulus = 2e6;
     mat_props.Poisson_ratio = 0.3;
-    mat_props.mu_I0 = 0.03;
+    mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = 0.7;
     mat_props.mu_fric_2 = 0.7;
-    mat_props.average_diam = 0.0614;
+    mat_props.average_diam = 0.02;
     mat_props.cohesion_coeff = m_params_crm.cohesion;
 
     ChFluidSystemSPH::SPHParameters sph_params;
@@ -607,7 +607,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     sph_params.initial_spacing = initSpace0;
     sph_params.d0_multiplier = 1.2;
     sph_params.artificial_viscosity = 0.5;
-    sph_params.xsph_coefficient = 0.25;
+    sph_params.xsph_coefficient = 0.5;
     sph_params.shifting_coefficient = 1.0;
     sph_params.kernel_threshold = 0.8;
     sph_params.num_proximity_search_steps = 1;

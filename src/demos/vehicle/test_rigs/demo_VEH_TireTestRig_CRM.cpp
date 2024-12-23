@@ -28,6 +28,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
 #include "chrono_vehicle/terrain/CRMTerrain.h"
 
 #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
@@ -60,7 +61,8 @@ using std::endl;
 // Run-time visualization system (OpenGL or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
-// Tire specification file
+bool use_airless_tire = true;
+// Tire specification file - When above is set to true, this is ignored
 std::string tire_json = "Polaris/Polaris_RigidMeshTire.json";
 ////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
 
@@ -87,15 +89,20 @@ int main() {
     // --------------------------------
 
     auto wheel = ReadWheelJSON(vehicle::GetDataFile(wheel_json));
-    auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
+    std::shared_ptr<ChTire> tire;
+    if (!use_airless_tire) {
+        tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
+    } else {
+        tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+    }
 
     bool fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(tire) != nullptr;
 
     // Set tire contact surface (relevant for FEA tires only)
     if (fea_tire) {
         int collision_family = 7;
-        auto surface_type = ChTire::ContactSurfaceType::TRIANGLE_MESH;
-        double surface_dim = 0;
+        auto surface_type = ChTire::ContactSurfaceType::TRIANGLE_MESH;  // CRM only supports triangle mesh
+        double surface_dim = 0;                                         // Irrelevant for CRM
         tire->SetContactSurfaceType(surface_type, surface_dim, collision_family);
     }
 
@@ -110,7 +117,7 @@ int main() {
 
     if (fea_tire) {
         sys = new ChSystemSMC;
-        step_size = 1e-5;
+        step_size = 1e-4;
         solver_type = ChSolver::Type::PARDISO_MKL;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
@@ -156,7 +163,7 @@ int main() {
     ChTireTestRig::TerrainParamsCRM params;
     params.radius = 0.01;
     params.density = 1700;
-    params.cohesion = 1e2;
+    params.cohesion = 5e3;
     params.length = 10;
     params.width = 1;
     params.depth = 0.2;
@@ -262,7 +269,7 @@ int main() {
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(true);
         visFSI->EnableRigidBodyMarkers(true);
-        visFSI->EnableFlexBodyMarkers(false);
+        visFSI->EnableFlexBodyMarkers(true);
         visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->AttachSystem(sys);
