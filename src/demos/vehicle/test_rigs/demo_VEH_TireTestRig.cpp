@@ -77,7 +77,7 @@ TireType tire_type = TireType::ANCF_AIRLESS;
 
 // Terrain type (RIGID or SCM)
 enum class TerrainType { RIGID, SCM };
-TerrainType terrain_type = TerrainType::RIGID;
+TerrainType terrain_type = TerrainType::SCM;
 
 double render_fps = 120;
 bool debug_output = false;
@@ -85,7 +85,12 @@ bool gnuplot_output = true;
 bool blender_output = false;
 ////std::string wheel_json = "hmmwv/wheel/HMMWV_Wheel.json";
 std::string wheel_json = "Polaris/Polaris_Wheel.json";
+
+bool set_longitudinal_speed = true;
+bool set_angular_speed = true;
+bool set_slip_angle = true;
 bool use_JSON = false;
+double time_delay = 0.5;
 // -----------------------------------------------------------------------------
 
 int main() {
@@ -203,7 +208,7 @@ int main() {
 
     if (fea_tire) {
         sys = new ChSystemSMC;
-        step_size = 5e-5;
+        step_size = 1e-4;
         solver_type = ChSolver::Type::PARDISO_MKL;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
@@ -292,15 +297,18 @@ int main() {
     //   longitudinal speed: 0.2 m/s
     //   angular speed: 10 RPM
     //   slip angle: sinusoidal +- 5 deg with 5 s period
-    rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionConst>(0.2));
-    rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionConst>(10 * CH_RPM_TO_RAD_S));
-    rig.SetSlipAngleFunction(chrono_types::make_shared<ChFunctionSine>(5 * CH_DEG_TO_RAD, 0.2));
+    if (set_longitudinal_speed)
+        rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionConst>(0.2));
+    if (set_angular_speed)
+        rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionConst>(10 * CH_RPM_TO_RAD_S));
+    if (set_slip_angle)
+        rig.SetSlipAngleFunction(chrono_types::make_shared<ChFunctionSine>(5 * CH_DEG_TO_RAD, 0.2));
 
     // Scenario: specified longitudinal slip (overrrides other definitons of motion functions)
     ////rig.SetConstantLongitudinalSlip(0.2, 0.1);
 
     // Initialize the tire test rig
-    rig.SetTimeDelay(1.0);
+    rig.SetTimeDelay(time_delay);
     ////rig.Initialize(ChTireTestRig::Mode::SUSPEND);
     ////rig.Initialize(ChTireTestRig::Mode::DROP);
     rig.Initialize(ChTireTestRig::Mode::TEST);
@@ -430,7 +438,7 @@ int main() {
 
         if (time >= render_frame / render_fps) {
             auto& loc = rig.GetPos();
-            vis->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
+            // vis->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
 
             vis->BeginScene();
             vis->Render();
