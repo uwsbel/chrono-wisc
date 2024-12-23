@@ -214,6 +214,41 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     /// Initialize the SPH fluid system with no FSI support.
     virtual void Initialize() override;
 
+    /// Reset timers for internal force and Jacobian evaluations.
+    void ResetTimers() {
+        m_timer_rigid_forces.reset();
+        m_timer_flex1D_forces.reset();
+        m_timer_flex2D_forces.reset();
+        m_timer_integrate_sph.reset();
+        m_timer_copy_sorted_to_original.reset();
+        m_timer_sort_particles.reset();
+    }
+
+    /// Get cumulative time for rigid body forces evaluation.
+    double GetTimeRigidForces() { return m_timer_rigid_forces(); }
+    /// Get cumulative time for flexible 1D forces evaluation.
+    double GetTimeFlex1DForces() { return m_timer_flex1D_forces(); }
+    /// Get cumulative time for flexible 2D forces evaluation.
+    double GetTimeFlex2DForces() { return m_timer_flex2D_forces(); }
+    /// Get cumulative time for SPH integration.
+    double GetTimeIntegrateSPH() { return m_timer_integrate_sph(); }
+    /// Get cumulative time for copying sorted to original.
+    double GetTimeCopySortedToOriginal() { return m_timer_copy_sorted_to_original(); }
+    /// Get cumulative time for sorting particles.
+    double GetTimeSortParticles() { return m_timer_sort_particles(); }
+
+    /// Get cumulative time for force calculation.
+    double GetTimeForce() { return m_fluid_dynamics->GetTimeForce(); }
+    /// Get cumulative time for fluid update.
+    double GetTimeUpdateFluid() { return m_fluid_dynamics->GetTimeUpdateFluid(); }
+
+    /// Get cumulative time for neighbor search.
+    double GetTimeNeighborSearch() { return m_fluid_dynamics->GetTimeNeighborSearch(); }
+    /// Get cumulative time for boundary condition application.
+    double GetTimeBoundaryCondition() { return m_fluid_dynamics->GetTimeBoundaryCondition(); }
+    /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
+    double GetTimeAccelerationCalc() { return m_fluid_dynamics->GetTimeAccelerationCalc(); }
+
     /// Return the SPH kernel length of kernel function.
     double GetKernelLength() const;
 
@@ -594,6 +629,14 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     BcePatternMesh2D m_pattern2D;
     bool m_remove_center1D;
     bool m_remove_center2D;
+
+    // Timers
+    ChTimer m_timer_rigid_forces;
+    ChTimer m_timer_flex1D_forces;
+    ChTimer m_timer_flex2D_forces;
+    ChTimer m_timer_integrate_sph;
+    ChTimer m_timer_copy_sorted_to_original;
+    ChTimer m_timer_sort_particles;
 
     friend class ChFsiSystemSPH;
     friend class ChFsiInterfaceSPH;

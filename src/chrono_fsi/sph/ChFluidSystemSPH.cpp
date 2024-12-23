@@ -1267,12 +1267,15 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChFluidSystemSPH::OnDoStepDynamics(double step) {
+    m_timer_sort_particles.start();
     if (m_time < 1e-6 || int(round(m_time / m_paramsH->dT)) % m_paramsH->num_proximity_search_steps == 0) {
         m_fluid_dynamics->SortParticles();
     }
+    m_timer_sort_particles.stop();
 
     m_data_mgr->ResetData();
 
+    m_timer_integrate_sph.start();
     switch (m_paramsH->sph_method) {
         case SPHMethod::WCSPH: {
             m_data_mgr->CopyDeviceDataToHalfStep();
@@ -1293,15 +1296,26 @@ void ChFluidSystemSPH::OnDoStepDynamics(double step) {
             break;
         }
     }
+    m_timer_integrate_sph.stop();
 
+    m_timer_copy_sorted_to_original.start();
     m_fluid_dynamics->CopySortedToOriginal(MarkerGroup::NON_SOLID, m_data_mgr->sortedSphMarkers2_D,
                                            m_data_mgr->sphMarkers_D);
+    m_timer_copy_sorted_to_original.stop();
 }
 
 void ChFluidSystemSPH::OnExchangeSolidForces() {
+    m_timer_rigid_forces.start();
     m_bce_mgr->Rigid_Forces_Torques();
+    m_timer_rigid_forces.stop();
+
+    m_timer_flex1D_forces.start();
     m_bce_mgr->Flex1D_Forces();
+    m_timer_flex1D_forces.stop();
+
+    m_timer_flex2D_forces.start();
     m_bce_mgr->Flex2D_Forces();
+    m_timer_flex2D_forces.stop();
 }
 
 void ChFluidSystemSPH::OnExchangeSolidStates() {
@@ -1312,8 +1326,10 @@ void ChFluidSystemSPH::OnExchangeSolidStates() {
     m_bce_mgr->UpdateMeshMarker1DState();
     m_bce_mgr->UpdateMeshMarker2DState();
 
+    m_timer_copy_sorted_to_original.start();
     m_fluid_dynamics->CopySortedToOriginal(MarkerGroup::SOLID, m_data_mgr->sortedSphMarkers2_D,
                                            m_data_mgr->sphMarkers_D);
+    m_timer_copy_sorted_to_original.stop();
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

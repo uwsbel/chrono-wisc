@@ -1697,15 +1697,17 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
         density_initialization = 0;
     }
     density_initialization++;
-
+    m_timer_neighbor_search.start();
     // Perform Proxmity search at specified frequency
     if (firstHalfStep &&
         (time < 1e-6 ||
          int(round(time / m_data_mgr.paramsH->dT)) % m_data_mgr.paramsH->num_proximity_search_steps == 0))
         neighborSearch();
+    m_timer_neighbor_search.stop();
 
     // Execute the kernel
     if (m_data_mgr.paramsH->elastic_SPH) {  // For granular material
+        m_timer_boundary_condition.start();
         if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
             Boundary_Elastic_Adami<<<numBlocks, numThreads>>>(
                 U1CAST(m_data_mgr.activityIdentifierD), U1CAST(m_data_mgr.numNeighborsPerPart),
@@ -1730,8 +1732,9 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
                 mR3CAST(m_sortedSphMarkers_D->tauXyXzYzD), error_flagD);
             cudaCheckErrorFlag(error_flagD, "Boundary_ElasticSPH_Holmes");
         }
-
+        m_timer_boundary_condition.stop();
         // execute the kernel Navier_Stokes and Shear_Stress_Rate in one kernel
+        m_timer_acceleration_calc.start();
         NS_SSR<<<numBlocks, numThreads>>>(
             U1CAST(m_data_mgr.activityIdentifierD), mR4CAST(m_sortedSphMarkers_D->posRadD),
             mR3CAST(m_sortedSphMarkers_D->velMasD), mR4CAST(m_sortedSphMarkers_D->rhoPresMuD),
@@ -1740,8 +1743,9 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
             mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD), mR3CAST(m_data_mgr.vel_XSPH_D),
             U1CAST(m_data_mgr.freeSurfaceIdD), error_flagD);
         cudaCheckErrorFlag(error_flagD, "NS_SSR");
-
+        m_timer_acceleration_calc.stop();
     } else {  // For fluid
+        m_timer_boundary_condition.start();
         if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
             Boundary_NavierStokes_Adami<<<numBlocks, numThreads>>>(
                 U1CAST(m_data_mgr.activityIdentifierD), U1CAST(m_data_mgr.numNeighborsPerPart),
@@ -1764,7 +1768,9 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
                 mR3CAST(m_sortedSphMarkers_D->velMasD), error_flagD);
             cudaCheckErrorFlag(error_flagD, "Boundary_NavierStokes_Holmes");
         }
+        m_timer_boundary_condition.stop();
 
+        m_timer_acceleration_calc.start();
         // Find the index which is related to the wall boundary particle
         thrust::device_vector<uint> indexOfIndex(m_data_mgr.countersH->numAllMarkers);
         thrust::device_vector<uint> identityOfIndex(m_data_mgr.countersH->numAllMarkers);
@@ -1780,6 +1786,7 @@ void ChFsiForceExplicitSPH::CollideWrapper(Real time, bool firstHalfStep) {
             mR4CAST(m_sortedSphMarkers_D->rhoPresMuD), U1CAST(m_data_mgr.markersProximity_D->gridMarkerIndexD),
             U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), error_flagD);
         cudaCheckErrorFlag(error_flagD, "Navier_Stokes");
+        m_timer_acceleration_calc.stop();
     }
 
     cudaFreeErrorFlag(error_flagD);
