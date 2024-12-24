@@ -101,7 +101,7 @@ class CH_VEHICLE_API ChVehicleCosimTireNode : public ChVehicleCosimBaseNode {
     /// Construct a base class tire co-simulation node.
     /// By default, the underlying Chrono system is set yo use the Barzilai-Borwein solver and the Euler implicit
     /// linearized integrator. All OpenMP thread numbers are set to 1.
-    ChVehicleCosimTireNode(int index, const std::string& tire_json = "");
+    ChVehicleCosimTireNode(int index, const std::string& tire_json = "", bool use_airless = false);
 
     /// Specify the type of communication interface (BODY or MESH) required by this the tire node.
     /// See ChVehicleCosimBaseNode::InterfaceType.

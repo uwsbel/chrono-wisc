@@ -23,6 +23,7 @@
 
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/cosim/ChVehicleCosimTireNode.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
 
 #include "chrono_thirdparty/rapidjson/filereadstream.h"
 #include "chrono_thirdparty/rapidjson/istreamwrapper.h"
@@ -52,7 +53,7 @@ class DummyWheel : public ChWheel {
 
 // =============================================================================
 
-ChVehicleCosimTireNode::ChVehicleCosimTireNode(int index, const std::string& tire_json)
+ChVehicleCosimTireNode::ChVehicleCosimTireNode(int index, const std::string& tire_json, bool use_airless)
     : ChVehicleCosimBaseNode("TIRE_" + std::to_string(index)), m_index(index), m_tire_pressure(true) {
     // Create the (sequential) SMC system with default collision system
     m_system = new ChSystemSMC;
@@ -60,8 +61,16 @@ ChVehicleCosimTireNode::ChVehicleCosimTireNode(int index, const std::string& tir
     m_system->SetGravitationalAcceleration(ChVector3d(0, 0, m_gacc));
 
     // Create a tire subsystem from JSON specification file (if provided)
-    if (!tire_json.empty())
+    if (!tire_json.empty() && !use_airless)
         m_tire = ReadTireJSON(tire_json);
+    else if (use_airless) {
+        m_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetRimRadius(0.13);
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetHeight(0.2);
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetWidth(0.12);
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetAlpha(0.05);
+    }
 
     // Set default solver and integrator
     auto solver = chrono_types::make_shared<ChSolverBB>();

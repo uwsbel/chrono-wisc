@@ -45,7 +45,7 @@ class CH_VEHICLE_API ChVehicleCosimTireNodeFlexible : public ChVehicleCosimTireN
     /// The underlying Chrono system is set up to use a direct sparse linear solver (PardisoMKL if available) and the
     /// HHT integrator. By default, the solver will use 4 OpenMP threads for FEA analysis and 4 OpenMP threads for the
     /// linear solver.
-    ChVehicleCosimTireNodeFlexible(int index, const std::string& tire_json);
+    ChVehicleCosimTireNodeFlexible(int index, const std::string& tire_json, bool use_airless = false);
 
     ~ChVehicleCosimTireNodeFlexible() {}
 

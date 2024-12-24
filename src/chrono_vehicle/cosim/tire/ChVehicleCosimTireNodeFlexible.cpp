@@ -47,9 +47,13 @@ using std::endl;
 namespace chrono {
 namespace vehicle {
 
-ChVehicleCosimTireNodeFlexible::ChVehicleCosimTireNodeFlexible(int index, const std::string& tire_json)
-    : ChVehicleCosimTireNode(index, tire_json) {
-    assert(GetTireTypeFromSpecfile(tire_json) == TireType::FLEXIBLE);
+ChVehicleCosimTireNodeFlexible::ChVehicleCosimTireNodeFlexible(int index,
+                                                               const std::string& tire_json,
+                                                               bool use_airless)
+    : ChVehicleCosimTireNode(index, tire_json, use_airless) {
+    if (!use_airless) {
+        assert(GetTireTypeFromSpecfile(tire_json) == TireType::FLEXIBLE);
+    }
     assert(m_tire);
     m_tire_def = std::static_pointer_cast<ChDeformableTire>(m_tire);  // cache tire as ChDeformableTire
 
@@ -243,7 +247,7 @@ void ChVehicleCosimTireNodeFlexible::ApplyMeshForces(const MeshContact& mesh_con
 
     if (m_verbose) {
         ////PrintContactData(mesh_contact.vforce, mesh_contact.vidx);
-        
+
         ////if (m_index == 0) {
         ////    if (mesh_contact.vforce.size() > 0) {
         ////        double sum = 0;
