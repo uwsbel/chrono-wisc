@@ -50,7 +50,8 @@ ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // Final simulation time
 double t_end = 10.0;
-double initial_spacing = 0.01;
+//double initial_spacing = 0.01;
+double initial_spacing = 0.005;
 
 // Position and dimensions of WEC device
 // ChVector3d wec_pos(-2.9875, 0, -0.1);
@@ -267,7 +268,7 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
     double top_panel_height = 0.0575;
     double bottom_panel_height = door_height - window_height - top_panel_height;
     double bottom_panel_thickness = door_thickness / 2;
-    double mini_window_rb = 0.01;  // Luning to do, i think this is messing me up, causing instability ... let me
+    double mini_window_rb = initial_spacing;  // Luning to do, i think this is messing me up, causing instability ... let me
                                    // inflate this to door thickness and see what happens
     // double mini_window_rb = door_thickness/2;
 
@@ -365,7 +366,7 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 2.5e-5;  // used to be 5e-5!
+    double step_size = 2e-5;  // used to be 5e-5!
     bool verbose = true;
 
     if (argc != 4) {
@@ -403,7 +404,8 @@ int main(int argc, char* argv[]) {
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = initial_spacing;
     sph_params.num_bce_layers = 5;
-    sph_params.d0_multiplier = 1;
+    sph_params.kernel_type = KernelType::WENDLAND;
+    sph_params.d0_multiplier = 1.2;
     sph_params.max_velocity = 4;
     sph_params.xsph_coefficient = 0.5;
     sph_params.shifting_coefficient = 0.0;
@@ -449,7 +451,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "FSI_Flap_pto_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3];
+        GetChronoOutputPath() + "FSI_Flap_wendland_spacing_5e-3_dt_2e-5_pto_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
