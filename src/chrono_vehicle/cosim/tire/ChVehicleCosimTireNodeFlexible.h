@@ -41,11 +41,19 @@ namespace vehicle {
 /// Definition of the flexible tire node.
 class CH_VEHICLE_API ChVehicleCosimTireNodeFlexible : public ChVehicleCosimTireNode {
   public:
+    /// Construct an FEA tire co-simulation node with given (0-based) index from the given JSON specification file.
+    /// The underlying Chrono system is set up to use a direct sparse linear solver (PardisoMKL if available) and the
+    /// HHT integrator. By default, the solver will use 4 OpenMP threads for FEA analysis and 4 OpenMP threads for the
+    /// linear solver.
     ChVehicleCosimTireNodeFlexible(int index, const std::string& tire_json);
+
     ~ChVehicleCosimTireNodeFlexible() {}
 
     /// Return the tire type.
     virtual TireType GetTireType() const override { return TireType::FLEXIBLE; }
+
+    /// Attach FEA visual shape for run-time visualization.
+    void AddVisualShapeFEA(std::shared_ptr<ChVisualShapeFEA> shape);
 
     /// Advance simulation.
     /// This function is called after a synchronization to allow the node to advance

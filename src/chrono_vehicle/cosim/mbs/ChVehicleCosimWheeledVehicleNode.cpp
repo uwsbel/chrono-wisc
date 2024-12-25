@@ -24,8 +24,6 @@
 #include <set>
 #include <vector>
 
-#include "chrono/ChConfig.h"
-
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
@@ -72,7 +70,7 @@ class WheeledVehicleDBPDriver : public ChDriver {
 ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json,
                                                                    const std::string& engine_json,
                                                                    const std::string& transmission_json)
-    : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0), m_chassis_fixed(false) {
+    : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     m_vehicle = chrono_types::make_shared<WheeledVehicle>(m_system, vehicle_json);
     auto engine = ReadEngineJSON(engine_json);
     auto transmission = ReadTransmissionJSON(transmission_json);
@@ -82,7 +80,7 @@ ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::st
 
 ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle,
                                                                    std::shared_ptr<ChPowertrainAssembly> powertrain)
-    : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0), m_chassis_fixed(false) {
+    : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     // Ensure the vehicle system has a null ChSystem
     if (vehicle->GetSystem())
         return;
@@ -104,7 +102,6 @@ void ChVehicleCosimWheeledVehicleNode::InitializeMBS(const ChVector2d& terrain_s
     ChCoordsys<> init_pos(m_init_loc + ChVector3d(0, 0, terrain_height), QuatFromAngleZ(m_init_yaw));
 
     m_vehicle->Initialize(init_pos);
-    m_vehicle->GetChassis()->SetFixed(m_chassis_fixed);
     m_vehicle->SetChassisVisualizationType(VisualizationType::MESH);
     m_vehicle->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
     m_vehicle->SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
@@ -140,8 +137,8 @@ void ChVehicleCosimWheeledVehicleNode::InitializeMBS(const ChVector2d& terrain_s
         vsys_vsg->SetCameraAngleDeg(40);
         vsys_vsg->SetLightIntensity(1.0f);
         vsys_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
-        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), CSYSNORM,
-                          ChColor(0.4f, 0.4f, 0.4f));
+        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0),
+                          ChCoordsysd({terrain_size.x() / 2, 0, 0}, QUNIT), ChColor(0.4f, 0.4f, 0.4f));
         vsys_vsg->SetImageOutputDirectory(m_node_out_dir + "/images");
         vsys_vsg->SetImageOutput(m_writeRT);
         vsys_vsg->Initialize();
@@ -276,10 +273,6 @@ void ChVehicleCosimWheeledVehicleNode::OnOutputData(int frame) {
         // Solver statistics (for last integration step)
         m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve()
                << del << m_system->GetTimerUpdate() << del;
-        if (m_int_type == ChTimestepper::Type::HHT) {
-            m_outf << m_integrator->GetNumIterations() << del << m_integrator->GetNumSetupCalls() << del
-                   << m_integrator->GetNumSolveCalls() << del;
-        }
         m_outf << endl;
     }
 

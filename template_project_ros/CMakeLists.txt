@@ -1,32 +1,32 @@
 #--------------------------------------------------------------
 # 
 # Example of CMake configuration file to build an external 
-# project depending on the Chrono::Vehicle cosimulation framework.
+# project depending on Chrono and on optional Chrono modules.
 # 
 # This minimal sample project can be used as a template for a
 # user project.  Modify sections 1, 2, and 3 below as appropriate.
 # 
 #--------------------------------------------------------------
  
+
 cmake_minimum_required(VERSION 3.18)
 cmake_policy(SET CMP0091 NEW)
-
 #--------------------------------------------------------------
 # === 1 === 
 # Set the project name
 #--------------------------------------------------------------
 
-project(vehicle_cosim)
+project(my_project)
 
 #--------------------------------------------------------------
 # === 2 ===
 # Find the Chrono package and any REQUIRED or OPTIONAL modules
 # by invoking the find_package function in CONFIG mode:
 #    find_package(Chrono
-#	                COMPONENTS req_module1 req_module1 ...
-#	                OPTIONAL_COMPONENTS opt_module1 opt_module2 ...
+#                 COMPONENTS req_module1 req_module1 ...
+#                 OPTIONAL_COMPONENTS opt_module1 opt_module2 ...
 #                 CONFIG)
-# The following Chrono components can be requested (case insensitive): 
+# The following Chrono modules can be requested (case insensitive):
 #   Cascade, Cosimulation, Irrlicht, OpenGL, Matlab, Multicore, Gpu,
 #   PardisoMKL, PardisoProject, Postprocess, Python, Vehicle,
 #   VehicleCosimm, VSG.
@@ -38,16 +38,39 @@ project(vehicle_cosim)
 # it is not in its default install location.
 # Chrono_DIR can be either a Chrono build tree or a Chrono install tree.
 # 
-# Here, we specfy the VehicleCosim module (required).
+# The following variables are set and can be used further down:
+# Chrono_FOUND
+#   set to true if Chrono and all required components were found
+# CHRONO_C_FLAGS
+# CHRONO_CXX_FLAGS
+#   C and C++ compilation flags
+# CHRONO_INCLUDE_DIRS
+#   additional paths for included headers
+# CHRONO_LIBRARIES
+#   list of required libraries (with full path)
+# CHRONO_LINKER_FLAGS
+#   additional linker flags
+# CHRONO_DATA_DIR
+#   path to the Chrono data make_directory
+# 
+# In addition, for each requested component [COMPONENT], the
+# following variable is set to true (ON) or false (OFF):
+# CHRONO_[COMPONENT]_FOUND
+# 
+# In this example, we only request the Irrlicht module (required)
+# and, for demonstration purposes, the PardisoMKL module (optional)
 #--------------------------------------------------------------
 
 LIST(APPEND CMAKE_PREFIX_PATH "${CMAKE_INSTALL_PREFIX}/../Chrono/lib")
 find_package(Chrono
-             COMPONENTS VehicleCosim
-             OPTIONAL_COMPONENTS Irrlicht
+             COMPONENTS ROS
+             OPTIONAL_COMPONENTS
              CONFIG)
 
+#--------------------------------------------------------------
 # Return now if Chrono or a required component was not found.
+#--------------------------------------------------------------
+
 if (NOT Chrono_FOUND)
   message("Could not find Chrono or one of its required modules")
   return()
@@ -60,6 +83,23 @@ endif()
 
 set(CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD ${CHRONO_CXX_STANDARD})
+
+#--------------------------------------------------------------
+# Enable creation of "application bundles" on MacOSX.
+#--------------------------------------------------------------
+
+# This is necessary for any Irrlicht-based project (like the example here).
+# For OpenGL-based or non-graphics projects, this is optional and the block
+# below can be removed (or else explcitly set CMAKE_MACOSX_BUNDLE to 'OFF').
+#
+# If creating application bundles, the build output will be named 'myexe.app'.
+# Use the convenience script 'run_app.sh' available under 'contrib/appbundle-macosx/'
+# to run:
+#     start_demo.sh myexe.app
+
+if(APPLE)
+    set(CMAKE_MACOSX_BUNDLE ON)
+endif()
 
 #--------------------------------------------------------------
 # Add path to Chrono headers and to headers of all dependencies
@@ -93,7 +133,7 @@ endif()
 # files in your project. 
 #--------------------------------------------------------------
 
-add_executable(vehicle_cosim vehicle_cosim.cpp)
+add_executable(custom_handler custom_handler.cpp)
 
 #--------------------------------------------------------------
 # Set properties for your executable target
@@ -104,15 +144,15 @@ add_executable(vehicle_cosim vehicle_cosim.cpp)
 # install tree (if using an installed version of Chrono).
 #--------------------------------------------------------------
 
-target_compile_definitions(vehicle_cosim PUBLIC "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\"") 
-target_compile_options(vehicle_cosim PUBLIC ${CHRONO_CXX_FLAGS})
-target_link_options(vehicle_cosim PUBLIC ${CHRONO_LINKER_FLAGS})
+target_compile_definitions(custom_handler PUBLIC "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\"") 
+target_compile_options(custom_handler PUBLIC ${CHRONO_CXX_FLAGS})
+target_link_options(custom_handler PUBLIC ${CHRONO_LINKER_FLAGS})
 
 #--------------------------------------------------------------
 # Link to Chrono libraries and dependency libraries
 #--------------------------------------------------------------
 
-target_link_libraries(vehicle_cosim ${CHRONO_LIBRARIES})
+target_link_libraries(custom_handler ${CHRONO_LIBRARIES})
 
 #--------------------------------------------------------------
 # === 4 (OPTIONAL) ===
@@ -121,9 +161,11 @@ target_link_libraries(vehicle_cosim ${CHRONO_LIBRARIES})
 # dependency DLLs to the appropriate binary output folder.
 # This function has effect only on Windows.
 # 
-# Note that you must first set EXECUTABLE_OUTPUT_PATH
-# (this can simply be ${CMAKE_BINARY_DIR}, like in this example)
+# DLLs will be copied into ${PROJECT_BINARY_DIR}/${config} by default
+# or in ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${config} if only CMAKE_RUNTIME_OUTPUT_DIRECTORY is set
+# or to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG>} if the specific CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG> has been set
 #--------------------------------------------------------------
 
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
+# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin")
+# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "<mycustompathforrelease>")
 add_DLL_copy_command()
