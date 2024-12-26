@@ -66,10 +66,15 @@ ChVehicleCosimTireNode::ChVehicleCosimTireNode(int index, const std::string& tir
     else if (use_airless) {
         m_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
 
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetRimRadius(0.13);
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetHeight(0.2);
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetWidth(0.12);
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetAlpha(0.05);
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetRimRadius(0.13);          // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetHeight(0.2);              // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetWidth(0.24);              // Default is 0.4
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetAlpha(0.05);              // Default is 0.05
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetYoungsModulus(10e9);      // Default is 76e9
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetPoissonsRatio(0.2);       // Default is 0.2
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivWidth(3);              // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivSpokeLength(3);        // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
     }
 
     // Set default solver and integrator

@@ -91,7 +91,7 @@ auto vehicle_model = Polaris_Model();
 
 std::string terrain_specfile = "cosim/terrain/rigid.json";
 //  std::string terrain_specfile = "cosim/terrain/scm_soft.json";
-
+double gravity = -9.81;
 // =============================================================================
 
 class MyDriver : public ChDriver {
@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
         vehicle->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
         if (verbose)
             cout << "[Vehicle node] output directory: " << vehicle->GetOutDirName() << endl;
-
+        vehicle->GetVehicle()->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
         node = vehicle;
     }
 
@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
                 terrain->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
                 if (verbose)
                     cout << "[Terrain node] output directory: " << terrain->GetOutDirName() << endl;
-
+                terrain->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 node = terrain;
                 break;
             }
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
                 terrain->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
                 if (verbose)
                     cout << "[Terrain node] output directory: " << terrain->GetOutDirName() << endl;
-
+                terrain->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 node = terrain;
                 break;
             }
@@ -325,7 +325,7 @@ int main(int argc, char** argv) {
                 tire->SetOutDir(out_dir);
 
                 tire->GetSystem().SetNumThreads(1);
-
+                tire->GetSystem().SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 node = tire;
                 break;
             }
@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
                     if (writePP)
                         tire->EnablePostprocessVisualization(render_fps);
                 }
-
+                tire->GetSystem().SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 auto& sys = tire->GetSystem();
                 auto solver_type = ChSolver::Type::PARDISO_MKL;
                 auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;

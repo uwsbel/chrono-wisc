@@ -94,6 +94,15 @@ int main() {
         tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
     } else {
         tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetRimRadius(0.13);          // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetHeight(0.2);              // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetWidth(0.24);              // Default is 0.4
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetAlpha(0.05);              // Default is 0.05
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetYoungsModulus(10e9);      // Default is 76e9
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetPoissonsRatio(0.2);       // Default is 0.2
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivWidth(3);              // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivSpokeLength(3);        // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
     }
 
     bool fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(tire) != nullptr;
