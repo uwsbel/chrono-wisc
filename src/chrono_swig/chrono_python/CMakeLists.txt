@@ -1076,3 +1076,69 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   message(STATUS "Above, \$(Configuration) represents the current build configuration (Release, Debug, RelWithDebInfo, etc)")
 endif()
 message(STATUS "")
+
+#-----------------------------------------------------------------------------
+# MODULE for the fsi python wrapper.
+#-----------------------------------------------------------------------------
+
+message(STATUS "...add python FSI module")
+
+# Python module name
+set(CHPY_FSI fsi)
+
+# Interface files
+set(CHPY_FSI_MODULE_FILE
+    ../interface/fsi/ChModuleFsi.i
+)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set_source_files_properties(${CHPY_FSI_MODULE_FILE} PROPERTIES COMPILE_FLAGS "-D_WIN32")
+endif()
+set_source_files_properties(${CHPY_FSI_MODULE_FILE} PROPERTIES CPLUSPLUS ON)
+
+# Create the SWIG module.
+if(${CMAKE_VERSION} VERSION_LESS "3.8.0")
+    SWIG_ADD_MODULE(${CHPY_FSI} python ${CHPY_FSI_MODULE_FILE})
+else()
+    SWIG_ADD_LIBRARY(${CHPY_FSI} LANGUAGE python SOURCES ${CHPY_FSI_MODULE_FILE})
+endif()
+SWIG_LINK_LIBRARIES(${CHPY_FSI} ${PYTHON_LIBRARY} ChronoEngine)
+
+# Ensure that the PYD library file is generated in the bin/ directory.
+set_target_properties(${SWIG_MODULE_${CHPY_FSI}_REAL_NAME} PROPERTIES
+                      PROJECT_LABEL "ChronoEngine_python_${CHPY_FSI}"
+                      OUTPUT_NAME   "${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}"
+                      LIBRARY_OUTPUT_DIRECTORY "${EXECUTABLE_OUTPUT_PATH}"
+)
+
+target_compile_definitions(${SWIG_MODULE_${CHPY_FSI}_REAL_NAME} PRIVATE "CH_IGNORE_DEPRECATED")
+
+ADD_DEPENDENCIES(${SWIG_MODULE_${CHPY_FSI}_REAL_NAME} ChronoEngine)
+ADD_DEPENDENCIES(${SWIG_MODULE_${CHPY_FSI}_REAL_NAME} ${SWIG_MODULE_${CHPY_CORE}_REAL_NAME})
+
+# Copy PY file into a package directory
+set(CHPY_FSI_PY_FILE "${CMAKE_SWIG_OUTDIR}/${CHPY_FSI}.py")
+
+set(CHPY_FSI_PYD_PATH $<TARGET_FILE_DIR:${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}>)
+
+add_custom_command(TARGET ${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}
+                   POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E make_directory ${CHPY_FSI_PYD_PATH}/${CHPY_PACKAGENAME})
+add_custom_command(TARGET ${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}
+                   POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_FSI_PY_FILE} ${CHPY_FSI_PYD_PATH}/${CHPY_PACKAGENAME})
+
+# Install .pyd binary module (.so on Linux)
+install(TARGETS ${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}
+        RUNTIME DESTINATION "${CH_INSTALL_PYTHON}"
+        LIBRARY DESTINATION "${CH_INSTALL_PYTHON}"
+        ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}")
+# Install .py module wrapper
+install(FILES "${CHPY_FSI_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/${CHPY_PACKAGENAME}")
+
+if (DBG_SCRIPT)
+    message("Module name:     ${CHPY_FSI}")
+    message("SWIG_REAL_NAME:  ${SWIG_MODULE_${CHPY_FSI}_REAL_NAME}")
+    message("PY file:         ${CHPY_FSI_PY_FILE}")
+    message("PYD path:        ${CHPY_FSI_PYD_PATH}")
+endif()

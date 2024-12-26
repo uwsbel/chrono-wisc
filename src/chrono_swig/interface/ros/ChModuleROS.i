@@ -14,7 +14,7 @@
 //  'import pychrono.ros'
 
 
-%define MODULEIMPORT
+%define MODULEIMPORT  
 "
 try:
   if __package__ or "." in __name__:
