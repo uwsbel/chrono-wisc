@@ -281,7 +281,7 @@ int main() {
         params.Janosi_shear = 0.01;
         params.length = 10;
         params.width = 1;
-        params.grid_spacing = 0.05;
+        params.grid_spacing = 0.025;
 
         rig.SetTerrainSCM(params);
     }

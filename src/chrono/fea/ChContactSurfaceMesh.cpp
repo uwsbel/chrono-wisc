@@ -24,6 +24,7 @@
 
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChElementShellANCF_3423.h"
+#include "chrono/fea/ChElementShellANCF_3423T.h"
 #include "chrono/fea/ChElementShellANCF_3443.h"
 #include "chrono/fea/ChElementShellANCF_3833.h"
 #include "chrono/fea/ChElementShellReissner4.h"
@@ -747,6 +748,23 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(const ChMesh& mesh,
             std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNodeB();
             std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNodeC();
             std::shared_ptr<ChNodeFEAxyz> nD = mshell->GetNodeD();
+            if (ccw) {
+                triangles_ptrs.push_back({{nA, nD, nB}});
+                triangles_ptrs.push_back({{nB, nD, nC}});
+            } else {
+                triangles_ptrs.push_back({{nA, nB, nD}});
+                triangles_ptrs.push_back({{nB, nC, nD}});
+            }
+        }
+    }
+
+    // For the special T shaped element only take the nodes at the top face
+    for (unsigned int ie = 0; ie < mesh.GetNumElements(); ++ie) {
+        if (auto mshell = std::dynamic_pointer_cast<ChElementShellANCF_3423T>(mesh.GetElement(ie))) {
+            std::shared_ptr<ChNodeFEAxyz> nA = mshell->GetNode1();
+            std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNode2();
+            std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNode3();
+            std::shared_ptr<ChNodeFEAxyz> nD = mshell->GetNode4();
             if (ccw) {
                 triangles_ptrs.push_back({{nA, nD, nB}});
                 triangles_ptrs.push_back({{nB, nD, nC}});
