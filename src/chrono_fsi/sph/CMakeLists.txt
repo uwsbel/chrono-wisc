@@ -112,6 +112,8 @@ set(ChronoEngine_FSI_UTILS_FILES
     utils/ChUtilsPrintSph.cuh
     utils/ChUtilsDevice.cuh
     utils/ChUtilsTypeConvert.h
+    utils/ChUtilsTimingOutput.h
+    utils/ChUtilsTimingOutput.cpp
 
     utils/ChUtilsPrintSph.cu
     utils/ChUtilsDevice.cu

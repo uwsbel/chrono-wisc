@@ -222,6 +222,7 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
         m_timer_integrate_sph.reset();
         m_timer_copy_sorted_to_original.reset();
         m_timer_sort_particles.reset();
+        m_fluid_dynamics->ResetTimers();
     }
 
     /// Get cumulative time for rigid body forces evaluation.
@@ -232,6 +233,8 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     double GetTimeFlex2DForces() { return m_timer_flex2D_forces(); }
     /// Get cumulative time for SPH integration.
     double GetTimeIntegrateSPH() { return m_timer_integrate_sph(); }
+    /// Get cumulative time for periodic boundary condition application.
+    double GetTimePeriodicBoundary() { return m_fluid_dynamics->GetTimePeriodicBoundary(); }
     /// Get cumulative time for copying sorted to original.
     double GetTimeCopySortedToOriginal() { return m_timer_copy_sorted_to_original(); }
     /// Get cumulative time for sorting particles.
@@ -288,6 +291,12 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
 
     /// Return the current system parameters (debugging only).
     const sph::SimParams& GetParams() const { return *m_paramsH; }
+
+    /// Return counters (debugging only).
+    const sph::Counters& GetCounters() const { return *m_data_mgr->countersH; }
+
+    /// Return the cuda device information (debugging only).
+    const sph::CudaDeviceInfo& GetCudaDeviceInfo() const { return *m_data_mgr->cudaDeviceInfo; }
 
     /// Get the current number of fluid SPH particles.
     size_t GetNumFluidMarkers() const;
@@ -637,7 +646,7 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     ChTimer m_timer_integrate_sph;
     ChTimer m_timer_copy_sorted_to_original;
     ChTimer m_timer_sort_particles;
-
+    ChTimer m_timer_periodic_boundary;
     friend class ChFsiSystemSPH;
     friend class ChFsiInterfaceSPH;
     friend class ChFsiVisualizationGL;

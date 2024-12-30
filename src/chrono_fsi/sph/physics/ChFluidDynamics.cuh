@@ -94,6 +94,8 @@ class ChFluidDynamics {
     void ResetTimers() {
         m_timer_force.reset();
         m_timer_update_fluid.reset();
+        m_timer_periodic_boundary.reset();
+        forceSystem->ResetTimers();
     }
     /// Timer for neighbor search + boundary condition + acceleration calculation
     double GetTimeForce() { return m_timer_force(); }
@@ -106,6 +108,9 @@ class ChFluidDynamics {
     double GetTimeBoundaryCondition() { return forceSystem->GetTimeBoundaryCondition(); }
     /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
     double GetTimeAccelerationCalc() { return forceSystem->GetTimeAccelerationCalc(); }
+
+    /// Get cumulative time for Periodic boundary application.
+    double GetTimePeriodicBoundary() { return m_timer_periodic_boundary(); }
 
   protected:
     FsiDataManager& m_data_mgr;               ///< FSI data manager
@@ -131,6 +136,7 @@ class ChFluidDynamics {
   private:
     ChTimer m_timer_force;
     ChTimer m_timer_update_fluid;
+    ChTimer m_timer_periodic_boundary;
 };
 
 /// @} fsi_physics

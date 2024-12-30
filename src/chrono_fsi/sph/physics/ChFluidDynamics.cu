@@ -584,8 +584,9 @@ void ChFluidDynamics::IntegrateSPH(std::shared_ptr<SphMarkerDataD> sortedSphMark
         forceSystem->ForceSPH(sortedSphMarkers1_D, time, firstHalfStep);
         m_timer_force.stop();
     }
-
+    m_timer_periodic_boundary.start();
     ApplyBoundarySPH_Markers(sortedSphMarkers2_D);
+    m_timer_periodic_boundary.stop();
 }
 
 // -----------------------------------------------------------------------------

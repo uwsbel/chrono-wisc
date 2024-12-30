@@ -14,6 +14,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_WaveTank
    demo_FSI_EmbeddedObject
    demo_FSI_BaffleFlow
+   benchmark_RTF_FSI_BaffleFlow
    demo_FSI_CouetteFlow
    demo_FSI_Flap
    demo_FSI_AngleRepose
@@ -24,6 +25,7 @@ if(ENABLE_MODULE_PARDISO_MKL)
    set(DEMOS ${DEMOS}
       demo_FSI_Flexible_Plate
       demo_FSI_Flexible_Cable
+      benchmark_RTF_FSI_Flexible_Cable
       demo_FSI_Flexible_Toroidal_Tire
    )
 endif()
