@@ -382,33 +382,10 @@ int main(int argc, char* argv[]) {
     int out_frame = 0;
     int render_frame = 0;
 
-    // Create Output JSON file
-    rapidjson::Document doc;
-    // Format d0_multiplier
-    std::ostringstream d0_str;
-    d0_str << std::fixed << std::setprecision(1) << d0_multiplier;
-    std::string d0_formatted = d0_str.str();
-    d0_formatted.erase(d0_formatted.find_last_not_of('0') + 1, std::string::npos);
-    if (d0_formatted.back() == '.')
-        d0_formatted.pop_back();
-
-    // Format scale
-    std::ostringstream scale_str;
-    scale_str << std::fixed << std::setprecision(1) << scale;
-    std::string scale_formatted = scale_str.str();
-    scale_formatted.erase(scale_formatted.find_last_not_of('0') + 1, std::string::npos);
-    if (scale_formatted.back() == '.')
-        scale_formatted.pop_back();
-
-    std::string json_file_path = out_dir + "/rtf_" + viscosity_type + "_" + boundary_type + "_ps" +
-                                 std::to_string(ps_freq) + "_d0" + d0_formatted + "_scale" + scale_formatted + ".json";
-
-    OutputParameterJSON(json_file_path, &sysFSI.GetFluidSystemSPH(), t_end, step_size, viscosity_type, boundary_type,
-                        ps_freq, d0_multiplier, doc);
     // Reset all the timers
     sysFSI.GetFluidSystemSPH().ResetTimers();
     ChTimer timer;
-    timer.start();
+
     while (time < t_end) {
         if (output && time >= out_frame / output_fps) {
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
@@ -431,15 +408,39 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 
+        timer.start();
         // Call the FSI solver
         fsi.DoStepDynamics(step_size);
+        timer.stop();
 
         time += step_size;
         sim_frame++;
     }
     timer.stop();
 
-    OutputTimingJSON(json_file_path, timer, &sysFSI.GetFluidSystemSPH(), doc);
+    // Create Output JSON file
+    rapidjson::Document doc;
+    // Format d0_multiplier
+    std::ostringstream d0_str;
+    d0_str << std::fixed << std::setprecision(1) << d0_multiplier;
+    std::string d0_formatted = d0_str.str();
+    d0_formatted.erase(d0_formatted.find_last_not_of('0') + 1, std::string::npos);
+    if (d0_formatted.back() == '.')
+        d0_formatted.pop_back();
+
+    // Format scale
+    std::ostringstream scale_str;
+    scale_str << std::fixed << std::setprecision(1) << scale;
+    std::string scale_formatted = scale_str.str();
+    scale_formatted.erase(scale_formatted.find_last_not_of('0') + 1, std::string::npos);
+    if (scale_formatted.back() == '.')
+        scale_formatted.pop_back();
+
+    std::string json_file_path = out_dir + "/rtf_" + viscosity_type + "_" + boundary_type + "_ps" +
+                                 std::to_string(ps_freq) + "_d0" + d0_formatted + "_scale" + scale_formatted + ".json";
+    OutputParameterJSON(json_file_path, &sysFSI, t_end, step_size, viscosity_type, boundary_type, ps_freq,
+                        d0_multiplier, doc);
+    OutputTimingJSON(json_file_path, timer, &sysFSI, doc);
 
     return 0;
 }

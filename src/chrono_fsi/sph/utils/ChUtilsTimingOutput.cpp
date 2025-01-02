@@ -6,7 +6,7 @@ namespace fsi {
 
 /// Create JSON document and write initial simulation parameters
 void OutputParameterJSON(const std::string& json_file_path,
-                         ChFluidSystemSPH* sysSPH,
+                         ChFsiSystem* sysFSI,
                          double t_end,
                          double step_size,
                          const std::string& viscosity_type,
@@ -16,11 +16,11 @@ void OutputParameterJSON(const std::string& json_file_path,
                          rapidjson::Document& doc) {
     doc.SetObject();
     auto& allocator = doc.GetAllocator();
-
+    ChFluidSystemSPH& sysSPH = dynamic_cast<ChFluidSystemSPH&>(sysFSI->GetFluidSystem());
     // Get required parameters
-    sph::SimParams params = sysSPH->GetParams();
-    sph::Counters counters = sysSPH->GetCounters();
-    sph::CudaDeviceInfo cuda_info = sysSPH->GetCudaDeviceInfo();
+    sph::SimParams params = sysSPH.GetParams();
+    sph::Counters counters = sysSPH.GetCounters();
+    sph::CudaDeviceInfo cuda_info = sysSPH.GetCudaDeviceInfo();
 
     // Hardware Info
     rapidjson::Value hardwareInfo(rapidjson::kObjectType);
@@ -47,6 +47,7 @@ void OutputParameterJSON(const std::string& json_file_path,
     simParams.AddMember("numFsiElements2D", counters.numFsiElements2D, allocator);
     simParams.AddMember("numFsiNodes1D", counters.numFsiNodes1D, allocator);
     simParams.AddMember("numFsiNodes2D", counters.numFsiNodes2D, allocator);
+    simParams.AddMember("numActiveParticles", sysSPH.GetNumActiveParticles(), allocator);
     doc.AddMember("simulationParameters", simParams, allocator);
 
     // Simulation Settings
@@ -60,6 +61,7 @@ void OutputParameterJSON(const std::string& json_file_path,
     simSettings.AddMember("viscosityType", rapidjson::Value(viscosity_type.c_str(), allocator), allocator);
     simSettings.AddMember("boundaryType", rapidjson::Value(boundary_type.c_str(), allocator), allocator);
     simSettings.AddMember("proximitySearchFreq", ps_freq, allocator);
+    simSettings.AddMember("d0Multiplier", d0_multiplier, allocator);
     doc.AddMember("simulationSettings", simSettings, allocator);
 
     // Write to file
@@ -74,34 +76,37 @@ void OutputParameterJSON(const std::string& json_file_path,
 ///  Add timing information to existing JSON document and write to file
 void OutputTimingJSON(const std::string& json_file_path,
                       const ChTimer& timer,
-                      ChFluidSystemSPH* sysSPH,
+                      ChFsiSystem* sysFSI,
                       rapidjson::Document& doc) {
     auto& allocator = doc.GetAllocator();
+    ChFluidSystemSPH& sysSPH = dynamic_cast<ChFluidSystemSPH&>(sysFSI->GetFluidSystem());
 
     // Timing Info
     rapidjson::Value timingInfo(rapidjson::kObjectType);
     timingInfo.AddMember("totalSimTime", timer(), allocator);
+    timingInfo.AddMember("MBSTimePerStep", sysFSI->GetTimerMBD(), allocator);
+    timingInfo.AddMember("CFDTimePerStep", sysFSI->GetTimerCFD(), allocator);
 
     // Create nested objects for different timing categories
     rapidjson::Value sphTimers(rapidjson::kObjectType);
-    sphTimers.AddMember("integrateSPHTime", sysSPH->GetTimeIntegrateSPH(), allocator);
-    sphTimers.AddMember("rigidForcesTime", sysSPH->GetTimeRigidForces(), allocator);
-    sphTimers.AddMember("flex1DForcesTime", sysSPH->GetTimeFlex1DForces(), allocator);
-    sphTimers.AddMember("flex2DForcesTime", sysSPH->GetTimeFlex2DForces(), allocator);
-    sphTimers.AddMember("copySortedToOriginalTime", sysSPH->GetTimeCopySortedToOriginal(), allocator);
-    sphTimers.AddMember("sortParticlesTime", sysSPH->GetTimeSortParticles(), allocator);
+    sphTimers.AddMember("integrateSPHTime", sysSPH.GetTimeIntegrateSPH(), allocator);
+    sphTimers.AddMember("rigidForcesTime", sysSPH.GetTimeRigidForces(), allocator);
+    sphTimers.AddMember("flex1DForcesTime", sysSPH.GetTimeFlex1DForces(), allocator);
+    sphTimers.AddMember("flex2DForcesTime", sysSPH.GetTimeFlex2DForces(), allocator);
+    sphTimers.AddMember("copySortedToOriginalTime", sysSPH.GetTimeCopySortedToOriginal(), allocator);
+    sphTimers.AddMember("sortParticlesTime", sysSPH.GetTimeSortParticles(), allocator);
 
     // Create nested object for IntegrateSPH timers
     rapidjson::Value integrateSphTimers(rapidjson::kObjectType);
-    integrateSphTimers.AddMember("forceTime", sysSPH->GetTimeForce(), allocator);
-    integrateSphTimers.AddMember("updateFluidTime", sysSPH->GetTimeUpdateFluid(), allocator);
-    integrateSphTimers.AddMember("periodicBoundaryTime", sysSPH->GetTimePeriodicBoundary(), allocator);
+    integrateSphTimers.AddMember("forceTime", sysSPH.GetTimeForce(), allocator);
+    integrateSphTimers.AddMember("updateFluidTime", sysSPH.GetTimeUpdateFluid(), allocator);
+    integrateSphTimers.AddMember("periodicBoundaryTime", sysSPH.GetTimePeriodicBoundary(), allocator);
 
     // Create nested object for Force timers
     rapidjson::Value forceTimers(rapidjson::kObjectType);
-    forceTimers.AddMember("neighborSearchTime", sysSPH->GetTimeNeighborSearch(), allocator);
-    forceTimers.AddMember("boundaryConditionTime", sysSPH->GetTimeBoundaryCondition(), allocator);
-    forceTimers.AddMember("accelerationCalcTime", sysSPH->GetTimeAccelerationCalc(), allocator);
+    forceTimers.AddMember("neighborSearchTime", sysSPH.GetTimeNeighborSearch(), allocator);
+    forceTimers.AddMember("boundaryConditionTime", sysSPH.GetTimeBoundaryCondition(), allocator);
+    forceTimers.AddMember("accelerationCalcTime", sysSPH.GetTimeAccelerationCalc(), allocator);
 
     // Add nested objects to their parents
     integrateSphTimers.AddMember("forceTimers", forceTimers, allocator);

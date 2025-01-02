@@ -3,6 +3,7 @@
 
 #include <string>
 #include "chrono/core/ChTimer.h"
+#include "chrono_fsi/ChFsiSystem.h"
 #include "chrono_fsi/sph/ChFluidSystemSPH.h"
 #include "chrono_thirdparty/rapidjson/document.h"
 #include "chrono_thirdparty/rapidjson/writer.h"
@@ -15,7 +16,7 @@ namespace fsi {
 
 /// Create JSON document and write initial simulation parameters
 void OutputParameterJSON(const std::string& json_file_path,
-                         ChFluidSystemSPH* sysFSI,
+                         ChFsiSystem* sysFSI,
                          double t_end,
                          double step_size,
                          const std::string& viscosity_type,
@@ -27,7 +28,7 @@ void OutputParameterJSON(const std::string& json_file_path,
 /// Add timing information to existing JSON document and write to file
 void OutputTimingJSON(const std::string& json_file_path,
                       const ChTimer& timer,
-                      ChFluidSystemSPH* sysFSI,
+                      ChFsiSystem* sysFSI,
                       rapidjson::Document& doc);
 
 }  // namespace fsi

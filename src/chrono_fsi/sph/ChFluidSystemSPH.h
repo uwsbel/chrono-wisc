@@ -298,6 +298,9 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     /// Return the cuda device information (debugging only).
     const sph::CudaDeviceInfo& GetCudaDeviceInfo() const { return *m_data_mgr->cudaDeviceInfo; }
 
+    /// Get the number of active SPH particles (Number of particles within the active domain)
+    size_t GetNumActiveParticles() const { return m_data_mgr->GetNumActiveParticles(); }
+
     /// Get the current number of fluid SPH particles.
     size_t GetNumFluidMarkers() const;
 

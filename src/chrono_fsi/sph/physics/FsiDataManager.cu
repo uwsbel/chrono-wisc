@@ -639,6 +639,9 @@ thrust::device_vector<int> FsiDataManager::FindParticlesInBox(const Real3& hsize
     return indices_D;
 }
 
+size_t FsiDataManager::GetNumActiveParticles() const {
+    return thrust::reduce(activityIdentifierD.begin(), activityIdentifierD.end(), 0u, thrust::plus<unsigned int>());
+}
 }  // namespace sph
 }  // end namespace fsi
 }  // end namespace chrono
