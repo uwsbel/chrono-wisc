@@ -62,6 +62,7 @@
          @defgroup robot_models_turtlebot Turtlebot robot model
          @defgroup robot_models_copter LittleHexy copter model
          @defgroup robot_models_industrial Industrial robot models
+         @defgroup robot_models_rassor Rassor robot model
        @}
     @}
 */
