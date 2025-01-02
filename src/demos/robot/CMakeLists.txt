@@ -36,6 +36,8 @@ if(ENABLE_MODULE_VEHICLE)
 	  if(ENABLE_MODULE_FSI)
 		set(DEMOS ${DEMOS}
 			demo_ROBOT_Viper_SPH
+      demo_ROBOT_Rassor_SPH
+      benchmark_RTF_ROBOT_Rassor_SPH
       benchmark_RTF_ROBOT_Viper_SPH
 		)
 	  endif()
