@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
     double wheel_radius = 0.22;
     double wheel_driver_speed = rover_velocity_array[TestID] / wheel_radius;
     double bucket_driver_speed = bucket_omega_array[TestID];
-    SetChronoOutputPath("RTF_DEMO_OUTPUT/");
+    SetChronoOutputPath("BENCHMARK2_RTF/");
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_RASSOR/";
 

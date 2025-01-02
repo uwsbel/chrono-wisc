@@ -125,7 +125,7 @@ bool GetProblemSpecs(int argc,
                      double& d0_multiplier);
 
 int main(int argc, char* argv[]) {
-    SetChronoOutputPath("RTF_DEMO_OUTPUT/");
+    SetChronoOutputPath("BENCHMARK2_RTF/");
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_Viper/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {

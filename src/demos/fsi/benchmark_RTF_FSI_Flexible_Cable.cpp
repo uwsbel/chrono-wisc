@@ -255,7 +255,7 @@ int main(int argc, char* argv[]) {
     // Initialize FSI problem
     fsi.Initialize();
 
-    SetChronoOutputPath("RTF_DEMO_OUTPUT/");
+    SetChronoOutputPath("BENCHMARK2_RTF/");
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_Flexible_Cable/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {

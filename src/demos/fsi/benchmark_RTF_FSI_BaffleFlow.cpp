@@ -294,7 +294,7 @@ int main(int argc, char* argv[]) {
     }
 
     fsi.Initialize();
-    SetChronoOutputPath("RTF_DEMO_OUTPUT/");
+    SetChronoOutputPath("BENCHMARK2_RTF/");
     // Output directories
     std::string out_dir;
     out_dir = GetChronoOutputPath() + "FSI_Baffle_Flow/";

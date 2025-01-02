@@ -306,7 +306,7 @@ int main(int argc, char* argv[]) {
     }
 
     slope_angle = 0;
-    SetChronoOutputPath("RTF_DEMO_OUTPUT/");
+    SetChronoOutputPath("BENCHMARK2_RTF/");
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_RASSOR_SingleDrum/";
 
