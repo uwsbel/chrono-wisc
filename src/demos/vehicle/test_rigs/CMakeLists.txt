@@ -12,6 +12,7 @@ endif()
 
 set(DEMOS
     demo_VEH_TireTestRig
+    demo_VEH_TireTestRig_LargeScaleTesting
 )
 
 if(ENABLE_MODULE_FSI)

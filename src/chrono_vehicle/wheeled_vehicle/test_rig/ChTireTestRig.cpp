@@ -45,6 +45,7 @@ namespace vehicle {
 ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel, std::shared_ptr<ChTire> tire, ChSystem* system)
     : m_system(system),
       m_grav(9.8),
+      m_slope(0),
       m_wheel(wheel),
       m_tire(tire),
       m_camber_angle(0),
@@ -136,6 +137,8 @@ void ChTireTestRig::SetTerrainSCM(double Bekker_Kphi,
                                   double Mohr_cohesion,
                                   double Mohr_friction,
                                   double Janosi_shear,
+                                  double elastic_stiffness,
+                                  double damping,
                                   double grid_spacing,
                                   double terrain_length,
                                   double terrain_width) {
@@ -147,6 +150,8 @@ void ChTireTestRig::SetTerrainSCM(double Bekker_Kphi,
     m_params_SCM.Mohr_cohesion = Mohr_cohesion;
     m_params_SCM.Mohr_friction = Mohr_friction;
     m_params_SCM.Janosi_shear = Janosi_shear;
+    m_params_SCM.Elastic_Stiffness = elastic_stiffness;
+    m_params_SCM.Damping = damping;
 
     m_params_SCM.grid_spacing = grid_spacing;
     m_params_SCM.length = terrain_length;
@@ -316,7 +321,8 @@ void ChTireTestRig::Advance(double step) {
 // -----------------------------------------------------------------------------
 
 void ChTireTestRig::CreateMechanism(Mode mode) {
-    m_system->SetGravitationalAcceleration(ChVector3d(0, 0, -m_grav));
+    ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
+    m_system->SetGravitationalAcceleration(modified_grav);
 
     // Create bodies.
     // Rig bodies are constructed with mass and inertia commensurate with those of the wheel-tire system.
@@ -490,15 +496,12 @@ void ChTireTestRig::CreateTerrain() {
 void ChTireTestRig::CreateTerrainSCM() {
     ChVector3d location(m_params_SCM.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, m_terrain_height);
 
-    double E_elastic = 2e8;  // Elastic stiffness (Pa/m), before plastic yeld
-    double damping = 3e4;    // Damping coefficient (Pa*s/m)
-
     auto terrain = chrono_types::make_shared<vehicle::SCMTerrain>(m_system);
     terrain->SetPlane(ChCoordsys<>(location));
     terrain->SetSoilParameters(m_params_SCM.Bekker_Kphi, m_params_SCM.Bekker_Kc, m_params_SCM.Bekker_n,  //
                                m_params_SCM.Mohr_cohesion, m_params_SCM.Mohr_friction,
                                m_params_SCM.Janosi_shear,  //
-                               E_elastic, damping);
+                               m_params_SCM.Elastic_Stiffness, m_params_SCM.Damping);
     terrain->SetPlotType(vehicle::SCMTerrain::PLOT_SINKAGE, 0, 0.05);
     terrain->Initialize(m_params_SCM.length, m_params_SCM.width, m_params_SCM.grid_spacing);
     terrain->AddMovingPatch(m_chassis_body, ChVector3d(0, 0, 0),
@@ -587,7 +590,8 @@ void ChTireTestRig::CreateTerrainCRM() {
 
     // m_terrain->DisableMBD();
     terrain->SetOutputLevel(OutputLevel::STATE);
-    terrain->SetGravitationalAcceleration(ChVector3d(0, 0, -m_grav));
+    ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
+    terrain->SetGravitationalAcceleration(modified_grav);
 
     terrain->SetStepSizeCFD(m_tire_step);
 

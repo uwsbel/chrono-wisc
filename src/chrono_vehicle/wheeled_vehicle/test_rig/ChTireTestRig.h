@@ -70,6 +70,8 @@ class CH_VEHICLE_API ChTireTestRig {
         double length;         ///< patch length
         double width;          ///< patch width
         double grid_spacing;   ///< SCM grid spacing
+        double Elastic_Stiffness;  ///< Elastic stiffness (Pa)
+        double Damping;            ///< Damping (Ns/m)
     };
 
     /// Granular terrain patch parameters.
@@ -155,15 +157,17 @@ class CH_VEHICLE_API ChTireTestRig {
 
     /// Enable use of SCM terrain.
     /// Specify SCM soil parameters and patch dimensions.
-    void SetTerrainSCM(double Bekker_Kphi,           ///< Kphi, frictional modulus in Bekker model
-                       double Bekker_Kc,             ///< Kc, cohesive modulus in Bekker model
-                       double Bekker_n,              ///< n, exponent of sinkage in Bekker model (usually 0.6...1.8)
-                       double Mohr_cohesion,         ///< cohesion [Pa], for shear failure
-                       double Mohr_friction,         ///< Friction angle [degrees], for shear failure
-                       double Janosi_shear,          ///< shear parameter J [m], (usually a few mm or cm)
-                       double grid_spacing = 0.125,  ///< SCM grid spacing
-                       double terrain_length = 10,   ///< length of terrain patch
-                       double terrain_width = 1      ///< width of terrain patch
+    void SetTerrainSCM(double Bekker_Kphi,              ///< Kphi, frictional modulus in Bekker model
+                       double Bekker_Kc,                ///< Kc, cohesive modulus in Bekker model
+                       double Bekker_n,                 ///< n, exponent of sinkage in Bekker model (usually 0.6...1.8)
+                       double Mohr_cohesion,            ///< cohesion [Pa], for shear failure
+                       double Mohr_friction,            ///< Friction angle [degrees], for shear failure
+                       double Janosi_shear,             ///< shear parameter J [m], (usually a few mm or cm)
+                       double elastic_stiffness = 2e8,  ///< Elastic stiffness (Pa)
+                       double damping = 3e4,            ///< Damping (Ns/m)
+                       double grid_spacing = 0.125,     ///< SCM grid spacing
+                       double terrain_length = 10,      ///< length of terrain patch
+                       double terrain_width = 1         ///< width of terrain patch
     );
 
     /// Enable use of granular terrain.
@@ -231,6 +235,11 @@ class CH_VEHICLE_API ChTireTestRig {
     /// This is the reaction force in the linear motor used to enforce the specified rig longitudinal speed.
     double GetDBP() const;
 
+    /// Set slope angle for the terrain (default: 0 rad).
+    void SetSlope(double slope) { m_slope = slope; }
+
+    const std::shared_ptr<ChBody> GetSpindleBody() const { return m_spindle_body; }
+
   private:
     enum class TerrainType { SCM, RIGID, CRG, GRANULAR, CRM, NONE };
 
@@ -279,6 +288,8 @@ class CH_VEHICLE_API ChTireTestRig {
     bool m_long_slip_constant;  ///< true if constant longitudinal slip was specified
     double m_long_slip;         ///< user-specified longitudinal slip
     double m_base_speed;        ///< base speed for long slip calculation
+
+    double m_slope;  ///< slope angle for the terrain
 
     std::shared_ptr<ChLinkMotorLinearSpeed> m_lin_motor;    ///< carrier actuator
     std::shared_ptr<ChLinkMotorRotationSpeed> m_rot_motor;  ///< wheel actuator
