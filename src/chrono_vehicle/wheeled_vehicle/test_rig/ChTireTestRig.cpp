@@ -469,7 +469,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
 
     // Set terrain offset (based on wheel center) and terrain height (below tire)
     m_terrain_offset = 3 * dim;
-    m_terrain_height = -4 * dim - m_tire->GetRadius() - 0.1;
+    m_terrain_height = -3 * dim - m_tire->GetRadius() - 0.1;
 }
 
 // -----------------------------------------------------------------------------
@@ -494,7 +494,7 @@ void ChTireTestRig::CreateTerrain() {
 }
 
 void ChTireTestRig::CreateTerrainSCM() {
-    ChVector3d location(m_params_SCM.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, m_terrain_height);
+    ChVector3d location(m_params_SCM.length / 2 - m_run_off, m_terrain_offset, m_terrain_height);
 
     auto terrain = chrono_types::make_shared<vehicle::SCMTerrain>(m_system);
     terrain->SetPlane(ChCoordsys<>(location));
@@ -511,7 +511,7 @@ void ChTireTestRig::CreateTerrainSCM() {
 }
 
 void ChTireTestRig::CreateTerrainRigid() {
-    ChVector3d location(m_params_rigid.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, m_terrain_height);
+    ChVector3d location(m_params_rigid.length / 2 - m_run_off, m_terrain_offset, m_terrain_height);
 
     auto terrain = chrono_types::make_shared<vehicle::RigidTerrain>(m_system);
 

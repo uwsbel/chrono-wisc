@@ -103,7 +103,12 @@ bool SetChronoSolver(chrono::ChSystem& sys,
         if (verbose)
             cout << prefix << "Setting solver " << chrono::ChSolver::GetTypeAsString(slvr_type) << endl;
         switch (slvr_type) {
-            case chrono::ChSolver::Type::SPARSE_LU:
+            case chrono::ChSolver::Type::SPARSE_LU: {
+                auto solver = std::static_pointer_cast<chrono::ChDirectSolverLS>(sys.GetSolver());
+                solver->LockSparsityPattern(true);
+                solver->UseSparsityPatternLearner(true);
+                break;
+            }
             case chrono::ChSolver::Type::SPARSE_QR: {
                 auto solver = std::static_pointer_cast<chrono::ChDirectSolverLS>(sys.GetSolver());
                 solver->LockSparsityPattern(false);

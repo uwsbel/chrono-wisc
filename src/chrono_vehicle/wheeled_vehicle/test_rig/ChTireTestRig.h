@@ -240,6 +240,8 @@ class CH_VEHICLE_API ChTireTestRig {
 
     const std::shared_ptr<ChBody> GetSpindleBody() const { return m_spindle_body; }
 
+    void SetRunOff(double run_off) { m_run_off = run_off; }
+
   private:
     enum class TerrainType { SCM, RIGID, CRG, GRANULAR, CRM, NONE };
 
@@ -290,6 +292,7 @@ class CH_VEHICLE_API ChTireTestRig {
     double m_base_speed;        ///< base speed for long slip calculation
 
     double m_slope;  ///< slope angle for the terrain
+    double m_run_off;
 
     std::shared_ptr<ChLinkMotorLinearSpeed> m_lin_motor;    ///< carrier actuator
     std::shared_ptr<ChLinkMotorRotationSpeed> m_rot_motor;  ///< wheel actuator

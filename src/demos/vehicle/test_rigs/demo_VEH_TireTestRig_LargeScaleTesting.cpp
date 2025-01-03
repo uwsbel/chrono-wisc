@@ -71,11 +71,6 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
-// For string switches
-constexpr unsigned int hash(const char* str, int h = 0) {
-    return !str[h] ? 5381 : (hash(str, h + 1) * 33) ^ str[h];
-}
-
 // -----------------------------------------------------------------------------
 
 // Run-time visualization system (IRRLICHT or VSG)
@@ -93,8 +88,7 @@ bool log_output = true;
 bool blender_output = false;
 ////std::string wheel_json = "hmmwv/wheel/HMMWV_Wheel.json";
 std::string wheel_json = "Polaris/Polaris_Wheel.json";
-bool use_JSON = false;
-double time_delay = 0.5;
+double time_delay = 0.1;
 
 // ----------------------------------------------------------------------------
 bool GetProblemSpecs(int argc,
@@ -106,28 +100,35 @@ bool GetProblemSpecs(int argc,
                      std::string& scm_type,
                      double& normal_load,
                      std::string& terrain_type_str,
+                     double& slope,
                      std::string& tire_type_str,
                      bool& set_long_speed,
                      bool& set_ang_speed,
-                     bool& set_slip_angle) {
+                     bool& set_slip_angle,
+                     ChSolver::Type& solver_type) {
     ChCLI cli(argv[0], "Tire Test Rig Configuration");
 
     cli.AddOption<int>("Mesh", "refine", "Mesh refinement level (1,2,3) - Only for ANCF_AIRLESS tire",
                        std::to_string(refine_level));
     // Add options for Young's modulus and step size
-    cli.AddOption<double>("Material", "ym", "Young's modulus (Pa) - Required Parameter");
-    cli.AddOption<double>("Material", "pr", "Poisson's ratio - Required Parameter");
-    cli.AddOption<double>("Simulation", "st", "Step size - Required Parameter");
-    cli.AddOption<std::string>("Terrain", "type", "Terrain type (rigid/scm)", "rigid");
+    cli.AddOption<double>("Material", "ym", "Young's modulus (Pa) - Required Parameter", std::to_string(y_mod));
+    cli.AddOption<double>("Material", "pr", "Poisson's ratio - Required Parameter", std::to_string(p_ratio));
+    cli.AddOption<double>("Simulation", "st", "Step size - Required Parameter", std::to_string(step_c));
+    cli.AddOption<std::string>("Terrain", "type", "Terrain type (rigid/scm)", terrain_type_str);
     cli.AddOption<std::string>("SCM type", "scm", "SCM Terrain Type (soft, medium, hard) - Only if terrain is SCM",
-                               "soft");
-    cli.AddOption<std::string>("Tire", "tire", "Tire type (rigid/ancf_toroidal/ancf_airless)", "ancf_airless");
+                               scm_type);
+    cli.AddOption<std::string>("Tire", "tire", "Tire type (rigid/ancf_toroidal/ancf_airless)", tire_type_str);
     cli.AddOption<double>("Simulation", "nl", "Normal Load (N)", std::to_string(normal_load));
 
     // Motion control enable/disable options
-    cli.AddOption<bool>("Motion", "long_speed", "Enable longitudinal speed control (default: false)", "false");
-    cli.AddOption<bool>("Motion", "ang_speed", "Enable angular speed control (default: true)", "true");
-    cli.AddOption<bool>("Motion", "slip", "Enable slip angle control (default: false)", "false");
+    cli.AddOption<std::string>("Motion", "long_speed", "Enable longitudinal speed control (default: 0, use 0/1)", "0");
+    cli.AddOption<std::string>("Motion", "ang_speed", "Enable angular speed control (default: 1, use 0/1)", "1");
+    cli.AddOption<std::string>("Motion", "slip", "Enable slip angle control (default: 0, use 0/1)", "0");
+    cli.AddOption<double>("Terrain", "slope", "Terrain slope (degrees)", std::to_string(slope));
+
+    cli.AddOption<std::string>(
+        "Solver", "solver",
+        "Solver type - Only applicable for ANCF Tires (pardiso_mkl/sparse_lu, default: pardiso_mkl)", "pardiso_mkl");
 
     if (argc == 1) {
         cout << "Required parameters missing. See required parameters and descriptions below:\n\n";
@@ -146,7 +147,7 @@ bool GetProblemSpecs(int argc,
     p_ratio = cli.GetAsType<double>("pr");
     terrain_type_str = cli.GetAsType<std::string>("type");
     tire_type_str = cli.GetAsType<std::string>("tire");
-
+    slope = cli.GetAsType<double>("slope");
     normal_load = cli.GetAsType<double>("nl");
 
     // Only get SCM type if terrain is SCM
@@ -160,9 +161,28 @@ bool GetProblemSpecs(int argc,
     }
 
     // Get motion control flags
-    set_long_speed = cli.GetAsType<bool>("long_speed");
-    set_ang_speed = cli.GetAsType<bool>("ang_speed");
-    set_slip_angle = cli.GetAsType<bool>("slip");
+    std::string long_speed_str = cli.GetAsType<std::string>("long_speed");
+    std::string ang_speed_str = cli.GetAsType<std::string>("ang_speed");
+    std::string slip_str = cli.GetAsType<std::string>("slip");
+
+    // Convert string to bool (accepting 0/1 or true/false)
+    auto str_to_bool = [](const std::string& str) {
+        return (str == "1" || str == "true" || str == "True") ? true : false;
+    };
+
+    set_long_speed = str_to_bool(long_speed_str);
+    set_ang_speed = str_to_bool(ang_speed_str);
+    set_slip_angle = str_to_bool(slip_str);
+
+    std::string solver_str = cli.GetAsType<std::string>("solver");
+    if (solver_str == "pardiso_mkl") {
+        solver_type = ChSolver::Type::PARDISO_MKL;
+    } else if (solver_str == "sparse_lu") {
+        solver_type = ChSolver::Type::SPARSE_LU;
+    } else {
+        std::cout << "Unknown solver type '" << solver_str << "', using default PARDISO_MKL" << std::endl;
+        solver_type = ChSolver::Type::PARDISO_MKL;
+    }
 
     return true;
 }
@@ -177,13 +197,15 @@ int main(int argc, char* argv[]) {
     std::string terrain_type_str = "rigid";
     std::string tire_type_str = "ancf_airless";
     int refine_level = 1;
+    double slope = 0;
     // Motion control flags
     bool set_longitudinal_speed = false;
     bool set_angular_speed = true;
     bool set_slip_angle = false;
-
+    ChSolver::Type solver_type = ChSolver::Type::PARDISO_MKL;
     if (!GetProblemSpecs(argc, argv, refine_level, y_mod, step_c, p_ratio, scm_type, normal_load, terrain_type_str,
-                         tire_type_str, set_longitudinal_speed, set_angular_speed, set_slip_angle)) {
+                         slope, tire_type_str, set_longitudinal_speed, set_angular_speed, set_slip_angle,
+                         solver_type)) {
         return 1;
     }
     TerrainType terrain_type;
@@ -196,20 +218,15 @@ int main(int argc, char* argv[]) {
     }
 
     // Set tire type based on input using switch
-    switch (hash(tire_type_str.c_str())) {
-        case hash("rigid"):
-            tire_type = TireType::RIGID;
-            break;
-        case hash("ancf_toroidal"):
-            tire_type = TireType::ANCF_TOROIDAL;
-            break;
-        case hash("ancf_airless"):
-            tire_type = TireType::ANCF_AIRLESS;
-            break;
-        default:
-            std::cout << "Unknown tire type '" << tire_type_str << "', using default ANCF Airless Tire" << std::endl;
-            tire_type = TireType::ANCF_AIRLESS;
-            break;
+    if (tire_type_str == "rigid") {
+        tire_type = TireType::RIGID;
+    } else if (tire_type_str == "ancf_toroidal") {
+        tire_type = TireType::ANCF_TOROIDAL;
+    } else if (tire_type_str == "ancf_airless") {
+        tire_type = TireType::ANCF_AIRLESS;
+    } else {
+        std::cout << "Unknown tire type '" << tire_type_str << "', using default ANCF Airless Tire" << std::endl;
+        tire_type = TireType::ANCF_AIRLESS;
     }
 
     const std::string out_dir = GetChronoOutputPath() + "TIRE_TEST_RIG";
@@ -243,6 +260,7 @@ int main(int argc, char* argv[]) {
         out << "Set Longitudinal Speed: " << set_longitudinal_speed << std::endl;
         out << "Set Angular Speed: " << set_angular_speed << std::endl;
         out << "Set Slip Angle: " << set_slip_angle << std::endl;
+        out << "Solver Type: " << ChSolver::GetTypeAsString(solver_type) << std::endl;
         out << std::endl;
     };
 
@@ -261,8 +279,8 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChTire> tire;
     if (tire_type == TireType::ANCF_TOROIDAL) {
         auto ancf_tire = chrono_types::make_shared<ANCFToroidalTire>("ANCFtoroidal tire");
-        ancf_tire->SetRimRadius(0.27);
-        ancf_tire->SetHeight(0.18);
+        ancf_tire->SetRimRadius(0.225);
+        ancf_tire->SetHeight(0.225);
         ancf_tire->SetThickness(0.015);
         ancf_tire->SetDivCircumference(40);
         ancf_tire->SetDivWidth(8);
@@ -272,8 +290,8 @@ int main(int argc, char* argv[]) {
     } else if (tire_type == TireType::ANCF_AIRLESS) {
         auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
         // These are default sizes for the polaris tire
-        ancf_tire->SetRimRadius(0.13);                         // Default is 0.225
-        ancf_tire->SetHeight(0.2);                             // Default is 0.225
+        ancf_tire->SetRimRadius(0.225);                        // Default is 0.225
+        ancf_tire->SetHeight(0.225);                           // Default is 0.225
         ancf_tire->SetWidth(0.24);                             // Default is 0.4
         ancf_tire->SetAlpha(0.05);                             // Default is 0.05
         ancf_tire->SetYoungsModulus(y_mod);                    // Default is 76e9
@@ -282,20 +300,10 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         tire = ancf_tire;
-    } else if (use_JSON) {
-        std::string tire_file;
-        switch (tire_type) {
-            case TireType::RIGID:
-                tire_file = "hmmwv/tire/HMMWV_RigidTire.json";
-                break;
-        }
-        tire = ReadTireJSON(vehicle::GetDataFile(tire_file));
     } else {
-        switch (tire_type) {
-            case TireType::RIGID:
-                tire = chrono_types::make_shared<hmmwv::HMMWV_RigidTire>("Rigid tire");
-                break;
-        }
+        std::string tire_file;
+        tire_file = "hmmwv/tire/HMMWV_RigidTire_mod.json";  // This mod tire has the correct dimensions
+        tire = ReadTireJSON(vehicle::GetDataFile(tire_file));
     }
 
     bool fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(tire) != nullptr;
@@ -318,13 +326,11 @@ int main(int argc, char* argv[]) {
 
     ChSystem* sys = nullptr;
     double step_size = 0;
-    ChSolver::Type solver_type;
     ChTimestepper::Type integrator_type;
 
     if (fea_tire) {
         sys = new ChSystemSMC;
-        step_size = step_c;  // 1e-4
-        solver_type = ChSolver::Type::PARDISO_MKL;
+        step_size = step_c;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
         sys = new ChSystemNSC;
@@ -335,18 +341,29 @@ int main(int argc, char* argv[]) {
 
     // Set collision system
     sys->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
-
     // Number of OpenMP threads used in Chrono (SCM ray-casting and FEA)
-    int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
+    int num_threads_chrono;
 
     // Number of threads used in collision detection
-    int num_threads_collision = 1;
+    int num_threads_collision;
 
     // Number of threads used by Eigen
-    int num_threads_eigen = 1;
+    int num_threads_eigen;
 
     // Number of threads used by PardisoMKL
-    int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
+    int num_threads_pardiso;
+
+    if (solver_type == ChSolver::Type::PARDISO_MKL) {
+        num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
+        num_threads_collision = 1;
+        num_threads_eigen = 1;
+        num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
+    } else {
+        num_threads_chrono = std::min(14, ChOMP::GetNumProcs());
+        num_threads_collision = 1;
+        num_threads_eigen = 1;
+        num_threads_pardiso = 0;
+    }
 
     sys->SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
     SetChronoSolver(*sys, solver_type, integrator_type, num_threads_pardiso);
@@ -357,6 +374,10 @@ int main(int argc, char* argv[]) {
     // -----------------------------
 
     ChTireTestRig rig(wheel, tire, sys);
+
+    // Set runoff distance from tire to edge of terrain
+    double run_off = 2 * tire->GetRadius();
+    rig.SetRunOff(run_off);
 
     rig.SetGravitationalAcceleration(9.8);
     rig.SetNormalLoad(normal_load);
@@ -370,64 +391,56 @@ int main(int argc, char* argv[]) {
         params.friction = 0.8f;
         params.restitution = 0;
         params.Young_modulus = 2e7f;
-        params.length = 10;
+        params.length = 20;
         params.width = 1;
 
         rig.SetTerrainRigid(params);
     } else if (terrain_type == TerrainType::SCM) {
         ChTireTestRig::TerrainParamsSCM params;
 
-        switch (hash(scm_type.c_str())) {
-            case hash("soft"):  // Soft
-                params.Bekker_Kphi = 1e7;
-                params.Bekker_Kc = 0;
-                params.Bekker_n = 1.1;
-                params.Mohr_cohesion = 0;
-                params.Mohr_friction = 20;
-                params.Janosi_shear = 0.01;
-                params.Elastic_Stiffness = 2e8;
-                params.Damping = 3e4;
-                std::cout << "Using Soft SCM Terrain" << std::endl;
-                break;
-
-            case hash("medium"):  // Medium
-                params.Bekker_Kphi = 2e7;
-                params.Bekker_Kc = 0;
-                params.Bekker_n = 1.1;
-                params.Mohr_cohesion = 0;
-                params.Mohr_friction = 20;
-                params.Janosi_shear = 0.01;
-                params.Elastic_Stiffness = 2e8;
-                params.Damping = 3e4;
-                std::cout << "Using Medium SCM Terrain" << std::endl;
-                break;
-
-            case hash("hard"):  // Hard
-                params.Bekker_Kphi = 4e7;
-                params.Bekker_Kc = 0;
-                params.Bekker_n = 1.1;
-                params.Mohr_cohesion = 0;
-                params.Mohr_friction = 20;
-                params.Janosi_shear = 0.01;
-                params.Elastic_Stiffness = 2e8;
-                params.Damping = 3e4;
-                std::cout << "Using Hard SCM Terrain" << std::endl;
-                break;
-
-            default:
-                // initial terrain parameters
-                params.Bekker_Kphi = 2e6;
-                params.Bekker_Kc = 0;
-                params.Bekker_n = 1.1;
-                params.Mohr_cohesion = 0;
-                params.Mohr_friction = 30;
-                params.Janosi_shear = 0.01;
-                params.Elastic_Stiffness = 2e8;
-                params.Damping = 3e4;
-                std::cout << "Unknown SCM type '" << scm_type << "', using default terrain parameters" << std::endl;
-                break;
+        if (scm_type == "soft") {  // Soft
+            params.Bekker_Kphi = 1e7;
+            params.Bekker_Kc = 0;
+            params.Bekker_n = 1.1;
+            params.Mohr_cohesion = 0;
+            params.Mohr_friction = 20;
+            params.Janosi_shear = 0.01;
+            params.Elastic_Stiffness = 2e8;
+            params.Damping = 3e4;
+            std::cout << "Using Soft SCM Terrain" << std::endl;
+        } else if (scm_type == "medium") {  // Medium
+            params.Bekker_Kphi = 2e7;
+            params.Bekker_Kc = 0;
+            params.Bekker_n = 1.1;
+            params.Mohr_cohesion = 0;
+            params.Mohr_friction = 20;
+            params.Janosi_shear = 0.01;
+            params.Elastic_Stiffness = 2e8;
+            params.Damping = 3e4;
+            std::cout << "Using Medium SCM Terrain" << std::endl;
+        } else if (scm_type == "hard") {  // Hard
+            params.Bekker_Kphi = 4e7;
+            params.Bekker_Kc = 0;
+            params.Bekker_n = 1.1;
+            params.Mohr_cohesion = 0;
+            params.Mohr_friction = 20;
+            params.Janosi_shear = 0.01;
+            params.Elastic_Stiffness = 2e8;
+            params.Damping = 3e4;
+            std::cout << "Using Hard SCM Terrain" << std::endl;
+        } else {
+            // initial terrain parameters
+            params.Bekker_Kphi = 2e6;
+            params.Bekker_Kc = 0;
+            params.Bekker_n = 1.1;
+            params.Mohr_cohesion = 0;
+            params.Mohr_friction = 30;
+            params.Janosi_shear = 0.01;
+            params.Elastic_Stiffness = 2e8;
+            params.Damping = 3e4;
+            std::cout << "Unknown SCM type '" << scm_type << "', using default terrain parameters" << std::endl;
         }
-        params.length = 10;
+        params.length = 20;
         params.width = 1;
         params.grid_spacing = 0.025;
         rig.SetTerrainSCM(params);
@@ -435,7 +448,7 @@ int main(int argc, char* argv[]) {
 
     // Scenario: prescribe all motion functions
     //   longitudinal speed: 0.2 m/s
-    //   angular speed: 10 RPM
+    //   angular speed: 50 RPM
     //   slip angle: sinusoidal +- 5 deg with 5 s period
     if (set_longitudinal_speed) {
         rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionConst>(0.2));
@@ -457,6 +470,9 @@ int main(int argc, char* argv[]) {
 
     // Initialize the tire test rig
     rig.SetTimeDelay(time_delay);
+
+    // Set the slope
+    rig.SetSlope(slope * CH_DEG_TO_RAD);
     ////rig.Initialize(ChTireTestRig::Mode::SUSPEND);
     ////rig.Initialize(ChTireTestRig::Mode::DROP);
     rig.Initialize(ChTireTestRig::Mode::TEST);
@@ -569,6 +585,7 @@ int main(int argc, char* argv[]) {
     double time_offset = 0.5;
     double step_time;
     std::shared_ptr<ChBody> spindle_body = rig.GetSpindleBody();
+    double wheel_init_x = spindle_body->GetPos().x();
     // Write crash info to both console and logfile
     auto WriteSimStats = [&](std::ostream& out) {
         out << "Simulated time: " << time << std::endl;
@@ -579,11 +596,20 @@ int main(int argc, char* argv[]) {
     timer.start();
     while (vis->Run() && time < 5) {
         time = sys->GetChTime();
-        if (std::isnan(spindle_body->GetPos().z())) {
+        if (std::isnan(spindle_body->GetPos().z()) || abs(spindle_body->GetPos().z()) > 1000) {
             ChVector3d pos = spindle_body->GetPos();
             timer.stop();
             step_time = timer();
             std::cout << "Simulation appears to have crashed" << std::endl;
+
+            WriteSimStats(std::cout);
+            WriteSimStats(logfile);
+
+            return 1;
+        } else if (wheel_init_x - spindle_body->GetPos().x() > run_off) {
+            std::cout << std::endl << "Wheel has moved backwards beyond the runoff distance" << std::endl;
+            timer.stop();
+            step_time = timer();
 
             WriteSimStats(std::cout);
             WriteSimStats(logfile);
