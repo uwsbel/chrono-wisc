@@ -376,7 +376,7 @@ int main(int argc, char* argv[]) {
     ChTireTestRig rig(wheel, tire, sys);
 
     // Set runoff distance from tire to edge of terrain
-    double run_off = 2 * tire->GetRadius();
+    double run_off = 5 * tire->GetRadius();
     rig.SetRunOff(run_off);
 
     rig.SetGravitationalAcceleration(9.8);
