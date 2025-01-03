@@ -66,7 +66,7 @@ class HMMWV_Model : public Vehicle_Model {
     virtual std::string TransmissionJSON() const override {
         return "hmmwv/powertrain/HMMWV_AutomaticTransmissionShafts.json";
     }
-    virtual double InitHeight() const override { return 0.75; }
+    virtual double InitHeight() const override { return 0.4; }
 };
 
 class Polaris_Model : public Vehicle_Model {
@@ -79,7 +79,7 @@ class Polaris_Model : public Vehicle_Model {
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
-    virtual double InitHeight() const override { return 0.2; }
+    virtual double InitHeight() const override { return 0.0; }
 };
 
 bool use_airless_tire =
@@ -110,10 +110,10 @@ class MyDriver : public ChDriver {
         if (eff_time < 0)
             return;
 
-        if (eff_time > 0.2)
-            m_throttle = 0.7;
+        if (eff_time > 0.0)
+            m_throttle = 1.0;
         else
-            m_throttle = 3.5 * eff_time;
+            m_throttle = 0.2 * eff_time;
 
         if (eff_time < 2)
             m_steering = 0;
@@ -156,9 +156,9 @@ int main(int argc, char** argv) {
     }
 
     // Simulation parameters
-    double step_size = 1e-5;
-    double step_rigid_tire = 1e-5;
-    double step_fea_tire = 1e-5;
+    double step_size = 1e-4;
+    double step_rigid_tire = 1e-3;
+    double step_fea_tire = 1e-4;
     int nthreads_terrain = 4;
     double sim_time = 8.0;
 
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
     bool writePP = true;
     bool writeRT = true;
     std::string suffix = "";
-    bool verbose = false;
+    bool verbose = true;
     bool render_tire[4] = {true, true, true, false};
 
     // If use_DBP_rig=true, attach a drawbar pull rig to the vehicle
@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
             vehicle->AttachDrawbarPullRig(dbp_rig);
         }
 
-        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.5);
+        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.3);
         vehicle->SetDriver(driver);
         vehicle->SetVerbose(verbose);
         vehicle->SetInitialLocation(init_loc);
@@ -357,13 +357,13 @@ int main(int argc, char** argv) {
                 }
                 tire->GetSystem().SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 auto& sys = tire->GetSystem();
-                auto solver_type = ChSolver::Type::PARDISO_MKL;
-                auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+                auto solver_type = ChSolver::Type::SPARSE_LU;
+                auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_PROJECTED;
                 int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
                 int num_threads_collision = 1;
                 int num_threads_eigen = 1;
                 int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
-                SetChronoSolver(sys, solver_type, integrator_type, num_threads_pardiso);
+                SetChronoSolver(sys, solver_type, integrator_type);
                 sys.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
                 if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
                     hht->SetAlpha(-0.2);

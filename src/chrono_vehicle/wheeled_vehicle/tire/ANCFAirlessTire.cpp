@@ -34,7 +34,7 @@ ANCFAirlessTire::ANCFAirlessTire(const std::string& name)
       m_rim_radius(0.225),
       m_height(0.225),
       m_width(0.4),
-      m_t_outer_ring(0.005),
+      m_t_outer_ring(0.02),
       m_t_spoke(0.003),
       m_num_spoke(16),
       m_div_width(3),
@@ -44,8 +44,8 @@ ANCFAirlessTire::ANCFAirlessTire(const std::string& name)
       m_nu(0.2),
       m_rho(2580),
       m_alpha(0.05) {
-      // default contact material
-      m_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    // default contact material
+    m_mat = chrono_types::make_shared<ChContactMaterialSMC>();
 }
 
 void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) {
@@ -60,14 +60,14 @@ void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide
     // Derived geometry
     //-------------------------------------------------
     double rOut = m_rim_radius + m_height;
-    int numNodesWidth = m_div_width + 1;               // Number of nodes across the width of the tire
+    int numNodesWidth = m_div_width + 1;                    // Number of nodes across the width of the tire
     int numElsOutCir = m_num_spoke * m_div_ring_per_spoke;  // number of elements forming a circle in the outer ring
-    int numElsOutCirTot = numElsOutCir * m_div_width;  // number of elements forming the complete outer ring
-    int numNodesOutRingSlice = numElsOutCir;          // number of nodes in a slice normal to the width of the tire
+    int numElsOutCirTot = numElsOutCir * m_div_width;       // number of elements forming the complete outer ring
+    int numNodesOutRingSlice = numElsOutCir;  // number of nodes in a slice normal to the width of the tire
     int numNodesOutRingTotal =
         numElsOutCir * (m_div_width + 1);  // total number of nodes in the outer band/ring of the tire
 
-    double widthEl = m_width / m_div_width;            // width of each element
+    double widthEl = m_width / m_div_width;         // width of each element
     double radiansElOuter = CH_2PI / numElsOutCir;  // arc spand by a single element in the outer ring
     double lenElOuter =
         2.0 * rOut * std::sin(0.5 * radiansElOuter);  // Corresponding length of each element in the outer ring

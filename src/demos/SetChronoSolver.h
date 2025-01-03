@@ -106,8 +106,8 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             case chrono::ChSolver::Type::SPARSE_LU:
             case chrono::ChSolver::Type::SPARSE_QR: {
                 auto solver = std::static_pointer_cast<chrono::ChDirectSolverLS>(sys.GetSolver());
-                solver->LockSparsityPattern(false);
-                solver->UseSparsityPatternLearner(false);
+                solver->LockSparsityPattern(true);
+                solver->UseSparsityPatternLearner(true);
                 break;
             }
             case chrono::ChSolver::Type::BARZILAIBORWEIN:
@@ -123,9 +123,9 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             case chrono::ChSolver::Type::MINRES:
             case chrono::ChSolver::Type::GMRES: {
                 auto solver = std::static_pointer_cast<chrono::ChIterativeSolverLS>(sys.GetSolver());
-                solver->SetMaxIterations(200);
-                solver->SetTolerance(1e-10);
-                solver->EnableDiagonalPreconditioner(true);
+                solver->SetMaxIterations(400);
+                solver->SetTolerance(1e-12);
+                solver->EnableDiagonalPreconditioner(false);
                 break;
             }
             default:
