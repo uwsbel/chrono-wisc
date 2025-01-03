@@ -111,14 +111,14 @@ class MyDriver : public ChDriver {
             return;
 
         if (eff_time > 0.0)
-            m_throttle = 1.0;
+            m_throttle = 0.6;
         else
-            m_throttle = 0.2 * eff_time;
+            m_throttle = 0.0 * eff_time;
 
-        if (eff_time < 2)
+        if (eff_time < 0.0)
             m_steering = 0;
         else
-            m_steering = 0.6 * std::sin(CH_2PI * (eff_time - 2) / 6);
+            m_steering = 0.6 * std::sin(CH_2PI * (eff_time - 0) / 6);
     }
 
   private:
@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
     double render_fps = 100;
 
     bool output = true;
-    bool renderRT = true;
+    bool renderRT = false;
     bool writePP = true;
     bool writeRT = true;
     std::string suffix = "";
@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
             vehicle->AttachDrawbarPullRig(dbp_rig);
         }
 
-        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.3);
+        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.25);
         vehicle->SetDriver(driver);
         vehicle->SetVerbose(verbose);
         vehicle->SetInitialLocation(init_loc);
