@@ -566,13 +566,21 @@ void ChFluidDynamics::IntegrateSPH(std::shared_ptr<SphMarkerDataD> sortedSphMark
         // During settling phase, all particles are active
         if (time > m_data_mgr.paramsH->settlingTime)
             UpdateActivity(sortedSphMarkers1_D, sortedSphMarkers2_D);
+        m_timer_force.start();
         forceSystem->ForceSPH(sortedSphMarkers2_D, time, firstHalfStep);
+        m_timer_force.stop();
+        m_timer_update_fluid.start();
         UpdateFluid(sortedSphMarkers1_D, dT);
+        m_timer_update_fluid.stop();
     } else {
+        m_timer_force.start();
         forceSystem->ForceSPH(sortedSphMarkers1_D, time, firstHalfStep);
+        m_timer_force.stop();
     }
 
+    m_timer_periodic_boundary.start();
     ApplyBoundarySPH_Markers(sortedSphMarkers2_D);
+    m_timer_periodic_boundary.stop();
 }
 
 // -----------------------------------------------------------------------------

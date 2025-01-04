@@ -1018,7 +1018,29 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
     m_bce_mgr->Initialize(m_fsi_bodies_bce_num);
     m_fluid_dynamics->Initialize();
 
+    // Check if GPU is available and initialize CUDA device information
+    int device;
+    cudaGetDevice(&device);
+    cudaCheckError();
+    m_data_mgr->cudaDeviceInfo->deviceID = device;
+    cudaGetDeviceProperties(&m_data_mgr->cudaDeviceInfo->deviceProp, m_data_mgr->cudaDeviceInfo->deviceID);
+    cudaCheckError();
+
     if (m_verbose) {
+        cout << "GPU device: " << m_data_mgr->cudaDeviceInfo->deviceProp.name << endl;
+        cout << "  Compute capability: " << m_data_mgr->cudaDeviceInfo->deviceProp.major << "."
+             << m_data_mgr->cudaDeviceInfo->deviceProp.minor << endl;
+        cout << "  Total global memory: "
+             << m_data_mgr->cudaDeviceInfo->deviceProp.totalGlobalMem / (1024. * 1024. * 1024.) << " GB" << endl;
+        cout << "  Total constant memory: " << m_data_mgr->cudaDeviceInfo->deviceProp.totalConstMem / 1024. << " KB"
+             << endl;
+        cout << "  Total Static shared memory per block Available: "
+             << m_data_mgr->cudaDeviceInfo->deviceProp.sharedMemPerBlock / 1024. << " KB" << endl;
+        cout << "  Maximum Dynamic shared memory per block (with opt-in): "
+             << m_data_mgr->cudaDeviceInfo->deviceProp.sharedMemPerBlockOptin / 1024. << " KB" << endl;
+        cout << "  Total shared memory per multiprocessor: "
+             << m_data_mgr->cudaDeviceInfo->deviceProp.sharedMemPerMultiprocessor / 1024. << " KB" << endl;
+        cout << "  Number of multiprocessors: " << m_data_mgr->cudaDeviceInfo->deviceProp.multiProcessorCount << endl;
         cout << "Simulation parameters" << endl;
         if (m_paramsH->viscosity_type == ViscosityType::ARTIFICIAL_BILATERAL) {
             cout << "  Viscosity treatment: Artificial Bilateral" << endl;
@@ -1145,12 +1167,14 @@ void ChFluidSystemSPH::Initialize(unsigned int num_fsi_bodies,
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChFluidSystemSPH::OnDoStepDynamics(double step) {
+    m_timer_sort_particles.start();
     if (m_time < 1e-6 || int(round(m_time / m_paramsH->dT)) % m_paramsH->num_proximity_search_steps == 0) {
         m_fluid_dynamics->SortParticles();
     }
-
+    m_timer_sort_particles.stop();
     m_data_mgr->ResetData();
 
+    m_timer_integrate_sph.start();
     switch (m_paramsH->sph_method) {
         case SPHMethod::WCSPH: {
             m_data_mgr->CopyDeviceDataToHalfStep();
@@ -1171,20 +1195,30 @@ void ChFluidSystemSPH::OnDoStepDynamics(double step) {
             break;
         }
     }
+    m_timer_integrate_sph.stop();
 }
 
 void ChFluidSystemSPH::OnExchangeSolidForces() {
+    m_timer_rigid_forces.start();
     m_bce_mgr->Rigid_Forces_Torques();
+    m_timer_rigid_forces.stop();
+
+    m_timer_flex1D_forces.start();
     m_bce_mgr->Flex1D_Forces();
+    m_timer_flex1D_forces.stop();
+
+    m_timer_flex2D_forces.start();
     m_bce_mgr->Flex2D_Forces();
+    m_timer_flex2D_forces.stop();
 }
 
 void ChFluidSystemSPH::OnExchangeSolidStates() {
     m_bce_mgr->UpdateBodyMarkerState();
     m_bce_mgr->UpdateMeshMarker1DState();
     m_bce_mgr->UpdateMeshMarker2DState();
-
+    m_timer_copy_sorted_to_original.start();
     m_fluid_dynamics->CopySortedToOriginal(m_data_mgr->sortedSphMarkers2_D, m_data_mgr->sphMarkers_D);
+    m_timer_copy_sorted_to_original.stop();
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

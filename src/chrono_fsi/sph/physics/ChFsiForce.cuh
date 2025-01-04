@@ -24,6 +24,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "chrono/core/ChTimer.h"
+
 #include "chrono_fsi/sph/physics/BceManager.cuh"
 #include "chrono_fsi/sph/physics/FsiDataManager.cuh"
 #include "chrono_fsi/sph/physics/ChCollisionSystemFsi.cuh"
@@ -160,6 +162,18 @@ class ChFsiForce {
     static void CopySortedToOriginal_NonInvasive_R4(thrust::device_vector<Real4>& original,
                                                     thrust::device_vector<Real4>& sorted,
                                                     const thrust::device_vector<uint>& gridMarkerIndex);
+    void ResetTimers() {
+        m_timer_neighbor_search.reset();
+        m_timer_boundary_condition.reset();
+        m_timer_acceleration_calc.reset();
+    }
+
+    /// Get cumulative time for neighbor search.
+    double GetTimeNeighborSearch() { return m_timer_neighbor_search(); }
+    /// Get cumulative time for boundary condition application.
+    double GetTimeBoundaryCondition() { return m_timer_boundary_condition(); }
+    /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
+    double GetTimeAccelerationCalc() { return m_timer_acceleration_calc(); }
 
     /// Function to set the linear solver type for the solver implemented using the ISPH method (ChFsiForceI2SPH).
     void SetLinearSolver(SolverType type);
@@ -176,6 +190,10 @@ class ChFsiForce {
     bool m_verbose;
 
     friend class ChFluidDynamics;
+
+    ChTimer m_timer_neighbor_search;
+    ChTimer m_timer_boundary_condition;
+    ChTimer m_timer_acceleration_calc;
 };
 
 /// @} fsi_physics

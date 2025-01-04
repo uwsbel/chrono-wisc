@@ -19,6 +19,7 @@
 #ifndef CH_FLUIDDYNAMICS_H_
 #define CH_FLUIDDYNAMICS_H_
 
+#include "chrono/core/ChTimer.h"
 #include "chrono_fsi/sph/physics/ChFsiForce.cuh"
 #include "chrono_fsi/sph/utils/ChUtilsDevice.cuh"
 #include "chrono_fsi/sph/physics/ChFsiForceExplicitSPH.cuh"
@@ -87,6 +88,29 @@ class ChFluidDynamics {
     /// Return the ChFsiForce type used in the simulation.
     std::shared_ptr<ChFsiForce> GetForceSystem() { return forceSystem; }
 
+    /// Reset timers for RHS Force calculation and Fluid Update
+    void ResetTimers() {
+        m_timer_force.reset();
+        m_timer_update_fluid.reset();
+        m_timer_periodic_boundary.reset();
+        forceSystem->ResetTimers();
+    }
+
+    /// Timer for neighbor search + boundary condition + acceleration calculation
+    double GetTimeForce() { return m_timer_force(); }
+    /// Timer for Time update. For CRM, continuum model is applied here.
+    double GetTimeUpdateFluid() { return m_timer_update_fluid(); }
+
+    /// Get cumulative time for neighbor search.
+    double GetTimeNeighborSearch() { return forceSystem->GetTimeNeighborSearch(); }
+    /// Get cumulative time for boundary condition application.
+    double GetTimeBoundaryCondition() { return forceSystem->GetTimeBoundaryCondition(); }
+    /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
+    double GetTimeAccelerationCalc() { return forceSystem->GetTimeAccelerationCalc(); }
+
+    /// Get cumulative time for Periodic boundary application.
+    double GetTimePeriodicBoundary() { return m_timer_periodic_boundary(); }
+
   protected:
     FsiDataManager& m_data_mgr;               ///< FSI data manager
     std::shared_ptr<ChFsiForce> forceSystem;  ///< force system object; calculates the force between particles
@@ -107,6 +131,11 @@ class ChFluidDynamics {
     /// Modify the velocity of BCE particles.
     /// TODO (Huzaifa) - Might need to deprecated this function.
     void ApplyModifiedBoundarySPH_Markers(std::shared_ptr<SphMarkerDataD> sphMarkersD);
+
+  private:
+    ChTimer m_timer_force;
+    ChTimer m_timer_update_fluid;
+    ChTimer m_timer_periodic_boundary;
 };
 
 /// @} fsi_physics

@@ -168,6 +168,8 @@ FsiDataManager::FsiDataManager(std::shared_ptr<SimParams> params) : paramsH(para
     fsiMesh2DState_H = chrono_types::make_shared<FsiMeshStateH>();
 
     markersProximity_D = chrono_types::make_shared<ProximityDataD>();
+
+    cudaDeviceInfo = chrono_types::make_shared<CudaDeviceInfo>();
 }
 
 FsiDataManager::~FsiDataManager() {}
@@ -601,7 +603,9 @@ thrust::device_vector<Real4> FsiDataManager::GetParticleForces(const thrust::dev
 
     return forces;
 }
-
+size_t FsiDataManager::GetNumActiveParticles() const {
+    return thrust::reduce(activityIdentifierD.begin(), activityIdentifierD.end(), 0u, thrust::plus<unsigned int>());
+}
 }  // namespace sph
 }  // end namespace fsi
 }  // end namespace chrono

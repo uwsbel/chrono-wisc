@@ -165,6 +165,11 @@ struct ProximityDataD {
     void resize(size_t s);
 };
 
+struct CudaDeviceInfo {
+    int deviceID;               ///< CUDA device ID
+    cudaDeviceProp deviceProp;  ///< CUDA device properties
+};
+
 // -----------------------------------------------------------------------------
 
 /// Number of rigid and flexible solid bodies, fluid SPH particles, solid SPH particles, boundary SPH particles.
@@ -237,6 +242,9 @@ class FsiDataManager {
                                                   const Real3& ay,
                                                   const Real3& az);
 
+    /// Get the number of active particles.
+    size_t GetNumActiveParticles() const;
+
     /// Extract positions of all SPH particles with indices in the provided array.
     /// The return value is a device thrust vector.
     thrust::device_vector<Real4> GetParticlePositions(const thrust::device_vector<int>& indices);
@@ -270,7 +278,7 @@ class FsiDataManager {
     std::shared_ptr<FsiMeshStateD> fsiMesh2DState_D;  ///< 2-D FEA mesh state (device)
 
     std::shared_ptr<ProximityDataD> markersProximity_D;  ///< Information of neighbor search on the device
-
+    std::shared_ptr<CudaDeviceInfo> cudaDeviceInfo;      ///< CUDA device information
     // fluidfsiBodiesIndex (host)
     thrust::host_vector<int4> referenceArray;      ///< phases in the array of SPH particles
     thrust::host_vector<int4> referenceArray_FEA;  ///< phases in the array of SPH particles for flexible elements
