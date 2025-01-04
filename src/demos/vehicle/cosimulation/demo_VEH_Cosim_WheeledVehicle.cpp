@@ -110,10 +110,10 @@ class MyDriver : public ChDriver {
         if (eff_time < 0)
             return;
 
-        if (eff_time > 0.0)
+        if (eff_time > 0.0 && eff_time <=3.0)
             m_throttle = 0.6;
-        else
-            m_throttle = 0.0 * eff_time;
+        else if(eff_time > 3.0)
+            m_throttle = 0.0;
 
         if (eff_time < 0.0)
             m_steering = 0;
@@ -156,9 +156,9 @@ int main(int argc, char** argv) {
     }
 
     // Simulation parameters
-    double step_size = 1e-4;
+    double step_size = 2e-5;
     double step_rigid_tire = 1e-3;
-    double step_fea_tire = 1e-4;
+    double step_fea_tire = 2e-5;
     int nthreads_terrain = 4;
     double sim_time = 8.0;
 
@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
     double render_fps = 100;
 
     bool output = true;
-    bool renderRT = false;
+    bool renderRT = true;
     bool writePP = true;
     bool writeRT = true;
     std::string suffix = "";

@@ -44,13 +44,13 @@
     "Location Chassis": [ -2.19456, 0.35306, 0.83058 ],
     "Location Arm": [ -2.36728, 0.48641, 0.3683 ],
     "Free Length": 0.561998, //0.511198, //0.4534662,
-    "Spring Coefficient": 150000.000
+    "Spring Coefficient": 350000.000
   },
 
   "Shock": {
     "Location Chassis": [ -2.19456, 0.35306, 0.83058 ],
     "Location Arm": [ -2.36728, 0.48641, 0.3683 ],
-    "Damping Coefficient": 10000.000
+    "Damping Coefficient": 1500.000
   },
 
   "Axle": {
