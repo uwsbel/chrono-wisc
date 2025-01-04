@@ -19,9 +19,11 @@
 
 #ifndef CH_BENCHMARK_H
 #define CH_BENCHMARK_H
-
+#include <iomanip>
 #include "chrono_thirdparty/googlebenchmark/include/benchmark/benchmark.h"
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/sph/utils/ChUtilsTimingOutput.h"
+#include "chrono_thirdparty/filesystem/path.h"
 
 namespace chrono {
 namespace fsi {
@@ -41,13 +43,34 @@ class ChBenchmarkTest {
 
     virtual void ExecuteStep() = 0;
     virtual ChFsiSystem* GetSystem() = 0;
-
+    virtual ChFluidSystemSPH* GetFluidSystem() = 0;
+    virtual double GetStepSize() = 0;
+    virtual std::string GetViscosityTypeString() = 0;
+    virtual std::string GetBoundaryTypeString() = 0;
+    virtual int GetNumProximitySearchSteps() = 0;
+    virtual double GetD0Multiplier() = 0;
+    virtual double GetTEnd() = 0;
+    virtual std::string GetTestName() = 0;
     void Simulate(int num_steps);
     void ResetTimers();
 
-    double m_timer_step;  ///< time for both CFD and MBS
-    double m_timer_CFD;   ///< time for CFD
-    double m_timer_MBS;   ///< time for MBS
+    double m_timer_step;                  ///< time for both CFD and MBS
+    double m_timer_CFD;                   ///< time for CFD
+    double m_timer_MBS;                   ///< time for MBS
+    double m_timer_FSI;                   ///< time for FSI data exchange
+    double m_timer_integrateSPH;          ///< time for SPH integration
+    double m_timer_rigidForces;           ///< time for rigid body forces
+    double m_timer_flex1DForces;          ///< time for 1D flexible forces
+    double m_timer_flex2DForces;          ///< time for 2D flexible forces
+    double m_timer_copySortedToOriginal;  ///< time for copying sorted to original
+    double m_timer_sortParticles;         ///< time for sorting particles
+    double m_timer_force;                 ///< time for force calculation
+    double m_timer_updateFluid;           ///< time for fluid update
+    double m_timer_periodicBoundary;      ///< time for periodic boundary
+    double m_timer_neighborSearch;        ///< time for neighbor search
+    double m_timer_boundaryCondition;     ///< time for boundary condition
+    double m_timer_accelerationCalc;      ///< time for acceleration calculation
+
     // MBS specific timers
     double m_timer_collision;         ///< time for collision detection
     double m_timer_collision_broad;   ///< time for broad-phase collision
@@ -60,6 +83,19 @@ inline ChBenchmarkTest::ChBenchmarkTest()
     : m_timer_step(0),
       m_timer_CFD(0),
       m_timer_MBS(0),
+      m_timer_FSI(0),
+      m_timer_integrateSPH(0),
+      m_timer_rigidForces(0),
+      m_timer_flex1DForces(0),
+      m_timer_flex2DForces(0),
+      m_timer_copySortedToOriginal(0),
+      m_timer_sortParticles(0),
+      m_timer_force(0),
+      m_timer_updateFluid(0),
+      m_timer_periodicBoundary(0),
+      m_timer_neighborSearch(0),
+      m_timer_boundaryCondition(0),
+      m_timer_accelerationCalc(0),
       m_timer_collision(0),
       m_timer_collision_broad(0),
       m_timer_collision_narrow(0),
@@ -74,6 +110,20 @@ inline void ChBenchmarkTest::Simulate(int num_steps) {
         m_timer_step += GetSystem()->GetTimerStep();
         m_timer_CFD += GetSystem()->GetTimerCFD();
         m_timer_MBS += GetSystem()->GetTimerMBD();
+        m_timer_FSI += GetSystem()->GetTimerFSI();
+        m_timer_integrateSPH += GetFluidSystem()->GetTimeIntegrateSPH();
+        m_timer_rigidForces += GetFluidSystem()->GetTimeRigidForces();
+        m_timer_flex1DForces += GetFluidSystem()->GetTimeFlex1DForces();
+        m_timer_flex2DForces += GetFluidSystem()->GetTimeFlex2DForces();
+        m_timer_copySortedToOriginal += GetFluidSystem()->GetTimeCopySortedToOriginal();
+        m_timer_sortParticles += GetFluidSystem()->GetTimeSortParticles();
+        m_timer_force += GetFluidSystem()->GetTimeForce();
+        m_timer_updateFluid += GetFluidSystem()->GetTimeUpdateFluid();
+        m_timer_periodicBoundary += GetFluidSystem()->GetTimePeriodicBoundary();
+        m_timer_neighborSearch += GetFluidSystem()->GetTimeNeighborSearch();
+        m_timer_boundaryCondition += GetFluidSystem()->GetTimeBoundaryCondition();
+        m_timer_accelerationCalc += GetFluidSystem()->GetTimeAccelerationCalc();
+
         m_timer_collision += GetSystem()->GetMultibodySystem().GetTimerCollision();
         m_timer_collision_broad += GetSystem()->GetMultibodySystem().GetTimerCollisionBroad();
         m_timer_collision_narrow += GetSystem()->GetMultibodySystem().GetTimerCollisionNarrow();
@@ -86,6 +136,19 @@ inline void ChBenchmarkTest::ResetTimers() {
     m_timer_step = 0;
     m_timer_CFD = 0;
     m_timer_MBS = 0;
+    m_timer_FSI = 0;
+    m_timer_integrateSPH = 0;
+    m_timer_rigidForces = 0;
+    m_timer_flex1DForces = 0;
+    m_timer_flex2DForces = 0;
+    m_timer_copySortedToOriginal = 0;
+    m_timer_sortParticles = 0;
+    m_timer_force = 0;
+    m_timer_updateFluid = 0;
+    m_timer_periodicBoundary = 0;
+    m_timer_neighborSearch = 0;
+    m_timer_boundaryCondition = 0;
+    m_timer_accelerationCalc = 0;
     m_timer_collision = 0;
     m_timer_collision_broad = 0;
     m_timer_collision_narrow = 0;
@@ -128,12 +191,10 @@ inline void ChBenchmarkTest::ResetTimers() {
         while (st.KeepRunning()) {                                                 \
             m_test->Simulate(SIM_STEPS);                                           \
         }                                                                          \
+        st.SetLabel(#TEST_NAME); /* Add this line to store the test name */        \
         Report(st);                                                                \
     }                                                                              \
-    BENCHMARK_REGISTER_F(TEST_NAME, SimulateOnce)                                  \
-        ->Unit(benchmark::kMillisecond)                                            \
-        ->Iterations(1)                                                            \
-        ->Repetitions(REPETITIONS);
+    BENCHMARK_REGISTER_F(TEST_NAME, SimulateOnce)->Unit(benchmark::kSecond)->Iterations(1)->Repetitions(REPETITIONS);
 
 // =============================================================================
 
@@ -154,12 +215,78 @@ class ChBenchmarkFixture : public ::benchmark::Fixture {
     ~ChBenchmarkFixture() { delete m_test; }
 
     void Report(benchmark::State& st) {
-        st.counters["Step_Total"] = m_test->m_timer_step * 1e3;
-        st.counters["CFD_Total"] = m_test->m_timer_CFD * 1e3;
-        st.counters["MBS_Total"] = m_test->m_timer_MBS * 1e3;
-        st.counters["CD_Total"] = m_test->m_timer_collision * 1e3;
-        st.counters["CD_Broad"] = m_test->m_timer_collision_broad * 1e3;
-        st.counters["CD_Narrow"] = m_test->m_timer_collision_narrow * 1e3;
+        st.counters["StepTime"] = m_test->m_timer_step;
+        st.counters["CFDTime"] = m_test->m_timer_CFD;
+        st.counters["MBSTime"] = m_test->m_timer_MBS;
+        st.counters["FSIExchangeTime"] = m_test->m_timer_FSI;
+        st.counters["integrateSPHTime"] = m_test->m_timer_integrateSPH;
+        st.counters["rigidForcesTime"] = m_test->m_timer_rigidForces;
+        st.counters["flex1DForcesTime"] = m_test->m_timer_flex1DForces;
+        st.counters["flex2DForcesTime"] = m_test->m_timer_flex2DForces;
+        st.counters["copySortedToOriginalTime"] = m_test->m_timer_copySortedToOriginal;
+        st.counters["sortParticlesTime"] = m_test->m_timer_sortParticles;
+        st.counters["forceTime"] = m_test->m_timer_force;
+        st.counters["updateFluidTime"] = m_test->m_timer_updateFluid;
+        st.counters["periodicBoundaryTime"] = m_test->m_timer_periodicBoundary;
+        st.counters["neighborSearchTime"] = m_test->m_timer_neighborSearch;
+        st.counters["boundaryConditionTime"] = m_test->m_timer_boundaryCondition;
+        st.counters["accelerationCalcTime"] = m_test->m_timer_accelerationCalc;
+
+        SetChronoOutputPath("BENCHMARK2_RTF/");
+        // Output directories
+        std::string out_dir;
+        out_dir = GetChronoOutputPath() + m_test->GetTestName();
+        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+            std::cerr << "Error creating directory " << out_dir << std::endl;
+            return;
+        }
+
+        out_dir = out_dir + "/CRM_WCSPH/";
+        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+            std::cerr << "Error creating directory " << out_dir << std::endl;
+            return;
+        }
+        // Create JSON output using existing utilities
+        rapidjson::Document doc;
+        // Format d0_multiplier
+        std::ostringstream d0_str;
+        d0_str << std::fixed << std::setprecision(1) << m_test->GetD0Multiplier();
+        std::string d0_formatted = d0_str.str();
+        d0_formatted.erase(d0_formatted.find_last_not_of('0') + 1, std::string::npos);
+        if (d0_formatted.back() == '.')
+            d0_formatted.pop_back();
+
+        // Format scale
+        std::string test_name = st.name();  // This will give you "FSI_RigidBceScaling_1/SimulateOnce"
+
+        // Extract the number from the test name
+        size_t underscore_pos = test_name.find_last_of('_');
+        size_t slash_pos = test_name.find('/');
+        std::string num_str = test_name.substr(underscore_pos + 1, slash_pos - underscore_pos - 1);
+
+        std::string json_file_path =
+            out_dir + "/rtf_" + m_test->GetViscosityTypeString() + "_" + m_test->GetBoundaryTypeString() + "_ps" +
+            std::to_string(m_test->GetNumProximitySearchSteps()) + "_d0" + d0_formatted + "_scale" + num_str + ".json";
+
+        // First output parameters
+        OutputParameterJSON(json_file_path,
+                            m_test->GetSystem(),                   // ChFsiSystem*
+                            m_test->GetTEnd(),                     // t_end (number of iterations)
+                            m_test->GetStepSize(),                 // step_size
+                            m_test->GetViscosityTypeString(),      // viscosity_type
+                            m_test->GetBoundaryTypeString(),       // boundary_type
+                            m_test->GetNumProximitySearchSteps(),  // ps_freq
+                            m_test->GetD0Multiplier(),             // d0_multiplier
+                            doc);
+
+        // Then add timing information
+        OutputTimingJSON(json_file_path,
+                         m_test->m_timer_step,  // timer_step
+                         m_test->m_timer_CFD,   // timer_CFD
+                         m_test->m_timer_MBS,   // timer_MBS
+                         m_test->m_timer_FSI,   // timer_FSI
+                         m_test->GetSystem(),   // ChFsiSystem*
+                         doc);
     }
 
     void Reset(int num_init_steps) {

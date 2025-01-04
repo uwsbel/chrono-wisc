@@ -298,7 +298,10 @@ int main(int argc, char* argv[]) {
 
     auto body = sysMBS.GetBodies()[1];
 
-    ChTimer timer;
+    double timer_step = 0;
+    double timer_CFD = 0;
+    double timer_MBS = 0;
+    double timer_FSI = 0;
     while (time < t_end) {
         rover->Update();
         if (output) {
@@ -316,9 +319,11 @@ int main(int argc, char* argv[]) {
                 break;
         }
 
-        timer.start();
         sysFSI.DoStepDynamics(dT);
-        timer.stop();
+        timer_step += sysFSI.GetTimerStep();
+        timer_CFD += sysFSI.GetTimerCFD();
+        timer_MBS += sysFSI.GetTimerMBD();
+        timer_FSI += sysFSI.GetTimerFSI();
 
         time += dT;
         current_step++;
@@ -335,7 +340,7 @@ int main(int argc, char* argv[]) {
     std::string json_file_path = out_dir + "/rtf_" + viscosity_type + "_" + boundary_type + "_ps" +
                                  std::to_string(ps_freq) + "_d0" + d0_formatted + ".json";
     OutputParameterJSON(json_file_path, &sysFSI, t_end, dT, viscosity_type, boundary_type, ps_freq, d0_multiplier, doc);
-    OutputTimingJSON(json_file_path, timer, &sysFSI, doc);
+    OutputTimingJSON(json_file_path, timer_step, timer_CFD, timer_MBS, timer_FSI, &sysFSI, doc);
     if (output)
         ofile.close();
 

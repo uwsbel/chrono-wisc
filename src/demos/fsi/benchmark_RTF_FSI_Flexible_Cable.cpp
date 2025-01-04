@@ -364,7 +364,10 @@ int main(int argc, char* argv[]) {
 
     // Reset all the timers
     sysFSI.GetFluidSystemSPH().ResetTimers();
-    ChTimer timer;
+    double timer_step = 0;
+    double timer_CFD = 0;
+    double timer_MBS = 0;
+    double timer_FSI = 0;
     while (time < t_end) {
         if (output && time >= out_frame / output_fps) {
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
@@ -391,13 +394,16 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
-        timer.start();
         fsi.DoStepDynamics(step_size);
-        timer.stop();
 
         time += step_size;
         sim_frame++;
+        timer_step += fsi.GetSystemFSI().GetTimerStep();
+        timer_CFD += fsi.GetSystemFSI().GetTimerCFD();
+        timer_MBS += fsi.GetSystemFSI().GetTimerMBD();
+        timer_FSI += fsi.GetSystemFSI().GetTimerFSI();
     }
+
     // Create Output JSON file
     rapidjson::Document doc;
     // Generate filename
@@ -411,7 +417,7 @@ int main(int argc, char* argv[]) {
                                  std::to_string(ps_freq) + "_d0" + d0_formatted + ".json";
     OutputParameterJSON(json_file_path, &sysFSI, t_end, step_size, viscosity_type, boundary_type, ps_freq,
                         d0_multiplier, doc);
-    OutputTimingJSON(json_file_path, timer, &sysFSI, doc);
+    OutputTimingJSON(json_file_path, timer_step, timer_CFD, timer_MBS, timer_FSI, &sysFSI, doc);
 
     return 0;
 }

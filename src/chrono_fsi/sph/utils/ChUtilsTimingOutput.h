@@ -27,7 +27,10 @@ void OutputParameterJSON(const std::string& json_file_path,
 
 /// Add timing information to existing JSON document and write to file
 void OutputTimingJSON(const std::string& json_file_path,
-                      const ChTimer& timer,
+                      double timer_step,
+                      double timer_CFD,
+                      double timer_MBS,
+                      double timer_FSI,
                       ChFsiSystem* sysFSI,
                       rapidjson::Document& doc);
 

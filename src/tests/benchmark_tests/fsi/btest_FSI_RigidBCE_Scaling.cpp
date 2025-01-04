@@ -49,8 +49,15 @@ class FsiRigidBceScalingTest : public chrono::fsi::ChBenchmarkTest {
     ~FsiRigidBceScalingTest() = default;
 
     ChFsiSystem* GetSystem() override { return m_sysFSI.get(); }
+    ChFluidSystemSPH* GetFluidSystem() override { return m_sysSPH.get(); }
     void ExecuteStep() override;
-
+    double GetStepSize() override { return m_step_size; }
+    std::string GetViscosityTypeString() override { return m_viscosity_type; }
+    std::string GetBoundaryTypeString() override { return m_boundary_type; }
+    int GetNumProximitySearchSteps() override { return m_num_proximity_search_steps; }
+    double GetD0Multiplier() override { return m_d0_multiplier; }
+    double GetTEnd() override { return 1; }  // Hardcoded based on the define below for 1000 steps at 1e-4 time step
+    std::string GetTestName() override { return "FSI_RigidBceScalingTest"; }
     void SimulateVis();
 
   private:
@@ -65,6 +72,10 @@ class FsiRigidBceScalingTest : public chrono::fsi::ChBenchmarkTest {
     int m_num_rigid_body_particles;
     int m_num_boundary_particles;
     int m_boxes_per_layer;
+    std::string m_viscosity_type;
+    std::string m_boundary_type;
+    int m_num_proximity_search_steps;
+    double m_d0_multiplier;
 };
 
 std::vector<ChVector3d> GenerateBoxPositions(const unsigned int num_boxes,
@@ -78,6 +89,11 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     m_step_size = 1e-4;
     m_num_boxes = num_boxes;
     m_boxes_per_layer = 100;
+    m_viscosity_type = "artificial_bilateral";
+    m_boundary_type = "adami";
+    m_num_proximity_search_steps = 1;
+    m_d0_multiplier = 1.2;
+
     m_sysMBS = std::make_unique<ChSystemSMC>();
     m_sysSPH = std::make_unique<ChFluidSystemSPH>();
     m_sysFSI = std::make_unique<ChFsiSystemSPH>(*m_sysMBS, *m_sysSPH);
@@ -108,9 +124,17 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     sph_params.shifting_coefficient = 1.0;
     sph_params.kernel_threshold = 0.8;
     sph_params.max_velocity = 1.0;
-    sph_params.num_proximity_search_steps = 1;
-    sph_params.boundary_type = BoundaryType::ADAMI;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    sph_params.num_proximity_search_steps = m_num_proximity_search_steps;
+    if (m_boundary_type == "adami")
+        sph_params.boundary_type = BoundaryType::ADAMI;
+    else
+        sph_params.boundary_type = BoundaryType::HOLMES;
+    if (m_viscosity_type == "laminar")
+        sph_params.viscosity_type = ViscosityType::LAMINAR;
+    else if (m_viscosity_type == "artificial_bilateral")
+        sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    else
+        sph_params.viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
 
     m_sysSPH->SetSPHParameters(sph_params);
 
@@ -266,7 +290,7 @@ void FsiRigidBceScalingTest<num_boxes>::SimulateVis() {
 // =============================================================================
 #define NUM_SKIP_STEPS 2500  // number of steps for hot start (1e-4 * 2500 = 0.25s)
 #define NUM_SIM_STEPS 10000  // number of simulation steps for each benchmark (1e-4 * 10000 = 1s)
-#define REPEATS 5
+#define REPEATS 2
 
 CH_BM_SIMULATION_ONCE(FSI_RigidBceScaling_1, FsiRigidBceScalingTest<1>, NUM_SKIP_STEPS, NUM_SIM_STEPS, REPEATS);
 CH_BM_SIMULATION_ONCE(FSI_RigidBceScaling_10, FsiRigidBceScalingTest<10>, NUM_SKIP_STEPS, NUM_SIM_STEPS, REPEATS);
