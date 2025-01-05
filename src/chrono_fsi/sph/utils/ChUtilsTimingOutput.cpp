@@ -75,7 +75,10 @@ void OutputParameterJSON(const std::string& json_file_path,
 
 ///  Add timing information to existing JSON document and write to file
 void OutputTimingJSON(const std::string& json_file_path,
-                      const ChTimer& timer,
+                      double timer_step,
+                      double timer_CFD,
+                      double timer_MBS,
+                      double timer_FSI,
                       ChFsiSystem* sysFSI,
                       rapidjson::Document& doc) {
     auto& allocator = doc.GetAllocator();
@@ -83,9 +86,10 @@ void OutputTimingJSON(const std::string& json_file_path,
 
     // Timing Info
     rapidjson::Value timingInfo(rapidjson::kObjectType);
-    timingInfo.AddMember("totalSimTime", timer(), allocator);
-    timingInfo.AddMember("MBSTimePerStep", sysFSI->GetTimerMBS(), allocator);
-    timingInfo.AddMember("CFDTimePerStep", sysFSI->GetTimerCFD(), allocator);
+    timingInfo.AddMember("stepTime", timer_step, allocator);
+    timingInfo.AddMember("MBSTime", timer_MBS, allocator);
+    timingInfo.AddMember("CFDTime", timer_CFD, allocator);
+    timingInfo.AddMember("FSIExchangeTime", timer_FSI, allocator);
 
     // Create nested objects for different timing categories
     rapidjson::Value sphTimers(rapidjson::kObjectType);

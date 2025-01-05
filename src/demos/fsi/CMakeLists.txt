@@ -19,6 +19,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_Flap
    demo_FSI_AngleRepose_granular
    demo_FSI_SphereDrop_granular
+   benchmark_RTF_FSI_BaffleFlow
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
@@ -26,6 +27,7 @@ if(ENABLE_MODULE_PARDISO_MKL)
       demo_FSI_Flexible_Flat_Plate
       demo_FSI_Flexible_Cable
       demo_FSI_Flexible_Toroidal_Tire
+    #   benchmark_RTF_FSI_Flexible_Cable
    )
 endif()
 

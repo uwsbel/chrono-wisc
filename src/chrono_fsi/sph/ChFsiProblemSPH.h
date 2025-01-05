@@ -111,10 +111,29 @@ class CH_FSI_API ChFsiProblemSPH {
     void RegisterParticlePropertiesCallback(std::shared_ptr<ParticlePropertiesCallback> callback) {
         m_props_cb = callback;
     }
+    /// Set gravitational acceleration for both multibody and fluid systems.
+    void SetGravitationalAcceleration(const ChVector3d& gravity) { m_sysFSI.SetGravitationalAcceleration(gravity); }
+
+    /// Set integration step size for fluid dynamics.
+    void SetStepSizeCFD(double step) { m_sysFSI.SetStepSizeCFD(step); }
+
+    /// Set integration step size for multibody dynamics.
+    /// If a value is not provided, the MBS system is integrated with the same step used for fluid dynamics.
+    void SetStepsizeMBD(double step) { m_sysFSI.SetStepsizeMBD(step); }
 
     /// Explicitly set the computational domain limits.
     /// By default, this is set so that it encompasses all SPH particles and BCE markers.
     void SetComputationalDomainSize(ChAABB aabb) { m_domain_aabb = aabb; }
+
+    /// Enable solution of a CFD problem.
+    void SetCfdSPH(const ChFluidSystemSPH::FluidProperties& fluid_props);
+
+    /// Enable solution of elastic SPH (for continuum representation of granular dynamics).
+    /// By default, a ChSystemFSI solves an SPH fluid dynamics problem.
+    void SetElasticSPH(const ChFluidSystemSPH::ElasticMaterialProperties& mat_props);
+
+    /// Set SPH method parameters.
+    void SetSPHParameters(const ChFluidSystemSPH::SPHParameters& sph_params);
 
     /// Complete construction of the FSI problem and initialize the FSI system.
     /// After this call, no additional solid bodies should be added to the FSI problem.
@@ -147,6 +166,10 @@ class CH_FSI_API ChFsiProblemSPH {
 
     /// Save the set of initial SPH and BCE grid locations to files in the specified output directory.
     void SaveInitialMarkers(const std::string& out_dir) const;
+
+    PhysicsProblem GetPhysicsProblem() const { return m_sysSPH.GetPhysicsProblem(); }
+    std::string GetPhysicsProblemString() const { return m_sysSPH.GetPhysicsProblemString(); }
+    std::string GetSphMethodTypeString() const { return m_sysSPH.GetSphMethodTypeString(); }
 
   protected:
     /// Create a ChFsiProblemSPH object.

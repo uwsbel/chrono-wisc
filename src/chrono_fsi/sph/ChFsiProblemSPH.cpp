@@ -68,6 +68,17 @@ void ChFsiProblemSPH::SetVerbose(bool verbose) {
     m_sysFSI.SetVerbose(verbose);
     m_verbose = verbose;
 }
+void ChFsiProblemSPH::SetCfdSPH(const ChFluidSystemSPH::FluidProperties& fluid_props) {
+    m_sysSPH.SetCfdSPH(fluid_props);
+}
+
+void ChFsiProblemSPH::SetElasticSPH(const ChFluidSystemSPH::ElasticMaterialProperties& mat_props) {
+    m_sysSPH.SetElasticSPH(mat_props);
+}
+
+void ChFsiProblemSPH::SetSPHParameters(const ChFluidSystemSPH::SPHParameters& sph_params) {
+    m_sysSPH.SetSPHParameters(sph_params);
+}
 
 size_t ChFsiProblemSPH::AddRigidBody(std::shared_ptr<ChBody> body,
                                      const utils::ChBodyGeometry& geometry,
