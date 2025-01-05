@@ -27,7 +27,7 @@ if(ENABLE_MODULE_PARDISO_MKL)
       demo_FSI_Flexible_Flat_Plate
       demo_FSI_Flexible_Cable
       demo_FSI_Flexible_Toroidal_Tire
-    #   benchmark_RTF_FSI_Flexible_Cable
+      benchmark_RTF_FSI_Flexible_Cable
    )
 endif()
 
