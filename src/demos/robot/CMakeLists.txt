@@ -39,6 +39,8 @@ if(ENABLE_MODULE_VSG OR ENABLE_MODULE_OPENGL)
   if(ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS}
         demo_ROBOT_Viper_SPH
+        benchmark_RTF_ROBOT_Rassor_SPH
+        benchmark_RTF_ROBOT_Viper_SPH
     )
   endif()
 endif()
