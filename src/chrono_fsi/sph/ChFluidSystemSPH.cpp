@@ -695,6 +695,8 @@ void ChFluidSystemSPH::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->sph_method = sph_params.sph_method;
 
     m_paramsH->d0 = sph_params.initial_spacing;
+    m_paramsH->volume0 = cube(m_paramsH->d0);
+    m_paramsH->markerMass = m_paramsH->volume0 * m_paramsH->rho0;
     m_paramsH->h_multiplier = sph_params.h_multiplier;
     m_paramsH->h = m_paramsH->h_multiplier * m_paramsH->d0;
     m_paramsH->ood0 = 1 / m_paramsH->d0;

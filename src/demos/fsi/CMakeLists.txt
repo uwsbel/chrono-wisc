@@ -20,6 +20,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_AngleRepose_granular
    demo_FSI_SphereDrop_granular
    benchmark_RTF_FSI_BaffleFlow
+   benchmark_RTF_FSI_RASSOR_SingleDrum
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)

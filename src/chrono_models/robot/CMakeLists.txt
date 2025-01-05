@@ -69,6 +69,13 @@ source_group("copters" FILES ${CRM_COPTERS_FILES})
 
 #-----------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------
+set(CRM_RASSOR_FILES
+    rassor/Rassor.h
+    rassor/Rassor.cpp
+)
+source_group("rassor" FILES ${CRM_RASSOR_FILES})
+
 set(CXX_FLAGS ${CH_CXX_FLAGS})
 set(LIBRARIES "ChronoEngine")
 
@@ -87,6 +94,7 @@ add_library(ChronoModels_robot
             ${CRM_VIPER_FILES}
             ${CRM_TURTLEBOT_FILES}
             ${CRM_COPTERS_FILES}
+            ${CRM_RASSOR_FILES}
             )
 
 set_target_properties(ChronoModels_robot PROPERTIES
