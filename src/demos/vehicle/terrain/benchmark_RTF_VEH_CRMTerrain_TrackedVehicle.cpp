@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
     double step_size = 5e-4;
     double active_box_hdim = 0.4;
 
-    bool render = true;       // Set false except for debugging
+    bool render = false;      // Set false except for debugging
     double render_fps = 200;  // rendering FPS
 
     bool visualization_sph = true;         // render SPH particles
