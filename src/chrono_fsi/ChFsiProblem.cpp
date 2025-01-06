@@ -442,8 +442,17 @@ void ChFsiProblem::AddBoxContainer(const ChVector3d& box_size,  // box dimension
     for (int Ix = 0; Ix < Nx; Ix++) {
         for (int Iy = 0; Iy < Ny; Iy++) {
             for (int Iz = 1; Iz <= bce_layers; Iz++) {
-                bce.push_back(ChVector3d(Ix, Iy, -Iz));          // BCE markers below 0
-                bce.push_back(ChVector3d(Ix, Iy, Nz - 1 + Iz));  // BCE markers above
+                bce.push_back(ChVector3d(Ix, Iy, -Iz));  // BCE markers below 0
+            }
+        }
+    }
+    // Top BCE points
+    if (top_wall) {
+        for (int Ix = 0; Ix < Nx; Ix++) {
+            for (int Iy = 0; Iy < Ny; Iy++) {
+                for (int Iz = 1; Iz <= bce_layers; Iz++) {
+                    bce.push_back(ChVector3i(Ix, Iy, Nz - 1 + Iz));
+                }
             }
         }
     }
