@@ -155,7 +155,27 @@ struct ProximityDataD {
 
     void resize(size_t s);
 };
+struct Counters {
+    size_t numFsiBodies;      ///< number of rigid bodies
+    size_t numFsiNodes1D;     ///< number of nodes in 1-D FEA mesh segments
+    size_t numFsiNodes2D;     ///< number of nodes in 2-D FEA mesh faces
+    size_t numFsiElements1D;  ///< number of 1-D FEA mesh segments
+    size_t numFsiElements2D;  ///< number of 2-D FEA mesh faces
 
+    size_t numGhostMarkers;     ///< number of Ghost SPH particles for Variable Resolution methods
+    size_t numHelperMarkers;    ///< number of helper SPH particles used for merging particles
+    size_t numFluidMarkers;     ///< number of fluid SPH particles
+    size_t numBoundaryMarkers;  ///< number of BCE markers on boundaries
+    size_t numRigidMarkers;     ///< number of BCE markers on rigid bodies
+    size_t numFlexMarkers1D;    ///< number of BCE markers on flexible segments
+    size_t numFlexMarkers2D;    ///< number of BCE markers on flexible faces
+    size_t numBceMarkers;       ///< total number of BCE markers
+    size_t numAllMarkers;       ///< total number of particles in the simulation
+
+    size_t startRigidMarkers;   ///< index of first BCE marker on first rigid body
+    size_t startFlexMarkers1D;  ///< index of first BCE marker on first flex segment
+    size_t startFlexMarkers2D;  ///< index of first BCE marker on first flex face
+};
 /// FSI system information information exchanged with the Chrono system.
 struct FsiData {
     // fluidfsiBodiesIndex (host)
@@ -200,6 +220,11 @@ struct FsiData {
     thrust::device_vector<int2> flex1D_Nodes_D;  ///< node indices for each 1-D flex segment (device)
     thrust::host_vector<int3> flex2D_Nodes_H;    ///< node indices for each 2-D flex face (host)
     thrust::device_vector<int3> flex2D_Nodes_D;  ///< node indices for each 2-D flex face (device)
+};
+
+struct CudaDeviceInfo {
+    int deviceID;               ///< CUDA device ID
+    cudaDeviceProp deviceProp;  ///< CUDA device properties
 };
 
 /// Underlying implementation of an FSI system.
@@ -251,9 +276,8 @@ class ChSystemFsi_impl : public ChFsiBase {
     /// Extract accelerations of all SPH particles with indices in the provided array.
     /// The return value is a device thrust vector.
     thrust::device_vector<Real4> GetParticleAccelerations(const thrust::device_vector<int>& indices);
-
-    std::shared_ptr<SimParams> paramsH;  ///< Parameters of the simulation
-
+    /// Get the number of active particles.
+    size_t GetNumActiveParticles() const;
     std::shared_ptr<SphMarkerDataD> sphMarkers1_D;       ///< Information of SPH particles at state 1 on device
     std::shared_ptr<SphMarkerDataD> sphMarkers2_D;       ///< Information of SPH particles at state 2 on device
     std::shared_ptr<SphMarkerDataD> sortedSphMarkers_D;  ///< Sorted information of SPH particles at state 1 on device
@@ -272,11 +296,17 @@ class ChSystemFsi_impl : public ChFsiBase {
 
     std::shared_ptr<ProximityDataD> markersProximity_D;  ///< Information of neighbor search on the device
 
+    std::shared_ptr<Counters> m_countersH;  ///< Counters on host
+
+    std::shared_ptr<CudaDeviceInfo> m_cudaDeviceInfo;  ///< CUDA device information
+
   private:
     void ArrangeDataManager();
     void ConstructReferenceArray();
     void InitNumObjects();
     void CalcNumObjects();
+
+    fsi::Counters GetCounters() const;
 
     friend class ChSystemFsi;
 };

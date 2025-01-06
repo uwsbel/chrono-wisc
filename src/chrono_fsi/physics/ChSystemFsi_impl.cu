@@ -384,6 +384,23 @@ void ChSystemFsi_impl::Initialize(size_t numRigidBodies,
     fsiData->flex2D_FSIforces_D.resize(numObjectsH->numFlexNodes2D);
 }
 
+fsi::Counters ChSystemFsi_impl::GetCounters() const {
+    m_countersH->numAllMarkers = numObjectsH->numAllMarkers;
+    m_countersH->numFsiBodies = numObjectsH->numRigidBodies;
+    m_countersH->numFsiNodes1D = numObjectsH->numFlexNodes1D;
+    m_countersH->numFsiNodes2D = numObjectsH->numFlexNodes2D;
+    m_countersH->numFluidMarkers = numObjectsH->numFluidMarkers;
+    m_countersH->numBoundaryMarkers = numObjectsH->numBoundaryMarkers;
+    m_countersH->numRigidMarkers = numObjectsH->numRigidMarkers;
+    m_countersH->numFlexMarkers1D = numObjectsH->numFlexMarkers1D;
+    m_countersH->numFlexMarkers2D = numObjectsH->numFlexMarkers2D;
+    return *m_countersH;
+}
+
+size_t ChSystemFsi_impl::GetNumActiveParticles() const {
+    return thrust::reduce(fsiData->activityIdentifierD.begin(), fsiData->activityIdentifierD.end(), 0u,
+                          thrust::plus<unsigned int>());
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 
 struct scale_functor {

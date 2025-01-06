@@ -69,9 +69,9 @@ ChSystemFsi::ChSystemFsi(ChSystem* sysMBS)
       m_ratio_MBS(0),
       m_write_mode(OutputMode::NONE) {
     m_paramsH = chrono_types::make_shared<SimParams>();
-    m_sysFSI = chrono_types::make_unique<ChSystemFsi_impl>(m_paramsH);
-    InitParams();
 
+    InitParams();
+    m_sysFSI = chrono_types::make_unique<ChSystemFsi_impl>(m_paramsH);
     m_num_flex1D_elements = 0;
     m_num_flex2D_elements = 0;
 
@@ -121,7 +121,7 @@ void ChSystemFsi::InitParams() {
     m_paramsH->laplacian_type = 0;
     m_paramsH->USE_Consistent_L = false;
     m_paramsH->USE_Consistent_G = false;
-    
+
     m_paramsH->epsMinMarkersDis = 0.01;
 
     m_paramsH->markerMass = m_paramsH->volume0 * m_paramsH->rho0;
@@ -960,7 +960,13 @@ void ChSystemFsi::Initialize() {
     m_sysFSI->Initialize(m_fsi_interface->m_fsi_bodies.size(),          //
                          m_num_flex1D_elements, m_num_flex2D_elements,  //
                          m_num_flex1D_nodes, m_num_flex2D_nodes);
-
+    // Check if GPU is available and initialize CUDA device information
+    int device;
+    cudaGetDevice(&device);
+    cudaCheckError();
+    m_sysFSI->m_cudaDeviceInfo->deviceID = device;
+    cudaGetDeviceProperties(&m_sysFSI->m_cudaDeviceInfo->deviceProp, m_sysFSI->m_cudaDeviceInfo->deviceID);
+    cudaCheckError();
     if (m_verbose) {
         cout << "Counters" << endl;
         cout << "  numRigidBodies:     " << m_sysFSI->numObjectsH->numRigidBodies << endl;
@@ -1054,10 +1060,12 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
     m_timer_step.reset();
     m_timer_MBS.reset();
-
+    m_timer_CFD.reset();
+    m_timer_FSI.reset();
     m_timer_step.start();
 
     if (m_fluid_dynamics->GetIntegratorType() == TimeIntegrator::EXPLICITSPH) {
+        m_timer_CFD.start();
         // The following is used to execute the Explicit WCSPH
         CopyDeviceDataToHalfStep();
         thrust::copy(m_sysFSI->fsiData->derivVelRhoD.begin(), m_sysFSI->fsiData->derivVelRhoD.end(),
@@ -1074,10 +1082,18 @@ void ChSystemFsi::DoStepDynamics_FSI() {
                                            m_sysFSI->fsiMesh1DState_D, m_sysFSI->fsiMesh2DState_D,  //
                                            1.0 * m_paramsH->dT, m_time);
         }
-
+        m_timer_CFD.stop();
+        m_timer_FSI.start();
+        m_timer_rigid_forces.start();
         m_bce_manager->Rigid_Forces_Torques(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiBodyState2_D);
+        m_timer_rigid_forces.stop();
+        m_timer_flex1D_forces.start();
         m_bce_manager->Flex1D_Forces(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh1DState_D);
+        m_timer_flex1D_forces.stop();
+        m_timer_flex2D_forces.start();
         m_bce_manager->Flex2D_Forces(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh2DState_D);
+        m_timer_flex2D_forces.stop();
+        m_timer_FSI.stop();
 
         // Advance dynamics of the associated MBS system (if provided)
         if (m_sysMBS) {
@@ -1098,7 +1114,7 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
             m_timer_MBS.stop();
         }
-
+        m_timer_FSI.stop();
         m_fsi_interface->LoadBodyState_Chrono2Fsi(m_sysFSI->fsiBodyState2_D);
         m_bce_manager->UpdateBodyMarkerState(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiBodyState2_D);
 
@@ -1107,7 +1123,9 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
         m_fsi_interface->LoadMesh2DState_Chrono2Fsi(m_sysFSI->fsiMesh2DState_D);
         m_bce_manager->UpdateMeshMarker2DState(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh2DState_D);
+        m_timer_FSI.stop();
     } else {
+        m_timer_CFD.start();
         // A different coupling scheme is used for implicit SPH formulations
         if (m_integrate_SPH) {
             m_fluid_dynamics->IntegrateSPH(m_sysFSI->sphMarkers2_D, m_sysFSI->sphMarkers2_D,        //
@@ -1115,10 +1133,12 @@ void ChSystemFsi::DoStepDynamics_FSI() {
                                            m_sysFSI->fsiMesh1DState_D, m_sysFSI->fsiMesh2DState_D,  //
                                            0.0, m_time);
         }
-
+        m_timer_CFD.stop();
+        m_timer_FSI.start();
         m_bce_manager->Rigid_Forces_Torques(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiBodyState2_D);
         m_bce_manager->Flex1D_Forces(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh1DState_D);
         m_bce_manager->Flex2D_Forces(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh2DState_D);
+        m_timer_FSI.stop();
 
         // Advance dynamics of the associated MBS system (if provided)
         if (m_sysMBS) {
@@ -1141,7 +1161,7 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
             m_timer_MBS.stop();
         }
-
+        m_timer_FSI.stop();
         m_fsi_interface->LoadBodyState_Chrono2Fsi(m_sysFSI->fsiBodyState2_D);
         m_bce_manager->UpdateBodyMarkerState(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiBodyState2_D);
 
@@ -1150,6 +1170,7 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
         m_fsi_interface->LoadMesh2DState_Chrono2Fsi(m_sysFSI->fsiMesh2DState_D);
         m_bce_manager->UpdateMeshMarker2DState(m_sysFSI->sphMarkers2_D, m_sysFSI->fsiMesh2DState_D);
+        m_timer_FSI.stop();
     }
 
     m_time += m_paramsH->dT;

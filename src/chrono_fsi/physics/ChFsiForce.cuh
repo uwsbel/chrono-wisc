@@ -23,6 +23,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include "chrono/core/ChTimer.h"
 #include "chrono_fsi/physics/ChBce.cuh"
 #include "chrono_fsi/physics/ChSystemFsi_impl.cuh"
 #include "chrono_fsi/physics/ChCollisionSystemFsi.cuh"
@@ -154,6 +155,23 @@ class ChFsiForce : public ChFsiBase {
                                                     thrust::device_vector<Real4>& sorted,
                                                     const thrust::device_vector<uint>& gridMarkerIndex);
 
+    void ResetTimers() {
+        m_timer_copy_sorted_to_original.reset();
+        m_timer_sort_particles.reset();
+        m_timer_boundary_condition.reset();
+        m_timer_acceleration_calc.reset();
+    }
+
+    /// Get cumulative time for boundary condition application.
+    double GetTimeBoundaryCondition() { return m_timer_boundary_condition(); }
+    /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
+    double GetTimeAccelerationCalc() { return m_timer_acceleration_calc(); }
+
+    /// Get cumulative time for copy sorted to original.
+    double GetTimeCopySortedToOriginal() { return m_timer_copy_sorted_to_original(); }
+    /// Get cumulative time for sort particles.
+    double GetTimeSortParticles() { return m_timer_sort_particles(); }
+
     /// Function to set the linear solver type for the solver implemented
     /// using the ISPH method (ChFsiForceI2SPH and ChFsiForceIISPH)
     void SetLinearSolver(SolverType type);
@@ -175,6 +193,11 @@ class ChFsiForce : public ChFsiBase {
     thrust::device_vector<Real4> derivVelRhoD_Sorted_D;  ///< sorted derivVelRhoD
 
     bool verbose;
+
+    ChTimer m_timer_boundary_condition;
+    ChTimer m_timer_acceleration_calc;
+    ChTimer m_timer_copy_sorted_to_original;
+    ChTimer m_timer_sort_particles;
 };
 
 /// @} fsi_physics

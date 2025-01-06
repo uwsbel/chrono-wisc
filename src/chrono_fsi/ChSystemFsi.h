@@ -30,6 +30,7 @@
 #include "chrono_fsi/ChDefinitionsFsi.h"
 #include "chrono_fsi/physics/ChFsiInterface.h"
 #include "chrono_fsi/math/custom_math.h"
+#include "chrono_fsi/physics/ChFluidDynamics.cuh"
 
 namespace chrono {
 
@@ -134,6 +135,12 @@ class CH_FSI_API ChSystemFsi {
     /// It uses a Runge-Kutta 2nd order algorithm to update both the fluid and multibody system dynamics. The midpoint
     /// data of MBS is needed for fluid dynamics update.
     void DoStepDynamics_FSI();
+    void ResetTimers() {
+        m_timer_rigid_forces.reset();
+        m_timer_flex1D_forces.reset();
+        m_timer_flex2D_forces.reset();
+        m_fluid_dynamics->ResetTimers();
+    }
 
     /// Get current estimated RTF (real time factor).
     double GetRTF() const { return m_RTF; }
@@ -141,6 +148,42 @@ class CH_FSI_API ChSystemFsi {
     /// Get ratio of simulation time spent in MBS integration.
     double GetRatioMBS() const { return m_ratio_MBS; }
 
+    /// Return the time in seconds for for simulating the last step.
+    double GetTimerStep() const { return m_timer_step(); }
+
+    /// Return the time in seconds for fluid dynamics over the last step.
+    double GetTimerCFD() const { return m_timer_CFD(); }
+
+    /// Return the time in seconds for multibody dynamics over the last step.
+    double GetTimerMBS() const { return m_timer_MBS(); }
+
+    /// Return the time in seconds for data exchange between phases over the last step.
+    double GetTimerFSI() const { return m_timer_FSI(); }
+
+    /// Get cumulative time for rigid body forces evaluation.
+    double GetTimeRigidForces() { return m_timer_rigid_forces(); }
+    /// Get cumulative time for flexible 1D forces evaluation.
+    double GetTimeFlex1DForces() { return m_timer_flex1D_forces(); }
+    /// Get cumulative time for flexible 2D forces evaluation.
+    double GetTimeFlex2DForces() { return m_timer_flex2D_forces(); }
+
+    /// Get cumulative time for periodic boundary condition application.
+    double GetTimePeriodicBoundary() { return m_fluid_dynamics->GetTimePeriodicBoundary(); }
+    /// Get cumulative time for copying sorted to original.
+    double GetTimeCopySortedToOriginal() { return m_fluid_dynamics->GetForceSystem()->GetTimeCopySortedToOriginal(); }
+    /// Get cumulative time for sorting particles.
+    double GetTimeSortParticles() { return m_fluid_dynamics->GetForceSystem()->GetTimeSortParticles(); }
+
+    /// Get cumulative time for force calculation.
+    double GetTimeForce() { return m_fluid_dynamics->GetTimeForce(); }
+    /// Get cumulative time for fluid update.
+    double GetTimeUpdateFluid() { return m_fluid_dynamics->GetTimeUpdateFluid(); }
+
+    /// Get cumulative time for boundary condition application.
+    double GetTimeBoundaryCondition() { return m_fluid_dynamics->GetForceSystem()->GetTimeBoundaryCondition(); }
+
+    /// Get cumulative time for acceleration calculation - This is NS_SSR kernel in CRM and Navier_Stokes kernel in CFD
+    double GetTimeAccelerationCalc() { return m_fluid_dynamics->GetForceSystem()->GetTimeAccelerationCalc(); }
     /// Enable/disable verbose terminal output.
     void SetVerbose(bool verbose);
 
@@ -271,6 +314,15 @@ class CH_FSI_API ChSystemFsi {
 
     /// Return the current system parameters (debugging only).
     const SimParams& GetParams() const { return *m_paramsH; }
+
+    /// Return counters (debugging only).
+    const fsi::Counters GetCounters() const { return m_sysFSI->GetCounters(); }
+
+    /// Return the cuda device information (debugging only).
+    const fsi::CudaDeviceInfo& GetCudaDeviceInfo() const { return *m_sysFSI->m_cudaDeviceInfo; }
+
+    /// Get the number of active SPH particles (Number of particles within the active domain)
+    size_t GetNumActiveParticles() const { return m_sysFSI->GetNumActiveParticles(); }
 
     /// Get the current number of fluid SPH particles.
     size_t GetNumFluidMarkers() const;
@@ -574,8 +626,14 @@ class CH_FSI_API ChSystemFsi {
 
     ChTimer m_timer_step;  ///< timer for integration step
     ChTimer m_timer_MBS;   ///< timer for MBS integration
+    ChTimer m_timer_CFD;   ///< timer for fluid dynamics
+    ChTimer m_timer_FSI;   ///< timer for data exchange between phases
     double m_RTF;          ///< real-time factor (simulation time / simulated time)
     double m_ratio_MBS;    ///< fraction of step simulation time for MBS integration
+
+    ChTimer m_timer_rigid_forces;   // Specific timer for rigid body forces
+    ChTimer m_timer_flex1D_forces;  // Specific timer for 1D flexible forces
+    ChTimer m_timer_flex2D_forces;  // Specific timer for 2D flexible forces
 
     friend class ChFsiVisualizationGL;
     friend class ChFsiVisualizationVSG;

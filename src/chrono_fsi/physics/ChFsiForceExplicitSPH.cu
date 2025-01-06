@@ -1546,7 +1546,7 @@ __global__ void CopySortedToOriginal_XSPH_D(Real3* sortedXSPH,
     originalXSPH[id] = sortedXSPH[index];
 }
 
-// =============================================================================================================================== 
+// ===============================================================================================================================
 
 ChFsiForceExplicitSPH::ChFsiForceExplicitSPH(std::shared_ptr<ChBce> otherBceWorker,
                                              std::shared_ptr<SphMarkerDataD> otherSortedSphMarkersD,
@@ -1583,8 +1583,12 @@ void ChFsiForceExplicitSPH::ForceSPH(std::shared_ptr<SphMarkerDataD> otherSphMar
                                      std::shared_ptr<FsiMeshStateD> fsiMesh1DStateD,
                                      std::shared_ptr<FsiMeshStateD> fsiMesh2DStateD) {
     sphMarkersD = otherSphMarkersD;
+    m_timer_sort_particles.start();
     fsiCollisionSystem->ArrangeData(sphMarkersD);
+    m_timer_sort_particles.stop();
+    m_timer_boundary_condition.start();
     bceWorker->ModifyBceVelocityPressureStress(sphMarkersD, fsiBodyStateD, fsiMesh1DStateD, fsiMesh2DStateD);
+    m_timer_boundary_condition.stop();
     CollideWrapper();
     CalculateXSPH_velocity();
     // AddGravityToFluid();
@@ -1592,7 +1596,7 @@ void ChFsiForceExplicitSPH::ForceSPH(std::shared_ptr<SphMarkerDataD> otherSphMar
 
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChFsiForceExplicitSPH::CollideWrapper() {
-    bool *isErrorD;
+    bool* isErrorD;
     cudaMalloc((void**)&isErrorD, sizeof(bool));
 
     // thread per particle
@@ -1633,6 +1637,7 @@ void ChFsiForceExplicitSPH::CollideWrapper() {
 
     // Execute the kernel
     if (paramsH->elastic_SPH) {  // For granular material
+        m_timer_acceleration_calc.start();
         // execute the kernel Navier_Stokes and Shear_Stress_Rate in one kernel
         cudaResetErrorFlag(isErrorD);
         NS_SSR<<<numBlocks, numThreads>>>(
@@ -1646,8 +1651,9 @@ void ChFsiForceExplicitSPH::CollideWrapper() {
             U1CAST(markersProximity_D->cellStartD), U1CAST(markersProximity_D->cellEndD),
             U1CAST(markersProximity_D->mapOriginalToSorted), U1CAST(sortedFreeSurfaceId), isErrorD);
         cudaCheckErrorFlag(isErrorD, "NS_SSR");
+        m_timer_acceleration_calc.stop();
     } else {  // For fluid
-
+        m_timer_acceleration_calc.start();
         // Find the index which is related to the wall boundary particle
         thrust::device_vector<uint> indexOfIndex(numObjectsH->numAllMarkers);
         thrust::device_vector<uint> identityOfIndex(numObjectsH->numAllMarkers);
@@ -1664,16 +1670,18 @@ void ChFsiForceExplicitSPH::CollideWrapper() {
             mR4CAST(bceWorker->rhoPreMu_ModifiedBCE), U1CAST(markersProximity_D->gridMarkerIndexD),
             U1CAST(markersProximity_D->cellStartD), U1CAST(markersProximity_D->cellEndD), isErrorD);
         cudaCheckErrorFlag(isErrorD, "Navier_Stokes");
+        m_timer_acceleration_calc.stop();
     }
 
     // Launch a kernel to copy data from sorted arrays to original arrays.
     // This is faster than using thrust::sort_by_key()
+    m_timer_copy_sorted_to_original.start();
     CopySortedToOriginal_D<<<numBlocks, numThreads>>>(
         mR4CAST(sortedDerivVelRho), mR3CAST(sortedDerivTauXxYyZz), mR3CAST(sortedDerivTauXyXzYz),
         mR4CAST(fsiData->derivVelRhoD), mR3CAST(fsiData->derivTauXxYyZzD), mR3CAST(fsiData->derivTauXyXzYzD),
         U1CAST(markersProximity_D->gridMarkerIndexD), U1CAST(fsiData->activityIdentifierD),
         U1CAST(markersProximity_D->mapOriginalToSorted), U1CAST(fsiData->freeSurfaceIdD), U1CAST(sortedFreeSurfaceId));
-
+    m_timer_copy_sorted_to_original.stop();
     sortedDerivVelRho.clear();
     sortedDerivTauXxYyZz.clear();
     sortedDerivTauXyXzYz.clear();
@@ -1693,7 +1701,7 @@ void ChFsiForceExplicitSPH::CalculateXSPH_velocity() {
             "CalculateXSPH_velocity!\n");
     }
 
-    bool *isErrorD;
+    bool* isErrorD;
     cudaMalloc((void**)&isErrorD, sizeof(bool));
 
     // thread per particle

@@ -19,6 +19,7 @@
 #ifndef CH_FLUIDDYNAMICS_H_
 #define CH_FLUIDDYNAMICS_H_
 
+#include "chrono/core/ChTimer.h"
 #include "chrono_fsi/physics/ChFsiForce.cuh"
 #include "chrono_fsi/utils/ChUtilsDevice.cuh"
 #include "chrono_fsi/physics/ChFsiForceExplicitSPH.cuh"
@@ -89,6 +90,20 @@ class ChFluidDynamics : public ChFsiBase {
 
     /// Return the ChFsiForce type used in the simulation.
     std::shared_ptr<ChFsiForce> GetForceSystem() { return forceSystem; }
+    /// Reset timers for RHS Force calculation and Fluid Update
+    void ResetTimers() {
+        m_timer_force.reset();
+        m_timer_update_fluid.reset();
+        m_timer_periodic_boundary.reset();
+        forceSystem->ResetTimers();
+    }
+
+    /// Timer for neighbor search + boundary condition + acceleration calculation
+    double GetTimeForce() { return m_timer_force(); }
+    /// Timer for Time update. For CRM, continuum model is applied here.
+    double GetTimeUpdateFluid() { return m_timer_update_fluid(); }
+    /// Get cumulative time for Periodic boundary application.
+    double GetTimePeriodicBoundary() { return m_timer_periodic_boundary(); }
 
   protected:
     ChSystemFsi_impl& fsiSystem;              ///< FSI data; values are maintained externally
@@ -117,6 +132,11 @@ class ChFluidDynamics : public ChFsiBase {
 
     /// Mpodify the velocity of BCE particles.
     void ApplyModifiedBoundarySPH_Markers(std::shared_ptr<SphMarkerDataD> sphMarkersD);
+
+  private:
+    ChTimer m_timer_force;
+    ChTimer m_timer_update_fluid;
+    ChTimer m_timer_periodic_boundary;
 };
 
 /// @} fsi_physics
