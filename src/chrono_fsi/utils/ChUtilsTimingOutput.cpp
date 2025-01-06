@@ -18,7 +18,9 @@ void OutputParameterJSON(const std::string& json_file_path,
     auto& allocator = doc.GetAllocator();
     // Get required parameters
     SimParams params = sysFSI->GetParams();
-    Counters counters = sysFSI->GetCounters();
+    std::cout << "params.INITSPACE: " << params.INITSPACE << std::endl;
+    ChCounters counters = sysFSI->GetCounters();
+    std::cout << "counters.numFluidMarkers: " << counters.numFluidMarkers << std::endl;
     CudaDeviceInfo cuda_info = sysFSI->GetCudaDeviceInfo();
 
     // Hardware Info
@@ -41,11 +43,11 @@ void OutputParameterJSON(const std::string& json_file_path,
     simParams.AddMember("numFlexMarkers1D", counters.numFlexMarkers1D, allocator);
     simParams.AddMember("numFlexMarkers2D", counters.numFlexMarkers2D, allocator);
     simParams.AddMember("numAllMarkers", counters.numAllMarkers, allocator);
-    simParams.AddMember("numFsiBodies", counters.numFsiBodies, allocator);
+    simParams.AddMember("numFsiBodies", counters.numRigidBodies, allocator);
     simParams.AddMember("numFsiElements1D", "N.A", allocator);
     simParams.AddMember("numFsiElements2D", "N.A", allocator);
-    simParams.AddMember("numFsiNodes1D", counters.numFsiNodes1D, allocator);
-    simParams.AddMember("numFsiNodes2D", counters.numFsiNodes2D, allocator);
+    simParams.AddMember("numFsiNodes1D", counters.numFlexMarkers1D, allocator);
+    simParams.AddMember("numFsiNodes2D", counters.numFlexMarkers2D, allocator);
     simParams.AddMember("numActiveParticles", sysFSI->GetNumActiveParticles(), allocator);
     doc.AddMember("simulationParameters", simParams, allocator);
 

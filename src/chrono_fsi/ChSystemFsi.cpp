@@ -662,7 +662,8 @@ ChSystemFsi::SPHParameters::SPHParameters()
       num_bce_layers(3),
       consistent_gradient_discretization(false),
       consistent_laplacian_discretization(false),
-      kernel_threshold(0.8) {}
+      kernel_threshold(0.8),
+      artificial_viscosity(0.02) {}
 
 void ChSystemFsi::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->fluid_dynamic_type = sph_params.sph_solver;
@@ -672,6 +673,8 @@ void ChSystemFsi::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->INITSPACE = sph_params.initial_spacing;
     m_paramsH->MULT_INITSPACE = m_paramsH->INITSPACE / m_paramsH->HSML;
     m_paramsH->INVHSML = 1 / m_paramsH->HSML;
+    m_paramsH->volume0 = cube(m_paramsH->INITSPACE);
+    m_paramsH->markerMass = m_paramsH->volume0 * m_paramsH->rho0;
 
     m_paramsH->v_Max = sph_params.max_velocity;
     m_paramsH->Cs = 10 * m_paramsH->v_Max;
@@ -685,6 +688,7 @@ void ChSystemFsi::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->USE_Consistent_L = sph_params.consistent_laplacian_discretization;
 
     m_paramsH->C_Wi = Real(sph_params.kernel_threshold);
+    m_paramsH->Ar_vis_alpha = Real(sph_params.artificial_viscosity);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -960,6 +964,7 @@ void ChSystemFsi::Initialize() {
     m_sysFSI->Initialize(m_fsi_interface->m_fsi_bodies.size(),          //
                          m_num_flex1D_elements, m_num_flex2D_elements,  //
                          m_num_flex1D_nodes, m_num_flex2D_nodes);
+
     // Check if GPU is available and initialize CUDA device information
     int device;
     cudaGetDevice(&device);
@@ -967,6 +972,7 @@ void ChSystemFsi::Initialize() {
     m_sysFSI->m_cudaDeviceInfo->deviceID = device;
     cudaGetDeviceProperties(&m_sysFSI->m_cudaDeviceInfo->deviceProp, m_sysFSI->m_cudaDeviceInfo->deviceID);
     cudaCheckError();
+
     if (m_verbose) {
         cout << "Counters" << endl;
         cout << "  numRigidBodies:     " << m_sysFSI->numObjectsH->numRigidBodies << endl;

@@ -117,8 +117,8 @@ class CH_FSI_API ChSystemFsi {
         int density_reinit_steps;                  ///< Number of steps between density reinitializations
         bool consistent_gradient_discretization;   ///< Calculate G matrix in SPH gradient approximation
         bool consistent_laplacian_discretization;  ///< Calculate L matrix in SPH Laplacian approximation
-        double kernel_threshold;  ///< Threshold for identifying free surface (currently, only for elasticSPH)
-
+        double kernel_threshold;      ///< Threshold for identifying free surface (currently, only for elasticSPH)
+        double artificial_viscosity;  ///< artificial viscosity coefficient (default: 0.02)
         SPHParameters();
     };
 
@@ -316,7 +316,7 @@ class CH_FSI_API ChSystemFsi {
     const SimParams& GetParams() const { return *m_paramsH; }
 
     /// Return counters (debugging only).
-    const fsi::Counters GetCounters() const { return m_sysFSI->GetCounters(); }
+    const fsi::ChCounters GetCounters() const { return m_sysFSI->GetCounters(); }
 
     /// Return the cuda device information (debugging only).
     const fsi::CudaDeviceInfo& GetCudaDeviceInfo() const { return *m_sysFSI->m_cudaDeviceInfo; }

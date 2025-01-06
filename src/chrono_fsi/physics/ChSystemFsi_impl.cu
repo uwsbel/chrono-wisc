@@ -172,6 +172,7 @@ ChSystemFsi_impl::ChSystemFsi_impl(std::shared_ptr<SimParams> params) : ChFsiBas
 
     fsiData = chrono_types::make_shared<FsiData>();
     markersProximity_D = chrono_types::make_shared<ProximityDataD>();
+    m_cudaDeviceInfo = chrono_types::make_shared<CudaDeviceInfo>();
 }
 
 ChSystemFsi_impl::~ChSystemFsi_impl() {}
@@ -384,17 +385,8 @@ void ChSystemFsi_impl::Initialize(size_t numRigidBodies,
     fsiData->flex2D_FSIforces_D.resize(numObjectsH->numFlexNodes2D);
 }
 
-fsi::Counters ChSystemFsi_impl::GetCounters() const {
-    m_countersH->numAllMarkers = numObjectsH->numAllMarkers;
-    m_countersH->numFsiBodies = numObjectsH->numRigidBodies;
-    m_countersH->numFsiNodes1D = numObjectsH->numFlexNodes1D;
-    m_countersH->numFsiNodes2D = numObjectsH->numFlexNodes2D;
-    m_countersH->numFluidMarkers = numObjectsH->numFluidMarkers;
-    m_countersH->numBoundaryMarkers = numObjectsH->numBoundaryMarkers;
-    m_countersH->numRigidMarkers = numObjectsH->numRigidMarkers;
-    m_countersH->numFlexMarkers1D = numObjectsH->numFlexMarkers1D;
-    m_countersH->numFlexMarkers2D = numObjectsH->numFlexMarkers2D;
-    return *m_countersH;
+fsi::ChCounters ChSystemFsi_impl::GetCounters() const {
+    return *numObjectsH;
 }
 
 size_t ChSystemFsi_impl::GetNumActiveParticles() const {

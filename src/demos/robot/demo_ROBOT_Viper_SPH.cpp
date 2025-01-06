@@ -211,7 +211,6 @@ int main(int argc, char* argv[]) {
     // Create MBD and BCE particles for the solid domain
     std::cout << "Generate BCE markers" << std::endl;
     CreateSolidPhase(sysMBS, sysFSI);
-
     // Complete construction of the FSI system
     sysFSI.Initialize();
 
@@ -279,7 +278,6 @@ int main(int argc, char* argv[]) {
     ChTimer timer;
     while (time < total_time) {
         std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << std::endl;
-
         rover->Update();
 
         std::cout << "  pos: " << body->GetPos() << std::endl;

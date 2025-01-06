@@ -13,6 +13,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_WaveTank
    demo_FSI_EmbeddedObstacle
    demo_FSI_BaffleFlow
+   benchmark_RTF_FSI_RASSOR_SingleDrum
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
