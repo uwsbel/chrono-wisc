@@ -141,6 +141,7 @@ set(ChronoEngine_FSI_UTILS_FILES
     utils/ChUtilsTimingOutput.cpp
     utils/ChUtilsPrintSph.cu
     utils/ChUtilsDevice.cu
+    ../utils/ChBenchmark.h
 )
 
 source_group(utils FILES ${ChronoEngine_FSI_UTILS_FILES})
