@@ -297,7 +297,7 @@ int main(int argc, char* argv[]) {
     int current_step = 0;
 
     auto body = sysMBS.GetBodies()[1];
-
+    sysFSI.GetFluidSystemSPH().ResetTimers();
     double timer_step = 0;
     double timer_CFD = 0;
     double timer_MBS = 0;

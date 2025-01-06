@@ -453,7 +453,7 @@ int main(int argc, char* argv[]) {
     // Start the simulation
     unsigned int output_steps = (unsigned int)round(1 / (out_fps * dT));
     unsigned int render_steps = (unsigned int)round(1 / (render_fps * dT));
-
+    sysFSI.GetFluidSystemSPH().ResetTimers();
     double time = 0.0;
     int current_step = 0;
     double timer_step = 0;
