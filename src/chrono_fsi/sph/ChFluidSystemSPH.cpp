@@ -1441,40 +1441,65 @@ void ChFluidSystemSPH::CreateBCE_box(const ChVector3d& size, bool solid, std::ve
     Real spacing = m_paramsH->d0;
     int num_layers = m_paramsH->num_bce_layers;
 
-    // Calculate actual spacing in all 3 directions
-    ChVector3d hsize = size / 2;
-    int3 np = {(int)std::round(hsize.x() / spacing), (int)std::round(hsize.y() / spacing),
-               (int)std::round(hsize.z() / spacing)};
-    ChVector3d delta = {hsize.x() / np.x, hsize.y() / np.y, hsize.z() / np.z};
+    // Decide if any direction is small enough to be filled
+    ChVector3<int> np(1 + (int)std::round(size.x() / spacing),  //
+                      1 + (int)std::round(size.y() / spacing),  //
+                      1 + (int)std::round(size.z() / spacing));
+    bool fill = np[0] <= 2 * num_layers || np[1] <= 2 * num_layers || np[2] <= 2 * num_layers;
 
-    // Inflate box if boundary
-    if (!solid) {
-        np += num_layers - 1;
-        hsize = hsize + (num_layers - 1.0) * delta;
+    // Adjust spacing in each direction
+    ChVector3d delta(size.x() / (np.x() - 1), size.y() / (np.y() - 1), size.z() / (np.z() - 1));
+
+    // If any direction must be filled, the box must be filled
+    if (fill) {
+        for (int ix = 0; ix < np.x(); ix++) {
+            double x = -size.x() / 2 + ix * delta.x();
+            for (int iy = 0; iy < np.y(); iy++) {
+                double y = -size.y() / 2 + iy * delta.y();
+                for (int iz = 0; iz < np.z(); iz++) {
+                    double z = -size.z() / 2 + iz * delta.z();
+                    bce.push_back({x, y, z});
+                }
+            }
+        }
+        return;
     }
 
+    // Create interior BCE layers
     for (int il = 0; il < num_layers; il++) {
-        // faces in Z direction
-        for (int ix = -np.x; ix <= np.x; ix++) {
-            for (int iy = -np.y; iy <= np.y; iy++) {
-                bce.push_back({ix * delta.x(), iy * delta.y(), -hsize.z() + il * delta.z()});
-                bce.push_back({ix * delta.x(), iy * delta.y(), +hsize.z() - il * delta.z()});
+        // x faces
+        double xm = -size.x() / 2 + il * delta.x();
+        double xp = +size.x() / 2 - il * delta.x();
+        for (int iy = 0; iy < np.y(); iy++) {
+            double y = -size.y() / 2 + iy * delta.y();
+            for (int iz = 0; iz < np.z(); iz++) {
+                double z = -size.z() / 2 + iz * delta.z();
+                bce.push_back({xm, y, z});
+                bce.push_back({xp, y, z});
             }
         }
 
-        // faces in Y direction
-        for (int ix = -np.x; ix <= np.x; ix++) {
-            for (int iz = -np.z + num_layers; iz <= np.z - num_layers; iz++) {
-                bce.push_back({ix * delta.x(), -hsize.y() + il * delta.y(), iz * delta.z()});
-                bce.push_back({ix * delta.x(), +hsize.y() - il * delta.y(), iz * delta.z()});
+        // y faces
+        double ym = -size.y() / 2 + il * delta.y();
+        double yp = +size.y() / 2 - il * delta.y();
+        for (int iz = 0; iz < np.z(); iz++) {
+            double z = -size.z() / 2 + iz * delta.z();
+            for (int ix = 0; ix < np.x(); ix++) {
+                double x = -size.x() / 2 + ix * delta.x();
+                bce.push_back({x, ym, z});
+                bce.push_back({x, yp, z});
             }
         }
 
-        // faces in X direction
-        for (int iy = -np.y + num_layers; iy <= np.y - num_layers; iy++) {
-            for (int iz = -np.z + num_layers; iz <= np.z - num_layers; iz++) {
-                bce.push_back({-hsize.x() + il * delta.x(), iy * delta.y(), iz * delta.z()});
-                bce.push_back({+hsize.x() - il * delta.x(), iy * delta.y(), iz * delta.z()});
+        // z faces
+        double zm = -size.z() / 2 + il * delta.z();
+        double zp = +size.z() / 2 - il * delta.z();
+        for (int ix = 0; ix < np.x(); ix++) {
+            double x = -size.x() / 2 + ix * delta.x();
+            for (int iy = 0; iy < np.y(); iy++) {
+                double y = -size.y() / 2 + iy * delta.y();
+                bce.push_back({x, y, zm});
+                bce.push_back({x, y, zp});
             }
         }
     }
