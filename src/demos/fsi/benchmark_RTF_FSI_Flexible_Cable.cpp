@@ -61,7 +61,7 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 // Physics problem type
-PhysicsProblem problem_type = PhysicsProblem::CFD;
+PhysicsProblem problem_type = PhysicsProblem::CRM;
 // Run-time visualization system (OpenGL or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 

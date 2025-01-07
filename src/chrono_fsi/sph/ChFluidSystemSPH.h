@@ -610,7 +610,6 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     ChTimer m_timer_integrate_sph;
     ChTimer m_timer_copy_sorted_to_original;
     ChTimer m_timer_sort_particles;
-    ChTimer m_timer_periodic_boundary;
     friend class ChFsiSystemSPH;
     friend class ChFsiInterfaceSPH;
     friend class ChFsiVisualizationGL;
