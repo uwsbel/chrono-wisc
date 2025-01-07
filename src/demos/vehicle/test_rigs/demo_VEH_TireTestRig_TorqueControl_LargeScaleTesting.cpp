@@ -586,7 +586,7 @@ int main(int argc, char* argv[]) {
 
     // Write all problem specs to cout and logfile
     auto WriteSpecs = [&](std::ostream& out) {
-        out << "Problem Specs:" << std::endl;
+        out << std::endl << "Problem Specs:" << std::endl;
         out << "Tire Type: " << tire_type_str << std::endl;
         out << "Terrain Type: " << terrain_type_str << std::endl;
         if (terrain_type_str == "scm") {
