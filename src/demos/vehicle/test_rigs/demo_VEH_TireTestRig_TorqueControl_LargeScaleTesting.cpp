@@ -101,7 +101,8 @@ bool GetProblemSpecs(int argc,
                      bool& set_long_speed,
                      bool& set_torque,
                      ChSolver::Type& solver_type,
-                     double& torque_value) {
+                     double& torque_value,
+                     int& numSpokes) {
     ChCLI cli(argv[0], "Tire Test Rig Configuration");
 
     cli.AddOption<int>("Mesh", "refine", "Mesh refinement level (1,2,3) - Only for ANCF_AIRLESS tire",
@@ -128,6 +129,8 @@ bool GetProblemSpecs(int argc,
     // Add the torque value option
     cli.AddOption<double>("Motion", "torque_val", "Torque value in Nm (default: 200)", std::to_string(torque_value));
 
+    cli.AddOption<int>("Tire", "num_spokes", "Number of spokes in the tire (default: 16)", std::to_string(numSpokes));
+
     if (argc == 1) {
         cout << "Required parameters missing. See required parameters and descriptions below:\n\n";
         cli.Help();
@@ -147,7 +150,7 @@ bool GetProblemSpecs(int argc,
     tire_type_str = cli.GetAsType<std::string>("tire");
     slope = cli.GetAsType<double>("slope");
     normal_load = cli.GetAsType<double>("nl");
-
+    numSpokes = cli.GetAsType<int>("num_spokes");
     // Only get SCM type if terrain is SCM
     if (terrain_type_str == "scm") {
         scm_type = cli.GetAsType<std::string>("scm");
@@ -207,7 +210,9 @@ int main(int argc, char* argv[]) {
     double step_c = 1e-4;
     double p_ratio = 0.2;
     std::string scm_type = "soft";
-    double normal_load = 3000;
+    double normal_load = 400 * 1.62;  // 400 Kg on the moon
+    // double normal_load = 500 * 1.62; // 500 kg on the moon
+    // double normal_load = 300 * 9.81;  // 300 Kg on the earth
     std::string terrain_type_str = "rigid";
     std::string tire_type_str = "ancf_airless";
     int refine_level = 1;
@@ -217,8 +222,10 @@ int main(int argc, char* argv[]) {
     bool set_torque = true;
     ChSolver::Type solver_type = ChSolver::Type::PARDISO_MKL;
     double torque_value = 200;  // Default value
+    int numSpokes = 16;         // Default value
     if (!GetProblemSpecs(argc, argv, refine_level, y_mod, step_c, p_ratio, scm_type, normal_load, terrain_type_str,
-                         slope, tire_type_str, set_longitudinal_speed, set_torque, solver_type, torque_value)) {
+                         slope, tire_type_str, set_longitudinal_speed, set_torque, solver_type, torque_value,
+                         numSpokes)) {
         return 1;
     }
     TerrainType terrain_type;
@@ -249,7 +256,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string log_file = out_dir + "/tire_test.txt";
-    std::ofstream logfile(log_file);
+    std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
         cerr << "Could not open log file " << log_file << endl;
         return 1;
@@ -284,6 +291,7 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivWidth(3 * refine_level);              // Default is 3
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
+        ancf_tire->SetNumberSpokes(numSpokes);                 // default is 16
         tire = ancf_tire;
     } else {
         std::string tire_file;
@@ -364,7 +372,7 @@ int main(int argc, char* argv[]) {
     double run_off = 5 * tire->GetRadius();
     rig.SetRunOff(run_off);
 
-    rig.SetGravitationalAcceleration(9.8);
+    rig.SetGravitationalAcceleration(1.62);
     rig.SetNormalLoad(normal_load);
 
     rig.SetTireStepsize(step_size);
@@ -453,8 +461,8 @@ int main(int argc, char* argv[]) {
     rig.SetSlope(slope * CH_DEG_TO_RAD);
     double spring_stiffness = 100;
     rig.SetSpringStiffness(spring_stiffness);
-    rig.Initialize(ChTireTestRig_TorqueControl::Mode::SPRING);
-    // rig.Initialize(ChTireTestRig_TorqueControl::Mode::TEST);
+    // rig.Initialize(ChTireTestRig_TorqueControl::Mode::SPRING);
+    rig.Initialize(ChTireTestRig_TorqueControl::Mode::TEST);
 
     // Optionally, modify tire visualization (can be done only after initialization)
     if (auto tire_def = std::dynamic_pointer_cast<ChDeformableTire>(tire)) {
