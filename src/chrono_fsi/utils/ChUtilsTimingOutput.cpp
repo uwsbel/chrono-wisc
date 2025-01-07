@@ -18,9 +18,7 @@ void OutputParameterJSON(const std::string& json_file_path,
     auto& allocator = doc.GetAllocator();
     // Get required parameters
     SimParams params = sysFSI->GetParams();
-    std::cout << "params.INITSPACE: " << params.INITSPACE << std::endl;
     ChCounters counters = sysFSI->GetCounters();
-    std::cout << "counters.numFluidMarkers: " << counters.numFluidMarkers << std::endl;
     CudaDeviceInfo cuda_info = sysFSI->GetCudaDeviceInfo();
 
     // Hardware Info
@@ -49,6 +47,17 @@ void OutputParameterJSON(const std::string& json_file_path,
     simParams.AddMember("numFsiNodes1D", counters.numFlexMarkers1D, allocator);
     simParams.AddMember("numFsiNodes2D", counters.numFlexMarkers2D, allocator);
     simParams.AddMember("numActiveParticles", sysFSI->GetNumActiveParticles(), allocator);
+    rapidjson::Value cMin(rapidjson::kArrayType);
+    cMin.PushBack(params.cMin.x, allocator);
+    cMin.PushBack(params.cMin.y, allocator);
+    cMin.PushBack(params.cMin.z, allocator);
+    simParams.AddMember("cMin", cMin, allocator);
+
+    rapidjson::Value cMax(rapidjson::kArrayType);
+    cMax.PushBack(params.cMax.x, allocator);
+    cMax.PushBack(params.cMax.y, allocator);
+    cMax.PushBack(params.cMax.z, allocator);
+    simParams.AddMember("cMax", cMax, allocator);
     doc.AddMember("simulationParameters", simParams, allocator);
 
     // Simulation Settings
