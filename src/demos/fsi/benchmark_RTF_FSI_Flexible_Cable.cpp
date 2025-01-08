@@ -198,7 +198,7 @@ int main(int argc, char* argv[]) {
         case PhysicsProblem::CRM:
             sph_params.sph_method = SPHMethod::WCSPH;
             sph_params.initial_spacing = initial_spacing;
-            sph_params.h_multiplier = 1.0;
+            sph_params.h_multiplier = d0_multiplier;
             sph_params.xsph_coefficient = 0.5;
             sph_params.shifting_coefficient = 1.0;
             sph_params.kernel_threshold = 0.8;
