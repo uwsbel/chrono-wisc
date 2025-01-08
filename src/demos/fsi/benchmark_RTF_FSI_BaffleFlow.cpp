@@ -418,7 +418,8 @@ int main(int argc, char* argv[]) {
     if (scale_formatted.back() == '.')
         scale_formatted.pop_back();
 
-    std::string json_file_path = out_dir + "rtf_default_default_ps_1_d0" + d0_formatted + ".json";
+    std::string json_file_path =
+        out_dir + "rtf_default_default_ps1_d0" + d0_formatted + "_scale" + scale_formatted + ".json";
     OutputParameterJSON(json_file_path, &sysFSI, t_end, step_size, "default", "default", 1, d0_multiplier, doc);
     OutputTimingJSON(json_file_path, timer_step, timer_CFD, timer_MBS, timer_FSI, &sysFSI, doc);
 

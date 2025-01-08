@@ -45,6 +45,7 @@ if(ENABLE_MODULE_FSI AND (ENABLE_MODULE_OPENGL OR ENABLE_MODULE_VSG))
         demo_VEH_CRMTerrain_WheeledVehicle
         demo_VEH_CRMTerrain_TrackedVehicle
         demo_VEH_CRMTerrain_Viper
+        benchmark_RTF_VEH_CRMTerrain_TrackedVehicle
     )
 endif()
 
