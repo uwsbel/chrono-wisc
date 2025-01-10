@@ -70,6 +70,7 @@ int out_fps = 20;
 bool render = false;
 float render_fps = 100;
 
+bool snapshots = false;
 // Pointer to store the VIPER instance
 std::shared_ptr<Viper> rover;
 
@@ -136,6 +137,12 @@ int main(int argc, char* argv[]) {
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
+    }
+    if (snapshots) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+            std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
+            return 1;
+        }
     }
     int ps_freq = 1;
     // Simulation time and stepsize
@@ -297,6 +304,7 @@ int main(int argc, char* argv[]) {
     int current_step = 0;
 
     auto body = sysMBS.GetBodies()[1];
+    int render_frame = 0;
     sysFSI.GetFluidSystemSPH().ResetTimers();
     double timer_step = 0;
     double timer_CFD = 0;
@@ -317,6 +325,14 @@ int main(int argc, char* argv[]) {
         if (render && current_step % render_steps == 0) {
             if (!visFSI->Render())
                 break;
+            if (snapshots) {
+                std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
+                std::ostringstream filename;
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
+                         << ".bmp";
+                visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
+            }
+            render_frame++;
         }
 
         sysFSI.DoStepDynamics(dT);

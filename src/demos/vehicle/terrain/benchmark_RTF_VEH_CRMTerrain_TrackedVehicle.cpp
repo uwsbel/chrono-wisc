@@ -127,6 +127,8 @@ int main(int argc, char* argv[]) {
     bool render = false;      // Set false except for debugging
     double render_fps = 200;  // rendering FPS
 
+    bool snapshots = false;
+
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = false;  // render wheel BCE markers
@@ -291,6 +293,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    if (snapshots) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+            std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
+            return 1;
+        }
+    }
+
     // Simulation loop
     DriverInputs driver_inputs = {0, 0, 0};
     double time = 0;
@@ -333,8 +342,17 @@ int main(int argc, char* argv[]) {
                 ChVector3d cam_point = veh_loc;
                 visFSI->UpdateCamera(cam_loc, cam_point);
             }
+
             if (!visFSI->Render())
                 break;
+            if (snapshots) {
+                if (verbose)
+                    cout << " -- Snapshot frame " << render_frame << " at t = " << time << endl;
+                std::ostringstream filename;
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
+                         << ".bmp";
+                visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
+            }
             render_frame++;
         }
         // Synchronize systems
