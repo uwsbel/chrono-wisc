@@ -10,18 +10,18 @@
                               "Location":    [0, 0, 0],
                               "Orientation": [1, 0, 0, 0]
                             },
-     "Mass":                50,
-     "Moments of Inertia":  [2, 3, 10],
+     "Mass":                800,
+     "Moments of Inertia":  [4, 6, 20],
      "Products of Inertia": [0, 0, 0],
      "Void":                false
    }
   ],
 
-  "Front Connector Location": [1.66, 0, -0.12],
+  "Front Connector Location": [4.0, 0, -0.6],
 
   "Visualization":
   {
-    //"Mesh":  "ultra_tow/UT_chassis_vis.obj",
+    "Mesh":  "ultra_tow/trailer.obj",
     "Primitives": [
         {
             "Type": "BOX",

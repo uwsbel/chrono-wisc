@@ -1,1 +1,2 @@
 data/** -linguist-detectable
+data/vehicle/Polaris/meshes/2.obj filter=lfs diff=lfs merge=lfs -text

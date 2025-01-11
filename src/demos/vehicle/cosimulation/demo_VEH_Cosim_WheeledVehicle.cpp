@@ -66,7 +66,7 @@ class HMMWV_Model : public Vehicle_Model {
     virtual std::string TransmissionJSON() const override {
         return "hmmwv/powertrain/HMMWV_AutomaticTransmissionShafts.json";
     }
-    virtual double InitHeight() const override { return 0.4; }
+    virtual double InitHeight() const override { return 0.5; }
 };
 
 class Polaris_Model : public Vehicle_Model {
@@ -79,18 +79,19 @@ class Polaris_Model : public Vehicle_Model {
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
-    virtual double InitHeight() const override { return 0.0; }
+    std::string TrailerJSON() const { return "ultra_tow/UT_Trailer.json"; }
+    virtual double InitHeight() const override { return 0.2; }
 };
 
-bool use_airless_tire =
-    true;  // When this is set to true, the tire JSON files are not considered and the ANCFAirlessTire is used instead
+bool use_airless_tire = false;  // When this is set to true, the tire JSON files are not considered and the
+                                // ANCFAirlessTire is used instead
 auto vehicle_model = Polaris_Model();
 
 // =============================================================================
 // Specification of a terrain model from JSON file
 
-std::string terrain_specfile = "cosim/terrain/rigid.json";
-//  std::string terrain_specfile = "cosim/terrain/scm_soft.json";
+// std::string terrain_specfile = "cosim/terrain/rigid.json";
+std::string terrain_specfile = "cosim/terrain/scm_soft.json";
 double gravity = -9.81;
 // =============================================================================
 
@@ -110,10 +111,10 @@ class MyDriver : public ChDriver {
         if (eff_time < 0)
             return;
 
-        if (eff_time > 0.0 && eff_time <=3.0)
-            m_throttle = 0.6;
-        else if(eff_time > 3.0)
-            m_throttle = 0.0;
+        if (eff_time > 0.0 && eff_time <= 6.0)
+            m_throttle = 0.8;
+        else if (eff_time > 6.0)
+            m_throttle = 0.2;
 
         if (eff_time < 0.0)
             m_steering = 0;
@@ -148,19 +149,19 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
-    if (num_procs != 6) {
+    if (num_procs != 8) {
         if (rank == 0)
-            std::cout << "\n\n4-wheel vehicle cosimulation code must be run on exactly 6 ranks!\n\n" << std::endl;
+            std::cout << "\n\n6-wheel vehicle cosimulation code must be run on exactly 8 ranks!\n\n" << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
         return 1;
     }
 
     // Simulation parameters
-    double step_size = 2e-5;
+    double step_size = 2e-5;  // 2e-5
     double step_rigid_tire = 1e-3;
-    double step_fea_tire = 2e-5;
+    double step_fea_tire = 2e-5;  // 2e-5
     int nthreads_terrain = 4;
-    double sim_time = 8.0;
+    double sim_time = 20.0;
 
     double output_fps = 100;
     double render_fps = 100;
@@ -171,13 +172,13 @@ int main(int argc, char** argv) {
     bool writeRT = true;
     std::string suffix = "";
     bool verbose = true;
-    bool render_tire[4] = {true, true, true, false};
+    bool render_tire[6] = {true, true, true, true, true, true};
 
     // If use_DBP_rig=true, attach a drawbar pull rig to the vehicle
     bool use_DBP_rig = false;
 
-    double terrain_length = 40;
-    double terrain_width = 20;
+    double terrain_length = 80;
+    double terrain_width = 40;
     if (use_DBP_rig) {
         terrain_length = 20;
         terrain_width = 5;
@@ -201,7 +202,7 @@ int main(int argc, char** argv) {
     int output_steps = (int)std::ceil(1 / (output_fps * step_size));
 
     // Initialize co-simulation framework (specify 4 tire nodes).
-    cosim::InitializeFramework(4);
+    cosim::InitializeFramework(6);
 
     // Peek in spec file and extract terrain type
     auto terrain_type = ChVehicleCosimTerrainNodeChrono::GetTypeFromSpecfile(vehicle::GetDataFile(terrain_specfile));
@@ -232,9 +233,9 @@ int main(int argc, char** argv) {
             cout << "[Vehicle node] rank = " << rank << " running on: " << procname << endl;
 
         ChVehicleCosimWheeledVehicleNode* vehicle;
-        vehicle = new ChVehicleCosimWheeledVehicleNode(vehicle::GetDataFile(vehicle_model.VehicleJSON()),
-                                                       vehicle::GetDataFile(vehicle_model.EngineJSON()),
-                                                       vehicle::GetDataFile(vehicle_model.TransmissionJSON()));
+        vehicle = new ChVehicleCosimWheeledVehicleNode(
+            vehicle::GetDataFile(vehicle_model.VehicleJSON()), vehicle::GetDataFile(vehicle_model.EngineJSON()),
+            vehicle::GetDataFile(vehicle_model.TransmissionJSON()), vehicle::GetDataFile(vehicle_model.TrailerJSON()));
 
         if (use_DBP_rig) {
             auto act_type = ChVehicleCosimDBPRigImposedSlip::ActuationType::SET_ANG_VEL;

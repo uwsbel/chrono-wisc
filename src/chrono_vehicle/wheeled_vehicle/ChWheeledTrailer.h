@@ -106,6 +106,8 @@ class CH_VEHICLE_API ChWheeledTrailer {
     /// This function advances the states of all associated tires.
     void Advance(double step);
 
+    double GetChassisMass() const { return m_chassis->GetBodyMass(); }
+
   protected:
     /// Construct a trailer system using the specified ChSystem.
     ChWheeledTrailer(const std::string& name,  ///< [in] trailer system name

@@ -46,7 +46,7 @@ using namespace chrono::vsg3d;
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // Trailer model selection (use only with HMMWV, Sedan, or UAZ)
-bool add_trailer = false;
+bool add_trailer = true;
 auto trailer_model = UT_Model();
 
 // JSON files for terrain
@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
     auto transmission = ReadTransmissionJSON(vehicle::GetDataFile(vehicle_model->TransmissionJSON()));
     auto powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
     vehicle.InitializePowertrain(powertrain);
-    
+
     // Create and initialize the tires
     for (unsigned int i = 0; i < vehicle.GetNumberAxles(); i++) {
         for (auto& wheel : vehicle.GetAxle(i)->GetWheels()) {
@@ -122,13 +122,13 @@ int main(int argc, char* argv[]) {
     if (add_trailer) {
         trailer = chrono_types::make_shared<WheeledTrailer>(sys, vehicle::GetDataFile(trailer_model.TrailerJSON()));
         trailer->Initialize(vehicle.GetChassis());
-        trailer->SetChassisVisualizationType(VisualizationType::PRIMITIVES);
+        trailer->SetChassisVisualizationType(VisualizationType::MESH);
         trailer->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
-        trailer->SetWheelVisualizationType(VisualizationType::NONE);
+        trailer->SetWheelVisualizationType(VisualizationType::MESH);
         for (auto& axle : trailer->GetAxles()) {
             for (auto& wheel : axle->GetWheels()) {
                 auto tire = ReadTireJSON(vehicle::GetDataFile(trailer_model.TireJSON()));
-                trailer->InitializeTire(tire, wheel, VisualizationType::PRIMITIVES);
+                trailer->InitializeTire(tire, wheel, VisualizationType::MESH);
             }
         }
     }
@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
     // Create the terrain
     RigidTerrain terrain(sys, vehicle::GetDataFile(rigidterrain_file));
     terrain.Initialize();
-    
+
     // Set solver and integrator
     double step_size = 2e-3;
     auto solver_type = ChSolver::Type::BARZILAIBORWEIN;
