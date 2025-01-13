@@ -237,6 +237,8 @@ class FsiDataManager {
                                                   const Real3& ay,
                                                   const Real3& az);
 
+    /// Get the number of active particles.
+    size_t GetNumActiveParticles() const;
     /// Extract positions of all markers (SPH and BCE).
     /// The return value is a device thrust vector.
     thrust::device_vector<Real3> GetPositions();

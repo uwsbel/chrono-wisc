@@ -494,6 +494,83 @@ void ChFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
     }
 }
 
+/// Create JSON document and write initial simulation parameters
+void ChFluidSystemSPH::OutputParameterJSON(const std::string& json_file_path,
+                                           double t_end,
+                                           double step_size,
+                                           const std::string& viscosity_type,
+                                           const std::string& boundary_type,
+                                           int ps_freq,
+                                           double d0_multiplier,
+                                           rapidjson::Document& doc) {
+    doc.SetObject();
+    auto& allocator = doc.GetAllocator();
+    // Get required parameters
+    sph::SimParams params = this->GetParams();
+    sph::Counters counters = this->GetCounters();
+    sph::CudaDeviceInfo cuda_info = this->GetCudaDeviceInfo();
+
+    // Hardware Info
+    rapidjson::Value hardwareInfo(rapidjson::kObjectType);
+    hardwareInfo.AddMember("gpuName", rapidjson::Value(cuda_info.deviceProp.name, allocator), allocator);
+    hardwareInfo.AddMember(
+        "computeCapability",
+        rapidjson::Value(
+            (std::to_string(cuda_info.deviceProp.major) + "." + std::to_string(cuda_info.deviceProp.minor)).c_str(),
+            allocator),
+        allocator);
+    doc.AddMember("hardwareInfo", hardwareInfo, allocator);
+
+    // Simulation Parameters
+    rapidjson::Value simParams(rapidjson::kObjectType);
+    simParams.AddMember("numNeighborsEst", params.num_neighbors, allocator);
+    simParams.AddMember("numFluidMarkers", counters.numFluidMarkers, allocator);
+    simParams.AddMember("numBoundaryMarkers", counters.numBoundaryMarkers, allocator);
+    simParams.AddMember("numRigidMarkers", counters.numRigidMarkers, allocator);
+    simParams.AddMember("numFlexMarkers1D", counters.numFlexMarkers1D, allocator);
+    simParams.AddMember("numFlexMarkers2D", counters.numFlexMarkers2D, allocator);
+    simParams.AddMember("numAllMarkers", counters.numAllMarkers, allocator);
+    simParams.AddMember("numFsiBodies", counters.numFsiBodies, allocator);
+    simParams.AddMember("numFsiElements1D", counters.numFsiElements1D, allocator);
+    simParams.AddMember("numFsiElements2D", counters.numFsiElements2D, allocator);
+    simParams.AddMember("numFsiNodes1D", counters.numFsiNodes1D, allocator);
+    simParams.AddMember("numFsiNodes2D", counters.numFsiNodes2D, allocator);
+    simParams.AddMember("numActiveParticles", this->GetNumActiveParticles(), allocator);
+    rapidjson::Value cMin(rapidjson::kArrayType);
+    cMin.PushBack(params.cMin.x, allocator);
+    cMin.PushBack(params.cMin.y, allocator);
+    cMin.PushBack(params.cMin.z, allocator);
+    simParams.AddMember("cMin", cMin, allocator);
+
+    rapidjson::Value cMax(rapidjson::kArrayType);
+    cMax.PushBack(params.cMax.x, allocator);
+    cMax.PushBack(params.cMax.y, allocator);
+    cMax.PushBack(params.cMax.z, allocator);
+    simParams.AddMember("cMax", cMax, allocator);
+    doc.AddMember("simulationParameters", simParams, allocator);
+
+    // Simulation Settings
+    rapidjson::Value simSettings(rapidjson::kObjectType);
+    simSettings.AddMember("tEnd", t_end, allocator);
+    simSettings.AddMember("stepSize", step_size, allocator);
+    simSettings.AddMember("initialSpacing", params.d0, allocator);
+    simSettings.AddMember("kernelRadius", params.h, allocator);
+    simSettings.AddMember("numBceLayers", params.num_bce_layers, allocator);
+    simSettings.AddMember("densityReinit", params.densityReinit, allocator);
+    simSettings.AddMember("viscosityType", rapidjson::Value(viscosity_type.c_str(), allocator), allocator);
+    simSettings.AddMember("boundaryType", rapidjson::Value(boundary_type.c_str(), allocator), allocator);
+    simSettings.AddMember("proximitySearchFreq", ps_freq, allocator);
+    simSettings.AddMember("d0Multiplier", d0_multiplier, allocator);
+    doc.AddMember("simulationSettings", simSettings, allocator);
+
+    // Write to file
+    std::ofstream json_out(json_file_path);
+    rapidjson::StringBuffer buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+    doc.Accept(writer);
+    json_out << buffer.GetString();
+    json_out.close();
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChFluidSystemSPH::SetBoundaryType(BoundaryType boundary_type) {

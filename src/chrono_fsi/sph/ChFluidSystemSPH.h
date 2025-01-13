@@ -31,6 +31,10 @@
 #include "chrono_fsi/sph/physics/ChParams.h"
 #include "chrono_fsi/sph/math/CustomMath.h"
 
+#include "chrono_thirdparty/rapidjson/writer.h"
+#include "chrono_thirdparty/rapidjson/stringbuffer.h"
+#include "chrono_thirdparty/rapidjson/prettywriter.h"
+
 namespace chrono {
 namespace fsi {
 
@@ -110,6 +114,16 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
 
     /// Read Chrono::FSI parameters from the specified JSON file.
     void ReadParametersFromFile(const std::string& json_file);
+
+    /// Output SPH parameters to a JSON file.
+    void OutputParameterJSON(const std::string& json_file_path,
+                             double t_end,
+                             double step_size,
+                             const std::string& viscosity_type,
+                             const std::string& boundary_type,
+                             int ps_freq,
+                             double d0_multiplier,
+                             rapidjson::Document& doc);
 
     /// Set initial spacing.
     void SetInitialSpacing(double spacing);
@@ -254,6 +268,14 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
     /// Return the current system parameters (debugging only).
     const sph::SimParams& GetParams() const { return *m_paramsH; }
 
+    /// Return counters (debugging only).
+    const sph::Counters& GetCounters() const { return *m_data_mgr->countersH; }
+
+    /// Return the cuda device information (debugging only).
+    const sph::CudaDeviceInfo& GetCudaDeviceInfo() const { return *m_data_mgr->cudaDeviceInfo; }
+
+    /// Get the number of active SPH particles (Number of particles within the active domain)
+    size_t GetNumActiveParticles() const { return m_data_mgr->GetNumActiveParticles(); }
     /// Get the current number of fluid SPH particles.
     size_t GetNumFluidMarkers() const;
 
