@@ -40,12 +40,14 @@ ANCFAirlessTire::ANCFAirlessTire(const std::string& name)
       m_div_width(3),
       m_div_spoke_len(3),
       m_div_ring_per_spoke(3),
-      m_E(76e9),
+      m_ESpokes(76e9),
+      m_EOuterRing(76e9),
       m_nu(0.2),
       m_rho(2580),
       m_alpha(0.05) {
-      // default contact material
-      m_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    // default contact material
+    m_matSpokes = chrono_types::make_shared<ChContactMaterialSMC>();
+    m_matOuterRing = chrono_types::make_shared<ChContactMaterialSMC>();
 }
 
 void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) {
@@ -54,20 +56,21 @@ void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide
     //  Density and Young's modulus were taken from: https://en.wikipedia.org/wiki/Glass_fiber
     //  Poisson's ratio was taken from:
     //  https://matweb.com/search/DataSheet.aspx?MatGUID=d9c18047c49147a2a7c0b0bb1743e812
-    auto mat = chrono_types::make_shared<ChMaterialShellANCF>(m_rho, m_E, m_nu);
+    auto matSpokes = chrono_types::make_shared<ChMaterialShellANCF>(m_rho, m_ESpokes, m_nu);
+    auto matOuterRing = chrono_types::make_shared<ChMaterialShellANCF>(m_rho, m_EOuterRing, m_nu);
 
     //-------------------------------------------------
     // Derived geometry
     //-------------------------------------------------
     double rOut = m_rim_radius + m_height;
-    int numNodesWidth = m_div_width + 1;               // Number of nodes across the width of the tire
+    int numNodesWidth = m_div_width + 1;                    // Number of nodes across the width of the tire
     int numElsOutCir = m_num_spoke * m_div_ring_per_spoke;  // number of elements forming a circle in the outer ring
-    int numElsOutCirTot = numElsOutCir * m_div_width;  // number of elements forming the complete outer ring
-    int numNodesOutRingSlice = numElsOutCir;          // number of nodes in a slice normal to the width of the tire
+    int numElsOutCirTot = numElsOutCir * m_div_width;       // number of elements forming the complete outer ring
+    int numNodesOutRingSlice = numElsOutCir;  // number of nodes in a slice normal to the width of the tire
     int numNodesOutRingTotal =
         numElsOutCir * (m_div_width + 1);  // total number of nodes in the outer band/ring of the tire
 
-    double widthEl = m_width / m_div_width;            // width of each element
+    double widthEl = m_width / m_div_width;         // width of each element
     double radiansElOuter = CH_2PI / numElsOutCir;  // arc spand by a single element in the outer ring
     double lenElOuter =
         2.0 * rOut * std::sin(0.5 * radiansElOuter);  // Corresponding length of each element in the outer ring
@@ -126,7 +129,7 @@ void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide
             element->SetDimensions(lenElOuter, widthEl);
 
             // Add a single layers with a fiber angle of 0 degrees.
-            element->AddLayer(m_t_outer_ring, 0 * CH_DEG_TO_RAD, mat);
+            element->AddLayer(m_t_outer_ring, 0 * CH_DEG_TO_RAD, matOuterRing);
 
             // Set other element properties
             element->SetAlphaDamp(m_alpha);  // Structural damping for this element
@@ -194,7 +197,7 @@ void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide
             element->SetDimensions(lenElSpk, widthEl, lenElOuter, Toffset, CH_PI_2);
 
             // Add a single layers with a fiber angle of 0 degrees.
-            element->AddLayer(m_t_spoke, 0 * CH_DEG_TO_RAD, mat);
+            element->AddLayer(m_t_spoke, 0 * CH_DEG_TO_RAD, matSpokes);
 
             // Set other element properties
             element->SetAlphaDamp(m_alpha);  // Structural damping for this element
@@ -221,7 +224,7 @@ void ANCFAirlessTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide
                 element->SetDimensions(lenElOuter, widthEl);
 
                 // Add a single layers with a fiber angle of 0 degrees.
-                element->AddLayer(m_t_spoke, 0 * CH_DEG_TO_RAD, mat);
+                element->AddLayer(m_t_spoke, 0 * CH_DEG_TO_RAD, matSpokes);
 
                 // Set other element properties
                 element->SetAlphaDamp(m_alpha);  // Structural damping for this element
@@ -238,7 +241,7 @@ std::vector<std::shared_ptr<ChNodeFEAbase>> ANCFAirlessTire::GetConnectedNodes()
 }
 
 void ANCFAirlessTire::CreateContactMaterial() {
-    m_contact_mat = m_mat;
+    m_contact_mat = m_matSpokes;
 }
 
 }  // end namespace vehicle

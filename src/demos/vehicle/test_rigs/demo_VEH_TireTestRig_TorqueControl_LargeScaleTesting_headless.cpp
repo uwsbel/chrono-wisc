@@ -78,7 +78,7 @@ TireType tire_type = TireType::ANCF_AIRLESS;
 
 // Terrain type (RIGID or SCM)
 enum class TerrainType { RIGID, SCM };
-
+bool render = false;
 double render_fps = 100;
 bool log_output = true;
 bool blender_output = false;
@@ -261,7 +261,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string log_file = out_dir + "/tire_test.txt";
+    std::string log_file =
+        out_dir + "/tire_test_" + ChSolver::GetTypeAsString(solver_type) + "_" + std::to_string(numSpokes) + ".txt";
     std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
         cerr << "Could not open log file " << log_file << endl;
@@ -292,7 +293,7 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetHeight(0.225);     // Default is 0.225
         ancf_tire->SetWidth(0.24);       // Default is 0.4
         ancf_tire->SetAlpha(0.05);       // Default is 0.05
-        // ancf_tire->SetYoungsModulus(y_mod);  // Default is 76e9
+        // ancf_tire->SetYoungsModulus(y_mod);                    // Default is 76e9
         ancf_tire->SetYoungsModulusSpokes(y_modSpokes);
         ancf_tire->SetYoungsModulusOuterRing(y_modOuterRing);
         ancf_tire->SetPoissonsRatio(p_ratio);                  // Default is 0.2
@@ -491,55 +492,6 @@ int main(int argc, char* argv[]) {
     // Create the run-time visualization
     // ---------------------------------
 
-#ifndef CHRONO_IRRLICHT
-    if (vis_type == ChVisualSystem::Type::IRRLICHT)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::IRRLICHT;
-#endif
-
-    std::shared_ptr<ChVisualSystem> vis;
-    switch (vis_type) {
-        case ChVisualSystem::Type::IRRLICHT: {
-#ifdef CHRONO_IRRLICHT
-            auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
-            vis_irr->AttachSystem(sys);
-            vis_irr->SetCameraVertical(CameraVerticalDir::Z);
-            vis_irr->SetWindowSize(1200, 600);
-            vis_irr->SetWindowTitle("Tire Test Rig");
-            vis_irr->Initialize();
-            vis_irr->AddLogo();
-            vis_irr->AddSkyBox();
-            vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
-            vis_irr->AddLightDirectional();
-
-            vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
-
-            vis = vis_irr;
-#endif
-            break;
-        }
-        default:
-        case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
-            auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
-            vis_vsg->AttachSystem(sys);
-            vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
-            vis_vsg->SetWindowSize(1200, 600);
-            vis_vsg->SetWindowTitle("Tire Test Rig");
-            vis_vsg->AddCamera(ChVector3d(1.0, 2.5, 1.0));
-            vis_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
-            vis_vsg->SetShadows(true);
-            vis_vsg->Initialize();
-
-            vis = vis_vsg;
-#endif
-            break;
-        }
-    }
-
 #ifdef CHRONO_POSTPROCESS
     // ---------------------------
     // Create the Blender exporter
@@ -628,7 +580,7 @@ int main(int argc, char* argv[]) {
     WriteSpecs(logfile);
     double t_end = 5;
     timer.start();
-    while (vis->Run() && time < t_end) {
+    while (time < t_end) {
         time = sys->GetChTime();
         if (std::isnan(spindle_body->GetPos().z()) || abs(spindle_body->GetPos().z()) > 1000) {
             ChVector3d pos = spindle_body->GetPos();
@@ -652,19 +604,6 @@ int main(int argc, char* argv[]) {
 
         //     return 1;
         // }
-
-        if (time >= render_frame / render_fps) {
-            auto& loc = rig.GetPos();
-
-            vis->BeginScene();
-            vis->Render();
-            vis->EndScene();
-
-#ifdef CHRONO_POSTPROCESS
-            if (blender_output)
-                blender_exporter.ExportData();
-#endif
-        }
 
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
@@ -694,8 +633,6 @@ int main(int argc, char* argv[]) {
                         logfile << "   Moment: " << trq.x() << " " << trq.y() << " " << trq.z() << std::endl;
             */
         }
-
-        cout << "\rRTF: " << sys->GetRTF();
     }
 
     timer.stop();

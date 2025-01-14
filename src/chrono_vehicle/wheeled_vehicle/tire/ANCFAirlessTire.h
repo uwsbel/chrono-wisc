@@ -50,11 +50,30 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
     void SetDivSpokeLength(int div_spoke_len) { m_div_spoke_len = div_spoke_len; }
     void SetDivOuterRingPerSpoke(int div_ring) { m_div_ring_per_spoke = div_ring; }
 
-    void SetContactMaterial(std::shared_ptr<ChContactMaterialSMC> mat) { m_mat = mat; }
+    void SetContactMaterialSpokes(std::shared_ptr<ChContactMaterialSMC> mat) { m_matSpokes = mat; }
+    void SetContactMaterialOuterRing(std::shared_ptr<ChContactMaterialSMC> mat) { m_matOuterRing = mat; }
 
-    void SetYoungsModulus(double E) { m_E = E; }
+    void SetContactMaterial(std::shared_ptr<ChContactMaterialSMC> mat) {
+        m_matSpokes = mat;
+        m_matOuterRing = mat;
+    }
+
+    // Set Youngs Modulus for Spokes and Outer Ring
+    void SetYoungsModulusSpokes(double E) { m_ESpokes = E; }
+    void SetYoungsModulusOuterRing(double E) { m_EOuterRing = E; }
+
+    void SetYoungsModulus(double E) {
+        m_ESpokes = E;
+        m_EOuterRing = E;
+    }
+
+    // Set Poissons Ratio
     void SetPoissonsRatio(double nu) { m_nu = nu; }
+
+    // Set Density
     void SetDensity(double rho) { m_rho = rho; }
+
+    // Set Alpha
     void SetAlpha(double alpha) { m_alpha = alpha; }
     virtual void CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) override;
 
@@ -72,13 +91,14 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
     int m_div_spoke_len;
     int m_div_ring_per_spoke;
 
-    double m_E;
+    double m_ESpokes;
+    double m_EOuterRing;
     double m_nu;
     double m_rho;
     double m_alpha;
 
-    std::shared_ptr<ChContactMaterialSMC> m_mat;
-
+    std::shared_ptr<ChContactMaterialSMC> m_matSpokes;
+    std::shared_ptr<ChContactMaterialSMC> m_matOuterRing;
     std::vector<std::shared_ptr<fea::ChNodeFEAbase>> m_hub_nodes;
 };
 
