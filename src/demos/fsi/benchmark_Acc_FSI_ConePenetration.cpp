@@ -401,22 +401,38 @@ int main(int argc, char* argv[]) {
     // Output directories
     std::string out_dir;
     if (output || snapshots) {
-        out_dir = GetChronoOutputPath() + "FSI_ConePenetration/";
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
-            std::cerr << "Error creating directory " << out_dir << std::endl;
+        // Base output directory
+        std::string base_dir = GetChronoOutputPath() + "FSI_ConePenetration/";
+        if (!filesystem::create_directory(filesystem::path(base_dir))) {
+            std::cerr << "Error creating directory " << base_dir << std::endl;
             return 1;
         }
+
+        // Create nested directories
+        std::stringstream hdrop_stream;
+        hdrop_stream << std::fixed << std::setprecision(1) << Hdrop;
+
+        std::vector<std::string> subdirs = {"Hdrop_" + hdrop_stream.str(), "granMaterial_" + gran_material,
+                                            "relDensity_" + std::to_string(rel_density),
+                                            "coneType_" + std::to_string(cone_type)};
+
+        for (const auto& subdir : subdirs) {
+            base_dir += subdir + "/";
+            if (!filesystem::create_directory(filesystem::path(base_dir))) {
+                std::cerr << "Error creating directory " << base_dir << std::endl;
+                return 1;
+            }
+        }
+
+        // Add flat structure
         std::stringstream ss;
-        // Add these differentitors if we need to do comparisons
-        ss << "coneType_" << cone_type;
-        ss << "_ps_" << ps_freq;
-        ss << "_granMaterial_" << gran_material;
-        ss << "_relDensity_" << rel_density;
-        ss << "_hDrop_" << Hdrop;
+        ss << "ps_" << ps_freq;
         ss << "_s_" << initial_spacing;
         ss << "_d0_" << d0_multiplier;
         ss << "_t_" << time_step;
-        out_dir = out_dir + ss.str();
+
+        out_dir = base_dir + ss.str();
+
         if (!filesystem::create_directory(filesystem::path(out_dir))) {
             std::cerr << "Error creating directory " << out_dir << std::endl;
             return 1;
