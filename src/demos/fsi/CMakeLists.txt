@@ -20,6 +20,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_Cratering
    benchmark_Acc_FSI_Cratering
    benchmark_Acc_FSI_ConePenetration
+   benchmark_Acc_FSI_ConePenetrationWithCyl
 )
 
 if(ENABLE_MODULE_PARDISO_MKL)
