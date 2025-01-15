@@ -210,6 +210,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    bool write_marker_files = false;
     // Print all problem specs
     std::cout << "Problem Specs:" << std::endl;
     std::cout << "t_end: " << t_end << std::endl;
@@ -515,8 +516,10 @@ int main(int argc, char* argv[]) {
     timer.start();
     while (time < t_end) {
         if (output && time >= out_frame / output_fps) {
-            sysSPH.SaveParticleData(out_dir + "/particles");
-            sysSPH.SaveSolidData(out_dir + "/fsi", time);
+            if (write_marker_files) {
+                sysSPH.SaveParticleData(out_dir + "/particles");
+                sysSPH.SaveSolidData(out_dir + "/fsi", time);
+            }
             out_frame++;
         }
 
