@@ -559,6 +559,11 @@ void ChFluidSystemSPH::OutputParameterJSON(const std::string& json_file_path,
     simSettings.AddMember("densityReinit", params.densityReinit, allocator);
     simSettings.AddMember("viscosityType", rapidjson::Value(viscosity_type.c_str(), allocator), allocator);
     simSettings.AddMember("boundaryType", rapidjson::Value(boundary_type.c_str(), allocator), allocator);
+    if (params.kernel_type == KernelType::WENDLAND) {
+        simSettings.AddMember("kernelType", rapidjson::Value("wendland", allocator), allocator);
+    } else {
+        simSettings.AddMember("kernelType", rapidjson::Value("cubic", allocator), allocator);
+    }
     simSettings.AddMember("proximitySearchFreq", ps_freq, allocator);
     simSettings.AddMember("d0Multiplier", d0_multiplier, allocator);
     doc.AddMember("simulationSettings", simSettings, allocator);
