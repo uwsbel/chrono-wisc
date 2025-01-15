@@ -413,9 +413,13 @@ int main(int argc, char* argv[]) {
         std::stringstream hdrop_stream;
         hdrop_stream << std::fixed << std::setprecision(1) << Hdrop;
 
-        std::vector<std::string> subdirs = {"Hdrop_" + hdrop_stream.str(), "granMaterial_" + gran_material,
+        std::vector<std::string> subdirs = {"Hdrop_" + hdrop_stream.str(),
+                                            "granMaterial_" + gran_material,
                                             "relDensity_" + std::to_string(rel_density),
-                                            "coneType_" + std::to_string(cone_type)};
+                                            "coneType_" + std::to_string(cone_type),
+                                            "boundaryType_" + boundary_type,
+                                            "viscosityType_" + viscosity_type,
+                                            "kernelType_" + kernel_type};
 
         for (const auto& subdir : subdirs) {
             base_dir += subdir + "/";
