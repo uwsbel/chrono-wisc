@@ -119,7 +119,8 @@ bool GetProblemSpecs(int argc,
                      int& rel_density,
                      int& cone_type,
                      double& container_depth,
-                     double& Hdrop) {
+                     double& Hdrop,
+                     double& artificial_viscosity) {
     ChCLI cli(argv[0], "FSI Cone Penetration Demo");
 
     cli.AddOption<double>("Simulation", "t_end", "End time", std::to_string(t_end));
@@ -138,6 +139,8 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<int>("Geometry", "cone_type", "Cone type (1 - 30 degrees/2 - 60 degrees)", std::to_string(cone_type));
     cli.AddOption<double>("Geometry", "container_depth", "Container depth (m)", std::to_string(container_depth));
     cli.AddOption<double>("Geometry", "Hdrop", "Drop height (times cone length - 0/0.5/1)", std::to_string(Hdrop));
+    cli.AddOption<double>("Physics", "artificial_viscosity", "Artificial viscosity",
+                          std::to_string(artificial_viscosity));
 
     if (!cli.Parse(argc, argv))
         return false;
@@ -155,6 +158,7 @@ bool GetProblemSpecs(int argc,
     cone_type = cli.GetAsType<int>("cone_type");
     container_depth = cli.GetAsType<double>("container_depth");
     Hdrop = cli.GetAsType<double>("Hdrop");
+    artificial_viscosity = cli.GetAsType<double>("artificial_viscosity");
     return true;
 }
 
@@ -204,9 +208,10 @@ int main(int argc, char* argv[]) {
     int cone_type = 1;                   // This means 30 deg cone
     double container_depth = 0.1;        // This is  in meters
     double Hdrop = 0.5;                  // This is 0.5 times length of cone
-
+    double artificial_viscosity = 0.5;
     if (!GetProblemSpecs(argc, argv, t_end, ps_freq, initial_spacing, d0_multiplier, time_step, boundary_type,
-                         viscosity_type, kernel_type, gran_material, rel_density, cone_type, container_depth, Hdrop)) {
+                         viscosity_type, kernel_type, gran_material, rel_density, cone_type, container_depth, Hdrop,
+                         artificial_viscosity)) {
         return 1;
     }
 
@@ -226,7 +231,7 @@ int main(int argc, char* argv[]) {
     std::cout << "cone_type: " << cone_type << std::endl;
     std::cout << "container_depth: " << container_depth << std::endl;
     std::cout << "Hdrop: " << Hdrop << std::endl;
-
+    std::cout << "artificial_viscosity: " << artificial_viscosity << std::endl;
     // Create a physics system
     ChSystemSMC sysMBS;
 
@@ -270,7 +275,7 @@ int main(int argc, char* argv[]) {
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = d0_multiplier;
-    sph_params.artificial_viscosity = 0.5;
+    sph_params.artificial_viscosity = artificial_viscosity;
     sph_params.xsph_coefficient = 0.5;
     sph_params.shifting_coefficient = 1.0;
     sph_params.kernel_threshold = 0.8;
@@ -435,7 +440,7 @@ int main(int argc, char* argv[]) {
         ss << "_s_" << initial_spacing;
         ss << "_d0_" << d0_multiplier;
         ss << "_t_" << time_step;
-
+        ss << "_av_" << artificial_viscosity;
         out_dir = base_dir + ss.str();
 
         if (!filesystem::create_directory(filesystem::path(out_dir))) {
