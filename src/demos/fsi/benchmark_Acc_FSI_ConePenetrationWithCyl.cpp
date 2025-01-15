@@ -564,7 +564,7 @@ int main(int argc, char* argv[]) {
         // Write penetration depth to file
         // This is done so as to match the penetration depth in the experiment - see
         // https://sbel.wisc.edu/documents/TR-2016-04.pdf
-        double d_pen = fzDim + 0.5 * initial_spacing + cone_length - cone->GetPos().z() + Hdrop * cone_length;
+        double d_pen = fzDim + 0.5 * initial_spacing + cone_length - cone->GetPos().z();
         ofile << time << "," << d_pen << "," << cone->GetPos().x() << "," << cone->GetPos().y() << ","
               << cone->GetPos().z() << "," << cone->GetPosDt().x() << "," << cone->GetPosDt().y() << ","
               << cone->GetPosDt().z() << std::endl;
