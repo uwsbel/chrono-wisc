@@ -135,6 +135,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
 
     // Set integrator
     sys.SetTimestepperType(intg_type);
+
     if (verbose)
         cout << prefix << "Setting integrator " << chrono::ChTimestepper::GetTypeAsString(intg_type) << endl;
     switch (intg_type) {
@@ -155,6 +156,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
         }
         case chrono::ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED:
         case chrono::ChTimestepper::Type::EULER_IMPLICIT_PROJECTED:
+        case chrono::ChTimestepper::Type::EULER_SEMI_IMPLICIT:
         default:
             break;
     }

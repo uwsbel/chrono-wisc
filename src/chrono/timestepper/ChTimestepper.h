@@ -44,6 +44,7 @@ class ChApi ChTimestepper {
         EULER_EXPLICIT,
         LEAPFROG,
         NEWMARK,
+        EULER_SEMI_IMPLICIT,
         CUSTOM
     };
 
@@ -87,7 +88,7 @@ class ChApi ChTimestepper {
     virtual void ArchiveIn(ChArchiveIn& archive);
 
     /// Return the integrator type as a string.
-    static std::string GetTypeAsString(Type type); 
+    static std::string GetTypeAsString(Type type);
 
   protected:
     ChIntegrable* integrable;
