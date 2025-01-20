@@ -66,15 +66,24 @@ using namespace chrono::vsg3d;
 
 using namespace chrono;
 using namespace chrono::vehicle;
-
 using std::cout;
 using std::cerr;
 using std::endl;
 
 // -----------------------------------------------------------------------------
-
+// Helper function to convert double to string with specified precision
+std::string to_string_with_precision(double val, int precision, bool useScientific = false) {
+    std::ostringstream ss;
+    if (useScientific) {
+        ss << std::scientific << std::setprecision(precision) << val;
+    } else {
+        ss << std::fixed << std::setprecision(precision) << val;
+    }
+    return ss.str();
+}
 // Run-time visualization system (IRRLICHT or VSG)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+ChVisualSystem::Type vis_type = ChVisualSystem::Type::NONE;
+bool render = false;
 
 // Tire model
 enum class TireType { RIGID, ANCF_TOROIDAL, ANCF_AIRLESS };
@@ -94,7 +103,8 @@ double time_delay = 0.1;
 bool GetProblemSpecs(int argc,
                      char** argv,
                      int& refine_level,
-                     double& y_mod,
+                     double& y_modSpokes,
+                     double& y_modOuterRing,
                      double& step_c,
                      double& p_ratio,
                      std::string& scm_type,
@@ -105,13 +115,22 @@ bool GetProblemSpecs(int argc,
                      bool& set_long_speed,
                      bool& set_ang_speed,
                      bool& set_slip_angle,
-                     ChSolver::Type& solver_type) {
+                     int& numSpokes,
+                     ChSolver::Type& solver_type,
+                     double& max_linear_speed,
+                     double& ramp_time,
+                     double& constant_time,
+                     double& slip,
+                     double& rim_radius,
+                     double& height,
+                     double& ring_thickness) {
     ChCLI cli(argv[0], "Tire Test Rig Configuration");
 
     cli.AddOption<int>("Mesh", "refine", "Mesh refinement level (1,2,3) - Only for ANCF_AIRLESS tire",
                        std::to_string(refine_level));
     // Add options for Young's modulus and step size
-    cli.AddOption<double>("Material", "ym", "Young's modulus (Pa) - Required Parameter", std::to_string(y_mod));
+    cli.AddOption<double>("Material", "ym_spokes", "Young's modulus for Spokes (Pa) - Required Parameter", std::to_string(y_modSpokes));
+    cli.AddOption<double>("Material", "ym_outer_ring", "Young's modulus for Outer Ring (Pa) - Required Parameter", std::to_string(y_modOuterRing));
     cli.AddOption<double>("Material", "pr", "Poisson's ratio - Required Parameter", std::to_string(p_ratio));
     cli.AddOption<double>("Simulation", "st", "Step size - Required Parameter", std::to_string(step_c));
     cli.AddOption<std::string>("Terrain", "type", "Terrain type (rigid/scm)", terrain_type_str);
@@ -123,9 +142,18 @@ bool GetProblemSpecs(int argc,
     // Motion control enable/disable options
     cli.AddOption<std::string>("Motion", "long_speed", "Enable longitudinal speed control (default: 0, use 0/1)", "0");
     cli.AddOption<std::string>("Motion", "ang_speed", "Enable angular speed control (default: 1, use 0/1)", "1");
-    cli.AddOption<std::string>("Motion", "slip", "Enable slip angle control (default: 0, use 0/1)", "0");
+    cli.AddOption<std::string>("Motion", "slip_angle", "Enable slip angle control (default: 0, use 0/1)", "0");
     cli.AddOption<double>("Terrain", "slope", "Terrain slope (degrees)", std::to_string(slope));
+    cli.AddOption<int>("Tire", "num_spokes", "Number of spokes in the tire", std::to_string(numSpokes));
 
+    cli.AddOption<double>("Motion", "max_linear_speed", "Maximum linear speed (m/s)", std::to_string(max_linear_speed));
+    cli.AddOption<double>("Motion", "ramp_time", "Ramp time (s)", std::to_string(ramp_time));
+    cli.AddOption<double>("Motion", "constant_time", "Constant time (s)", std::to_string(constant_time));
+    cli.AddOption<double>("Motion", "slip", "Slip angle (degrees)", std::to_string(slip));
+
+    cli.AddOption<double>("Wheel", "rim_radius", "Rim radius (m)", std::to_string(rim_radius));
+    cli.AddOption<double>("Wheel", "height", "Wheel height (m)", std::to_string(height));
+    cli.AddOption<double>("Wheel", "ring_thickness", "Outer ring thickness (m)", std::to_string(ring_thickness));
     cli.AddOption<std::string>(
         "Solver", "solver",
         "Solver type - Only applicable for ANCF Tires (pardiso_mkl/sparse_lu, default: pardiso_mkl)", "pardiso_mkl");
@@ -142,13 +170,23 @@ bool GetProblemSpecs(int argc,
     }
 
     // Retrieve values from CLI
-    y_mod = cli.GetAsType<double>("ym");
+    y_modSpokes = cli.GetAsType<double>("ym_spokes");
+    y_modOuterRing = cli.GetAsType<double>("ym_outer_ring");
     step_c = cli.GetAsType<double>("st");
     p_ratio = cli.GetAsType<double>("pr");
     terrain_type_str = cli.GetAsType<std::string>("type");
     tire_type_str = cli.GetAsType<std::string>("tire");
     slope = cli.GetAsType<double>("slope");
     normal_load = cli.GetAsType<double>("nl");
+    max_linear_speed = cli.GetAsType<double>("max_linear_speed");
+    ramp_time = cli.GetAsType<double>("ramp_time");
+    constant_time = cli.GetAsType<double>("constant_time");
+    slip = cli.GetAsType<double>("slip");
+    numSpokes = cli.GetAsType<int>("num_spokes");
+
+    rim_radius = cli.GetAsType<double>("rim_radius");
+    height = cli.GetAsType<double>("height");
+    ring_thickness = cli.GetAsType<double>("ring_thickness");
 
     // Only get SCM type if terrain is SCM
     if (terrain_type_str == "scm") {
@@ -159,11 +197,12 @@ bool GetProblemSpecs(int argc,
     if (tire_type_str == "ancf_airless") {
         refine_level = cli.GetAsType<int>("refine");
     }
-
+            std::cout << "Creating log file: "  << std::endl;
     // Get motion control flags
     std::string long_speed_str = cli.GetAsType<std::string>("long_speed");
     std::string ang_speed_str = cli.GetAsType<std::string>("ang_speed");
-    std::string slip_str = cli.GetAsType<std::string>("slip");
+    std::string slip_str = cli.GetAsType<std::string>("slip_angle");
+
 
     // Convert string to bool (accepting 0/1 or true/false)
     auto str_to_bool = [](const std::string& str) {
@@ -189,25 +228,41 @@ bool GetProblemSpecs(int argc,
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double y_mod = 10e9;
-    double step_c = 1e-4;
-    double p_ratio = 0.2;
-    std::string scm_type = "soft";
-    double normal_load = 3000;
-    std::string terrain_type_str = "rigid";
+    double y_modSpokes = 1e8;
+    double y_modOuterRing = 1e9;
+    double step_c = 5e-5;
+    double p_ratio = 0.3;
+    std::string scm_type = "medium";
+    double normal_load = 600;
+    std::string terrain_type_str = "scm";
     std::string tire_type_str = "ancf_airless";
     int refine_level = 1;
     double slope = 0;
+    int numSpokes = 80;
+
     // Motion control flags
-    bool set_longitudinal_speed = false;
+    bool set_longitudinal_speed = true;
     bool set_angular_speed = true;
     bool set_slip_angle = false;
+    bool snapshots = true;
+
+
+    double max_linear_speed = 4;
+    double ramp_time = 4;
+    double constant_time = 5;
+    double slip = 0.05;
+
+    // Wheel properties
+    double rim_radius = 0.3;
+    double height = 0.15;
+    double ring_thickness = 0.02;
     ChSolver::Type solver_type = ChSolver::Type::PARDISO_MKL;
-    if (!GetProblemSpecs(argc, argv, refine_level, y_mod, step_c, p_ratio, scm_type, normal_load, terrain_type_str,
-                         slope, tire_type_str, set_longitudinal_speed, set_angular_speed, set_slip_angle,
-                         solver_type)) {
+    if (!GetProblemSpecs(argc, argv, refine_level, y_modSpokes, y_modOuterRing, step_c, p_ratio, scm_type, normal_load, terrain_type_str,
+                         slope, tire_type_str, set_longitudinal_speed, set_angular_speed, set_slip_angle,numSpokes,
+                         solver_type, max_linear_speed, ramp_time, constant_time, slip, rim_radius, height, ring_thickness)) {
         return 1;
     }
+
     TerrainType terrain_type;
     TireType tire_type;
     // Set terrain type based on input
@@ -216,6 +271,8 @@ int main(int argc, char* argv[]) {
     } else {
         terrain_type = TerrainType::RIGID;
     }
+
+    double t_end = ramp_time + constant_time;
 
     // Set tire type based on input using switch
     if (tire_type_str == "rigid") {
@@ -235,40 +292,91 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string log_file = out_dir + "/tire_test.txt";
-    std::ofstream logfile(log_file);
+
+
+
+    std::ostringstream filename;
+    filename << out_dir << "/tire_test_solver_" 
+            << ChSolver::GetTypeAsString(solver_type) 
+            << "_numSpokes_" << numSpokes 
+            << "_maxLinearSpeed_" << std::fixed << std::setprecision(1) << max_linear_speed 
+            << "_rampTime_" << std::fixed << std::setprecision(1) << ramp_time 
+            << "_constantTime_" << std::fixed << std::setprecision(1) << constant_time 
+            << "_slip_" << std::fixed << std::setprecision(2) << slip 
+            << ".txt";
+    std::string log_file = filename.str();
+    std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
         cerr << "Could not open log file " << log_file << endl;
         return 1;
     }
 
-    // Write all problem specs to cout and logfile
-    auto WriteSpecs = [&](std::ostream& out) {
-        out << "Problem Specs:" << std::endl;
-        out << "Tire Type: " << tire_type_str << std::endl;
-        out << "Terrain Type: " << terrain_type_str << std::endl;
-        if (terrain_type_str == "scm") {
-            out << "SCM Type: " << scm_type << std::endl;
-        }
-        if (tire_type_str == "ancf_airless") {
-            out << "Refine Level: " << refine_level << std::endl;
-        }
-        out << "Young's Modulus: " << y_mod << std::endl;
-        out << "Poisson's Ratio: " << p_ratio << std::endl;
-        out << "Step Size: " << step_c << std::endl;
-        out << "Normal Load: " << normal_load << std::endl;
-        out << "Set Longitudinal Speed: " << set_longitudinal_speed << std::endl;
-        out << "Set Angular Speed: " << set_angular_speed << std::endl;
-        out << "Set Slip Angle: " << set_slip_angle << std::endl;
-        out << "Solver Type: " << ChSolver::GetTypeAsString(solver_type) << std::endl;
-        out << std::endl;
+
+    // Create the base directory
+    std::string wheel_stats_dir = out_dir + "/WHEEL_STATS";
+    if (!filesystem::create_directory(filesystem::path(wheel_stats_dir))) {
+        std::cerr << "Error creating directory " << wheel_stats_dir << std::endl;
+        return 1;
+    }
+
+    // Stringstream for param directory
+    std::ostringstream param_dir;
+    param_dir << "maxLinearSpeed_" << to_string_with_precision(max_linear_speed, 1)
+              << "_rampTime_" << to_string_with_precision(ramp_time, 1)
+              << "_constantTime_" << to_string_with_precision(constant_time, 1)
+              << "_slip_" << to_string_with_precision(slip, 2)
+              << "_nl_" << to_string_with_precision(normal_load, 1);
+
+    // List of subdirectories to create
+    std::vector<std::string> subdirs = {
+        "ymSpokes_" + to_string_with_precision(y_modSpokes, 1, true),
+        "ymOuterRingPerSpoke_" + to_string_with_precision(y_modOuterRing, 1, true),
+        "ringThickness_" + to_string_with_precision(ring_thickness, 3),
+        "stepSize_" + to_string_with_precision(step_c, 1, true),
+        "pRatio_" + to_string_with_precision(p_ratio, 1),
+        "normalLoad_" + to_string_with_precision(normal_load, 1),
+        "slope_" + to_string_with_precision(slope, 1),
+        "tireType_" + tire_type_str,
+        "solverType_" + ChSolver::GetTypeAsString(solver_type),
+        "rimRadius_" + to_string_with_precision(rim_radius, 3),
+        "height_" + to_string_with_precision(height, 3),
+        param_dir.str()
     };
 
-    // Write to console
-    WriteSpecs(std::cout);
+    // Create the subdirectories
+    for (const auto& subdir : subdirs) {
+        wheel_stats_dir = wheel_stats_dir + "/" + subdir;
+        if (!filesystem::create_directory(filesystem::path(wheel_stats_dir))) {
+            std::cerr << "Error creating directory " << wheel_stats_dir << std::endl;
+            return 1;
+        }
+    }
 
-    // Write to logfile
-    WriteSpecs(logfile);
+
+    // Create output file for wheel stats in snapshots directory
+    std::string wheel_stats_file = wheel_stats_dir + "/wheel_stats.txt";
+    std::ofstream wheel_stats(wheel_stats_file);
+    if (!wheel_stats.is_open()) {
+        cerr << "Could not open wheel stats file " << wheel_stats_file << endl;
+        return 1;
+    }
+    
+    // Write header
+    wheel_stats << "Time,LinearSpeed_X,AngularSpeed_Z,Position_X" << endl;
+
+
+    std::string snap_dir = out_dir + "/SNAPSHOTS";
+    if (render && snapshots) {
+        for (const auto& subdir : subdirs) {
+        snap_dir += subdir + "/";
+            if (!filesystem::create_directory(filesystem::path(snap_dir))) {
+                std::cerr << "Error creating directory " << snap_dir << std::endl;
+                return 1;
+            }
+        
+        }
+    }
+
 
     // --------------------------------
     // Create wheel and tire subsystems
@@ -290,15 +398,19 @@ int main(int argc, char* argv[]) {
     } else if (tire_type == TireType::ANCF_AIRLESS) {
         auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
         // These are default sizes for the polaris tire
-        ancf_tire->SetRimRadius(0.225);                        // Default is 0.225
-        ancf_tire->SetHeight(0.225);                           // Default is 0.225
-        ancf_tire->SetWidth(0.24);                             // Default is 0.4
-        ancf_tire->SetAlpha(0.05);                             // Default is 0.05
-        ancf_tire->SetYoungsModulus(y_mod);                    // Default is 76e9
+        ancf_tire->SetRimRadius(rim_radius);  // Default is 0.225
+        ancf_tire->SetHeight(height);     // Default is 0.225
+        ancf_tire->SetWidth(0.24);       // Default is 0.4
+        ancf_tire->SetAlpha(0.05);       // Default is 0.05
+        ancf_tire->SetOuterRingThickness(ring_thickness); // Default is 0.015
+        // ancf_tire->SetYoungsModulus(y_mod);  // Default is 76e9
+        ancf_tire->SetYoungsModulusSpokes(y_modSpokes);
+        ancf_tire->SetYoungsModulusOuterRing(y_modOuterRing);
         ancf_tire->SetPoissonsRatio(p_ratio);                  // Default is 0.2
         ancf_tire->SetDivWidth(3 * refine_level);              // Default is 3
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
+        ancf_tire->SetNumberSpokes(numSpokes);    
         tire = ancf_tire;
     } else {
         std::string tire_file;
@@ -331,12 +443,14 @@ int main(int argc, char* argv[]) {
     if (fea_tire) {
         sys = new ChSystemSMC;
         step_size = step_c;
-        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        // integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_PROJECTED;
     } else {
         sys = new ChSystemNSC;
         step_size = 2e-4;  // 2e-4
         solver_type = ChSolver::Type::BARZILAIBORWEIN;
-        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        // integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_PROJECTED;
     }
 
     // Set collision system
@@ -359,7 +473,7 @@ int main(int argc, char* argv[]) {
         num_threads_eigen = 1;
         num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
     } else {
-        num_threads_chrono = std::min(14, ChOMP::GetNumProcs());
+        num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
         num_threads_collision = 1;
         num_threads_eigen = 1;
         num_threads_pardiso = 0;
@@ -379,7 +493,7 @@ int main(int argc, char* argv[]) {
     double run_off = 5 * tire->GetRadius();
     rig.SetRunOff(run_off);
 
-    rig.SetGravitationalAcceleration(9.8);
+    rig.SetGravitationalAcceleration(1.62);
     rig.SetNormalLoad(normal_load);
 
     rig.SetTireStepsize(step_size);
@@ -440,7 +554,7 @@ int main(int argc, char* argv[]) {
             params.Damping = 3e4;
             std::cout << "Unknown SCM type '" << scm_type << "', using default terrain parameters" << std::endl;
         }
-        params.length = 20;
+        params.length = 40;
         params.width = 1;
         params.grid_spacing = 0.025;
         rig.SetTerrainSCM(params);
@@ -450,14 +564,30 @@ int main(int argc, char* argv[]) {
     //   longitudinal speed: 0.2 m/s
     //   angular speed: 50 RPM
     //   slip angle: sinusoidal +- 5 deg with 5 s period
+
     if (set_longitudinal_speed) {
-        rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionConst>(0.2));
-        std::cout << "Longitudinal speed enabled: 0.2 m/s" << std::endl;
+        ChFunctionSequence f_sequence;
+        auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, max_linear_speed / ramp_time);
+        f_sequence.InsertFunct(f_ramp, ramp_time, 1, false, false, false, 0);
+        auto f_const = chrono_types::make_shared<ChFunctionConst>(max_linear_speed);
+        f_sequence.InsertFunct(f_const, constant_time, 1, false, false, false, 1);
+        f_sequence.Setup();
+        rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionSequence>(f_sequence));
+        std::cout << "Longitudinal speed enabled with max speed applied as ramp: " << max_linear_speed << " m/s" << std::endl;
     }
 
     if (set_angular_speed) {
-        rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionConst>(10 * CH_RPM_TO_RAD_S));
-        std::cout << "Angular speed enabled: 10 RPM" << std::endl;
+
+        double angular_vel = max_linear_speed / (wheel->GetRadius() * (1 - slip));
+        double rate = angular_vel / ramp_time;
+        ChFunctionSequence f_sequence;
+        auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, rate);
+        f_sequence.InsertFunct(f_ramp, ramp_time, 1, false, false, false, 0);
+        auto f_const = chrono_types::make_shared<ChFunctionConst>(angular_vel);
+        f_sequence.InsertFunct(f_const, constant_time, 1, false, false, false, 1);
+        f_sequence.Setup();
+        rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionSequence>(f_sequence));
+        std::cout << "Angular speed enabled: With slip " << slip << " and max speed applied as ramp: " << max_linear_speed << " m/s" << std::endl;
     }
 
     if (set_slip_angle) {
@@ -465,8 +595,12 @@ int main(int argc, char* argv[]) {
         std::cout << "Slip angle enabled: 5 deg amplitude, 0.2 Hz" << std::endl;
     }
 
+    if (snapshots) {
+        std::cout << "Snapshots enabled" << std::endl;
+    }   
+
     // Scenario: specified longitudinal slip (overrrides other definitons of motion functions)
-    ////rig.SetConstantLongitudinalSlip(0.2, 0.1);
+    // rig.SetConstantLongitudinalSlip(0.2, 0.1);
 
     // Initialize the tire test rig
     rig.SetTimeDelay(time_delay);
@@ -489,17 +623,8 @@ int main(int argc, char* argv[]) {
     }
 
     // -----------------
-    // Initialize output
-    // -----------------
-
-    // ---------------------------------
-    // Create the run-time visualization
-    // ---------------------------------
-
-#ifndef CHRONO_IRRLICHT
-    if (vis_type == ChVisualSystem::Type::IRRLICHT)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
+    // Initialize output.LICHT)
+        // vis_type = ChVisualSystem::Type::NONE;
 #ifndef CHRONO_VSG
     if (vis_type == ChVisualSystem::Type::VSG)
         vis_type = ChVisualSystem::Type::IRRLICHT;
@@ -526,7 +651,7 @@ int main(int argc, char* argv[]) {
 #endif
             break;
         }
-        default:
+        // default:
         case ChVisualSystem::Type::VSG: {
 #ifdef CHRONO_VSG
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
@@ -534,7 +659,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
             vis_vsg->SetWindowSize(1200, 600);
             vis_vsg->SetWindowTitle("Tire Test Rig");
-            vis_vsg->AddCamera(ChVector3d(1.0, 2.5, 1.0));
+            vis_vsg->AddCamera(ChVector3d(0, 2.5, 0), ChVector3d(0.0, 0.0, -0.5));
             vis_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
             vis_vsg->SetShadows(true);
             vis_vsg->Initialize();
@@ -544,6 +669,9 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
+#if !defined(CHRONO_IRRLICHT) && !defined(CHRONO_VSG)
+    render = false;
+#endif
 
 #ifdef CHRONO_POSTPROCESS
     // ---------------------------
@@ -586,43 +714,99 @@ int main(int argc, char* argv[]) {
     double step_time;
     std::shared_ptr<ChBody> spindle_body = rig.GetSpindleBody();
     double wheel_init_x = spindle_body->GetPos().x();
+        // Write all problem specs to cout and logfile
+    auto WriteSpecs = [&](std::ostream& out) {
+        out << "Problem Specs:" << std::endl;
+        out << "Tire Type: " << tire_type_str << std::endl;
+        out << "Terrain Type: " << terrain_type_str << std::endl;
+        if (terrain_type_str == "scm") {
+            out << "SCM Type: " << scm_type << std::endl;
+        }
+        if (tire_type_str == "ancf_airless") {
+            out << "Refine Level: " << refine_level << std::endl;
+        }
+        out << "Number of Spokes: " << numSpokes << std::endl;
+        out << "Young's Modulus Spokes: " << y_modSpokes << std::endl;
+        out << "Young's Modulus Outer Ring: " << y_modOuterRing << std::endl;
+        out << "Outer Ring Thickness: " << ring_thickness << std::endl;
+        out << "Rim Radius: " << rim_radius << std::endl;
+        out << "Wheel Height: " << height << std::endl;
+        out << "Poisson's Ratio: " << p_ratio << std::endl;
+        out << "Step Size: " << step_c << std::endl;
+        out << "Normal Load: " << normal_load << std::endl;
+        out << "Set Longitudinal Speed: " << set_longitudinal_speed << std::endl;
+        out << "Set Angular Speed: " << set_angular_speed << std::endl;
+        out << "Set Slip Angle: " << set_slip_angle << std::endl;
+        out << "Longitudinal Speed Max: " << max_linear_speed << std::endl;
+        out << "Ramp Time: " << ramp_time << std::endl;
+        out << "Constant Time: " << constant_time << std::endl;
+        out << "Slip: " << slip << std::endl;
+        out << "Solver Type: " << ChSolver::GetTypeAsString(solver_type) << std::endl;
+        out << "Wheel Initial Position (x-axis): " << wheel_init_x << std::endl;
+        out << std::endl;
+    };
+
+    // Write to console
+    WriteSpecs(std::cout);
+
+    // Write to logfile
+    WriteSpecs(logfile);
     // Write crash info to both console and logfile
-    auto WriteSimStats = [&](std::ostream& out) {
+    auto WriteSimStats = [&](std::ostream& out, std::shared_ptr<ChBody> spindle_body) {
         out << "Simulated time: " << time << std::endl;
         out << "Run time (simulation): " << sim_time << "  |  RTF: " << sim_time / time << std::endl;
         out << "Run time (total):      " << step_time << "  |  RTF: " << step_time / time << std::endl;
         out << "RTF: " << sys->GetRTF() << std::endl;
+        out << "Wheel Final Position (x-axis): " << spindle_body->GetPos().x() << std::endl;
     };
+
+
+
+    
     timer.start();
-    while (vis->Run() && time < 5) {
+    while (time < t_end) {
         time = sys->GetChTime();
         if (std::isnan(spindle_body->GetPos().z()) || abs(spindle_body->GetPos().z()) > 1000) {
             ChVector3d pos = spindle_body->GetPos();
             timer.stop();
             step_time = timer();
-            std::cout << "Simulation appears to have crashed" << std::endl;
-
-            WriteSimStats(std::cout);
-            WriteSimStats(logfile);
-
-            return 1;
-        } else if (wheel_init_x - spindle_body->GetPos().x() > run_off) {
-            std::cout << std::endl << "Wheel has moved backwards beyond the runoff distance" << std::endl;
-            timer.stop();
-            step_time = timer();
-
-            WriteSimStats(std::cout);
-            WriteSimStats(logfile);
+            std::cout << std::endl << "Simulation appears to have crashed" << std::endl;
+            logfile << std::endl << "Simulation appears to have crashed" << std::endl;
+            WriteSimStats(std::cout, spindle_body);
+            WriteSimStats(logfile, spindle_body);
 
             return 1;
         }
+        // } else if (wheel_init_x - spindle_body->GetPos().x() > run_off) {
+        //     std::cout << std::endl << "Wheel has moved backwards beyond the runoff distance" << std::endl;
+        //     timer.stop();
+        //     step_time = timer();
 
-        if (time >= render_frame / render_fps) {
+        //     WriteSimStats(std::cout);
+        //     WriteSimStats(logfile);
+
+        //     return 1;
+        // }
+
+        double snap_interval = 0.02;
+
+        if (render && time >= render_frame / render_fps) {
+            if(!vis->Run()) {
+                break;
+            }
+
             auto& loc = rig.GetPos();
+            vis->UpdateCamera(loc + ChVector3d(0, 2.5, 0), loc + ChVector3d(0, 0, -0.5));
 
             vis->BeginScene();
             vis->Render();
             vis->EndScene();
+
+            std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
+            std::ostringstream filename;
+            filename << snap_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
+            vis->WriteImageToFile(filename.str());
+            render_frame++;
 
 #ifdef CHRONO_POSTPROCESS
             if (blender_output)
@@ -633,40 +817,26 @@ int main(int argc, char* argv[]) {
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
 
-        if (log_output) {
-            // cout << time << endl;
-            auto long_slip = tire->GetLongitudinalSlip();
-            auto slip_angle = tire->GetSlipAngle();
-            auto camber_angle = tire->GetCamberAngle();
-            // cout << "   " << long_slip << " " << slip_angle << " " << camber_angle << endl;
-
-            auto tforce = rig.ReportTireForce();
-            auto frc = tforce.force;
-            auto pnt = tforce.point;
-            auto trq = tforce.moment;
-            // cout << "   " << frc.x() << " " << frc.y() << " " << frc.z() << endl;
-            // cout << "   " << pnt.x() << " " << pnt.y() << " " << pnt.z() << endl;
-            // cout << "   " << trq.x() << " " << trq.y() << " " << trq.z() << endl;
-            /*
-                        //  Log the data to file
-                        logfile << "Time: " << time << std::endl;
-                        logfile << "   Longitudinal_Slip: " << long_slip << std::endl;
-                        logfile << " Slip_Angle: " << slip_angle << std::endl;
-                        logfile << " Camber_Angle: " << camber_angle << std::endl;
-                        logfile << "   Force: " << frc.x() << " " << frc.y() << " " << frc.z() << std::endl;
-                        logfile << "   Point: " << pnt.x() << " " << pnt.y() << " " << pnt.z() << std::endl;
-                        logfile << "   Moment: " << trq.x() << " " << trq.y() << " " << trq.z() << std::endl;
-            */
-        }
-
+        // Write wheel stats to file
+        auto spindle_vel = spindle_body->GetPosDt();
+        auto spindle_omega = spindle_body->GetAngVelParent();
+        ChVector3d pos = spindle_body->GetPos();
+        wheel_stats << time << "," 
+                   << spindle_vel.x() << "," 
+                   << spindle_omega.y() << "," 
+                   << pos.x() << endl;
         cout << "\rRTF: " << sys->GetRTF();
     }
+
+    // Close the stats file
+    wheel_stats.close();
 
     timer.stop();
     step_time = timer();
     std::cout << std::endl << "Simulation completed" << std::endl;
-    WriteSimStats(std::cout);
-    WriteSimStats(logfile);
+    WriteSimStats(std::cout, spindle_body);
+    WriteSimStats(logfile, spindle_body);
+
 
     return 0;
 }
