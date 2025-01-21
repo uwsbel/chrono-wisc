@@ -3,34 +3,35 @@
 # These example programs require Irrlicht run-time visualization.
 #=============================================================================
 
+# Allow demo_VEH_TireTestRig_LargeScaleTesting to compile without IRRLICHT or VSG
 if(NOT ENABLE_MODULE_IRRLICHT AND NOT ENABLE_MODULE_VSG)
-    return()
-endif()
+    set(DEMOS demo_VEH_TireTestRig_LargeScaleTesting)
+else()
+    #--------------------------------------------------------------
+    # List all demos
 
-#--------------------------------------------------------------
-# List all demos
-
-set(DEMOS
-    demo_VEH_TireTestRig
-    demo_VEH_TireTestRig_LargeScaleTesting
-    demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting
-demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting_headless
+    set(DEMOS
+        demo_VEH_TireTestRig
+        demo_VEH_TireTestRig_LargeScaleTesting
+        demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting
+        demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting_headless
     )
 
-if(ENABLE_MODULE_FSI)
-    set(DEMOS ${DEMOS} demo_VEH_TireTestRig_CRM)
-endif()
+    if(ENABLE_MODULE_FSI)
+        set(DEMOS ${DEMOS} demo_VEH_TireTestRig_CRM)
+    endif()
 
-if(ENABLE_MODULE_IRRLICHT)
-   set(DEMOS ${DEMOS}
-       demo_VEH_SuspensionTestRig
-       demo_VEH_TrackTestRig
-   )
-   if(ENABLE_MODULE_PARDISO_MKL OR ENABLE_MODULE_MUMPS)
-      set(DEMOS ${DEMOS}
-          demo_VEH_TrackTestRig_Band
-      )
-   endif()
+    if(ENABLE_MODULE_IRRLICHT)
+       set(DEMOS ${DEMOS}
+           demo_VEH_SuspensionTestRig
+           demo_VEH_TrackTestRig
+       )
+       if(ENABLE_MODULE_PARDISO_MKL OR ENABLE_MODULE_MUMPS)
+          set(DEMOS ${DEMOS}
+              demo_VEH_TrackTestRig_Band
+          )
+       endif()
+    endif()
 endif()
 
 #--------------------------------------------------------------
