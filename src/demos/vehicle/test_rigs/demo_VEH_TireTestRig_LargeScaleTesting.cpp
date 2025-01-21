@@ -93,6 +93,7 @@ TireType tire_type = TireType::ANCF_AIRLESS;
 enum class TerrainType { RIGID, SCM };
 
 double render_fps = 100;
+double out_fps = 100;
 bool log_output = true;
 bool blender_output = false;
 ////std::string wheel_json = "hmmwv/wheel/HMMWV_Wheel.json";
@@ -704,7 +705,7 @@ int main(int argc, char* argv[]) {
     double time = 0;       // simulated time
     double sim_time = 0;   // simulation time
     int render_frame = 0;  // render frame counter
-
+    int out_frame = 0;
     // Data collection
     ChFunctionInterp long_slip_fct;
     ChFunctionInterp slip_angle_fct;
@@ -817,17 +818,19 @@ int main(int argc, char* argv[]) {
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
 
-        // Write wheel stats to file
-        auto spindle_vel = spindle_body->GetPosDt();
-        auto spindle_omega = spindle_body->GetAngVelParent();
-        ChVector3d pos = spindle_body->GetPos();
-        wheel_stats << time << "," 
-                   << spindle_vel.x() << "," 
-                   << spindle_omega.y() << "," 
-                   << pos.x() << endl;
-        cout << "\rRTF: " << sys->GetRTF();
-    }
-
+        if (time >= out_frame / out_fps) {
+        	// Write wheel stats to file
+        	auto spindle_vel = spindle_body->GetPosDt();
+        	auto spindle_omega = spindle_body->GetAngVelParent();
+        	ChVector3d pos = spindle_body->GetPos();
+        	wheel_stats << time << "," 
+                   	<< spindle_vel.x() << "," 
+                   	<< spindle_omega.y() << "," 
+                   	<< pos.x() << endl;
+		out_frame++;
+    
+	}
+}
     // Close the stats file
     wheel_stats.close();
 
