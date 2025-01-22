@@ -298,21 +298,21 @@ int main(int argc, char* argv[]) {
     }
 
     // Visualization of the FEM mesh.
-    auto vis_shell_mesh = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto vis_shell_mesh = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_shell_mesh->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     vis_shell_mesh->SetWireframe(true);
     vis_shell_mesh->SetShellResolution(2);
     ////vis_shell_mesh->SetBackfaceCull(true);
     mesh->AddVisualShapeFEA(vis_shell_mesh);
 
-    auto vis_shell_speed = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto vis_shell_speed = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_shell_speed->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_SPEED_NORM);
     vis_shell_speed->SetColorscaleMinMax(0.0, 7.5);
     vis_shell_speed->SetWireframe(false);
     vis_shell_speed->SetShellResolution(3);
     mesh->AddVisualShapeFEA(vis_shell_speed);
 
-    auto vis_shell_nodes = chrono_types::make_shared<ChVisualShapeFEA>(mesh);
+    auto vis_shell_nodes = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_shell_nodes->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     vis_shell_nodes->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_DOT_POS);
     vis_shell_nodes->SetSymbolsThickness(0.006);
@@ -329,12 +329,12 @@ int main(int argc, char* argv[]) {
         // Add collision geometry to the FEA mesh
         // (a) contact surface
         auto contact_surf = chrono_types::make_shared<ChContactSurfaceMesh>(mat);
+        contact_surf->AddFacesFromBoundary(*mesh, 0.01);
         mesh->AddContactSurface(contact_surf);
-        contact_surf->AddFacesFromBoundary(0.01);
         // (b) contact points
         ////auto contact_cloud = chrono_types::make_shared<ChContactSurfaceNodeCloud>(mat);
+        ////contact_cloud->AddAllNodes(*mesh, 0.01);
         ////mesh->AddContactSurface(contact_cloud);
-        ////contact_cloud->AddAllNodes(0.01);
 
         // Create a fixed collision shape
         auto cylinder = chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Y, 0.1, 1.0, 1000, true, true, mat);

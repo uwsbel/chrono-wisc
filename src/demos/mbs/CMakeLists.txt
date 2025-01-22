@@ -102,6 +102,10 @@ if(ENABLE_MODULE_VSG)
   list(APPEND LIBS "ChronoEngine_vsg")
 endif()
 
+if(ENABLE_MODULE_MUMPS)
+  list(APPEND LIBS "ChronoEngine_mumps")
+endif()
+
 #--------------------------------------------------------------
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

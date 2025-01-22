@@ -63,7 +63,7 @@ ChVisualSystemIrrlicht::ChVisualSystemIrrlicht()
     m_device_params.LoggingLevel = irr::ELL_INFORMATION;
 
     // Create the GUI
-    m_gui = std::unique_ptr<ChIrrGUI>(new ChIrrGUI());
+    m_gui = std::make_unique<ChIrrGUI>();
 
     // Create shared meshes
     sphereMesh = createEllipticalMesh(1.0, 1.0, -2, +2, 0, 15, 8);
@@ -704,8 +704,7 @@ void ChVisualSystemIrrlicht::CreateIrrNode(std::shared_ptr<ChPhysicsItem> item) 
 
     // Create a new ChIrrNodeModel and populate it
     auto node = chrono_types::make_shared<ChIrrNodeModel>(item, m_container, GetSceneManager(), 0);
-    bool ok = m_nodes.insert({item.get(), node}).second;
-    assert(ok);
+    assert(m_nodes.insert({item.get(), node}).second);
 
     // Remove all Irrlicht scene nodes from the ChIrrNodeModel
     node->removeAll();
