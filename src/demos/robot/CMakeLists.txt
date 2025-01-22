@@ -38,9 +38,9 @@ if(ENABLE_MODULE_VEHICLE)
             demo_ROBOT_Viper_dust
           )
       endif()
-      set(DEMOS ${DEMOS}
-      demo_ROBOT_Viper_WheelSinkage
-      demo_ROBOT_SingleWheel_Sensor)
+      # set(DEMOS ${DEMOS}
+      # demo_ROBOT_Viper_WheelSinkage
+      # demo_ROBOT_SingleWheel_Sensor)
     endif()
   endif()
 endif()

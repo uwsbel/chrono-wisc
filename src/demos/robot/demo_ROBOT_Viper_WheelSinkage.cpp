@@ -26,8 +26,9 @@
 #include "chrono/physics/ChInertiaUtils.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 
-#include "chrono_fsi/ChSystemFsi.h"
-#include "chrono_fsi/visualization/ChFsiVisualization.h"
+#include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
 
@@ -45,14 +46,13 @@
 #include "chrono_sensor/optix/ChNVDBVolume.h"
 
 #ifdef USE_SENSOR_NVDB
-#include <openvdb/openvdb.h>
-#include <openvdb/tools/LevelSetUtil.h>
-#include <openvdb/tools/ParticlesToLevelSet.h>
-#include <openvdb/points/PointConversion.h>
-#include <openvdb/points/PointCount.h>
-#include <execution>
+    #include <openvdb/openvdb.h>
+    #include <openvdb/tools/LevelSetUtil.h>
+    #include <openvdb/tools/ParticlesToLevelSet.h>
+    #include <openvdb/points/PointConversion.h>
+    #include <openvdb/points/PointCount.h>
+    #include <execution>
 #endif
-
 
 #include <random>
 
@@ -194,8 +194,8 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
 }
 
 // Forward declaration of helper functions
-void SaveParaViewFiles(ChSystemFsi& sysFSI, ChSystemNSC& sysMBS, double mTime);
-void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI);
+void SaveParaViewFiles(ChFluidSystemSPH& sysSPH, ChSystemNSC& sysMBS, double mTime);
+void CreateSolidPhase(ChFsiSystemSPH& sysFSI);
 
 // VDB info
 bool firstInst = true;
@@ -221,9 +221,7 @@ class FloatBufferAttrVector {
         : mData(data), mStride(stride) {}
 
     size_t size() const { return mData.size() / 6; }
-    void getPos(size_t n, ValueType& xyz) const {
-        xyz = ValueType(mData[6 * n], mData[6 * n + 1], mData[6 * n + 2]);
-    }
+    void getPos(size_t n, ValueType& xyz) const { xyz = ValueType(mData[6 * n], mData[6 * n + 1], mData[6 * n + 2]); }
     // void get(ValueType& value, size_t n) const { value = mData[n]; }
     // void get(ValueType& value, size_t n, openvdb::Index m) const { value = mData[n * mStride + m]; }
 
@@ -237,8 +235,7 @@ void createVoxelGrid(std::vector<float> points,
                      std::shared_ptr<ChVisualMaterial> vis_mat);
 #endif
 int num_meshes = 100;
-std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh 
-
+std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh
 
 int main(int argc, char* argv[]) {
     // The path to the Chrono data directory
@@ -246,7 +243,8 @@ int main(int argc, char* argv[]) {
 
     // Create a physical system and a corresponding FSI system
     ChSystemNSC sysMBS;
-    ChSystemFsi sysFSI(&sysMBS);
+    ChFluidSystemSPH sysSPH;
+    ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
 
     // Use JSON file to set the FSI parameters
 
@@ -284,61 +282,59 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    sysFSI.ReadParametersFromFile(inputJson);
+    sysSPH.ReadParametersFromFile(inputJson);
 
-    double gravity_G = sysFSI.GetGravitationalAcceleration().z();  // Is g already set?
+    double gravity_G = sysSPH.GetGravitationalAcceleration().z();  // Is g already set?
     ChVector3d gravity = ChVector3d(gravity_G * sin(slope_angle), 0, gravity_G * cos(slope_angle));
     sysMBS.SetGravitationalAcceleration(gravity);
     sysFSI.SetGravitationalAcceleration(gravity);
 
     // Get the simulation stepsize
-    dT = sysFSI.GetStepSize();
+    dT = sysSPH.GetStepSize();
 
     // Get the initial particle spacing
-    iniSpacing = sysFSI.GetInitialSpacing();
+    iniSpacing = sysSPH.GetInitialSpacing();
 
     // Get the SPH kernel length
-    kernelLength = sysFSI.GetKernelLength();
+    kernelLength = sysSPH.GetKernelLength();
 
     // // Set the initial particle spacing
-    //sysFSI.SetInitialSpacing(iniSpacing);
+    // sysFSI.SetInitialSpacing(iniSpacing);
 
     // // Set the SPH kernel length
-   // sysFSI.SetKernelLength(kernelLength);
+    // sysFSI.SetKernelLength(kernelLength);
 
     // // Set the terrain density
-    //sysFSI.SetDensity(density);
+    // sysFSI.SetDensity(density);
 
     // // Set the simulation stepsize
-    //sysFSI.SetStepSize(dT);
+    // sysFSI.SetStepSize(dT);
 
     // Set the simulation domain size
-    sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
+    sysSPH.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
     // Set SPH discretization type, consistent or inconsistent
-    sysFSI.SetConsistentDerivativeDiscretization(false, false);
+    sysSPH.SetConsistentDerivativeDiscretization(false, false);
 
     // Setup the solver based on the input value of the prameters
-    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
+    sysSPH.SetSPHMethod(SPHMethod::WCSPH);
 
     //// Set wall boundary condition - obsolete
-    //sysFSI.SetWallBC(BceVersion::ADAMI);
+    // sysFSI.SetWallBC(BceVersion::ADAMI);
 
     //// Set rigid body boundary condition
-    //sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
+    // sysFSI.SetRigidBodyBC(BceVersion::ADAMI);
 
     // Set cohsion of the granular material
-    sysFSI.SetCohesionForce(0.0);
-
-  
+    sysSPH.SetCohesionForce(0.0);
 
     // Set the periodic boundary condition
     ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 10);
     ChVector3d cMax(bxDim / 2 * 2, byDim / 2 + 0.5 * iniSpacing, bzDim * 20);
-    sysFSI.SetBoundaries(cMin, cMax);
+    sysSPH.SetBoundaries(cMin, cMax);
 
-    // Set simulation data output length
-    sysFSI.SetOutputLength(1);
+    // Set simulation data output level
+    sysSPH.SetOutputLevel(OutputLevel::STATE);
 
     // Create an initial box for the terrain patch
     chrono::utils::ChGridSampler<> sampler(iniSpacing);
@@ -350,8 +346,8 @@ int main(int argc, char* argv[]) {
     auto gz = std::abs(gravity.z());
     int numPart = (int)points.size();
     for (int i = 0; i < numPart; i++) {
-        double pre_ini = sysFSI.GetDensity() * gz * (-points[i].z() + bzDim);
-        sysFSI.AddSPHParticle(points[i], sysFSI.GetDensity(), 0, sysFSI.GetViscosity(),
+        double pre_ini = sysSPH.GetDensity() * gz * (-points[i].z() + bzDim);
+        sysSPH.AddSPHParticle(points[i], sysSPH.GetDensity(), 0, sysSPH.GetViscosity(),
                               ChVector3d(0),         // initial velocity
                               ChVector3d(-pre_ini),  // tauxxyyzz
                               ChVector3d(0)          // tauxyxzyz
@@ -359,11 +355,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Create MBD and BCE particles for the solid domain
-    CreateSolidPhase(sysMBS, sysFSI);
+    CreateSolidPhase(sysFSI);
 
     // Complete construction of the FSI system
     sysFSI.Initialize();
-
 
     //
     // SENSOR SIMULATION BEGIN
@@ -390,7 +385,8 @@ int main(int argc, char* argv[]) {
     regolith_material->SetUseSpecularWorkflow(true);
     regolith_material->SetRoughness(1.0f);
     regolith_material->SetBSDF((unsigned int)BSDFType::HAPKE);
-    regolith_material->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
+    regolith_material->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f,
+                                          23.4f * (CH_PI / 180));
     regolith_material->SetClassID(30000);
     regolith_material->SetInstanceID(20000);
 
@@ -412,9 +408,6 @@ int main(int argc, char* argv[]) {
     manager->SetRayRecursions(4);
     Integrator integrator = Integrator::LEGACY;
     bool use_denoiser = false;
-
-
-
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
     chrono::ChFrame<double> offset_pose1(
@@ -461,22 +454,22 @@ int main(int argc, char* argv[]) {
         cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Wheel_Cam_RealSlope/"));
     manager->AddSensor(cam2);
 
-
-    auto seg = chrono_types::make_shared<ChSegmentationCamera>(rover->GetChassis()->GetBody(),   // body camera is attached to
-                                                               update_rate,   // update rate in Hz
-                                                               offset_pose2,  // offset pose
-                                                               image_width,   // image width
-                                                               image_height,  // image height
-                                                               fov,           // camera's horizontal field of view
-                                                               lens_model);   // FOV
+    auto seg =
+        chrono_types::make_shared<ChSegmentationCamera>(rover->GetChassis()->GetBody(),  // body camera is attached to
+                                                        update_rate,                     // update rate in Hz
+                                                        offset_pose2,                    // offset pose
+                                                        image_width,                     // image width
+                                                        image_height,                    // image height
+                                                        fov,          // camera's horizontal field of view
+                                                        lens_model);  // FOV
     seg->SetName("Semantic Segmentation Camera");
     seg->SetLag(lag);
     seg->SetCollectionWindow(exposure_time);
-    
 
     // Render the semantic mask
     if (vis)
-        seg->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Semantic Segmentation"));
+        seg->PushFilter(
+            chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Semantic Segmentation"));
 
     // Save the semantic mask
     if (save)
@@ -539,7 +532,6 @@ int main(int argc, char* argv[]) {
     if (output)
         ofile.open(out_dir + "./body_position.txt");
 
-
     // Start the simulation
     unsigned int output_steps = (unsigned int)round(1 / (out_fps * dT));
     unsigned int render_steps = (unsigned int)round(1 / (render_fps * dT));
@@ -556,24 +548,25 @@ int main(int argc, char* argv[]) {
     int sensor_render_steps = (unsigned int)round(1 / (update_rate * dT));
     std::vector<float> h_points;
     while (time < total_time) {
-        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << timer()/time <<  std::endl;
+        std::cout << current_step << "  time: " << time << "  sim. time: " << timer() << " RTF: " << timer() / time
+                  << std::endl;
         if (add_rocks) {
             auto rock_body = sysMBS.GetBodies()[rock_id];
-            // std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " << rock_body->GetPos().y()
+            // std::cout << "ID: " << rock_id << "Rock Pos: (" << rock_body->GetPos().x() << ", " <<
+            // rock_body->GetPos().y()
             // << ", " << rock_body->GetPos().z() << ") "<< std::endl;
             if (rock_body->GetPos().z() < 0.31f)
                 rock_body->SetFixed(true);
         }
 
-                    
         if (current_step % sensor_render_steps == 0 && current_step > 0) {
-            //timerNVDB.start();
+            // timerNVDB.start();
             h_points = sysFSI.GetParticleData();
-            #ifdef USE_SENSOR_NVDB
-                createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
-            #else
-                createVoxelGrid(h_points, manager->scene, regolith_material);
-            #endif
+#ifdef USE_SENSOR_NVDB
+            createVoxelGrid(h_points, sysMBS, manager->scene, regolith_material);
+#else
+            createVoxelGrid(h_points, manager->scene, regolith_material);
+#endif
             manager->Update();
         }
 
@@ -584,9 +577,9 @@ int main(int argc, char* argv[]) {
         if (output) {
             ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
             if (current_step % output_steps == 0) {
-                sysFSI.PrintParticleToFile(out_dir + "/particles");
-                sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
-                SaveParaViewFiles(sysFSI, sysMBS, time);
+                sysSPH.SaveParticleData(out_dir + "/particles");
+                sysSPH.SaveSolidData(out_dir + "/fsi", time);
+                SaveParaViewFiles(sysSPH, sysMBS, time);
             }
         }
 
@@ -597,7 +590,7 @@ int main(int argc, char* argv[]) {
         //}
 
         timer.start();
-        sysFSI.DoStepDynamics_FSI();
+        sysFSI.DoStepDynamics(dT);
         timer.stop();
 
         time += dT;
@@ -611,12 +604,14 @@ int main(int argc, char* argv[]) {
 }
 
 #ifdef USE_SENSOR_NVDB
-void createVoxelGrid(std::vector<float> points, std::shared_ptr<ChScene> scene, std::shared_ptr<ChVisualMaterial> vis_mat) {
-    std::cout << "Creating OpenVDB Voxel Grid for " << points.size()/6 << "particles " << std::endl;
+void createVoxelGrid(std::vector<float> points,
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat) {
+    std::cout << "Creating OpenVDB Voxel Grid for " << points.size() / 6 << "particles " << std::endl;
     openvdb::initialize();
     // openvdb::points::PointAttributeVector<openvdb::Vec3R> positionsWrapper(points);
     const FloatBufferAttrVector<openvdb::Vec3R> positionsWrapper(points);
-    float spacing = iniSpacing/2.f;
+    float spacing = iniSpacing / 2.f;
     float r = spacing / 2;
     int pointsPerVoxel = 1;
     // std::vector<float> radius(points.size(), r);
@@ -655,8 +650,6 @@ void createVoxelGrid(std::vector<float> points, std::shared_ptr<ChScene> scene, 
     printf("Min BBox: %f %f %f\n", minBBox[0], minBBox[1], minBBox[2]);
     printf("Max BBox: %f %f %f\n", maxBBox[0], maxBBox[1], maxBBox[2]);
     printf("############### END #############\n");
-
-
 
     // int voxelCount = 0;
     int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
@@ -733,184 +726,6 @@ void createVoxelGrid(std::vector<float> points, std::shared_ptr<ChScene> scene, 
                     int index = voxelBodyList.size();
                     voxelBodyList.push_back(voxelBody);
                     {
-                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
-                    if (shape->GetNumMaterials() == 0) {
-                        shape->AddMaterial(vis_mat);
-                    }
-                    else {
-                        shape->GetMaterials()[0] = vis_mat;
-                    }
-                    }
-                    idList.emplace_back(index);
-                    offsetXList.emplace_back(offsetX);
-                    offsetYList.emplace_back(offsetY);
-                }
-                voxelCount++;
-            }
-        }
-
-    }
- else {
- voxelBodyList.resize(coords.size());
- idList.resize(coords.size());
- offsetXList.resize(coords.size());
- offsetYList.resize(coords.size());
-
- // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
-
- // Use std::for_each with parallel execution
- std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
-     // Calculate the index based on the position in the loop
-     int i = &coord - &coords[0];  // Get the current index
-
-     thread_local std::mt19937 generator(std::random_device{}());
-     std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
-     std::uniform_real_distribution<float> randpos(-.005f, .005f);
-     std::uniform_real_distribution<float> randscale(1.f, 1.5);
-     // Compute voxel position in world space
-     openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
-
-     // Create voxelBody if necessary
-     if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
-         std::shared_ptr<ChBody> voxelBody;
-         if (true) {
-             // std::cout << "Adding Mesh " << i << std::endl;
-             int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
-             auto trimesh_shape = regolith_meshes[meshIndex];
-             trimesh_shape->SetScale(randscale(generator));
-             ////std::cout << "OK" << std::endl;
-             // auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
-             // trimesh_shape->SetMesh(mmesh);
-             ////std::cout << "OK1" << std::endl;
-             // trimesh_shape->SetName("RegolithMesh");
-             // trimesh_shape->SetMutable(false);
-             if (trimesh_shape->GetNumMaterials() == 0) {
-                 trimesh_shape->AddMaterial(vis_mat);
-             }
-             else {
-                 trimesh_shape->GetMaterials()[0] = vis_mat;
-             }
-             voxelBody = chrono_types::make_shared<ChBody>();
-             voxelBody->AddVisualShape(trimesh_shape);
-
-         }
-         else {
-             // Create a sphere voxel
-             voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
-
-             auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
-             if (shape->GetNumMaterials() == 0) {
-                 shape->AddMaterial(vis_mat);
-             }
-             else {
-                 shape->GetMaterials()[0] = vis_mat;
-             }
-         }
-
-         float offsetX = randpos(generator);
-         float offsetY = randpos(generator);
-         // Set the position and other properties of the voxel body
-         ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
-         double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
-         double yRot = voxelPos.y();
-         double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
-
-         // Create a new rotated vector
-         ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
-         voxelBody->SetPos(rotatedVoxelPos);
-         voxelBody->SetFixed(true);
-
-         // Directly assign the voxelBody and index to the preallocated list positions
-         voxelBodyList[i] = voxelBody;
-         idList[i] = i;  // Assign index to idList slot
-         offsetXList[i] = offsetX;
-         offsetYList[i] = offsetY;
-     }
-     });
-    }
-    prevActiveVoxels = coords.size();
-    std::wcout << "Num Voxels: " << coords.size() << std::endl;
-    scene->SetSprites(voxelBodyList);
-    firstInst = false;
-}
-#else
-void createVoxelGrid(std::vector<float> points,
-    std::shared_ptr<ChScene> scene,
-    std::shared_ptr<ChVisualMaterial> vis_mat) {
-
-    std::cout << "Creating CPU Voxel Grid for " << points.size() / 6 << "particles " << std::endl;
-    float spacing = iniSpacing / 2.f;
-    float r = spacing;
-    int pointsPerVoxel = 1;
-    float voxelSize = spacing;  
-    std::cout << "VoxelSize=" << voxelSize << std::endl;
-
-    activeVoxels = points.size() / 6;
-    
-    int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
-    int numAdds = 0;
-    int numUpdates = 0;
-
-
-    if (!firstInst) {
-        thread_local std::mt19937 generator(std::random_device{}());
-        std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
-        std::uniform_real_distribution<float> randpos(-.005f, .005f);
-        std::uniform_real_distribution<float> randscale(1.f, 1.5);
-        int voxelCount = 0;
-        for (int i = 0; i < activeVoxels; i++) {
-                 ChVector3d pos(points[6*i],points[6*i + 1],points[6*i+2]);
-                if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
-                    numUpdates++;
-                    auto voxelBody = voxelBodyList[idList[voxelCount]];
-                    float offsetX = offsetXList[idList[voxelCount]];
-                    float offsetY = offsetYList[idList[voxelCount]];
-                    ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
-                    double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
-                    double yRot = voxelPos.y();
-                    double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
-
-                    // Create a new rotated vector
-                    ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
-                    voxelBody->SetPos(rotatedVoxelPos);
-                    voxelBody->SetRot(QuatFromAngleY(-slope_angle));
-                    // voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
-                }
-                // Create a sphere for each point
-                else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
-                    numAdds++;
-                    std::shared_ptr<ChBody> voxelBody;
-                    if (true) {
-                        // std::cout << "Adding Mesh " << i << std::endl;
-                        int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
-                        auto trimesh_shape = regolith_meshes[meshIndex];
-                        trimesh_shape->SetScale(randscale(generator));
-                        if (trimesh_shape->GetNumMaterials() == 0) {
-                            trimesh_shape->AddMaterial(vis_mat);
-                        } else {
-                            trimesh_shape->GetMaterials()[0] = vis_mat;
-                        }
-                        voxelBody = chrono_types::make_shared<ChBody>();
-                        voxelBody->AddVisualShape(trimesh_shape);
-                    } else {
-                        auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
-                    }
-                    float offsetX = randpos(generator);
-                    float offsetY = randpos(generator);
-                    // Set the position and other properties of the voxel body
-                    ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
-                    double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
-                    double yRot = voxelPos.y();
-                    double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
-
-                    ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
-                    voxelBody->SetPos(rotatedVoxelPos);
-                    voxelBody->SetRot(QuatFromAngleY(-slope_angle));
-                    voxelBody->SetFixed(true);
-
-                    int index = voxelBodyList.size();
-                    voxelBodyList.push_back(voxelBody);
-                    {
                         auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
                         if (shape->GetNumMaterials() == 0) {
                             shape->AddMaterial(vis_mat);
@@ -923,6 +738,177 @@ void createVoxelGrid(std::vector<float> points,
                     offsetYList.emplace_back(offsetY);
                 }
                 voxelCount++;
+            }
+        }
+
+    } else {
+        voxelBodyList.resize(coords.size());
+        idList.resize(coords.size());
+        offsetXList.resize(coords.size());
+        offsetYList.resize(coords.size());
+
+        // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
+
+        // Use std::for_each with parallel execution
+        std::for_each(std::execution::par, coords.begin(), coords.end(), [&](const openvdb::Coord& coord) {
+            // Calculate the index based on the position in the loop
+            int i = &coord - &coords[0];  // Get the current index
+
+            thread_local std::mt19937 generator(std::random_device{}());
+            std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+            std::uniform_real_distribution<float> randpos(-.005f, .005f);
+            std::uniform_real_distribution<float> randscale(1.f, 1.5);
+            // Compute voxel position in world space
+            openvdb::Vec3d voxelPos = grid->indexToWorld(coord);
+
+            // Create voxelBody if necessary
+            if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
+                std::shared_ptr<ChBody> voxelBody;
+                if (true) {
+                    // std::cout << "Adding Mesh " << i << std::endl;
+                    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                    auto trimesh_shape = regolith_meshes[meshIndex];
+                    trimesh_shape->SetScale(randscale(generator));
+                    ////std::cout << "OK" << std::endl;
+                    // auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+                    // trimesh_shape->SetMesh(mmesh);
+                    ////std::cout << "OK1" << std::endl;
+                    // trimesh_shape->SetName("RegolithMesh");
+                    // trimesh_shape->SetMutable(false);
+                    if (trimesh_shape->GetNumMaterials() == 0) {
+                        trimesh_shape->AddMaterial(vis_mat);
+                    } else {
+                        trimesh_shape->GetMaterials()[0] = vis_mat;
+                    }
+                    voxelBody = chrono_types::make_shared<ChBody>();
+                    voxelBody->AddVisualShape(trimesh_shape);
+
+                } else {
+                    // Create a sphere voxel
+                    voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                    if (shape->GetNumMaterials() == 0) {
+                        shape->AddMaterial(vis_mat);
+                    } else {
+                        shape->GetMaterials()[0] = vis_mat;
+                    }
+                }
+
+                float offsetX = randpos(generator);
+                float offsetY = randpos(generator);
+                // Set the position and other properties of the voxel body
+                ChVector3d voxelPos(voxelPos.x() + offsetX, voxelPos.y() + offsetY, voxelPos.z());
+                double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                double yRot = voxelPos.y();
+                double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                // Create a new rotated vector
+                ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                voxelBody->SetPos(rotatedVoxelPos);
+                voxelBody->SetFixed(true);
+
+                // Directly assign the voxelBody and index to the preallocated list positions
+                voxelBodyList[i] = voxelBody;
+                idList[i] = i;  // Assign index to idList slot
+                offsetXList[i] = offsetX;
+                offsetYList[i] = offsetY;
+            }
+        });
+    }
+    prevActiveVoxels = coords.size();
+    std::wcout << "Num Voxels: " << coords.size() << std::endl;
+    scene->SetSprites(voxelBodyList);
+    firstInst = false;
+}
+#else
+void createVoxelGrid(std::vector<float> points,
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat) {
+    std::cout << "Creating CPU Voxel Grid for " << points.size() / 6 << "particles " << std::endl;
+    float spacing = iniSpacing / 2.f;
+    float r = spacing;
+    int pointsPerVoxel = 1;
+    float voxelSize = spacing;
+    std::cout << "VoxelSize=" << voxelSize << std::endl;
+
+    activeVoxels = points.size() / 6;
+
+    int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
+    int numAdds = 0;
+    int numUpdates = 0;
+
+    if (!firstInst) {
+        thread_local std::mt19937 generator(std::random_device{}());
+        std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+        std::uniform_real_distribution<float> randpos(-.005f, .005f);
+        std::uniform_real_distribution<float> randscale(1.f, 1.5);
+        int voxelCount = 0;
+        for (int i = 0; i < activeVoxels; i++) {
+            ChVector3d pos(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
+            if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
+                numUpdates++;
+                auto voxelBody = voxelBodyList[idList[voxelCount]];
+                float offsetX = offsetXList[idList[voxelCount]];
+                float offsetY = offsetYList[idList[voxelCount]];
+                ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
+                double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                double yRot = voxelPos.y();
+                double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                // Create a new rotated vector
+                ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                voxelBody->SetPos(rotatedVoxelPos);
+                voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                // voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+            }
+            // Create a sphere for each point
+            else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
+                numAdds++;
+                std::shared_ptr<ChBody> voxelBody;
+                if (true) {
+                    // std::cout << "Adding Mesh " << i << std::endl;
+                    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                    auto trimesh_shape = regolith_meshes[meshIndex];
+                    trimesh_shape->SetScale(randscale(generator));
+                    if (trimesh_shape->GetNumMaterials() == 0) {
+                        trimesh_shape->AddMaterial(vis_mat);
+                    } else {
+                        trimesh_shape->GetMaterials()[0] = vis_mat;
+                    }
+                    voxelBody = chrono_types::make_shared<ChBody>();
+                    voxelBody->AddVisualShape(trimesh_shape);
+                } else {
+                    auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+                }
+                float offsetX = randpos(generator);
+                float offsetY = randpos(generator);
+                // Set the position and other properties of the voxel body
+                ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
+                double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                double yRot = voxelPos.y();
+                double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                voxelBody->SetPos(rotatedVoxelPos);
+                voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                voxelBody->SetFixed(true);
+
+                int index = voxelBodyList.size();
+                voxelBodyList.push_back(voxelBody);
+                {
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                    if (shape->GetNumMaterials() == 0) {
+                        shape->AddMaterial(vis_mat);
+                    } else {
+                        shape->GetMaterials()[0] = vis_mat;
+                    }
+                }
+                idList.emplace_back(index);
+                offsetXList.emplace_back(offsetX);
+                offsetYList.emplace_back(offsetY);
+            }
+            voxelCount++;
         }
 
     } else {
@@ -934,10 +920,10 @@ void createVoxelGrid(std::vector<float> points,
         // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
 
         // Use std::for_each with parallel execution
-        //std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
-        for (int i = 0; i < points.size()/6; i++) {
+        // std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](float& point) {
+        for (int i = 0; i < points.size() / 6; i++) {
             // Calculate the index based on the position in the loop
-            //int i = &point - &points[0];  // Get the current index
+            // int i = &point - &points[0];  // Get the current index
 
             thread_local std::mt19937 generator(std::random_device{}());
             std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
@@ -992,22 +978,22 @@ void createVoxelGrid(std::vector<float> points,
                 offsetXList[i] = offsetX;
                 offsetYList[i] = offsetY;
             }
-        //});
+            //});
         }
     }
     prevActiveVoxels = activeVoxels;
     std::cout << "Num Voxels: " << voxelBodyList.size() << std::endl;
     scene->SetSprites(voxelBodyList);
     firstInst = false;
-
 }
 #endif
 //------------------------------------------------------------------
 // Create the objects of the MBD system. Rigid bodies and their
 // BCE representations are created and added to the systems
 //------------------------------------------------------------------
-void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
-
+void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
+    ChFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
+    ChSystem& sysMBS = sysFSI.GetMultibodySystem();
     // Create a body for the rigid soil container
     auto box = chrono_types::make_shared<ChBodyEasyBox>(10, 10, 0.02, 1000, false, false);
     box->SetPos(ChVector3d(0, 0, 0));
@@ -1015,10 +1001,10 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     sysMBS.Add(box);
 
     // Get the initial SPH particle spacing
-    double initSpace0 = sysFSI.GetInitialSpacing();
+    double initSpace0 = sysSPH.GetInitialSpacing();
 
     // Fluid-Solid Coupling at the walls via BCE particles
-    sysFSI.AddBoxContainerBCE(box,                                        //
+    sysSPH.AddBoxContainerBCE(box,                                        //
                               ChFrame<>(ChVector3d(0, 0, bzDim), QUNIT),  //
                               ChVector3d(bxDim, byDim, 2 * bzDim),        //
                               ChVector3i(2, 0, -1));
@@ -1027,7 +1013,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
     rover->SetDriver(driver);
     rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
-    //rover->Initialize(ChFrame<>(init_loc, QUNIT));
+    // rover->Initialize(ChFrame<>(init_loc, QUNIT));
     double xRot = init_loc.x() * cos(-slope_angle) + init_loc.z() * sin(-slope_angle);
     double yRot = init_loc.y();
     double zRot = -init_loc.x() * sin(-slope_angle) + init_loc.z() * cos(-slope_angle);
@@ -1035,7 +1021,6 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     // Create a new rotated vector
     ChVector3d rotatedRoverInitLoc(xRot, yRot, zRot);
     rover->Initialize(ChFrame<>(rotatedRoverInitLoc, QuatFromAngleY(-slope_angle)));
-
 
     // Create the wheel's BCE particles
     auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
@@ -1045,7 +1030,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
 
     std::vector<ChVector3d> BCE_wheel;
-    sysFSI.CreateMeshPoints(*trimesh, initSpace0, BCE_wheel);
+    sysSPH.CreatePoints_Mesh(*trimesh, initSpace0, BCE_wheel);
 
     // Add BCE particles and mesh of wheels to the system
     for (int i = 0; i < 4; i++) {
@@ -1065,26 +1050,26 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
 
         sysFSI.AddFsiBody(wheel_body);
         if (i == 0 || i == 2) {
-            sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
+            sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
         } else {
-            sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
+            sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
         }
     }
     //// Create a body for the rigid soil container
-    //auto box = chrono_types::make_shared<ChBodyEasyBox>(10, 10, 0.02, 1000, false, false);
-    //box->SetPos(ChVector3d(0, 0, 0));
-    //box->SetFixed(true);
-    //sysMBS.Add(box);
+    // auto box = chrono_types::make_shared<ChBodyEasyBox>(10, 10, 0.02, 1000, false, false);
+    // box->SetPos(ChVector3d(0, 0, 0));
+    // box->SetFixed(true);
+    // sysMBS.Add(box);
 
     //// Fluid-Solid Coupling at the walls via BCE particles
-    //sysFSI.AddBoxContainerBCE(box, ChFrame<>(), ChVector3d(bxDim, byDim, 2 * bzDim), ChVector3i(2, 0, -1));
+    // sysFSI.AddBoxContainerBCE(box, ChFrame<>(), ChVector3d(bxDim, byDim, 2 * bzDim), ChVector3i(2, 0, -1));
 
-    //driver = chrono_types::make_shared<ViperSpeedDriver>(0.1, wheel_AngVel);
-    //rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
-    //rover->SetDriver(driver);
-    //rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
+    // driver = chrono_types::make_shared<ViperSpeedDriver>(0.1, wheel_AngVel);
+    // rover = chrono_types::make_shared<Viper>(&sysMBS, wheel_type);
+    // rover->SetDriver(driver);
+    // rover->SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
 
-    //rover->Initialize(ChFrame<>(init_loc, QUNIT));
+    // rover->Initialize(ChFrame<>(init_loc, QUNIT));
 
     //// // Create the wheel's BCE particles
     //// auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
@@ -1097,30 +1082,30 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     //// sysFSI.CreateMeshPoints(*trimesh, iniSpacing, BCE_wheel);
 
     //// Set the rover mass to a user mass
-    //for (int i = 0; i < 17; i++) {
-    //    double mass_scale = total_mass / 440.0;
-    //    auto viper_part = sysMBS.GetBodies()[i + 1];
-    //    double part_mass = viper_part->GetMass();
-    //    ChVector3d part_inertia = viper_part->GetInertiaXX();
-    //    viper_part->SetMass(part_mass * mass_scale);
-    //    viper_part->SetInertiaXX(part_inertia * mass_scale);
-    //}
+    // for (int i = 0; i < 17; i++) {
+    //     double mass_scale = total_mass / 440.0;
+    //     auto viper_part = sysMBS.GetBodies()[i + 1];
+    //     double part_mass = viper_part->GetMass();
+    //     ChVector3d part_inertia = viper_part->GetInertiaXX();
+    //     viper_part->SetMass(part_mass * mass_scale);
+    //     viper_part->SetInertiaXX(part_inertia * mass_scale);
+    // }
 
     //// Add BCE particles and mesh of wheels to the system
-    //for (int i = 0; i < 4; i++) {
-    //    std::shared_ptr<ChBodyAuxRef> wheel_body;
-    //    if (i == 0) {
-    //        wheel_body = rover->GetWheel(ViperWheelID::V_LF)->GetBody();
-    //    }
-    //    if (i == 1) {
-    //        wheel_body = rover->GetWheel(ViperWheelID::V_RF)->GetBody();
-    //    }
-    //    if (i == 2) {
-    //        wheel_body = rover->GetWheel(ViperWheelID::V_LB)->GetBody();
-    //    }
-    //    if (i == 3) {
-    //        wheel_body = rover->GetWheel(ViperWheelID::V_RB)->GetBody();
-    //    }
+    // for (int i = 0; i < 4; i++) {
+    //     std::shared_ptr<ChBodyAuxRef> wheel_body;
+    //     if (i == 0) {
+    //         wheel_body = rover->GetWheel(ViperWheelID::V_LF)->GetBody();
+    //     }
+    //     if (i == 1) {
+    //         wheel_body = rover->GetWheel(ViperWheelID::V_RF)->GetBody();
+    //     }
+    //     if (i == 2) {
+    //         wheel_body = rover->GetWheel(ViperWheelID::V_LB)->GetBody();
+    //     }
+    //     if (i == 3) {
+    //         wheel_body = rover->GetWheel(ViperWheelID::V_RB)->GetBody();
+    //     }
 
     //    sysFSI.AddFsiBody(wheel_body);
     //    // if (i == 0 || i == 2) {
@@ -1161,7 +1146,8 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
 
     //    // // Add geometry of the axle.
     //    // axle->GetCollisionModel()->ClearModel();
-    //    // chrono::utils::AddSphereGeometry(axle.get(), CustomWheelMaterial(ChContactMethod::NSC), 0.5, ChVector3d(0, 0,
+    //    // chrono::utils::AddSphereGeometry(axle.get(), CustomWheelMaterial(ChContactMethod::NSC), 0.5, ChVector3d(0,
+    //    0,
     //    // 0)); axle->GetCollisionModel()->BuildModel(); sysMBS.AddBody(axle);
 
     //    // Connect the chassis to the containing bin (ground) through a translational joint and create a linear
@@ -1202,8 +1188,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     //    }
     //}
 
-
-            // Add rock obstacle
+    // Add rock obstacle
     if (add_rocks) {
         auto vis_mat2 = chrono_types::make_shared<ChVisualMaterial>();
         vis_mat2->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
@@ -1254,10 +1239,10 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
         rock_Body->EnableCollision(true);
 
         std::vector<ChVector3d> BCE_Rock;
-        double initSpace0 = sysFSI.GetInitialSpacing();
-        sysFSI.CreateMeshPoints(*rock_mmesh, initSpace0, BCE_Rock);
+        double initSpace0 = sysSPH.GetInitialSpacing();
+        sysSPH.CreatePoints_Mesh(*rock_mmesh, initSpace0, BCE_Rock);
         sysFSI.AddFsiBody(rock_Body);
-        sysFSI.AddPointsBCE(rock_Body, BCE_Rock, ChFrame<>(mcog, QUNIT), true);
+        sysSPH.AddPointsBCE(rock_Body, BCE_Rock, ChFrame<>(mcog, QUNIT), true);
 
         auto rock_mesh = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
         rock_mesh->SetMesh(rock_mmesh);
@@ -1277,7 +1262,7 @@ void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
-void SaveParaViewFiles(ChSystemFsi& sysFSI, ChSystemNSC& sysMBS, double mTime) {
+void SaveParaViewFiles(ChFluidSystemSPH& sysSPH, ChSystemNSC& sysMBS, double mTime) {
     std::string rover_dir = out_dir + "/rover";
     std::string filename;
     static int frame_number = -1;
