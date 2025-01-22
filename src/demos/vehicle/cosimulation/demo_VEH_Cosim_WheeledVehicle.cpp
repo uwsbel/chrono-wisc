@@ -83,9 +83,9 @@ class Polaris_Model : public Vehicle_Model {
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
-    virtual std::string TireJSON() const override { return "Polaris/Polaris_RigidMeshTire.json"; }
-    ////virtual std::string TireJSON() const override { return "Polaris/Polaris_ANCF4Tire_Lumped.json"; }
-    ////virtual std::string TireJSON() const override { return "Polaris/Polaris_ANCF8Tire_Lumped.json"; }
+    // virtual std::string TireJSON() const override { return "Polaris/Polaris_RigidMeshTire.json"; }
+    virtual std::string TireJSON() const override { return "Polaris/Polaris_ANCF4Tire_Lumped.json"; }
+    // virtual std::string TireJSON() const override { return "Polaris/Polaris_ANCF8Tire_Lumped.json"; }
 };
 
 auto vehicle_model = Polaris_Model();
@@ -93,7 +93,7 @@ auto vehicle_model = Polaris_Model();
 // =============================================================================
 // Specification of a terrain model from JSON file
 
-////std::string terrain_specfile = "cosim/terrain/rigid.json";
+// std::string terrain_specfile = "cosim/terrain/rigid.json";
 std::string terrain_specfile = "cosim/terrain/scm_soft.json";
 
 // =============================================================================
@@ -168,11 +168,11 @@ int main(int argc, char** argv) {
     // - step_fea_tire:   step size for flexible tire dynamics
     double sim_time = 8.0;
 
-    double step_cosim = 1e-3;
-    double step_mbs = 1e-4;
-    double step_terrain = 1e-4;
-    double step_rigid_tire = 1e-4;
-    double step_fea_tire = 1e-4;
+    double step_cosim = 1e-5;
+    double step_mbs = 1e-5;
+    double step_terrain = 1e-5;
+    double step_rigid_tire = 1e-5;
+    double step_fea_tire = 1e-5;
 
     bool fix_chassis = false;
 
@@ -188,9 +188,9 @@ int main(int argc, char** argv) {
     // - writePP:      save data files for Blender post-processing
     // - render_tires: enable run-time and post-processing for individual tires
     bool verbose = false;
-    bool output = false;
+    bool output = true;
     bool renderRT = true;
-    bool writeRT = false;
+    bool writeRT = true;
     bool writePP = false;
     bool render_tire[4] = {true, false, true, false};
 
@@ -380,13 +380,21 @@ int main(int argc, char** argv) {
                         tire->EnablePostprocessVisualization(render_fps);
                 }
 
+                // auto& sys = tire->GetSystem();
+                // auto solver_type = ChSolver::Type::PARDISO_MKL;
+                // auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+                // int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
+                // int num_threads_collision = 1;
+                // int num_threads_eigen = 1;
+                // int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
                 auto& sys = tire->GetSystem();
-                auto solver_type = ChSolver::Type::PARDISO_MKL;
+                auto solver_type = ChSolver::Type::MUMPS;
                 auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
-                int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
+                int num_threads_chrono = std::min(14, ChOMP::GetNumProcs());
                 int num_threads_collision = 1;
                 int num_threads_eigen = 1;
-                int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
+                // int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
+                int num_threads_pardiso = 1;  // Will not be used
                 SetChronoSolver(sys, solver_type, integrator_type, num_threads_pardiso);
                 sys.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
                 if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
