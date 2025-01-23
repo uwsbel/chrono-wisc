@@ -34,9 +34,6 @@
 #include "chrono_fsi/sph/ChFluidSystemSPH.h"
 
 #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
-#ifdef CHRONO_OPENGL
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationGL.h"
-#endif
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
 #endif
@@ -50,8 +47,9 @@ using namespace chrono::fsi;
 // -----------------------------------------------------------------------------
 
 // Run-time visualization system (OpenGL or VSG)
+#ifdef CHRONO_VSG
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
-
+#endif
 // -----------------------------------------------------------------------------
 
 class MarkerPositionVisibilityCallback : public ChFsiVisualization::MarkerVisibilityCallback {
@@ -69,7 +67,7 @@ struct sand_material {
     double mu_I0 = 0.04;
     double mu_fric_s = 0.7;
     double mu_fric_2 = 0.7;
-    double average_diam = 0.007;
+    double average_diam = 0.0007;
     double cohesion_coeff = 0;
 };
 
@@ -491,44 +489,33 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-
+#ifdef CHRONO_VSG
     // Create a run-time visualizer
     std::shared_ptr<ChFsiVisualization> visFSI;
     if (render) {
-        switch (vis_type) {
-            case ChVisualSystem::Type::OpenGL:
-#ifdef CHRONO_OPENGL
-                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI);
-#endif
-                break;
-            case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
-                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
-#endif
-                break;
-            }
-        }
-
-        auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2);
-
-        visFSI->SetTitle("FSI Cone Penetration");
-        visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(ChVector3d(0, -3 * byDim, 0.75 * bzDim), ChVector3d(0, 0, 0.75 * bzDim));
-        visFSI->SetCameraMoveScale(0.1f);
-        visFSI->SetLightIntensity(0.9);
-        visFSI->SetLightDirection(-CH_PI_2, CH_PI / 6);
-        visFSI->EnableFluidMarkers(true);
-        visFSI->EnableBoundaryMarkers(true);
-        visFSI->EnableRigidBodyMarkers(true);
-        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetSPHColorCallback(col_callback);
-        visFSI->SetSPHVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
-        visFSI->SetBCEVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
-        visFSI->AttachSystem(&sysMBS);
-        visFSI->Initialize();
+        visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
     }
 
+    auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2);
+
+    visFSI->SetTitle("FSI Cone Penetration");
+    visFSI->SetSize(1280, 720);
+    visFSI->AddCamera(ChVector3d(0, -3 * byDim, 0.75 * bzDim), ChVector3d(0, 0, 0.75 * bzDim));
+    visFSI->SetCameraMoveScale(0.1f);
+    visFSI->SetLightIntensity(0.9);
+    visFSI->SetLightDirection(-CH_PI_2, CH_PI / 6);
+    visFSI->EnableFluidMarkers(true);
+    visFSI->EnableBoundaryMarkers(true);
+    visFSI->EnableRigidBodyMarkers(true);
+    visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
+    visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
+    visFSI->SetSPHColorCallback(col_callback);
+    visFSI->SetSPHVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
+    visFSI->SetBCEVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
+    visFSI->AttachSystem(&sysMBS);
+    visFSI->Initialize();
+
+#endif
     // Start the simulation
     double time = 0.0;
     int sim_frame = 0;
@@ -553,6 +540,7 @@ int main(int argc, char* argv[]) {
             out_frame++;
         }
 
+#ifdef CHRONO_VSG
         if (render && time >= render_frame / render_fps) {
             if (!visFSI->Render())
                 break;
@@ -566,7 +554,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
-
+#endif
         // Write penetration depth to file
         // This is done so as to match the penetration depth in the experiment - see
         // https://sbel.wisc.edu/documents/TR-2016-04.pdf
