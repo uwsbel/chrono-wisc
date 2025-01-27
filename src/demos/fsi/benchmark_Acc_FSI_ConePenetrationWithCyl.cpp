@@ -248,7 +248,7 @@ int main(int argc, char* argv[]) {
 
     if (gran_material == "sand") {
         sand_material sand_mat;
-        mat_props.density = (sand_mat.density_max - sand_mat.density_min) * rel_density + sand_mat.density_max;
+        mat_props.density = -(sand_mat.density_max - sand_mat.density_min) * rel_density + sand_mat.density_max;
         mat_props.Young_modulus = sand_mat.Young_modulus;
         mat_props.Poisson_ratio = sand_mat.Poisson_ratio;
         mat_props.mu_I0 = sand_mat.mu_I0;
@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
         mat_props.cohesion_coeff = sand_mat.cohesion_coeff;  // default
     } else if (gran_material == "bead") {
         bead_material bead_mat;
-        mat_props.density = (bead_mat.density_max - bead_mat.density_min) * rel_density + bead_mat.density_max;
+        mat_props.density = -(bead_mat.density_max - bead_mat.density_min) * rel_density + bead_mat.density_max;
         mat_props.Young_modulus = bead_mat.Young_modulus;
         mat_props.Poisson_ratio = bead_mat.Poisson_ratio;
         mat_props.mu_I0 = bead_mat.mu_I0;
