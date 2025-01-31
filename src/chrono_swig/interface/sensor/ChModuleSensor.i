@@ -252,6 +252,12 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChFilterCameraNoiseConstNormal)
 %shared_ptr(chrono::sensor::ChFilterCameraNoisePixDep)
 
+%shared_ptr(chrono::sensor::ChFilterRGBDHalf4ToImageHalf4)
+%shared_ptr(chrono::sensor::ChFilterRGBDHalf4ToR8)
+%shared_ptr(chrono::sensor::ChFilterRGBDHalf4ToGBA16)
+%shared_ptr(chrono::sensor::ChFilterImageHalf4ToRGBA16)
+%shared_ptr(chrono::sensor::ChFilterNormalToRGBA8)
+
 
 //
 // B- INCLUDE HEADERS
