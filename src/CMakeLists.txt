@@ -350,12 +350,6 @@ if(CUDA_FOUND)
   message(STATUS "  CUDA toolkit root dir: ${CUDA_TOOLKIT_ROOT_DIR}")
   message(STATUS "  CUDA binary dir:       ${CUDA_BINARY_DIR}")
   mark_as_advanced(FORCE CUDA_TOOLKIT_ROOT_DIR)
-
-  if(CUDA_VERSION VERSION_GREATER "12.3")
-    message("  CUDA version newer than 12.3 not supported. CUDA support disabled.")
-    set(CUDA_FOUND FALSE)
-  endif()
-
 else()
   message(STATUS "  CUDA not found (consider manually setting CUDA_TOOLKIT_ROOT_DIR)")
   mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
