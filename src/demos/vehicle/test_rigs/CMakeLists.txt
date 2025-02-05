@@ -3,9 +3,12 @@
 # These example programs require Irrlicht run-time visualization.
 #=============================================================================
 
-# Allow demo_VEH_TireTestRig_LargeScaleTesting to compile without IRRLICHT or VSG
+# Allow demo_VEH_TireTestRig_LargeScaleTesting & demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting to compile without IRRLICHT or VSG
 if(NOT ENABLE_MODULE_IRRLICHT AND NOT ENABLE_MODULE_VSG)
-    set(DEMOS demo_VEH_TireTestRig_LargeScaleTesting)
+    set(DEMOS 
+        demo_VEH_TireTestRig_LargeScaleTesting
+        demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting
+        )
 else()
     #--------------------------------------------------------------
     # List all demos

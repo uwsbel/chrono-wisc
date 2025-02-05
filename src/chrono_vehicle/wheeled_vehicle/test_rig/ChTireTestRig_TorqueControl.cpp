@@ -693,5 +693,25 @@ double ChTireTestRig_TorqueControl::GetDBP() const {
     return -m_lin_motor->GetMotorForce();
 }
 
+float ChTireTestRig_TorqueControl::GetNodePressure(const ChVector3d& loc) {
+    if (auto scm_terrain = std::dynamic_pointer_cast<SCMTerrain>(m_terrain)) {
+        auto node_info = scm_terrain->GetNodeInfo(loc);
+        return node_info.sigma;
+    } else {
+        std::cerr << "Error: GetNodePressure is only supported for SCM terrain." << std::endl;
+        return 0;
+    }
+}
+
+float ChTireTestRig_TorqueControl::GetNodeShear(const ChVector3d& loc) {
+    if (auto scm_terrain = std::dynamic_pointer_cast<SCMTerrain>(m_terrain)) {
+        auto node_info = scm_terrain->GetNodeInfo(loc);
+        return node_info.kshear;
+    } else {
+        std::cerr << "Error: GetNodeShear is only supported for SCM terrain." << std::endl;
+        return 0;
+    }
+}
+
 }  // end namespace vehicle
 }  // end namespace chrono

@@ -240,6 +240,10 @@ class CH_VEHICLE_API ChTireTestRig_TorqueControl {
 
     void SetRunOff(double run_off) { m_run_off = run_off; }
 
+    float GetNodePressure(const ChVector3d& loc);
+
+    float GetNodeShear(const ChVector3d& loc);
+
   private:
     enum class TerrainType { SCM, RIGID, CRG, GRANULAR, CRM, NONE };
 

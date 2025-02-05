@@ -68,10 +68,11 @@ using std::cerr;
 using std::endl;
 
 // -----------------------------------------------------------------------------
-
+#if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
 // Run-time visualization system (IRRLICHT or VSG)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
-
+ChVisualSystem::Type vis_type = ChVisualSystem::Type::NONE;
+#endif
+bool render = false;
 // Tire model
 enum class TireType { RIGID, ANCF_TOROIDAL, ANCF_AIRLESS };
 TireType tire_type = TireType::ANCF_AIRLESS;
@@ -212,13 +213,12 @@ bool GetProblemSpecs(int argc,
 
 int main(int argc, char* argv[]) {
     double y_modSpokes = 10e9;
+    bool node_info = false;
     double y_modOuterRing = 10e9;
     double step_c = 1e-4;
     double p_ratio = 0.2;
     std::string scm_type = "soft";
-    double normal_load = 400 * 1.62;  // 400 Kg on the moon
-    // double normal_load = 500 * 1.62; // 500 kg on the moon
-    // double normal_load = 300 * 9.81;  // 300 Kg on the earth
+    double normal_load = 600 * 1.62;  // 600 Kg on the moon
     std::string terrain_type_str = "rigid";
     std::string tire_type_str = "ancf_airless";
     int refine_level = 1;
@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string log_file = out_dir + "/tire_test.txt";
+    std::string log_file = out_dir + "/tire_test_torque_control.txt";
     std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
         cerr << "Could not open log file " << log_file << endl;
@@ -490,46 +490,42 @@ int main(int argc, char* argv[]) {
     // ---------------------------------
     // Create the run-time visualization
     // ---------------------------------
-
-#ifndef CHRONO_IRRLICHT
-    if (vis_type == ChVisualSystem::Type::IRRLICHT)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::IRRLICHT;
-#endif
+#if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
+    #ifndef CHRONO_VSG
+        if (vis_type == ChVisualSystem::Type::VSG)
+            vis_type = ChVisualSystem::Type::IRRLICHT;
+    #endif
 
     std::shared_ptr<ChVisualSystem> vis;
     switch (vis_type) {
         case ChVisualSystem::Type::IRRLICHT: {
-#ifdef CHRONO_IRRLICHT
-            auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
-            vis_irr->AttachSystem(sys);
-            vis_irr->SetCameraVertical(CameraVerticalDir::Z);
-            vis_irr->SetWindowSize(1200, 600);
-            vis_irr->SetWindowTitle("Tire Test Rig");
-            vis_irr->Initialize();
-            vis_irr->AddLogo();
-            vis_irr->AddSkyBox();
-            vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
-            vis_irr->AddLightDirectional();
+    #ifdef CHRONO_IRRLICHT
+                auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+                vis_irr->AttachSystem(sys);
+                vis_irr->SetCameraVertical(CameraVerticalDir::Z);
+                vis_irr->SetWindowSize(1200, 600);
+                vis_irr->SetWindowTitle("Tire Test Rig");
+                vis_irr->Initialize();
+                vis_irr->AddLogo();
+                vis_irr->AddSkyBox();
+                vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
+                vis_irr->AddLightDirectional();
 
-            vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
+                vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
 
-            vis = vis_irr;
-#endif
+                vis = vis_irr;
+    #endif
             break;
         }
-        default:
+        // default:
         case ChVisualSystem::Type::VSG: {
 #ifdef CHRONO_VSG
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
             vis_vsg->AttachSystem(sys);
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
-            vis_vsg->SetWindowSize(1200, 600);
+            vis_vsg->SetWindowSize(800, 600);
             vis_vsg->SetWindowTitle("Tire Test Rig");
-            vis_vsg->AddCamera(ChVector3d(1.0, 2.5, 1.0));
+            vis_vsg->AddCamera(ChVector3d(0, 2.5, 0), ChVector3d(0.0, 0.0, -0.5));
             vis_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
             vis_vsg->SetShadows(true);
             vis_vsg->Initialize();
@@ -539,6 +535,7 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
+#endif
 
 #ifdef CHRONO_POSTPROCESS
     // ---------------------------
@@ -571,7 +568,7 @@ int main(int argc, char* argv[]) {
     double time = 0;       // simulated time
     double sim_time = 0;   // simulation time
     int render_frame = 0;  // render frame counter
-
+    int out_frame = 0;     // output frame counter
     // Data collection
     ChFunctionInterp long_slip_fct;
     ChFunctionInterp slip_angle_fct;
@@ -583,6 +580,7 @@ int main(int argc, char* argv[]) {
     double wheel_init_x = spindle_body->GetPos().x();
     ChVector3d spring_left_end = rig.GetSpringLeftEnd();
     ChVector3d spring_right_end = rig.GetSpringRightEnd();
+    
     // Write crash info to both console and logfile
     auto WriteSimStats = [&](std::ostream& out, std::shared_ptr<ChBody> spindle_body) {
         out << "Simulated time: " << time << std::endl;
@@ -626,9 +624,16 @@ int main(int argc, char* argv[]) {
 
     // Write to logfile
     WriteSpecs(logfile);
+
     double t_end = 5;
+
+    float node_p, node_sh;
+    ChVector3d p_loc = spindle_body->GetPos();
+    // Modify p_loc before sending to rig.GetNodePressure
+    p_loc.z() -= 0.45;
+
     timer.start();
-    while (vis->Run() && time < t_end) {
+    while (time < t_end) {
         time = sys->GetChTime();
         if (std::isnan(spindle_body->GetPos().z()) || abs(spindle_body->GetPos().z()) > 1000) {
             ChVector3d pos = spindle_body->GetPos();
@@ -652,51 +657,41 @@ int main(int argc, char* argv[]) {
 
         //     return 1;
         // }
+        
+        
 
-        if (time >= render_frame / render_fps) {
+#if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
+        if (render && time >= render_frame / render_fps) {
+                if (!vis->Run()) {
+                    break;
+                }
+
             auto& loc = rig.GetPos();
 
             vis->BeginScene();
             vis->Render();
             vis->EndScene();
 
-#ifdef CHRONO_POSTPROCESS
-            if (blender_output)
-                blender_exporter.ExportData();
-#endif
+    #ifdef CHRONO_POSTPROCESS
+                if (blender_output)
+                    blender_exporter.ExportData();
+    #endif
         }
-
+#endif
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
+        render_frame++;
 
-        if (log_output) {
-            // cout << time << endl;
-            auto long_slip = tire->GetLongitudinalSlip();
-            auto slip_angle = tire->GetSlipAngle();
-            auto camber_angle = tire->GetCamberAngle();
-            // cout << "   " << long_slip << " " << slip_angle << " " << camber_angle << endl;
-
-            auto tforce = rig.ReportTireForce();
-            auto frc = tforce.force;
-            auto pnt = tforce.point;
-            auto trq = tforce.moment;
-            // cout << "   " << frc.x() << " " << frc.y() << " " << frc.z() << endl;
-            // cout << "   " << pnt.x() << " " << pnt.y() << " " << pnt.z() << endl;
-            // cout << "   " << trq.x() << " " << trq.y() << " " << trq.z() << endl;
-            /*
-                        //  Log the data to file
-                        logfile << "Time: " << time << std::endl;
-                        logfile << "   Longitudinal_Slip: " << long_slip << std::endl;
-                        logfile << " Slip_Angle: " << slip_angle << std::endl;
-                        logfile << " Camber_Angle: " << camber_angle << std::endl;
-                        logfile << "   Force: " << frc.x() << " " << frc.y() << " " << frc.z() << std::endl;
-                        logfile << "   Point: " << pnt.x() << " " << pnt.y() << " " << pnt.z() << std::endl;
-                        logfile << "   Moment: " << trq.x() << " " << trq.y() << " " << trq.z() << std::endl;
-            */
+        if (node_info){    
+            node_p = rig.GetNodePressure(p_loc);
+            node_sh = rig.GetNodeShear(p_loc);
+            std::cout << "Pressure at X: " << p_loc.x() << " is " << node_p << " and Shear is " << node_sh << std::endl;
+            logfile << "Time: " << time << " X: " << p_loc.x() << " Pressure: " << node_p <<  " Shear: " << node_sh << std::endl;
+            logfile.flush();
         }
 
-        cout << "\rRTF: " << sys->GetRTF();
-    }
+
+       }
 
     timer.stop();
     step_time = timer();
