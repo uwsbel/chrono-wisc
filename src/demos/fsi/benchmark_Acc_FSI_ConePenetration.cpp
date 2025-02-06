@@ -121,7 +121,10 @@ bool GetProblemSpecs(int argc,
                      int& cone_type,
                      double& container_depth,
                      double& Hdrop,
-                     double& artificial_viscosity) {
+                     double& artificial_viscosity,
+                     double& mu_s,
+                     double& mu_2,
+                     double& mu_i0) {
     ChCLI cli(argv[0], "FSI Cone Penetration Demo");
 
     cli.AddOption<double>("Simulation", "t_end", "End time", std::to_string(t_end));
@@ -143,6 +146,10 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<double>("Physics", "artificial_viscosity", "Artificial viscosity",
                           std::to_string(artificial_viscosity));
 
+    cli.AddOption<double>("Physics", "mu_s", "Static friction coefficient", std::to_string(mu_s));
+    cli.AddOption<double>("Physics", "mu_2", "Dynamic friction coefficient", std::to_string(mu_2));
+    cli.AddOption<double>("Physics", "mu_i0", "Initial friction coefficient", std::to_string(mu_i0));
+
     if (!cli.Parse(argc, argv))
         return false;
 
@@ -160,6 +167,9 @@ bool GetProblemSpecs(int argc,
     container_depth = cli.GetAsType<double>("container_depth");
     Hdrop = cli.GetAsType<double>("Hdrop");
     artificial_viscosity = cli.GetAsType<double>("artificial_viscosity");
+    mu_s = cli.GetAsType<double>("mu_s");
+    mu_2 = cli.GetAsType<double>("mu_2");
+    mu_i0 = cli.GetAsType<double>("mu_i0");
     return true;
 }
 
@@ -210,9 +220,12 @@ int main(int argc, char* argv[]) {
     double container_depth = 0.1;        // This is  in meters
     double Hdrop = 0.5;                  // This is 0.5 times length of cone
     double artificial_viscosity = 0.5;
+    double mu_s = 0.7;
+    double mu_2 = 0.7;
+    double mu_i0 = 0.04;
     if (!GetProblemSpecs(argc, argv, t_end, ps_freq, initial_spacing, d0_multiplier, time_step, boundary_type,
                          viscosity_type, kernel_type, gran_material, rel_density, cone_type, container_depth, Hdrop,
-                         artificial_viscosity)) {
+                         artificial_viscosity, mu_s, mu_2, mu_i0)) {
         return 1;
     }
 
@@ -233,6 +246,9 @@ int main(int argc, char* argv[]) {
     std::cout << "container_depth: " << container_depth << std::endl;
     std::cout << "Hdrop: " << Hdrop << std::endl;
     std::cout << "artificial_viscosity: " << artificial_viscosity << std::endl;
+    std::cout << "mu_s: " << mu_s << std::endl;
+    std::cout << "mu_2: " << mu_2 << std::endl;
+    std::cout << "mu_i0: " << mu_i0 << std::endl;
     // Create a physics system
     ChSystemSMC sysMBS;
 
@@ -252,9 +268,9 @@ int main(int argc, char* argv[]) {
         mat_props.density = -(sand_mat.density_max - sand_mat.density_min) * rel_density + sand_mat.density_max;
         mat_props.Young_modulus = sand_mat.Young_modulus;
         mat_props.Poisson_ratio = sand_mat.Poisson_ratio;
-        mat_props.mu_I0 = sand_mat.mu_I0;
-        mat_props.mu_fric_s = sand_mat.mu_fric_s;
-        mat_props.mu_fric_2 = sand_mat.mu_fric_2;
+        mat_props.mu_I0 = mu_i0;
+        mat_props.mu_fric_s = mu_s;
+        mat_props.mu_fric_2 = mu_2;
         mat_props.average_diam = sand_mat.average_diam;
         mat_props.cohesion_coeff = sand_mat.cohesion_coeff;  // default
     } else if (gran_material == "bead") {
@@ -262,9 +278,9 @@ int main(int argc, char* argv[]) {
         mat_props.density = -(bead_mat.density_max - bead_mat.density_min) * rel_density + bead_mat.density_max;
         mat_props.Young_modulus = bead_mat.Young_modulus;
         mat_props.Poisson_ratio = bead_mat.Poisson_ratio;
-        mat_props.mu_I0 = bead_mat.mu_I0;
-        mat_props.mu_fric_s = bead_mat.mu_fric_s;
-        mat_props.mu_fric_2 = bead_mat.mu_fric_2;
+        mat_props.mu_I0 = mu_i0;
+        mat_props.mu_fric_s = mu_s;
+        mat_props.mu_fric_2 = mu_2;
         mat_props.average_diam = bead_mat.average_diam;
         mat_props.cohesion_coeff = bead_mat.cohesion_coeff;  // default
     } else {
@@ -409,7 +425,12 @@ int main(int argc, char* argv[]) {
     std::string out_dir;
     if (output || snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "FSI_ConePenetration/";
+        std::stringstream mu_params;
+        mu_params << std::fixed << std::setprecision(2);
+        mu_params << "FSI_ConePenetration_mu_s_" << mu_s << "_mu_2_" << mu_2 << "_mu_i0_" << mu_i0;
+
+        std::string base_dir = GetChronoOutputPath() + mu_params.str() + "/";
+
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return 1;
