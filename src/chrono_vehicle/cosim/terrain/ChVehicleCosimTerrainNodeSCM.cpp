@@ -182,7 +182,7 @@ void ChVehicleCosimTerrainNodeSCM::Construct() {
     m_terrain->SetCosimulationMode(true);
     m_terrain->EnableBulldozing(false);
     if (m_scm_profile_file) {
-        m_terrain->Initialize(vehicle::GetDataFile(m_scm_profile_file.value()), m_dimX, m_dimY, -0.8, 0.8, m_spacing);
+        m_terrain->Initialize(vehicle::GetDataFile(m_scm_profile_file.value()), m_dimX, m_dimY, 0.0, 2.0, m_spacing);
     } else {
         m_terrain->Initialize(m_dimX, m_dimY, m_spacing);
     }

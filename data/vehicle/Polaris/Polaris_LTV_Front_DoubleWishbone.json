@@ -50,7 +50,7 @@
     "Location Chassis": [ -0.053, 0.666, 0.402 ],
     "Location Arm": [ -0.002, 0.832, -0.05 ],
     "Free Length": 0.475653,
-    "Spring Coefficient": 300000.000
+    "Spring Coefficient": 500000.000
   },
 
   "Shock": {

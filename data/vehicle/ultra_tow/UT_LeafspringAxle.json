@@ -49,7 +49,7 @@
   "Spring": {
     "Location Chassis": [ -0.053, 0.666, 0.574 ],
     "Location Arm": [ -0.002, 0.932, 0.186 ],
-    "Free Length": 0.475653,
+    "Free Length": 0.405653,
     "Spring Curve Data": [
       [ -0.099233471, -14801.48006 ],
       [ -0.091600127, -9620.962037 ],

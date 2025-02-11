@@ -101,6 +101,8 @@ void ChVehicleCosimTireNodeFlexible::Advance(double step_size) {
     m_timer.stop();
     m_cum_sim_time += m_timer();
 
+    std::cout << "tire_mass: " << m_tire_def->GetTireMass() << std::endl;
+
     // Possible rendering
     Render(step_size);
 }
