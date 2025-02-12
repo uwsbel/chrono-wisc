@@ -63,12 +63,16 @@ class MarkerPositionVisibilityCallback : public ChFsiVisualization::MarkerVisibi
 
 // -----------------------------------------------------------------------------
 // Material properties of the 15 materials
-std::vector<double> y_modulus = {1e6, 1e6};  // in Pa
+// std::vector<double> y_modulus = {1e6, 1e6};  // in Pa
+// std::vector<double> y_modulus = {1e6};  // in Pa
 double nu_poisson = 0.3;
-std::vector<double> cohesions = {0, 0};        // In Pa
-std::vector<double> densities = {1600, 1800};  // In kg/m^3
-std::vector<double> mu_s = {0.5727, 0.9131};
-std::vector<double> mu_2 = {0.5727, 0.9131};
+// std::vector<double> cohesions = {0};  // In Pa
+// // std::vector<double> densities = {1600, 1800};  // In kg/m^3
+// std::vector<double> densities = {1600};  // In kg/m^3
+// // std::vector<double> mu_s = {0.5727, 0.9131};
+// // std::vector<double> mu_2 = {0.5727, 0.9131};
+// std::vector<double> mu_s = {0.5727};
+// std::vector<double> mu_2 = {0.5727};
 
 // Cone material
 struct solid_material {
@@ -111,6 +115,12 @@ struct SimParams {
     bool render;
     double render_fps;
     bool write_marker_files;
+    // Need to play around with these too
+    double mu_s;
+    double mu_2;
+    double cohesion;
+    double density;
+    double y_modulus;
 };
 void SimulateMaterial(int i, const SimParams& params, const ConeProperties& coneProp);
 // Function to handle CLI arguments
@@ -132,7 +142,11 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     cli.AddOption<double>("Physics", "penetration_depth",
                           "Penetration depth at which we would like to take the readings",
                           std::to_string(params.penetration_depth));
-
+    cli.AddOption<double>("Physics", "mu_s", "Friction coefficient", std::to_string(params.mu_s));
+    cli.AddOption<double>("Physics", "mu_2", "Friction coefficient", std::to_string(params.mu_2));
+    cli.AddOption<double>("Physics", "cohesion", "Cohesion", std::to_string(params.cohesion));
+    cli.AddOption<double>("Physics", "density", "Density", std::to_string(params.density));
+    cli.AddOption<double>("Physics", "y_modulus", "Young's modulus", std::to_string(params.y_modulus));
     if (!cli.Parse(argc, argv))
         return false;
 
@@ -145,6 +159,11 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     params.kernel_type = cli.GetAsType<std::string>("kernel_type");
     params.artificial_viscosity = cli.GetAsType<double>("artificial_viscosity");
     params.penetration_depth = cli.GetAsType<double>("penetration_depth");
+    params.mu_s = cli.GetAsType<double>("mu_s");
+    params.mu_2 = cli.GetAsType<double>("mu_2");
+    params.cohesion = cli.GetAsType<double>("cohesion");
+    params.density = cli.GetAsType<double>("density");
+    params.y_modulus = cli.GetAsType<double>("y_modulus");
     return true;
 }
 
@@ -166,7 +185,12 @@ int main(int argc, char* argv[]) {
                         /*snapshots*/ true,
                         /*render*/ true,
                         /*render_fps*/ 400,
-                        /*write_marker_files*/ false};
+                        /*write_marker_files*/ false,
+                        /*mu_s*/ 0.5727,
+                        /*mu_2*/ 0.5727,
+                        /*cohesions*/ 0,
+                        /*densities*/ 1600,
+                        /*y_modulus*/ 1e6};
 
     if (!GetProblemSpecs(argc, argv, params)) {
         return 1;
@@ -183,8 +207,13 @@ int main(int argc, char* argv[]) {
     std::cout << "kernel_type: " << params.kernel_type << std::endl;
     std::cout << "artificial_viscosity: " << params.artificial_viscosity << std::endl;
     std::cout << "penetration_depth: " << params.penetration_depth << std::endl;
+    std::cout << "mu_s: " << params.mu_s << std::endl;
+    std::cout << "mu_2: " << params.mu_2 << std::endl;
+    std::cout << "cohesion: " << params.cohesion << std::endl;
+    std::cout << "density: " << params.density << std::endl;
+    std::cout << "y_modulus: " << params.y_modulus << std::endl;
 
-    int num_materials = y_modulus.size();
+    int num_materials = 1;
     for (int i = 0; i < num_materials; i++) {
         SimulateMaterial(i, params, coneProp);
     }
@@ -219,14 +248,14 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     ChFluidSystemSPH::ElasticMaterialProperties mat_props;
     ChFluidSystemSPH::SPHParameters sph_params;
 
-    mat_props.density = densities[i];
-    mat_props.Young_modulus = y_modulus[i];
+    mat_props.density = params.density;
+    mat_props.Young_modulus = params.y_modulus;
     mat_props.Poisson_ratio = nu_poisson;
     mat_props.mu_I0 = 0.04;
-    mat_props.mu_fric_s = mu_s[i];
-    mat_props.mu_fric_2 = mu_2[i];
+    mat_props.mu_fric_s = params.mu_s;
+    mat_props.mu_fric_2 = params.mu_2;
     mat_props.average_diam = 0.002;
-    mat_props.cohesion_coeff = cohesions[i];
+    mat_props.cohesion_coeff = params.cohesion;
 
     sysSPH.SetElasticSPH(mat_props);
 
@@ -404,11 +433,11 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
         }();
 
         // Convert array values to strings.
-        const std::string youngsModulusStr = toString(y_modulus[i]);
-        const std::string densityStr = toString(densities[i]);
-        const std::string muSStr = toString(mu_s[i]);
-        const std::string mu2Str = toString(mu_2[i]);
-        const std::string cohesionStr = toString(cohesions[i]);
+        const std::string youngsModulusStr = toString(params.y_modulus);
+        const std::string densityStr = toString(params.density);
+        const std::string muSStr = toString(params.mu_s);
+        const std::string mu2Str = toString(params.mu_2);
+        const std::string cohesionStr = toString(params.cohesion);
 
         // Build the vector of subdirectory names.
         std::vector<std::string> subdirs = {"penetrationDepth_" + penetrationDepthStr,
