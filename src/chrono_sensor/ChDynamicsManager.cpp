@@ -46,6 +46,10 @@ CH_SENSOR_API void ChDynamicsManager::UpdateSensors() {
                     filter->Apply();
                 }
                 // pSen->ClearKeyFrames();
+                auto accelSen = std::dynamic_pointer_cast<ChAccelerometerSensor>(pSen);
+                if  (!(accelSen)) {
+                    pSen->ClearKeyFrames();
+                }
             }
         }
     }
