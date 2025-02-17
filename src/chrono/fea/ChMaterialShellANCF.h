@@ -57,6 +57,7 @@ class ChApi ChMaterialShellANCF {
 
     friend class ChElementShellANCF_3833;
     friend class ChElementShellANCF_3443;
+    friend class ChElementShellANCF_3443B;
     friend class ChElementShellANCF_3423;
     friend class ShellANCF_Force;
     friend class ShellANCF_Jacobian;
