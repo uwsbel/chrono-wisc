@@ -34,7 +34,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
-#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig_TorqueControl.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
@@ -261,7 +261,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string log_file = out_dir + "/tire_test_torque_control.txt";
+    std::ostringstream filename;
+    filename << out_dir << "/tire_test_torque" << torque_value 
+             << "_numSpokes_" << numSpokes 
+             << "_ymSpokes_" << y_modSpokes 
+             << "_ymOuterRing_" << y_modOuterRing 
+             << "_pr_" << p_ratio 
+             << "_stepsize_" << step_c 
+             << ".txt";
+    std::string log_file = filename.str();
     std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
         cerr << "Could not open log file " << log_file << endl;
@@ -286,7 +294,7 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetAlpha(0.15);
         tire = ancf_tire;
     } else if (tire_type == TireType::ANCF_AIRLESS) {
-        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire3443B>("ANCFairless tire");
         // These are default sizes for the polaris tire
         ancf_tire->SetRimRadius(0.225);  // Default is 0.225
         ancf_tire->SetHeight(0.225);     // Default is 0.225
@@ -671,6 +679,7 @@ int main(int argc, char* argv[]) {
             vis->BeginScene();
             vis->Render();
             vis->EndScene();
+            render_frame++;
 
     #ifdef CHRONO_POSTPROCESS
                 if (blender_output)
@@ -680,7 +689,6 @@ int main(int argc, char* argv[]) {
 #endif
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
-        render_frame++;
 
         if (node_info){    
             node_p = rig.GetNodePressure(p_loc);

@@ -34,7 +34,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
-#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
@@ -248,7 +248,7 @@ int main(int argc, char* argv[]) {
     bool set_longitudinal_speed = true;
     bool set_angular_speed = true;
     bool set_slip_angle = false;
-    bool snapshots = true;
+    bool snapshots = false;
 
     double max_linear_speed = 4;
     double ramp_time = 4;
@@ -386,7 +386,7 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetAlpha(0.15);
         tire = ancf_tire;
     } else if (tire_type == TireType::ANCF_AIRLESS) {
-        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire3443B>("ANCFairless tire");
         // These are default sizes for the polaris tire
         ancf_tire->SetRimRadius(rim_radius);               // Default is 0.225
         ancf_tire->SetHeight(height);                      // Default is 0.225
@@ -649,7 +649,7 @@ int main(int argc, char* argv[]) {
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
             vis_vsg->AttachSystem(sys);
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
-            vis_vsg->SetWindowSize(1200, 600);
+            vis_vsg->SetWindowSize(800, 600);
             vis_vsg->SetWindowTitle("Tire Test Rig");
             vis_vsg->AddCamera(ChVector3d(0, 2.5, 0), ChVector3d(0.0, 0.0, -0.5));
             vis_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
@@ -775,7 +775,6 @@ int main(int argc, char* argv[]) {
         //     return 1;
         // }
 
-        double snap_interval = 0.02;
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run()) {
@@ -789,10 +788,12 @@ int main(int argc, char* argv[]) {
             vis->Render();
             vis->EndScene();
 
+            if (snapshots) {
             std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
             std::ostringstream filename;
             filename << snap_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
             vis->WriteImageToFile(filename.str());
+            }
             render_frame++;
 
     #ifdef CHRONO_POSTPROCESS

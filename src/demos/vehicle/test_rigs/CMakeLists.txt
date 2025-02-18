@@ -17,7 +17,6 @@ else()
         demo_VEH_TireTestRig
         demo_VEH_TireTestRig_LargeScaleTesting
         demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting
-        demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting_headless
     )
 
     if(ENABLE_MODULE_FSI)
