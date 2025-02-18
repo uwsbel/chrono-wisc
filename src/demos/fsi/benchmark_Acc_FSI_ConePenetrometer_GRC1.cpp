@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
 
 void SimulateMaterial(int i, const SimParams& params, const ConeProperties& coneProp) {
     double penetration_velocity = 0.03;  // 0.3 cm/s
-    double t_end = params.penetration_depth / penetration_velocity + 1;
+    double t_end = params.penetration_depth / penetration_velocity;
     std::cout << "t_end: " << t_end << std::endl;
 
     double container_diameter = 0.584 / 2;  // Actual dimension is 58.4 cm
@@ -527,8 +527,10 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     double time = 0.0;
     int sim_frame = 0;
     int out_frame = 0;
+    int pres_out_frame = 0;
     int render_frame = 0;
     double dT = sysFSI.GetStepSizeCFD();
+    double pres_out_fps = 100;
 
     std::string out_file = out_dir + "/force_vs_time.txt";
     std::ofstream ofile(out_file, std::ios::trunc);
@@ -574,10 +576,13 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
             render_frame++;
         }
 #endif
-        double cone_pressure = abs(cone->GetAppliedForce().z() / (CH_PI * pow(coneProp.diameter / 2, 2)));
-        ofile << time << "," << cone->GetAppliedForce().x() << "," << cone->GetAppliedForce().y() << ","
-              << cone->GetAppliedForce().z() << "," << cone->GetPos().x() << "," << cone->GetPos().y() << ","
-              << current_depth << "," << cone_pressure << std::endl;
+        if (time >= pres_out_frame / pres_out_fps) {
+            double cone_pressure = abs(cone->GetAppliedForce().z() / (CH_PI * pow(coneProp.diameter / 2, 2)));
+            ofile << time << "," << cone->GetAppliedForce().x() << "," << cone->GetAppliedForce().y() << ","
+                  << cone->GetAppliedForce().z() << "," << cone->GetPos().x() << "," << cone->GetPos().y() << ","
+                  << current_depth << "," << cone_pressure << std::endl;
+            pres_out_frame++;
+        }
 
         // Advance simulation for one timestep for all systems
         sysFSI.DoStepDynamics(dT);
