@@ -104,7 +104,8 @@ bool GetProblemSpecs(int argc,
                      bool& set_torque,
                      ChSolver::Type& solver_type,
                      double& torque_value,
-                     int& numSpokes) {
+                     int& numSpokes,
+                     bool& set_str_spk) {
     ChCLI cli(argv[0], "Tire Test Rig Configuration");
 
     cli.AddOption<int>("Mesh", "refine", "Mesh refinement level (1,2,3) - Only for ANCF_AIRLESS tire",
@@ -121,7 +122,8 @@ bool GetProblemSpecs(int argc,
                                scm_type);
     cli.AddOption<std::string>("Tire", "tire", "Tire type (rigid/ancf_toroidal/ancf_airless)", tire_type_str);
     cli.AddOption<double>("Simulation", "nl", "Normal Load (N)", std::to_string(normal_load));
-
+    cli.AddOption<std::string>("Tire", "str_spk", "Enable straight spokes for ANCF tire (default: 1, use 0/1)", "1");
+    
     // Motion control enable/disable options
     cli.AddOption<std::string>("Motion", "long_speed", "Enable longitudinal speed control (default: 0, use 0/1)", "0");
     cli.AddOption<std::string>("Motion", "torque", "Enable torque control (default: 1, use 0/1)", "1");
@@ -170,6 +172,7 @@ bool GetProblemSpecs(int argc,
     // Get motion control flags
     std::string long_speed_str = cli.GetAsType<std::string>("long_speed");
     std::string torque_str = cli.GetAsType<std::string>("torque");
+    std::string str_spk_str = cli.GetAsType<std::string>("str_spk");
 
     // Convert string to bool (accepting 0/1 or true/false)
     auto str_to_bool = [](const std::string& str) {
@@ -178,6 +181,7 @@ bool GetProblemSpecs(int argc,
 
     set_long_speed = str_to_bool(long_speed_str);
     set_torque = str_to_bool(torque_str);
+    set_str_spk = str_to_bool(str_spk_str);
 
     std::string solver_str = cli.GetAsType<std::string>("solver");
     if (solver_str == "pardiso_mkl") {
@@ -229,9 +233,11 @@ int main(int argc, char* argv[]) {
     ChSolver::Type solver_type = ChSolver::Type::PARDISO_MKL;
     double torque_value = 80;  // Default value
     int numSpokes = 16;        // Default value
+    bool set_str_spk = true;
+
     if (!GetProblemSpecs(argc, argv, refine_level, y_modSpokes, y_modOuterRing, step_c, p_ratio, scm_type, normal_load,
                          terrain_type_str, slope, tire_type_str, set_longitudinal_speed, set_torque, solver_type,
-                         torque_value, numSpokes)) {
+                         torque_value, numSpokes, set_str_spk)) {
         return 1;
     }
     TerrainType terrain_type;
@@ -308,6 +314,12 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         ancf_tire->SetNumberSpokes(numSpokes);                 // default is 16
+        //Options to set for straight spokes
+        if(set_str_spk){
+            ancf_tire->SetHubRelativeRotation(0);
+            ancf_tire->SetSpokeCurvatureXPoint(0);
+            ancf_tire->SetSpokeCurvatureZPoint(0);
+        }
         tire = ancf_tire;
     } else {
         std::string tire_file;

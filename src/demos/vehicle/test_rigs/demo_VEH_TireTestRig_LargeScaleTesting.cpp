@@ -126,7 +126,8 @@ bool GetProblemSpecs(int argc,
                      double& slip,
                      double& rim_radius,
                      double& height,
-                     double& ring_thickness) {
+                     double& ring_thickness,
+                     bool& set_str_spk) {
     ChCLI cli(argv[0], "Tire Test Rig Configuration");
 
     cli.AddOption<int>("Mesh", "refine", "Mesh refinement level (1,2,3) - Only for ANCF_AIRLESS tire",
@@ -150,6 +151,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Motion", "slip_angle", "Enable slip angle control (default: 0, use 0/1)", "0");
     cli.AddOption<double>("Terrain", "slope", "Terrain slope (degrees)", std::to_string(slope));
     cli.AddOption<int>("Tire", "num_spokes", "Number of spokes in the tire", std::to_string(numSpokes));
+    cli.AddOption<std::string>("Tire", "str_spk", "Enable straight spokes for ANCF tire (default: 1, use 0/1)", "1");
 
     cli.AddOption<double>("Motion", "max_linear_speed", "Maximum linear speed (m/s)", std::to_string(max_linear_speed));
     cli.AddOption<double>("Motion", "ramp_time", "Ramp time (s)", std::to_string(ramp_time));
@@ -207,6 +209,7 @@ bool GetProblemSpecs(int argc,
     std::string long_speed_str = cli.GetAsType<std::string>("long_speed");
     std::string ang_speed_str = cli.GetAsType<std::string>("ang_speed");
     std::string slip_str = cli.GetAsType<std::string>("slip_angle");
+    std::string str_spk_str = cli.GetAsType<std::string>("str_spk");
 
     // Convert string to bool (accepting 0/1 or true/false)
     auto str_to_bool = [](const std::string& str) {
@@ -216,6 +219,7 @@ bool GetProblemSpecs(int argc,
     set_long_speed = str_to_bool(long_speed_str);
     set_ang_speed = str_to_bool(ang_speed_str);
     set_slip_angle = str_to_bool(slip_str);
+    set_str_spk = str_to_bool(str_spk_str);
 
     std::string solver_str = cli.GetAsType<std::string>("solver");
     if (solver_str == "pardiso_mkl") {
@@ -256,6 +260,7 @@ int main(int argc, char* argv[]) {
     double slip = 0.05;
 
     // Wheel properties
+    bool set_str_spk = true;
     double rim_radius = 0.3;
     double height = 0.15;
     double ring_thickness = 0.02;
@@ -263,7 +268,7 @@ int main(int argc, char* argv[]) {
     if (!GetProblemSpecs(argc, argv, refine_level, y_modSpokes, y_modOuterRing, step_c, p_ratio, scm_type, normal_load,
                          terrain_type_str, slope, tire_type_str, set_longitudinal_speed, set_angular_speed,
                          set_slip_angle, numSpokes, solver_type, max_linear_speed, ramp_time, constant_time, slip,
-                         rim_radius, height, ring_thickness)) {
+                         rim_radius, height, ring_thickness, set_str_spk)) {
         return 1;
     }
 
@@ -401,6 +406,12 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         ancf_tire->SetNumberSpokes(numSpokes);
+        //Options to set for straight spokes
+        if(set_str_spk){
+            ancf_tire->SetHubRelativeRotation(0);
+            ancf_tire->SetSpokeCurvatureXPoint(0);
+            ancf_tire->SetSpokeCurvatureZPoint(0);
+        }
         tire = ancf_tire;
     } else {
         std::string tire_file;
