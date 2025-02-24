@@ -149,13 +149,13 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
 
 int main(int argc, char* argv[]) {
     SimParams params = {/*ps_freq*/ 1,
-                        /*initial_spacing*/ 0.002,
+                        /*initial_spacing*/ 0.001,
                         /*d0_multiplier*/ 1.3,
-                        /*time_step*/ 5e-5,
+                        /*time_step*/ 2e-5,
                         /*boundary_type*/ "adami",
                         /*viscosity_type*/ "artificial_bilateral",
                         /*kernel_type*/ "cubic",
-                        /*artificial_viscosity*/ 0.2,
+                        /*artificial_viscosity*/ 0.3,
                         /*max_pressure*/ 30 * 1000,  // 30 kPa
                         /*plate_diameter*/ 0.19,     // 19 cm
                         /*verbose*/ true,
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
                         /*write_marker_files*/ false,
                         /*mu_s*/ 0.6593,
                         /*mu_2*/ 0.6593,
-                        /*cohesions*/ 100,
+                        /*cohesions*/ 50,
                         /*densities*/ 1670,
                         /*y_modulus*/ 1e6};
 
@@ -200,10 +200,11 @@ int main(int argc, char* argv[]) {
 }
 
 void SimulateMaterial(int i, const SimParams& params) {
-    double t_end = 5;
+    double t_end = 3.5;
+    double max_pressure_time = 3;
     std::cout << "t_end: " << t_end << std::endl;
 
-    double container_diameter = 0.4;       // Plate is 20 cm in diameter - so 3 times
+    double container_diameter = 0.3;       // Plate is 20 cm in diameter
     double container_height = 0.024;       // 2.4 cm since experimentally the plate reaches 0.6 cm
     double cyl_length = container_height;  // To prevent effect of sand falling on top of the plate
 
@@ -347,7 +348,14 @@ void SimulateMaterial(int i, const SimParams& params) {
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
     auto motor = chrono_types::make_shared<ChLinkMotorLinearForce>();
     double max_force = params.max_pressure * plate_area;
-    motor->SetForceFunction(chrono_types::make_shared<ChFunctionRamp>(0, -max_force / t_end));
+
+    ChFunctionSequence seq;
+    auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, -max_force / max_pressure_time);
+    auto f_const = chrono_types::make_shared<ChFunctionConst>(-max_force);
+    seq.InsertFunct(f_ramp, max_pressure_time);
+    seq.InsertFunct(f_const, t_end - max_pressure_time);
+    seq.Setup();
+    motor->SetForceFunction(chrono_types::make_shared<ChFunctionSequence>(seq));
     motor->Initialize(plate, box, ChFrame<>(ChVector3d(0, 0, 0), QUNIT));
     sysMBS.AddLink(motor);
 
@@ -487,7 +495,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::ofstream ofile(out_file, std::ios::trunc);
 
     // Add comma-separated header to the output file
-    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-NetPressure,plate-"
+    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,plate-NetPressure,plate-"
              "ExternalLoadPressure"
           << std::endl;
 
@@ -524,7 +532,8 @@ void SimulateMaterial(int i, const SimParams& params) {
             double plate_ExternalLoadPressure = motor->GetMotorForce() / plate_area;
             ofile << time << "," << plate->GetAppliedForce().x() << "," << plate->GetAppliedForce().y() << ","
                   << plate->GetAppliedForce().z() << "," << plate->GetPos().x() << "," << plate->GetPos().y() << ","
-                  << current_depth << "," << plate_NetPressure << "," << plate_ExternalLoadPressure << std::endl;
+                  << current_depth << "," << plate->GetPosDt().z() << "," << plate_NetPressure << ","
+                  << plate_ExternalLoadPressure << std::endl;
             pres_out_frame++;
         }
 
