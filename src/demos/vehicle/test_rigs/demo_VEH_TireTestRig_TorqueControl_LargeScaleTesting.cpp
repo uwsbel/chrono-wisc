@@ -123,7 +123,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Tire", "tire", "Tire type (rigid/ancf_toroidal/ancf_airless)", tire_type_str);
     cli.AddOption<double>("Simulation", "nl", "Normal Load (N)", std::to_string(normal_load));
     cli.AddOption<std::string>("Tire", "str_spk", "Enable straight spokes for ANCF tire (default: 1, use 0/1)", "1");
-    
+
     // Motion control enable/disable options
     cli.AddOption<std::string>("Motion", "long_speed", "Enable longitudinal speed control (default: 0, use 0/1)", "0");
     cli.AddOption<std::string>("Motion", "torque", "Enable torque control (default: 1, use 0/1)", "1");
@@ -268,12 +268,8 @@ int main(int argc, char* argv[]) {
     }
 
     std::ostringstream filename;
-    filename << out_dir << "/tire_test_torque" << torque_value 
-             << "_numSpokes_" << numSpokes 
-             << "_ymSpokes_" << y_modSpokes 
-             << "_ymOuterRing_" << y_modOuterRing 
-             << "_pr_" << p_ratio 
-             << "_stepsize_" << step_c 
+    filename << out_dir << "/tire_test_torque" << torque_value << "_numSpokes_" << numSpokes << "_ymSpokes_"
+             << y_modSpokes << "_ymOuterRing_" << y_modOuterRing << "_pr_" << p_ratio << "_stepsize_" << step_c
              << ".txt";
     std::string log_file = filename.str();
     std::ofstream logfile(log_file, std::ios::app);
@@ -314,8 +310,8 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         ancf_tire->SetNumberSpokes(numSpokes);                 // default is 16
-        //Options to set for straight spokes
-        if(set_str_spk){
+        // Options to set for straight spokes
+        if (set_str_spk) {
             ancf_tire->SetHubRelativeRotation(0);
             ancf_tire->SetSpokeCurvatureXPoint(0);
             ancf_tire->SetSpokeCurvatureZPoint(0);
@@ -352,7 +348,7 @@ int main(int argc, char* argv[]) {
     if (fea_tire) {
         sys = new ChSystemSMC;
         step_size = step_c;
-        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        integrator_type = ChTimestepper::Type::HHT;
     } else {
         sys = new ChSystemNSC;
         step_size = 2e-4;  // 2e-4
@@ -511,35 +507,37 @@ int main(int argc, char* argv[]) {
     // Create the run-time visualization
     // ---------------------------------
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
-    #ifndef CHRONO_VSG
-        if (vis_type == ChVisualSystem::Type::VSG)
-            vis_type = ChVisualSystem::Type::IRRLICHT;
+    #ifdef CHRONO_VSG
+    vis_type = ChVisualSystem::Type::VSG;
+    #endif
+    #if defined(CHRONO_IRRLICHT) && !defined(CHRONO_VSG)
+    vis_type = ChVisualSystem::Type::IRRLICHT;
     #endif
 
     std::shared_ptr<ChVisualSystem> vis;
     switch (vis_type) {
         case ChVisualSystem::Type::IRRLICHT: {
     #ifdef CHRONO_IRRLICHT
-                auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
-                vis_irr->AttachSystem(sys);
-                vis_irr->SetCameraVertical(CameraVerticalDir::Z);
-                vis_irr->SetWindowSize(1200, 600);
-                vis_irr->SetWindowTitle("Tire Test Rig");
-                vis_irr->Initialize();
-                vis_irr->AddLogo();
-                vis_irr->AddSkyBox();
-                vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
-                vis_irr->AddLightDirectional();
+            auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+            vis_irr->AttachSystem(sys);
+            vis_irr->SetCameraVertical(CameraVerticalDir::Z);
+            vis_irr->SetWindowSize(1200, 600);
+            vis_irr->SetWindowTitle("Tire Test Rig");
+            vis_irr->Initialize();
+            vis_irr->AddLogo();
+            vis_irr->AddSkyBox();
+            vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
+            vis_irr->AddLightDirectional();
 
-                vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
+            vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
 
-                vis = vis_irr;
+            vis = vis_irr;
     #endif
             break;
         }
         // default:
         case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
+    #ifdef CHRONO_VSG
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
             vis_vsg->AttachSystem(sys);
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
@@ -551,7 +549,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->Initialize();
 
             vis = vis_vsg;
-#endif
+    #endif
             break;
         }
     }
@@ -600,7 +598,7 @@ int main(int argc, char* argv[]) {
     double wheel_init_x = spindle_body->GetPos().x();
     ChVector3d spring_left_end = rig.GetSpringLeftEnd();
     ChVector3d spring_right_end = rig.GetSpringRightEnd();
-    
+
     // Write crash info to both console and logfile
     auto WriteSimStats = [&](std::ostream& out, std::shared_ptr<ChBody> spindle_body) {
         out << "Simulated time: " << time << std::endl;
@@ -677,14 +675,12 @@ int main(int argc, char* argv[]) {
 
         //     return 1;
         // }
-        
-        
 
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
-                if (!vis->Run()) {
-                    break;
-                }
+            if (!vis->Run()) {
+                break;
+            }
 
             auto& loc = rig.GetPos();
 
@@ -694,24 +690,23 @@ int main(int argc, char* argv[]) {
             render_frame++;
 
     #ifdef CHRONO_POSTPROCESS
-                if (blender_output)
-                    blender_exporter.ExportData();
+            if (blender_output)
+                blender_exporter.ExportData();
     #endif
         }
 #endif
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
 
-        if (node_info){    
+        if (node_info) {
             node_p = rig.GetNodePressure(p_loc);
             node_sh = rig.GetNodeShear(p_loc);
             std::cout << "Pressure at X: " << p_loc.x() << " is " << node_p << " and Shear is " << node_sh << std::endl;
-            logfile << "Time: " << time << " X: " << p_loc.x() << " Pressure: " << node_p <<  " Shear: " << node_sh << std::endl;
+            logfile << "Time: " << time << " X: " << p_loc.x() << " Pressure: " << node_p << " Shear: " << node_sh
+                    << std::endl;
             logfile.flush();
         }
-
-
-       }
+    }
 
     timer.stop();
     step_time = timer();

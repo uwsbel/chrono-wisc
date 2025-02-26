@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) {
     bool set_longitudinal_speed = true;
     bool set_angular_speed = true;
     bool set_slip_angle = false;
-    bool snapshots = false;
+    bool snapshots = true;
 
     double max_linear_speed = 4;
     double ramp_time = 4;
@@ -406,8 +406,8 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         ancf_tire->SetNumberSpokes(numSpokes);
-        //Options to set for straight spokes
-        if(set_str_spk){
+        // Options to set for straight spokes
+        if (set_str_spk) {
             ancf_tire->SetHubRelativeRotation(0);
             ancf_tire->SetSpokeCurvatureXPoint(0);
             ancf_tire->SetSpokeCurvatureZPoint(0);
@@ -445,7 +445,7 @@ int main(int argc, char* argv[]) {
         sys = new ChSystemSMC;
         step_size = step_c;
         // integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
-        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_PROJECTED;
+        integrator_type = ChTimestepper::Type::HHT;
     } else {
         sys = new ChSystemNSC;
         step_size = 2e-4;  // 2e-4
@@ -628,9 +628,11 @@ int main(int argc, char* argv[]) {
     // Initialize output.LICHT)
     // vis_type = ChVisualSystem::Type::NONE;
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
-    #ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::IRRLICHT;
+    #ifdef CHRONO_VSG
+    vis_type = ChVisualSystem::Type::VSG;
+    #endif
+    #if defined(CHRONO_IRRLICHT) && !defined(CHRONO_VSG)
+    vis_type = ChVisualSystem::Type::IRRLICHT;
     #endif
 
     std::shared_ptr<ChVisualSystem> vis;
@@ -800,10 +802,10 @@ int main(int argc, char* argv[]) {
             vis->EndScene();
 
             if (snapshots) {
-            std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
-            std::ostringstream filename;
-            filename << snap_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
-            vis->WriteImageToFile(filename.str());
+                std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
+                std::ostringstream filename;
+                filename << snap_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
+                vis->WriteImageToFile(filename.str());
             }
             render_frame++;
 
