@@ -244,6 +244,13 @@ class CH_VEHICLE_API ChTireTestRig_TorqueControl {
 
     float GetNodeShear(const ChVector3d& loc);
 
+    double GetSlope() const { return m_slope; }
+
+    // For updating the torque of the motor before every time step
+    void UpdateRotationalMotor(std::shared_ptr<ChFunction> funct);
+
+    void UpdateSlope();
+
   private:
     enum class TerrainType { SCM, RIGID, CRG, GRANULAR, CRM, NONE };
 

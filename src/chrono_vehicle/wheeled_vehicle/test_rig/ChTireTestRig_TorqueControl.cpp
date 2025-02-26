@@ -97,6 +97,20 @@ void ChTireTestRig_TorqueControl::SetTireCollisionType(ChTire::CollisionType col
     m_tire->SetCollisionType(coll_type);
 }
 
+void ChTireTestRig_TorqueControl::UpdateRotationalMotor(std::shared_ptr<ChFunction> funct) {
+    //To Do: Add this to Advance function
+    m_rs_fun = funct;
+    if (m_rs_actuated) {
+        m_rot_motor->SetTorqueFunction(m_rs_fun);
+    }
+}
+
+void ChTireTestRig_TorqueControl::UpdateSlope() {
+    //To Do: Add this to Advance function
+    ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
+    m_system->SetGravitationalAcceleration(modified_grav);
+}
+
 // -----------------------------------------------------------------------------
 
 void ChTireTestRig_TorqueControl::SetTerrainRigid(const TerrainParamsRigid& params) {
@@ -280,6 +294,7 @@ void ChTireTestRig_TorqueControl::Initialize(Mode mode) {
 
 // -----------------------------------------------------------------------------
 
+
 void ChTireTestRig_TorqueControl::Advance(double step) {
     double time = m_system->GetChTime();
 
@@ -299,6 +314,7 @@ void ChTireTestRig_TorqueControl::Advance(double step) {
         m_tire->Advance(step);
         m_system->DoStepDynamics(step);
     }
+
 }
 
 // -----------------------------------------------------------------------------
