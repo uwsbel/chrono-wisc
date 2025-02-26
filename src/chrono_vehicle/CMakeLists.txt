@@ -547,6 +547,8 @@ set(CV_WV_TEST_RIG_FILES
     wheeled_vehicle/test_rig/ChSuspensionTestRigDataDriver.cpp
     wheeled_vehicle/test_rig/ChTireTestRig.h
     wheeled_vehicle/test_rig/ChTireTestRig.cpp
+    wheeled_vehicle/test_rig/ChTireTestRig_TorqueControl.h
+    wheeled_vehicle/test_rig/ChTireTestRig_TorqueControl.cpp
 )
 source_group("wheeled_vehicle\\test_rig" FILES ${CV_WV_TEST_RIG_FILES})
 
@@ -597,7 +599,9 @@ set(CV_WV_TIRE_FILES
     wheeled_vehicle/tire/ANCFAirlessTire.cpp
 	wheeled_vehicle/tire/ANCFAirlessTireV2.h
     wheeled_vehicle/tire/ANCFAirlessTireV2.cpp
-    wheeled_vehicle/tire/ReissnerToroidalTire.h
+    wheeled_vehicle/tire/ANCFAirlessTire3443B.h
+    wheeled_vehicle/tire/ANCFAirlessTire3443B.cpp
+	wheeled_vehicle/tire/ReissnerToroidalTire.h
     wheeled_vehicle/tire/ReissnerToroidalTire.cpp
     wheeled_vehicle/tire/Pac02Tire.h
     wheeled_vehicle/tire/Pac02Tire.cpp

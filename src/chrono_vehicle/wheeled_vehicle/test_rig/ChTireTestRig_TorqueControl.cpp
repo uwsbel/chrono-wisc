@@ -16,7 +16,7 @@
 //
 // =============================================================================
 
-#include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig.h"
+#include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig_TorqueControl.h"
 
 #include "chrono/assets/ChVisualShapeBox.h"
 #include "chrono/assets/ChVisualShapeCylinder.h"
@@ -36,13 +36,15 @@ using namespace chrono::fsi;
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChRigidTire.h"
-
+#include "chrono/physics/ChBodyEasy.h"
 namespace chrono {
 namespace vehicle {
 
 // -----------------------------------------------------------------------------
 
-ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel, std::shared_ptr<ChTire> tire, ChSystem* system)
+ChTireTestRig_TorqueControl::ChTireTestRig_TorqueControl(std::shared_ptr<ChWheel> wheel,
+                                                         std::shared_ptr<ChTire> tire,
+                                                         ChSystem* system)
     : m_system(system),
       m_grav(9.8),
       m_slope(0),
@@ -54,19 +56,18 @@ ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel, std::shared_ptr<ChT
       m_time_delay(0),
       m_ls_actuated(false),
       m_rs_actuated(false),
-      m_long_slip_constant(false),
       m_terrain_type(TerrainType::NONE),
       m_terrain_offset(0),
       m_terrain_height(0),
       m_tire_step(1e-3),
+      m_spring_stiffness(100),
       m_tire_vis(VisualizationType::PRIMITIVES) {
-    // Default motion function for slip angle control
-    m_sa_fun = chrono_types::make_shared<ChFunctionConst>(0);
     // Default tire-terrain collision method
     m_tire->SetCollisionType(ChTire::CollisionType::SINGLE_POINT);
+    m_sa_fun = chrono_types::make_shared<ChFunctionConst>(0);  // No slip control
 }
 
-ChTireTestRig::~ChTireTestRig() {
+ChTireTestRig_TorqueControl::~ChTireTestRig_TorqueControl() {
     auto sys = m_ground_body->GetSystem();
     if (sys) {
         sys->Remove(m_ground_body);
@@ -82,40 +83,46 @@ ChTireTestRig::~ChTireTestRig() {
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::SetLongSpeedFunction(std::shared_ptr<ChFunction> funct) {
+void ChTireTestRig_TorqueControl::SetLongSpeedFunction(std::shared_ptr<ChFunction> funct) {
     m_ls_fun = funct;
     m_ls_actuated = true;
 }
 
-void ChTireTestRig::SetAngSpeedFunction(std::shared_ptr<ChFunction> funct) {
+void ChTireTestRig_TorqueControl::SetTorqueFunction(std::shared_ptr<ChFunction> funct) {
     m_rs_fun = funct;
     m_rs_actuated = true;
 }
 
-void ChTireTestRig::SetConstantLongitudinalSlip(double long_slip, double base_speed) {
-    m_ls_actuated = true;
-    m_rs_actuated = true;
-    m_long_slip_constant = true;
-    m_long_slip = long_slip;
-    m_base_speed = base_speed;
+void ChTireTestRig_TorqueControl::SetTireCollisionType(ChTire::CollisionType coll_type) {
+    m_tire->SetCollisionType(coll_type);
 }
 
-void ChTireTestRig::SetTireCollisionType(ChTire::CollisionType coll_type) {
-    m_tire->SetCollisionType(coll_type);
+void ChTireTestRig_TorqueControl::UpdateRotationalMotor(std::shared_ptr<ChFunction> funct) {
+    //To Do: Add this to Advance function
+    m_rs_fun = funct;
+    if (m_rs_actuated) {
+        m_rot_motor->SetTorqueFunction(m_rs_fun);
+    }
+}
+
+void ChTireTestRig_TorqueControl::UpdateSlope() {
+    //To Do: Add this to Advance function
+    ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
+    m_system->SetGravitationalAcceleration(modified_grav);
 }
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::SetTerrainRigid(const TerrainParamsRigid& params) {
+void ChTireTestRig_TorqueControl::SetTerrainRigid(const TerrainParamsRigid& params) {
     m_terrain_type = TerrainType::RIGID;
     m_params_rigid = params;
 }
 
-void ChTireTestRig::SetTerrainRigid(double friction,
-                                    double restitution,
-                                    double Young_modulus,
-                                    double terrain_length,
-                                    double terrain_width) {
+void ChTireTestRig_TorqueControl::SetTerrainRigid(double friction,
+                                                  double restitution,
+                                                  double Young_modulus,
+                                                  double terrain_length,
+                                                  double terrain_width) {
     m_terrain_type = TerrainType::RIGID;
 
     m_params_rigid.friction = (float)friction;
@@ -126,22 +133,22 @@ void ChTireTestRig::SetTerrainRigid(double friction,
     m_params_rigid.width = terrain_width;
 }
 
-void ChTireTestRig::SetTerrainSCM(const TerrainParamsSCM& params) {
+void ChTireTestRig_TorqueControl::SetTerrainSCM(const TerrainParamsSCM& params) {
     m_terrain_type = TerrainType::SCM;
     m_params_SCM = params;
 }
 
-void ChTireTestRig::SetTerrainSCM(double Bekker_Kphi,
-                                  double Bekker_Kc,
-                                  double Bekker_n,
-                                  double Mohr_cohesion,
-                                  double Mohr_friction,
-                                  double Janosi_shear,
-                                  double elastic_stiffness,
-                                  double damping,
-                                  double grid_spacing,
-                                  double terrain_length,
-                                  double terrain_width) {
+void ChTireTestRig_TorqueControl::SetTerrainSCM(double Bekker_Kphi,
+                                                double Bekker_Kc,
+                                                double Bekker_n,
+                                                double Mohr_cohesion,
+                                                double Mohr_friction,
+                                                double Janosi_shear,
+                                                double elastic_stiffness,
+                                                double damping,
+                                                double grid_spacing,
+                                                double terrain_length,
+                                                double terrain_width) {
     m_terrain_type = TerrainType::SCM;
 
     m_params_SCM.Bekker_Kphi = Bekker_Kphi;
@@ -158,18 +165,18 @@ void ChTireTestRig::SetTerrainSCM(double Bekker_Kphi,
     m_params_SCM.width = terrain_width;
 }
 
-void ChTireTestRig::SetTerrainGranular(const TerrainParamsGranular& params) {
+void ChTireTestRig_TorqueControl::SetTerrainGranular(const TerrainParamsGranular& params) {
     m_terrain_type = TerrainType::GRANULAR;
     m_params_granular = params;
 }
 
-void ChTireTestRig::SetTerrainGranular(double radius,
-                                       unsigned int num_layers,
-                                       double density,
-                                       double friction,
-                                       double cohesion,
-                                       double Young_modulus,
-                                       double terrain_width) {
+void ChTireTestRig_TorqueControl::SetTerrainGranular(double radius,
+                                                     unsigned int num_layers,
+                                                     double density,
+                                                     double friction,
+                                                     double cohesion,
+                                                     double Young_modulus,
+                                                     double terrain_width) {
     m_terrain_type = TerrainType::GRANULAR;
 
     m_params_granular.radius = radius;
@@ -182,12 +189,12 @@ void ChTireTestRig::SetTerrainGranular(double radius,
     m_params_granular.width = terrain_width;
 }
 
-void ChTireTestRig::SetTerrainCRM(double radius,
-                                  double density,
-                                  double cohesion,
-                                  double terrain_length,
-                                  double terrain_width,
-                                  double terrain_depth) {
+void ChTireTestRig_TorqueControl::SetTerrainCRM(double radius,
+                                                double density,
+                                                double cohesion,
+                                                double terrain_length,
+                                                double terrain_width,
+                                                double terrain_depth) {
 #ifndef CHRONO_FSI
     std::cerr << "ERROR: CRM terrain requires Chrono::FSI module." << std::endl;
     throw std::runtime_error("ERROR: CRM terrain requires Chrono::FSI module.");
@@ -208,7 +215,7 @@ void ChTireTestRig::SetTerrainCRM(double radius,
     m_params_crm.depth = terrain_depth;
 }
 
-void ChTireTestRig::SetTerrainCRM(const TerrainParamsCRM& params) {
+void ChTireTestRig_TorqueControl::SetTerrainCRM(const TerrainParamsCRM& params) {
 #ifndef CHRONO_FSI
     std::cerr << "ERROR: CRM terrain requires Chrono::FSI module." << std::endl;
     throw std::runtime_error("ERROR: CRM terrain requires Chrono::FSI module.");
@@ -260,18 +267,9 @@ class RotSpeedFunction : public BaseFunction, public ChFunction {
     double m_radius;
 };
 
-void ChTireTestRig::Initialize(Mode mode) {
+void ChTireTestRig_TorqueControl::Initialize(Mode mode) {
     CreateMechanism(mode);
     CreateTerrain();
-
-    if (mode != Mode::TEST)
-        return;
-
-    if (m_long_slip_constant) {
-        // Override motion functions to enforce specified constant longitudinal slip
-        m_ls_fun = chrono_types::make_shared<LinSpeedFunction>(m_base_speed);
-        m_rs_fun = chrono_types::make_shared<RotSpeedFunction>(m_long_slip, m_base_speed, m_tire->GetRadius());
-    }
 
     struct DelayedFun : public ChFunction {
         DelayedFun() : m_fun(nullptr), m_delay(0) {}
@@ -290,14 +288,14 @@ void ChTireTestRig::Initialize(Mode mode) {
         m_lin_motor->SetSpeedFunction(chrono_types::make_shared<DelayedFun>(m_ls_fun, m_time_delay));
 
     if (m_rs_actuated)
-        m_rot_motor->SetSpeedFunction(chrono_types::make_shared<DelayedFun>(m_rs_fun, m_time_delay));
-
+        m_rot_motor->SetTorqueFunction(chrono_types::make_shared<DelayedFun>(m_rs_fun, m_time_delay));
     m_slip_lock->SetMotionAng1(chrono_types::make_shared<DelayedFun>(m_sa_fun, m_time_delay));
 }
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::Advance(double step) {
+
+void ChTireTestRig_TorqueControl::Advance(double step) {
     double time = m_system->GetChTime();
 
     if (m_terrain_type == TerrainType::CRM) {
@@ -316,11 +314,12 @@ void ChTireTestRig::Advance(double step) {
         m_tire->Advance(step);
         m_system->DoStepDynamics(step);
     }
+
 }
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::CreateMechanism(Mode mode) {
+void ChTireTestRig_TorqueControl::CreateMechanism(Mode mode) {
     ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
     m_system->SetGravitationalAcceleration(modified_grav);
 
@@ -399,7 +398,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     }
 
     m_spindle_body = chrono_types::make_shared<ChBody>();
-    m_spindle_body->SetFixed(mode == Mode::SUSPEND);
+    m_spindle_body->SetFixed(false);
     ChQuaternion<> qc;
     qc.SetFromAngleX(-m_camber_angle);
     m_system->AddBody(m_spindle_body);
@@ -414,7 +413,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
                                                     dim / 2);
 
     // Create joints and motors
-    if (mode == Mode::TEST && m_ls_actuated) {
+    if (m_ls_actuated) {
         m_lin_motor = chrono_types::make_shared<ChLinkMotorLinearSpeed>();
         m_system->AddLink(m_lin_motor);
         m_lin_motor->Initialize(m_carrier_body, m_ground_body, ChFrame<>(ChVector3d(0, 0, 0), QuatFromAngleY(CH_PI_2)));
@@ -437,8 +436,8 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
 
     ChQuaternion<> z2y;
     z2y.SetFromAngleX(-CH_PI_2 - m_camber_angle);
-    if (mode == Mode::TEST && m_rs_actuated) {
-        m_rot_motor = chrono_types::make_shared<ChLinkMotorRotationSpeed>();
+    if (m_rs_actuated) {
+        m_rot_motor = chrono_types::make_shared<ChLinkMotorRotationTorque>();
         m_system->AddLink(m_rot_motor);
         m_rot_motor->Initialize(m_spindle_body, m_slip_body, ChFrame<>(ChVector3d(0, 3 * dim, -4 * dim), z2y));
     } else {
@@ -470,11 +469,36 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     // Set terrain offset (based on wheel center) and terrain height (below tire)
     m_terrain_offset = 3 * dim;
     m_terrain_height = -3 * dim - m_tire->GetRadius() - 0.1;
+
+    if (mode == Mode::SPRING) {
+        // Create a board and a spring attached to it and the wheel
+        ChVector3d terrain_end = ChVector3d(-m_run_off, 3 * dim, -4 * dim);
+        auto board = chrono_types::make_shared<ChBodyEasyBox>(0.01, 1.0, m_terrain_height, 1000, true, true);
+
+        board->SetPos(terrain_end);
+        board->SetMass(100);
+        board->SetInertiaXX(ChVector3d(100, 100, 100));
+        board->SetFixed(true);
+        board->EnableCollision(false);
+        board->AddVisualShape(chrono_types::make_shared<ChVisualShapeBox>(0.01, 0.1, m_terrain_height));
+        m_system->AddBody(board);
+
+        // Create a spring between the spring box and the wheel
+        auto spring_1 = chrono_types::make_shared<ChLinkTSDA>();
+        spring_1->Initialize(board, m_spindle_body, true, ChVector3d(0, 0, 0), ChVector3d(0, 0, 0));
+        spring_1->SetRestLength(abs(board->GetPos().x() - m_spindle_body->GetPos().x()));
+        spring_1->SetSpringCoefficient(m_spring_stiffness);
+        spring_1->SetDampingCoefficient(0);
+        m_system->AddLink(spring_1);
+        m_spring_left_end = spring_1->GetPoint1Abs();
+        m_spring_right_end = spring_1->GetPoint2Abs();
+        spring_1->AddVisualShape(chrono_types::make_shared<ChVisualShapeSpring>(0.1, 80, 15));
+    }
 }
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::CreateTerrain() {
+void ChTireTestRig_TorqueControl::CreateTerrain() {
     switch (m_terrain_type) {
         case TerrainType::SCM:
             CreateTerrainSCM();
@@ -493,7 +517,7 @@ void ChTireTestRig::CreateTerrain() {
     }
 }
 
-void ChTireTestRig::CreateTerrainSCM() {
+void ChTireTestRig_TorqueControl::CreateTerrainSCM() {
     ChVector3d location(m_params_SCM.length / 2 - m_run_off, m_terrain_offset, m_terrain_height);
 
     auto terrain = chrono_types::make_shared<vehicle::SCMTerrain>(m_system);
@@ -510,7 +534,7 @@ void ChTireTestRig::CreateTerrainSCM() {
     m_terrain = terrain;
 }
 
-void ChTireTestRig::CreateTerrainRigid() {
+void ChTireTestRig_TorqueControl::CreateTerrainRigid() {
     ChVector3d location(m_params_rigid.length / 2 - m_run_off, m_terrain_offset, m_terrain_height);
 
     auto terrain = chrono_types::make_shared<vehicle::RigidTerrain>(m_system);
@@ -532,7 +556,7 @@ void ChTireTestRig::CreateTerrainRigid() {
     m_terrain = terrain;
 }
 
-void ChTireTestRig::CreateTerrainGranular() {
+void ChTireTestRig_TorqueControl::CreateTerrainGranular() {
     double vertical_offset = m_params_granular.num_layers * (2 * m_params_granular.radius);
     ChVector3d location(0, m_terrain_offset, m_terrain_height - vertical_offset);
 
@@ -580,7 +604,7 @@ void ChTireTestRig::CreateTerrainGranular() {
     m_terrain = terrain;
 }
 
-void ChTireTestRig::CreateTerrainCRM() {
+void ChTireTestRig_TorqueControl::CreateTerrainCRM() {
 #ifdef CHRONO_FSI
     double initSpace0 = 2 * m_params_crm.radius;
 
@@ -656,7 +680,8 @@ void ChTireTestRig::CreateTerrainCRM() {
 
 // -----------------------------------------------------------------------------
 
-void ChTireTestRig::GetSuggestedCollisionSettings(double& collision_envelope, ChVector3i& collision_bins) const {
+void ChTireTestRig_TorqueControl::GetSuggestedCollisionSettings(double& collision_envelope,
+                                                                ChVector3i& collision_bins) const {
     if (m_terrain_type != TerrainType::GRANULAR) {
         collision_envelope = 0.01;
         collision_bins = ChVector3i(1, 1, 1);
@@ -674,14 +699,34 @@ void ChTireTestRig::GetSuggestedCollisionSettings(double& collision_envelope, Ch
 
 // -----------------------------------------------------------------------------
 
-TerrainForce ChTireTestRig::ReportTireForce() const {
+TerrainForce ChTireTestRig_TorqueControl::ReportTireForce() const {
     return m_tire->ReportTireForce(m_terrain.get());
 }
 
 // -----------------------------------------------------------------------------
 
-double ChTireTestRig::GetDBP() const {
+double ChTireTestRig_TorqueControl::GetDBP() const {
     return -m_lin_motor->GetMotorForce();
+}
+
+float ChTireTestRig_TorqueControl::GetNodePressure(const ChVector3d& loc) {
+    if (auto scm_terrain = std::dynamic_pointer_cast<SCMTerrain>(m_terrain)) {
+        auto node_info = scm_terrain->GetNodeInfo(loc);
+        return node_info.sigma;
+    } else {
+        std::cerr << "Error: GetNodePressure is only supported for SCM terrain." << std::endl;
+        return 0;
+    }
+}
+
+float ChTireTestRig_TorqueControl::GetNodeShear(const ChVector3d& loc) {
+    if (auto scm_terrain = std::dynamic_pointer_cast<SCMTerrain>(m_terrain)) {
+        auto node_info = scm_terrain->GetNodeInfo(loc);
+        return node_info.kshear;
+    } else {
+        std::cerr << "Error: GetNodeShear is only supported for SCM terrain." << std::endl;
+        return 0;
+    }
 }
 
 }  // end namespace vehicle

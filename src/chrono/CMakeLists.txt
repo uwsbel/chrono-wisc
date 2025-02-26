@@ -451,8 +451,9 @@ set(ChronoEngine_fea_elements_FILES
     fea/ChElementBeamANCF_3333.cpp
     fea/ChElementShellANCF_3423.cpp
 	fea/ChElementShellANCF_3423T.cpp
-    fea/ChElementShellANCF_3833.cpp
     fea/ChElementShellANCF_3443.cpp
+	fea/ChElementShellANCF_3443B.cpp
+    fea/ChElementShellANCF_3833.cpp
     fea/ChElementShellBST.cpp
     fea/ChElementShellReissner4.cpp
     #
@@ -483,6 +484,7 @@ set(ChronoEngine_fea_elements_FILES
     fea/ChElementShellANCF_3423.h
 	fea/ChElementShellANCF_3423T.h
     fea/ChElementShellANCF_3443.h
+	fea/ChElementShellANCF_3443B.h
     fea/ChElementShellANCF_3833.h
     fea/ChElementShellReissner4.h
     fea/ChElementShellBST.h
@@ -534,12 +536,16 @@ source_group(fea\\sections FILES ${ChronoEngine_fea_sections_FILES})
 set(ChronoEngine_fea_constraints_FILES
     fea/ChLinkNodeFrame.cpp
     fea/ChLinkNodeSlopeFrame.cpp
+	fea/ChLinkNodeSlope2Frame.cpp
+	fea/ChLinkNodeSlope3Frame.cpp
     fea/ChLinkNodeNode.cpp
     fea/ChLinkNodeFace.cpp
     fea/ChLinkBeamIGAFrame.cpp
     #
     fea/ChLinkNodeFrame.h
     fea/ChLinkNodeSlopeFrame.h
+	fea/ChLinkNodeSlope2Frame.h
+	fea/ChLinkNodeSlope3Frame.h
     fea/ChLinkNodeNode.h
     fea/ChLinkNodeFace.h
     fea/ChLinkBeamIGAFrame.h

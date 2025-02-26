@@ -30,7 +30,7 @@
 #include "chrono/ChConfig.h"
 #include "chrono/physics/ChLinkLock.h"
 #include "chrono/physics/ChLinkMotorLinearSpeed.h"
-#include "chrono/physics/ChLinkMotorRotationSpeed.h"
+#include "chrono/physics/ChLinkMotorRotationTorque.h"
 #include "chrono_vehicle/wheeled_vehicle/ChTire.h"
 #include "chrono_vehicle/wheeled_vehicle/ChWheel.h"
 
@@ -41,13 +41,12 @@ namespace vehicle {
 /// @{
 
 /// Definition of a single-tire test rig.
-class CH_VEHICLE_API ChTireTestRig {
+class CH_VEHICLE_API ChTireTestRig_TorqueControl {
   public:
     /// Tire test rig operation mode.
     enum class Mode {
-        SUSPEND,  ///< suspended tire (locked spindle)
-        DROP,     ///< tire drop test
-        TEST      ///< normal tire test
+        TEST,    ///< normal tire test
+        SPRING,  ///< spring test
     };
 
     /// Rigid terrain patch parameters.
@@ -95,12 +94,12 @@ class CH_VEHICLE_API ChTireTestRig {
     };
 
     /// Construct a tire test rig within the specified system.
-    ChTireTestRig(std::shared_ptr<ChWheel> wheel,  ///< wheel subsystem
-                  std::shared_ptr<ChTire> tire,    ///< tire subsystem
-                  ChSystem* system                 ///< containing mechanical system
+    ChTireTestRig_TorqueControl(std::shared_ptr<ChWheel> wheel,  ///< wheel subsystem
+                                std::shared_ptr<ChTire> tire,    ///< tire subsystem
+                                ChSystem* system                 ///< containing mechanical system
     );
 
-    ~ChTireTestRig();
+    ~ChTireTestRig_TorqueControl();
 
     /// Set gravitational acceleration (default: 9.81 m/s2).
     void SetGravitationalAcceleration(double grav) { m_grav = grav; }
@@ -120,16 +119,7 @@ class CH_VEHICLE_API ChTireTestRig {
 
     /// Specify wheel angular speed as function of time (default: none).
     /// If a function is not specified, the wheel is not actuated.
-    void SetAngSpeedFunction(std::shared_ptr<ChFunction> funct);
-
-    /// Specify wheel slip angle as function of time (default: constant value 0 rad).
-    void SetSlipAngleFunction(std::shared_ptr<ChFunction> funct) { m_sa_fun = funct; }
-
-    /// Specify a constant given longitudinal slip. This version overrides the motion functions for the carrier
-    /// longitudinal slip and for the wheel angular speed to enfore the specified longitudinalslip value. A positive
-    /// slip value indicates that the wheel is spinning. A negative slip value indicates that the wheel is sliding
-    /// (skidding); in particular, s=-1 indicates sliding without rotation.
-    void SetConstantLongitudinalSlip(double long_slip, double base_speed = 1);
+    void SetTorqueFunction(std::shared_ptr<ChFunction> funct);
 
     /// Set collision type for tire-terrain interaction (default: SINGLE_POINT).
     void SetTireCollisionType(ChTire::CollisionType coll_type);
@@ -205,6 +195,11 @@ class CH_VEHICLE_API ChTireTestRig {
     /// Set time delay before applying motion functions (default: 0 s).
     void SetTimeDelay(double delay) { m_time_delay = delay; }
 
+    /// Set spring stiffness (default: 100 N/m).
+    void SetSpringStiffness(double stiffness) { m_spring_stiffness = stiffness; }
+
+    double GetSpringStiffness() const { return m_spring_stiffness; }
+
     /// Initialize the rig system.
     /// It is the user's responsibility to set the operation mode and motion functions in a consistent way.
     void Initialize(Mode mode);
@@ -228,6 +223,9 @@ class CH_VEHICLE_API ChTireTestRig {
     /// Get current carrier body position.
     const ChVector3d& GetPos() const { return m_carrier_body->GetPos(); }
 
+    const ChVector3d& GetSpringLeftEnd() const { return m_spring_left_end; }
+    const ChVector3d& GetSpringRightEnd() const { return m_spring_right_end; }
+
     /// Get the current tire forces
     TerrainForce ReportTireForce() const;
 
@@ -241,6 +239,17 @@ class CH_VEHICLE_API ChTireTestRig {
     const std::shared_ptr<ChBody> GetSpindleBody() const { return m_spindle_body; }
 
     void SetRunOff(double run_off) { m_run_off = run_off; }
+
+    float GetNodePressure(const ChVector3d& loc);
+
+    float GetNodeShear(const ChVector3d& loc);
+
+    double GetSlope() const { return m_slope; }
+
+    // For updating the torque of the motor before every time step
+    void UpdateRotationalMotor(std::shared_ptr<ChFunction> funct);
+
+    void UpdateSlope();
 
   private:
     enum class TerrainType { SCM, RIGID, CRG, GRANULAR, CRM, NONE };
@@ -287,16 +296,16 @@ class CH_VEHICLE_API ChTireTestRig {
     std::shared_ptr<ChFunction> m_rs_fun;  ///< angular speed function of time
     std::shared_ptr<ChFunction> m_sa_fun;  ///< slip angle function of time
 
-    bool m_long_slip_constant;  ///< true if constant longitudinal slip was specified
-    double m_long_slip;         ///< user-specified longitudinal slip
-    double m_base_speed;        ///< base speed for long slip calculation
-
     double m_slope;  ///< slope angle for the terrain
     double m_run_off;
 
-    std::shared_ptr<ChLinkMotorLinearSpeed> m_lin_motor;    ///< carrier actuator
-    std::shared_ptr<ChLinkMotorRotationSpeed> m_rot_motor;  ///< wheel actuator
-    std::shared_ptr<ChLinkLockLock> m_slip_lock;            ///< slip angle actuator
+    std::shared_ptr<ChLinkMotorLinearSpeed> m_lin_motor;     ///< carrier actuator
+    std::shared_ptr<ChLinkMotorRotationTorque> m_rot_motor;  ///< wheel actuator
+    std::shared_ptr<ChLinkLockLock> m_slip_lock;             ///< slip angle actuator - Always locked
+
+    ChVector3d m_spring_left_end;
+    ChVector3d m_spring_right_end;
+    double m_spring_stiffness;
 };
 
 /// @} vehicle_wheeled_test_rig

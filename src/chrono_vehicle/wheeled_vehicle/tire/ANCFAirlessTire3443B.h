@@ -14,12 +14,12 @@
 //
 // ANCF airless tire example.
 // This is a customizable ANCF tire class which creates an example of an airless
-// style tires using ANCF Shell 3423 elements.
+// style tires using ANCF Shell 3443B elements.
 //
 // =============================================================================
 
-#ifndef ANCF_AIRLESS_TIRE_H
-#define ANCF_AIRLESS_TIRE_H
+#ifndef ANCF_AIRLESS_TIRE_3443B_H
+#define ANCF_AIRLESS_TIRE_3443B_H
 
 #include "chrono_vehicle/ChApiVehicle.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChANCFTire.h"
@@ -27,10 +27,10 @@
 namespace chrono {
 namespace vehicle {
 
-class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
+class CH_VEHICLE_API ANCFAirlessTire3443B : public ChANCFTire {
   public:
-    ANCFAirlessTire(const std::string& name);
-    ~ANCFAirlessTire() {}
+    ANCFAirlessTire3443B(const std::string& name);
+    ~ANCFAirlessTire3443B() {}
 
     virtual double GetRadius() const override { return m_rim_radius + m_height; }
     virtual double GetRimRadius() const override { return m_rim_radius; }
@@ -45,6 +45,10 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
     void SetOuterRingThickness(double thickness) { m_t_outer_ring = thickness; }
     void SetSpokeThickness(double thickness) { m_t_spoke = thickness; }
     void SetNumberSpokes(int number) { m_num_spoke = number; }
+    void SetTSpokeFraction(double frac) { m_spoke_t_frac = frac;  };
+    void SetHubRelativeRotation(double ang) { m_hub_rel_ang = ang; };
+    void SetSpokeCurvatureXPoint(double x) { m_spoke_curv_pnt_x = x; };
+    void SetSpokeCurvatureZPoint(double z) { m_spoke_curv_pnt_z = z; };
 
     void SetDivWidth(int div_width) { m_div_width = div_width; }
     void SetDivSpokeLength(int div_spoke_len) { m_div_spoke_len = div_spoke_len; }
@@ -58,22 +62,17 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
         m_matOuterRing = mat;
     }
 
-    // Set Youngs Modulus for Spokes and Outer Ring
+    void SetYoungsModulus(double E) {
+      m_ESpokes = E;
+      m_EOuterRing = E;
+  }
+
+  // Set Youngs Modulus for Spokes and Outer Ring
     void SetYoungsModulusSpokes(double E) { m_ESpokes = E; }
     void SetYoungsModulusOuterRing(double E) { m_EOuterRing = E; }
 
-    void SetYoungsModulus(double E) {
-        m_ESpokes = E;
-        m_EOuterRing = E;
-    }
-
-    // Set Poissons Ratio
     void SetPoissonsRatio(double nu) { m_nu = nu; }
-
-    // Set Density
     void SetDensity(double rho) { m_rho = rho; }
-
-    // Set Alpha
     void SetAlpha(double alpha) { m_alpha = alpha; }
     virtual void CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) override;
 
@@ -85,6 +84,10 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
     double m_width;
     double m_t_outer_ring;
     double m_t_spoke;
+    double m_spoke_t_frac;
+    double m_hub_rel_ang;
+    double m_spoke_curv_pnt_x;
+    double m_spoke_curv_pnt_z;
     int m_num_spoke;
 
     int m_div_width;
@@ -99,6 +102,7 @@ class CH_VEHICLE_API ANCFAirlessTire : public ChANCFTire {
 
     std::shared_ptr<ChContactMaterialSMC> m_matSpokes;
     std::shared_ptr<ChContactMaterialSMC> m_matOuterRing;
+
     std::vector<std::shared_ptr<fea::ChNodeFEAbase>> m_hub_nodes;
 };
 
