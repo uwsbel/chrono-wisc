@@ -36,7 +36,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
-#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig_TorqueControl.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
@@ -273,7 +273,7 @@ int main(int argc, char* argv[]) {
     std::ostringstream filename;
     filename << out_dir << "/tire_test_torque" << torque_value << "_numSpokes_" << numSpokes << "_ymSpokes_"
              << y_modSpokes << "_ymOuterRing_" << y_modOuterRing << "_pr_" << p_ratio << "_stepsize_" << step_c
-             << "_slope_" << slope << ".txt";
+             << "_slope_" << slope << "_3443B.txt";
     std::string log_file = filename.str();
     std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
@@ -299,7 +299,7 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetAlpha(0.15);
         tire = ancf_tire;
     } else if (tire_type == TireType::ANCF_AIRLESS) {
-        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+        auto ancf_tire = chrono_types::make_shared<ANCFAirlessTire3443B>("ANCFairless tire");
         // These are default sizes for the polaris tire
         ancf_tire->SetRimRadius(0.225);  // Default is 0.225
         ancf_tire->SetHeight(0.225);     // Default is 0.225
@@ -313,6 +313,12 @@ int main(int argc, char* argv[]) {
         ancf_tire->SetDivSpokeLength(3 * refine_level);        // Default is 3
         ancf_tire->SetDivOuterRingPerSpoke(3 * refine_level);  // Default is 3
         ancf_tire->SetNumberSpokes(numSpokes);                 // default is 16
+        // Options to set for straight spokes
+        if (set_str_spk) {
+            ancf_tire->SetHubRelativeRotation(0);
+            ancf_tire->SetSpokeCurvatureXPoint(0);
+            ancf_tire->SetSpokeCurvatureZPoint(0);
+        }
         tire = ancf_tire;
     } else {
         std::string tire_file;
@@ -639,11 +645,10 @@ int main(int argc, char* argv[]) {
     // Write to logfile
     WriteSpecs(logfile);
 
-    double t_end = 100;
+    double t_end = 50;
 
     // Slope change condition and PID controller
-    double t_slope_change = 10.0;  // Distance after which slope changes (in meters)
-    double final_slope = slope;    // Final slope value in degrees after t_slope_change time (from CLI)
+    double t_slope_change = 20.0;  // Distance after which slope changes (in meters)
     bool slope_changed = false;
 
     // PID Controller parameters (with debug)
@@ -651,7 +656,7 @@ int main(int argc, char* argv[]) {
     double x_pos = spindle_body->GetPos().x();
     double x_vel = spindle_body->GetPosDt().x();
     double x_acc = spindle_body->GetPosDt2().x();
-    double desired_speed = 0.5;
+    double desired_speed = 1;
     double derivative = 0;
     double integral = 0;                       // Initialize integral term
     double speed_err = desired_speed - x_vel;  // Initialize error term
@@ -693,7 +698,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (!slope_changed && time >= t_slope_change) {
-            rig.SetSlope(final_slope * CH_DEG_TO_RAD);
+            rig.SetSlope(slope * CH_DEG_TO_RAD);
             rig.UpdateSlope();
             slope_changed = true;
         }
