@@ -148,7 +148,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             auto integrator = std::static_pointer_cast<chrono::ChTimestepperHHT>(sys.GetTimestepper());
             integrator->SetAlpha(-0.2);
             integrator->SetMaxIters(50);
-            integrator->SetAbsTolerances(1e-4, 1e2);
+            integrator->SetAbsTolerances(1e-5, 1e2);
             integrator->SetStepControl(false);
             integrator->SetModifiedNewton(true);
             break;

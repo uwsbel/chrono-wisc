@@ -130,9 +130,9 @@ int main(int argc, char** argv) {
     }
 
     // Simulation parameters
-    double step_size = 2e-5;  // 2e-5
+    double step_size = 1e-4;  // 2e-5
     double step_rigid_tire = 1e-3;
-    double step_fea_tire = 2e-5;  // 2e-5
+    double step_fea_tire = 1e-4;  // 2e-5
     int nthreads_terrain = 4;
     double sim_time = 20.0;
 
@@ -335,22 +335,22 @@ int main(int argc, char** argv) {
                 tire->GetSystem().SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 auto& sys = tire->GetSystem();
                 // Do not modify these settings
-                auto solver_type = ChSolver::Type::SPARSE_LU;
-                auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_PROJECTED;
+                auto solver_type = ChSolver::Type::PARDISO_MKL;
+                auto integrator_type = ChTimestepper::Type::HHT;
                 int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
                 int num_threads_collision = 1;
                 int num_threads_eigen = 1;
                 int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
                 SetChronoSolver(sys, solver_type, integrator_type);
                 sys.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
-                if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
-                    hht->SetAlpha(-0.2);
-                    hht->SetMaxIters(5);
-                    hht->SetAbsTolerances(1e-2);
-                    hht->SetStepControl(false);
-                    hht->SetMinStepSize(step_fea_tire);
-                    ////hht->SetVerbose(true);
-                }
+                // if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
+                //     hht->SetAlpha(-0.2);
+                //     hht->SetMaxIters(5);
+                //     hht->SetAbsTolerances(1e-2);
+                //     hht->SetStepControl(false);
+                //     hht->SetMinStepSize(step_fea_tire);
+                //     ////hht->SetVerbose(true);
+                // }
 
                 node = tire;
                 break;
