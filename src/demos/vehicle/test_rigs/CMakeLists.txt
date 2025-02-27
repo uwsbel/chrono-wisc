@@ -8,6 +8,7 @@ if(NOT ENABLE_MODULE_IRRLICHT AND NOT ENABLE_MODULE_VSG)
     set(DEMOS 
         demo_VEH_TireTestRig_LargeScaleTesting
         demo_VEH_TireTestRig_TorqueControl_LargeScaleTesting
+        demo_VEH_TireTestRig_SpeedControl_LargeScaleTesting
         )
 else()
     #--------------------------------------------------------------

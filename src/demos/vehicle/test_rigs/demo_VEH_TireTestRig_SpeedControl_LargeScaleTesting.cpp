@@ -74,7 +74,7 @@ using std::endl;
 // Run-time visualization system (IRRLICHT or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::NONE;
 #endif
-bool render = true;
+bool render = false;
 // Tire model
 enum class TireType { RIGID, ANCF_TOROIDAL, ANCF_AIRLESS };
 TireType tire_type = TireType::ANCF_AIRLESS;
@@ -89,7 +89,7 @@ bool blender_output = false;
 std::string wheel_json = "Polaris/Polaris_Wheel.json";
 double time_delay = 0.1;
 
-bool debug = true; // Add this line to define the debug variable
+bool debug = true;  // Add this line to define the debug variable
 
 // ----------------------------------------------------------------------------
 bool GetProblemSpecs(int argc,
@@ -127,7 +127,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Tire", "tire", "Tire type (rigid/ancf_toroidal/ancf_airless)", tire_type_str);
     cli.AddOption<double>("Simulation", "nl", "Normal Load (N)", std::to_string(normal_load));
     cli.AddOption<std::string>("Tire", "str_spk", "Enable straight spokes for ANCF tire (default: 1, use 0/1)", "1");
-    
+
     // Motion control enable/disable options
     cli.AddOption<std::string>("Motion", "long_speed", "Enable longitudinal speed control (default: 0, use 0/1)", "0");
     cli.AddOption<std::string>("Motion", "torque", "Enable torque control (default: 1, use 0/1)", "1");
@@ -271,14 +271,9 @@ int main(int argc, char* argv[]) {
     }
 
     std::ostringstream filename;
-    filename << out_dir << "/tire_test_torque" << torque_value 
-             << "_numSpokes_" << numSpokes 
-             << "_ymSpokes_" << y_modSpokes 
-             << "_ymOuterRing_" << y_modOuterRing 
-             << "_pr_" << p_ratio 
-             << "_stepsize_" << step_c 
-             << "_slope_" << slope
-             << ".txt";
+    filename << out_dir << "/tire_test_torque" << torque_value << "_numSpokes_" << numSpokes << "_ymSpokes_"
+             << y_modSpokes << "_ymOuterRing_" << y_modOuterRing << "_pr_" << p_ratio << "_stepsize_" << step_c
+             << "_slope_" << slope << ".txt";
     std::string log_file = filename.str();
     std::ofstream logfile(log_file, std::ios::app);
     if (!logfile.is_open()) {
@@ -510,35 +505,35 @@ int main(int argc, char* argv[]) {
     // ---------------------------------
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
     #ifdef CHRONO_VSG
-        vis_type = ChVisualSystem::Type::VSG;
+    vis_type = ChVisualSystem::Type::VSG;
     #else
-        vis_type = ChVisualSystem::Type::IRRLICHT;
+    vis_type = ChVisualSystem::Type::IRRLICHT;
     #endif
 
     std::shared_ptr<ChVisualSystem> vis;
     switch (vis_type) {
         case ChVisualSystem::Type::IRRLICHT: {
     #ifdef CHRONO_IRRLICHT
-                auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
-                vis_irr->AttachSystem(sys);
-                vis_irr->SetCameraVertical(CameraVerticalDir::Z);
-                vis_irr->SetWindowSize(1200, 600);
-                vis_irr->SetWindowTitle("Tire Test Rig");
-                vis_irr->Initialize();
-                vis_irr->AddLogo();
-                vis_irr->AddSkyBox();
-                vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
-                vis_irr->AddLightDirectional();
+            auto vis_irr = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+            vis_irr->AttachSystem(sys);
+            vis_irr->SetCameraVertical(CameraVerticalDir::Z);
+            vis_irr->SetWindowSize(1200, 600);
+            vis_irr->SetWindowTitle("Tire Test Rig");
+            vis_irr->Initialize();
+            vis_irr->AddLogo();
+            vis_irr->AddSkyBox();
+            vis_irr->AddCamera(ChVector3d(1.0, 2.5, 1.0));
+            vis_irr->AddLightDirectional();
 
-                vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
+            vis_irr->GetActiveCamera()->setFOV(irr::core::PI / 4.5f);
 
-                vis = vis_irr;
+            vis = vis_irr;
     #endif
             break;
         }
         // default:
         case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
+    #ifdef CHRONO_VSG
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
             vis_vsg->AttachSystem(sys);
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
@@ -550,7 +545,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->Initialize();
 
             vis = vis_vsg;
-#endif
+    #endif
             break;
         }
     }
@@ -599,7 +594,7 @@ int main(int argc, char* argv[]) {
     double wheel_init_x = spindle_body->GetPos().x();
     ChVector3d spring_left_end = rig.GetSpringLeftEnd();
     ChVector3d spring_right_end = rig.GetSpringRightEnd();
-    
+
     // Write crash info to both console and logfile
     auto WriteSimStats = [&](std::ostream& out, std::shared_ptr<ChBody> spindle_body) {
         out << "Simulated time: " << time << std::endl;
@@ -648,25 +643,25 @@ int main(int argc, char* argv[]) {
 
     // Slope change condition and PID controller
     double t_slope_change = 10.0;  // Distance after which slope changes (in meters)
-    double final_slope = slope;          // Final slope value in degrees after t_slope_change time (from CLI)
+    double final_slope = slope;    // Final slope value in degrees after t_slope_change time (from CLI)
     bool slope_changed = false;
 
-    //PID Controller parameters (with debug) 
+    // PID Controller parameters (with debug)
     bool debug = true;
     double x_pos = spindle_body->GetPos().x();
     double x_vel = spindle_body->GetPosDt().x();
     double x_acc = spindle_body->GetPosDt2().x();
     double desired_speed = 0.5;
     double derivative = 0;
-    double integral = 0; // Initialize integral term
-    double speed_err = desired_speed - x_vel; // Initialize error term
-    double previous_speed_err = speed_err;  // Initialize previous error
+    double integral = 0;                       // Initialize integral term
+    double speed_err = desired_speed - x_vel;  // Initialize error term
+    double previous_speed_err = speed_err;     // Initialize previous error
     double Kp = 400;
-    double Ki = 100; // Integral gain
-    double Kd = 50;  // Derivative gain
+    double Ki = 100;  // Integral gain
+    double Kd = 50;   // Derivative gain
     double t_adj = 0;
 
-    bool controller_active = false; // Flag to track if the controller is active
+    bool controller_active = false;  // Flag to track if the controller is active
 
     timer.start();
 
@@ -675,32 +670,28 @@ int main(int argc, char* argv[]) {
         x_pos = spindle_body->GetPos().x();
         x_vel = spindle_body->GetPosDt().x();
         x_acc = spindle_body->GetPosDt2().x();
-        
+
         static int log_counter = 0;
-        if (debug){
+        if (debug) {
             if (static_cast<int>(time * 10) > log_counter) {
                 log_counter = static_cast<int>(time * 10);
-                std::cout << std::fixed << std::setprecision(3)
-                        << "T: " << time << ", A_x: " << x_acc << ", V_x: " << x_vel << ", X_x: " << x_pos
-                        << ", Slope: " << rig.GetSlope() * CH_RAD_TO_DEG;
+                std::cout << std::fixed << std::setprecision(3) << "T: " << time << ", A_x: " << x_acc
+                          << ", V_x: " << x_vel << ", X_x: " << x_pos << ", Slope: " << rig.GetSlope() * CH_RAD_TO_DEG;
                 // Log to file
-                logfile << std::fixed << std::setprecision(3)
-                                    << "T: " << time << ", A_x: " << x_acc << ", V_x: " << x_vel << ", X_x: " << x_pos
-                                    << ", Slope: " << rig.GetSlope() * CH_RAD_TO_DEG;
+                logfile << std::fixed << std::setprecision(3) << "T: " << time << ", A_x: " << x_acc
+                        << ", V_x: " << x_vel << ", X_x: " << x_pos << ", Slope: " << rig.GetSlope() * CH_RAD_TO_DEG;
                 if (controller_active) {
-                    std::cout << ", V_ref: " << desired_speed 
-                            << ", V_err: " << speed_err 
-                            << ", T_Adj: " << t_adj << std::endl;
-                    logfile   << ", V_ref: " << desired_speed 
-                            << ", V_err: " << speed_err 
-                            << ", T_Adj: " << t_adj << std::endl;
+                    std::cout << ", V_ref: " << desired_speed << ", V_err: " << speed_err << ", T_Adj: " << t_adj
+                              << std::endl;
+                    logfile << ", V_ref: " << desired_speed << ", V_err: " << speed_err << ", T_Adj: " << t_adj
+                            << std::endl;
                 } else {
                     std::cout << std::endl;
                     logfile << std::endl;
                 }
             }
         }
-        
+
         if (!slope_changed && time >= t_slope_change) {
             rig.SetSlope(final_slope * CH_DEG_TO_RAD);
             rig.UpdateSlope();
@@ -708,7 +699,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (x_vel >= desired_speed && !controller_active) {
-            controller_active = true; // Activate the controller
+            controller_active = true;  // Activate the controller
             std::cout << "Controller activated \n";
         }
 
@@ -717,7 +708,7 @@ int main(int argc, char* argv[]) {
             derivative = (speed_err - previous_speed_err) / step_size;
             integral += speed_err * step_size;
             t_adj = Kp * speed_err + Ki * integral + Kd * derivative;
-            t_adj = std::clamp(t_adj, -200.0, 200.0); // Limit t_adj to the range [-100, 100]
+            t_adj = std::clamp(t_adj, -200.0, 200.0);  // Limit t_adj to the range [-100, 100]
             previous_speed_err = speed_err;
             rig.UpdateRotationalMotor(chrono_types::make_shared<ChFunctionConst>(t_adj));
         }
@@ -732,8 +723,7 @@ int main(int argc, char* argv[]) {
             WriteSimStats(logfile, spindle_body);
 
             return 1;
-        }
-        else if (wheel_init_x - spindle_body->GetPos().x() > run_off) {
+        } else if (wheel_init_x - spindle_body->GetPos().x() > run_off) {
             std::cout << std::endl << "Wheel has moved backwards beyond the runoff distance" << std::endl;
             logfile << std::endl << "Wheel has moved backwards beyond the runoff distance" << std::endl;
             timer.stop();
@@ -744,16 +734,15 @@ int main(int argc, char* argv[]) {
 
             return 1;
         }
-        
-        
+
 #if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
-                if (!vis->Run()) {
-                    break;
-                }
+            if (!vis->Run()) {
+                break;
+            }
 
             auto& loc = rig.GetPos();
-            vis->UpdateCamera(loc + ChVector3d(0, 2.5, 0),loc + ChVector3d(0.0, 0.0, -0.5));
+            vis->UpdateCamera(loc + ChVector3d(0, 2.5, 0), loc + ChVector3d(0.0, 0.0, -0.5));
 
             vis->BeginScene();
             vis->Render();
@@ -761,15 +750,14 @@ int main(int argc, char* argv[]) {
             render_frame++;
 
     #ifdef CHRONO_POSTPROCESS
-                if (blender_output)
-                    blender_exporter.ExportData();
+            if (blender_output)
+                blender_exporter.ExportData();
     #endif
         }
 #endif
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();
-
-       }
+    }
 
     timer.stop();
     step_time = timer();
