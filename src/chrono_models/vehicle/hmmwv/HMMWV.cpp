@@ -32,6 +32,7 @@
 #include "chrono_models/vehicle/hmmwv/tire/HMMWV_RigidTire.h"
 #include "chrono_models/vehicle/hmmwv/tire/HMMWV_TMeasyTire.h"
 #include "chrono_models/vehicle/hmmwv/tire/HMMWV_TMsimpleTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 
 #include "chrono_vehicle/ChPowertrainAssembly.h"
 #include "chrono_models/vehicle/hmmwv/powertrain/HMMWV_EngineShafts.h"
@@ -326,6 +327,40 @@ void HMMWV::Initialize() {
             m_tire_mass = tire_FL->GetMass();
 
             break;
+        }
+
+        case TireModelType::ANCF_AIRLESS3443B: {
+            auto tire_FL = chrono_types::make_shared<ANCFAirlessTire3443B>("FL");
+            auto tire_FR = chrono_types::make_shared<ANCFAirlessTire3443B>("FR");
+            auto tire_RL = chrono_types::make_shared<ANCFAirlessTire3443B>("RL");
+            auto tire_RR = chrono_types::make_shared<ANCFAirlessTire3443B>("RR");
+
+            for (auto tire : {tire_FL, tire_FR, tire_RL, tire_RR}) {
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetRimRadius(0.13);           // Default is 0.225
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHeight(0.2);               // Default is 0.225
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetWidth(0.24);               // Default is 0.4
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetAlpha(0.05);               // Default is 0.05
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusSpokes(1e9);  // Default is 76e9
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusOuterRing(
+                    1e9);                                                                      // Default is 76e9
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetPoissonsRatio(0.3);  // Default is 0.2
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivWidth(3);         // Default is 3
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivSpokeLength(3);   // Default is 3
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivOuterRingPerSpoke(3);
+
+                int collision_family = 7;
+                auto surface_type = ChTire::ContactSurfaceType::TRIANGLE_MESH;
+                double surface_dim = 0;
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetContactSurfaceType(surface_type, surface_dim,
+                                                                                             collision_family);
+            }
+
+            m_vehicle->InitializeTire(tire_FL, m_vehicle->GetAxle(0)->m_wheels[LEFT], VisualizationType::NONE);
+            m_vehicle->InitializeTire(tire_FR, m_vehicle->GetAxle(0)->m_wheels[RIGHT], VisualizationType::NONE);
+            m_vehicle->InitializeTire(tire_RL, m_vehicle->GetAxle(1)->m_wheels[LEFT], VisualizationType::NONE);
+            m_vehicle->InitializeTire(tire_RR, m_vehicle->GetAxle(1)->m_wheels[RIGHT], VisualizationType::NONE);
+
+            m_tire_mass = tire_FL->GetMass();
         }
     }
 

@@ -17,6 +17,7 @@ set(DEMOS
     demo_VEH_WheeledGenericSet
     demo_VEH_Wheeled
     demo_VEH_WheeledJSON
+    demo_VEH_ANCFTires
 )
 
 if(ENABLE_MODULE_IRRLICHT)
