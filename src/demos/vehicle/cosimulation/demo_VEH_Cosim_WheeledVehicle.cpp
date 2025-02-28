@@ -1,26 +1,4 @@
-// =============================================================================
-// PROJECT CHRONO - http://projectchrono.org
-//
-// Copyright (c) 2020 projectchrono.org
-// All right reserved.
-//
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file at the top level of the distribution and at
-// http://projectchrono.org/license-chrono.txt.
-//
-// =============================================================================
-// Authors: Radu Serban
-// =============================================================================
-//
-// Demo for wheeled vehicle cosimulation on SCM or rigid terrain.
-// The vehicle (specified through JSON files, for the vehicle, engine, and
-// transmission) is co-simulated with a terrain node and a number of rigid
-// tire nodes equal to the number of wheels.
-//
-// Global reference frame: Z up, X towards the front, and Y pointing to the left
-//
-// =============================================================================
-
+// Intuitive Machine Rover Cosim
 #include <iostream>
 #include <string>
 #include <limits>
@@ -57,42 +35,32 @@ class Vehicle_Model {
     virtual double InitHeight() const = 0;
 };
 
-class HMMWV_Model : public Vehicle_Model {
-  public:
-    virtual std::string ModelName() const override { return "HMMWV"; }
-    virtual std::string VehicleJSON() const override { return "hmmwv/vehicle/HMMWV_Vehicle.json"; }
-    virtual std::string TireJSON() const override { return "hmmwv/tire/HMMWV_RigidMeshTire_Coarse.json"; }
-    virtual std::string EngineJSON() const override { return "hmmwv/powertrain/HMMWV_EngineShafts.json"; }
-    virtual std::string TransmissionJSON() const override {
-        return "hmmwv/powertrain/HMMWV_AutomaticTransmissionShafts.json";
-    }
-    virtual double InitHeight() const override { return 0.75; }
-};
-
 class Polaris_Model : public Vehicle_Model {
   public:
     virtual std::string ModelName() const override { return "Polaris"; }
-    virtual std::string VehicleJSON() const override { return "Polaris/Polaris.json"; }
+    virtual std::string VehicleJSON() const override { return "Polaris/Polaris_LTV.json"; }
     virtual std::string TireJSON() const override { return "Polaris/Polaris_RigidMeshTire.json"; }
     // virtual std::string TireJSON() const override { return "Polaris/Polaris_ANCF4Tire_Lumped.json"; }
     virtual std::string EngineJSON() const override { return "Polaris/Polaris_EngineSimpleMap.json"; }
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
-    virtual double InitHeight() const override { return 0.2; }
+    std::string TrailerJSON() const { return "ultra_tow/UT_Trailer.json"; }
+    virtual double InitHeight() const override { return -0.05; }
 };
 
-bool use_airless_tire =
-    true;  // When this is set to true, the tire JSON files are not considered and the ANCFAirlessTire is used instead
+bool use_airless_tire = true;  // When this is set to true, the tire JSON files are not considered and the
+                               // ANCFAirlessTire is used instead
 auto vehicle_model = Polaris_Model();
 
 // =============================================================================
 // Specification of a terrain model from JSON file
 
-std::string terrain_specfile = "cosim/terrain/rigid.json";
-//  std::string terrain_specfile = "cosim/terrain/scm_soft.json";
+// std::string terrain_specfile = "cosim/terrain/rigid.json";
+std::string terrain_specfile = "cosim/terrain/scm_soft.json";
 double gravity = -9.81;
 // =============================================================================
+// Driver Definition
 
 class MyDriver : public ChDriver {
   public:
@@ -110,15 +78,21 @@ class MyDriver : public ChDriver {
         if (eff_time < 0)
             return;
 
-        if (eff_time > 0.2)
-            m_throttle = 0.7;
-        else
-            m_throttle = 3.5 * eff_time;
+        // if (eff_time > 0.0 && eff_time <= 6.0)
+        //     m_throttle = 0.95;
+        // else if (eff_time > 6.0)
+        //     m_throttle = 0.6;
 
-        if (eff_time < 2)
+        if (eff_time > 0.0) {
+            m_throttle = (4.5 - m_vehicle.GetSpeed()) * 0.3;
+            m_throttle = std::min(m_throttle, 1.0);
+            m_throttle = std::max(m_throttle, 0.0);
+        }
+
+        if (eff_time < 0.0)
             m_steering = 0;
         else
-            m_steering = 0.6 * std::sin(CH_2PI * (eff_time - 2) / 6);
+            m_steering = 0.3 * std::sin(CH_2PI * (eff_time - 0) / 6);
     }
 
   private:
@@ -148,19 +122,19 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
-    if (num_procs != 6) {
+    if (num_procs != 8) {
         if (rank == 0)
-            std::cout << "\n\n4-wheel vehicle cosimulation code must be run on exactly 6 ranks!\n\n" << std::endl;
+            std::cout << "\n\n6-wheel vehicle cosimulation code must be run on exactly 8 ranks!\n\n" << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
         return 1;
     }
 
     // Simulation parameters
-    double step_size = 1e-5;
-    double step_rigid_tire = 1e-5;
-    double step_fea_tire = 1e-5;
+    double step_size = 1e-4;  // 2e-5
+    double step_rigid_tire = 1e-3;
+    double step_fea_tire = 1e-4;  // 2e-5
     int nthreads_terrain = 4;
-    double sim_time = 8.0;
+    double sim_time = 20.0;
 
     double output_fps = 100;
     double render_fps = 100;
@@ -170,8 +144,8 @@ int main(int argc, char** argv) {
     bool writePP = true;
     bool writeRT = true;
     std::string suffix = "";
-    bool verbose = false;
-    bool render_tire[4] = {true, true, true, false};
+    bool verbose = true;
+    bool render_tire[6] = {true, true, true, true, true, true};
 
     // If use_DBP_rig=true, attach a drawbar pull rig to the vehicle
     bool use_DBP_rig = false;
@@ -183,7 +157,7 @@ int main(int argc, char** argv) {
         terrain_width = 5;
     }
 
-    ChVector3d init_loc(3.5, 0, vehicle_model.InitHeight());
+    ChVector3d init_loc(-10, 0, vehicle_model.InitHeight());
 
     // Prepare output directory.
     std::string out_dir = GetChronoOutputPath() + "WHEELED_VEHICLE_COSIM";
@@ -201,7 +175,7 @@ int main(int argc, char** argv) {
     int output_steps = (int)std::ceil(1 / (output_fps * step_size));
 
     // Initialize co-simulation framework (specify 4 tire nodes).
-    cosim::InitializeFramework(4);
+    cosim::InitializeFramework(6);
 
     // Peek in spec file and extract terrain type
     auto terrain_type = ChVehicleCosimTerrainNodeChrono::GetTypeFromSpecfile(vehicle::GetDataFile(terrain_specfile));
@@ -231,10 +205,12 @@ int main(int argc, char** argv) {
         if (verbose)
             cout << "[Vehicle node] rank = " << rank << " running on: " << procname << endl;
 
+        // To take out the trailer, simply set the trailer JSON to std::nullopt
+        // and adjust the number of ranks accordingly
         ChVehicleCosimWheeledVehicleNode* vehicle;
-        vehicle = new ChVehicleCosimWheeledVehicleNode(vehicle::GetDataFile(vehicle_model.VehicleJSON()),
-                                                       vehicle::GetDataFile(vehicle_model.EngineJSON()),
-                                                       vehicle::GetDataFile(vehicle_model.TransmissionJSON()));
+        vehicle = new ChVehicleCosimWheeledVehicleNode(
+            vehicle::GetDataFile(vehicle_model.VehicleJSON()), vehicle::GetDataFile(vehicle_model.EngineJSON()),
+            vehicle::GetDataFile(vehicle_model.TransmissionJSON()), vehicle::GetDataFile(vehicle_model.TrailerJSON()));
 
         if (use_DBP_rig) {
             auto act_type = ChVehicleCosimDBPRigImposedSlip::ActuationType::SET_ANG_VEL;
@@ -244,7 +220,7 @@ int main(int argc, char** argv) {
             vehicle->AttachDrawbarPullRig(dbp_rig);
         }
 
-        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.5);
+        auto driver = chrono_types::make_shared<MyDriver>(*vehicle->GetVehicle(), 0.25);
         vehicle->SetDriver(driver);
         vehicle->SetVerbose(verbose);
         vehicle->SetInitialLocation(init_loc);
@@ -255,7 +231,7 @@ int main(int argc, char** argv) {
             vehicle->EnableRuntimeVisualization(render_fps, writeRT);
         if (writePP)
             vehicle->EnablePostprocessVisualization(render_fps);
-        vehicle->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
+        vehicle->SetCameraPosition(ChVector3d(-terrain_length / 4, terrain_width / 2, 2), ChVector3d(-10, 0, 0));
         if (verbose)
             cout << "[Vehicle node] output directory: " << vehicle->GetOutDirName() << endl;
         vehicle->GetVehicle()->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
@@ -283,7 +259,8 @@ int main(int argc, char** argv) {
                     terrain->EnableRuntimeVisualization(render_fps);
                 if (writePP)
                     terrain->EnablePostprocessVisualization(render_fps);
-                terrain->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
+                terrain->SetCameraPosition(ChVector3d(-terrain_length / 4, terrain_width / 2, 2),
+                                           ChVector3d(-10, 0, 0));
                 if (verbose)
                     cout << "[Terrain node] output directory: " << terrain->GetOutDirName() << endl;
                 terrain->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
@@ -302,7 +279,7 @@ int main(int argc, char** argv) {
                     terrain->EnableRuntimeVisualization(render_fps, writeRT);
                 if (writePP)
                     terrain->EnablePostprocessVisualization(render_fps);
-                terrain->SetCameraPosition(ChVector3d(terrain_length / 4, terrain_width / 4, 2));
+                terrain->SetCameraPosition(ChVector3d(-terrain_length / 4, terrain_width / 2, 2));
                 if (verbose)
                     cout << "[Terrain node] output directory: " << terrain->GetOutDirName() << endl;
                 terrain->GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
@@ -357,22 +334,23 @@ int main(int argc, char** argv) {
                 }
                 tire->GetSystem().SetGravitationalAcceleration(ChVector3d(0, 0, gravity));
                 auto& sys = tire->GetSystem();
+                // Do not modify these settings
                 auto solver_type = ChSolver::Type::PARDISO_MKL;
-                auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+                auto integrator_type = ChTimestepper::Type::HHT;
                 int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
                 int num_threads_collision = 1;
                 int num_threads_eigen = 1;
                 int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
-                SetChronoSolver(sys, solver_type, integrator_type, num_threads_pardiso);
+                SetChronoSolver(sys, solver_type, integrator_type);
                 sys.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
-                if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
-                    hht->SetAlpha(-0.2);
-                    hht->SetMaxIters(5);
-                    hht->SetAbsTolerances(1e-2);
-                    hht->SetStepControl(false);
-                    hht->SetMinStepSize(step_fea_tire);
-                    ////hht->SetVerbose(true);
-                }
+                // if (auto hht = std::dynamic_pointer_cast<ChTimestepperHHT>(sys.GetTimestepper())) {
+                //     hht->SetAlpha(-0.2);
+                //     hht->SetMaxIters(5);
+                //     hht->SetAbsTolerances(1e-2);
+                //     hht->SetStepControl(false);
+                //     hht->SetMinStepSize(step_fea_tire);
+                //     ////hht->SetVerbose(true);
+                // }
 
                 node = tire;
                 break;

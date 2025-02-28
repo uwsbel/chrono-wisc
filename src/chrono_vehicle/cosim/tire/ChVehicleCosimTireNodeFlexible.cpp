@@ -72,7 +72,7 @@ ChVehicleCosimTireNodeFlexible::ChVehicleCosimTireNodeFlexible(int index,
     m_system->SetSolver(solver);
 #endif
 
-    auto integrator = chrono_types::make_shared<ChTimestepperHHT>();
+    auto integrator = chrono_types::make_shared<ChTimestepperHHT>(m_system);
     integrator->SetAlpha(-0.2);
     integrator->SetMaxIters(50);
     integrator->SetAbsTolerances(1e-04, 1e2);
@@ -100,6 +100,8 @@ void ChVehicleCosimTireNodeFlexible::Advance(double step_size) {
     }
     m_timer.stop();
     m_cum_sim_time += m_timer();
+
+    std::cout << "tire_mass: " << m_tire_def->GetTireMass() << std::endl;
 
     // Possible rendering
     Render(step_size);

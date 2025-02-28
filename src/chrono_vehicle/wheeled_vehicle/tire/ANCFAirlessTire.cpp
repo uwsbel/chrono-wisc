@@ -34,16 +34,16 @@ ANCFAirlessTire::ANCFAirlessTire(const std::string& name)
       m_rim_radius(0.225),
       m_height(0.225),
       m_width(0.4),
-      m_t_outer_ring(0.005),
+      m_t_outer_ring(0.05),
       m_t_spoke(0.003),
-      m_num_spoke(16),
+      m_num_spoke(20),
       m_div_width(3),
       m_div_spoke_len(3),
       m_div_ring_per_spoke(3),
       m_ESpokes(76e9),
       m_EOuterRing(76e9),
       m_nu(0.2),
-      m_rho(2580),
+      m_rho(800),
       m_alpha(0.05) {
     // default contact material
     m_matSpokes = chrono_types::make_shared<ChContactMaterialSMC>();

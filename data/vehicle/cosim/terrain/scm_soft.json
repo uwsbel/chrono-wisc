@@ -23,5 +23,7 @@
     "Simulation settings": {
         "Proxy contact radius": 0.002,
         "Fix proxies": true
-    }
+    },
+    
+    "SCM profile file":"terrain/height_maps/slope.bmp"
 }

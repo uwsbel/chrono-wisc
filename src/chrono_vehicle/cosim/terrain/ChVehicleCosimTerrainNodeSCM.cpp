@@ -124,6 +124,10 @@ void ChVehicleCosimTerrainNodeSCM::SetFromSpecfile(const std::string& specfile) 
 
     m_radius_p = d["Simulation settings"]["Proxy contact radius"].GetDouble();
     m_fixed_proxies = d["Simulation settings"]["Fix proxies"].GetBool();
+
+    if (d.HasMember("SCM profile file")) {
+        m_scm_profile_file = d["SCM profile file"].GetString();
+    }
 }
 
 void ChVehicleCosimTerrainNodeSCM::SetPropertiesSCM(double spacing,
@@ -176,7 +180,12 @@ void ChVehicleCosimTerrainNodeSCM::Construct() {
     m_terrain->SetPlotType(vehicle::SCMTerrain::PLOT_SINKAGE, 0, max_sinkage);
     m_terrain->SetMeshWireframe(false);
     m_terrain->SetCosimulationMode(true);
-    m_terrain->Initialize(m_dimX, m_dimY, m_spacing);
+    m_terrain->EnableBulldozing(false);
+    if (m_scm_profile_file) {
+        m_terrain->Initialize(vehicle::GetDataFile(m_scm_profile_file.value()), m_dimX, m_dimY, 0.0, 2.0, m_spacing);
+    } else {
+        m_terrain->Initialize(m_dimX, m_dimY, m_spacing);
+    }
 
     // If indicated, set node heights from checkpoint file
     if (m_use_checkpoint) {

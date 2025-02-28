@@ -111,8 +111,8 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             }
             case chrono::ChSolver::Type::SPARSE_QR: {
                 auto solver = std::static_pointer_cast<chrono::ChDirectSolverLS>(sys.GetSolver());
-                solver->LockSparsityPattern(false);
-                solver->UseSparsityPatternLearner(false);
+                solver->LockSparsityPattern(true);
+                solver->UseSparsityPatternLearner(true);
                 break;
             }
             case chrono::ChSolver::Type::BARZILAIBORWEIN:
@@ -128,9 +128,9 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             case chrono::ChSolver::Type::MINRES:
             case chrono::ChSolver::Type::GMRES: {
                 auto solver = std::static_pointer_cast<chrono::ChIterativeSolverLS>(sys.GetSolver());
-                solver->SetMaxIterations(200);
-                solver->SetTolerance(1e-10);
-                solver->EnableDiagonalPreconditioner(true);
+                solver->SetMaxIterations(400);
+                solver->SetTolerance(1e-12);
+                solver->EnableDiagonalPreconditioner(false);
                 break;
             }
             default:
@@ -140,6 +140,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
 
     // Set integrator
     sys.SetTimestepperType(intg_type);
+
     if (verbose)
         cout << prefix << "Setting integrator " << chrono::ChTimestepper::GetTypeAsString(intg_type) << endl;
     switch (intg_type) {
@@ -147,7 +148,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
             auto integrator = std::static_pointer_cast<chrono::ChTimestepperHHT>(sys.GetTimestepper());
             integrator->SetAlpha(-0.2);
             integrator->SetMaxIters(50);
-            integrator->SetAbsTolerances(1e-4, 1e2);
+            integrator->SetAbsTolerances(1e-5, 1e2);
             integrator->SetStepControl(false);
             integrator->SetModifiedNewton(true);
             break;
@@ -160,6 +161,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
         }
         case chrono::ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED:
         case chrono::ChTimestepper::Type::EULER_IMPLICIT_PROJECTED:
+        case chrono::ChTimestepper::Type::EULER_SEMI_IMPLICIT:
         default:
             break;
     }

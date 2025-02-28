@@ -215,6 +215,8 @@ class CH_VEHICLE_API ChChassisRear : public ChChassis {
     /// Get the location (in the local frame of this chassis) of the connection to the front chassis.
     virtual const ChVector3d& GetLocalPosFrontConnector() const = 0;
 
+    virtual double GetBodyMass() const override { return m_body->GetMass(); }
+
     /// Initialize the rear chassis relative to the specified front chassis.
     /// The orientation is set to be the same as that of the front chassis while the location is based on the connector
     /// position on the front and rear chassis.

@@ -24,6 +24,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/cosim/ChVehicleCosimTireNode.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 
 #include "chrono_thirdparty/rapidjson/filereadstream.h"
 #include "chrono_thirdparty/rapidjson/istreamwrapper.h"
@@ -64,23 +65,25 @@ ChVehicleCosimTireNode::ChVehicleCosimTireNode(int index, const std::string& tir
     if (!tire_json.empty() && !use_airless)
         m_tire = ReadTireJSON(tire_json);
     else if (use_airless) {
-        m_tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
+        m_tire = chrono_types::make_shared<ANCFAirlessTire3443B>("ANCFairless tire");
 
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetRimRadius(0.13);          // Default is 0.225
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetHeight(0.2);              // Default is 0.225
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetWidth(0.24);              // Default is 0.4
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetAlpha(0.05);              // Default is 0.05
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetYoungsModulus(10e9);      // Default is 76e9
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetPoissonsRatio(0.2);       // Default is 0.2
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivWidth(3);              // Default is 3
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivSpokeLength(3);        // Default is 3
-        std::dynamic_pointer_cast<ANCFAirlessTire>(m_tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetRimRadius(0.225);             // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetHeight(0.225);                // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetWidth(0.24);                  // Default is 0.4
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetAlpha(0.05);                  // Default is 0.05
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetYoungsModulusSpokes(1e9);     // Default is 76e9
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetYoungsModulusOuterRing(1e9);  // Default is 76e9
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetPoissonsRatio(0.3);           // Default is 0.2
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetDivWidth(3);                  // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetDivSpokeLength(3);            // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetDivOuterRingPerSpoke(3);      // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(m_tire)->SetNumberSpokes(40);             // Default is 40
     }
 
     // Set default solver and integrator
     auto solver = chrono_types::make_shared<ChSolverBB>();
     solver->SetMaxIterations(100);
-    solver->SetTolerance(1e-10);
+    solver->SetTolerance(1e-6);
     m_system->SetSolver(solver);
 
     m_system->SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED);
