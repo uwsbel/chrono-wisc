@@ -133,6 +133,7 @@ class Polaris_Model : public WheeledVehicleJSON {
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
+    std::string TrailerJSON() const { return "ultra_tow/UT_Trailer.json"; }
     virtual double CameraDistance() const override { return 7.0; }
 };
 
