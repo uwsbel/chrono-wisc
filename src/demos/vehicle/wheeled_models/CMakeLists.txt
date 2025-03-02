@@ -18,6 +18,7 @@ set(DEMOS
     demo_VEH_Wheeled
     demo_VEH_WheeledJSON
     demo_VEH_ANCFTires
+    demo_VEH_ltv
 )
 
 if(ENABLE_MODULE_IRRLICHT)
