@@ -72,3 +72,23 @@
 #if defined(SWIGCSHARP) && defined(HAVE_OPENCRG)
 %include "../../../chrono_vehicle/terrain/CRGTerrain.h"
 #endif
+
+%{
+#include <cstddef>
+#include "chrono/core/ChVector2.h"
+#include <Eigen/Core>
+#include <utility>
+#include <vector>
+%}
+
+%include "std_pair.i"
+%include "std_vector.i"
+
+%include <attribute.i>
+%attributeref(chrono::ChVector2<int>, int, x);
+%attributeref(chrono::ChVector2<int>, int, y);
+%include "../../../chrono/core/ChVector2.h"
+
+%template(ChVector2i) chrono::ChVector2<int>;
+%template(ChSCMNode) std::pair<ChVector2i, double>;
+%template(ChSCMModifiedNodes) std::vector<std::pair<ChVector2i, double>>;
