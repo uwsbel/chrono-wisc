@@ -592,7 +592,6 @@ void ChTireTestRig::CreateTerrainCRM() {
     terrain->SetOutputLevel(OutputLevel::STATE);
     ChVector3d modified_grav = ChVector3d(-m_grav * sin(m_slope), 0, -m_grav * cos(m_slope));
     terrain->SetGravitationalAcceleration(modified_grav);
-
     terrain->SetStepSizeCFD(m_tire_step);
 
     terrain->SetStepsizeMBD(m_tire_step);
