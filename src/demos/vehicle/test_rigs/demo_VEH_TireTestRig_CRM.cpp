@@ -29,6 +29,7 @@
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChTireTestRig.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 #include "chrono_vehicle/terrain/CRMTerrain.h"
 
 #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
@@ -74,13 +75,20 @@ bool debug_output = false;
 bool gnuplot_output = true;
 bool blender_output = false;
 
-bool set_longitudinal_speed = false;
+bool set_longitudinal_speed = true;
 bool set_angular_speed = true;
 bool set_slip_angle = false;
 
+double max_linear_speed = 4;
+double ramp_time = 4;
+double constant_time = 5;
+double slip = 0.1;
+double sim_time_max = ramp_time + constant_time;
+
 double input_time_delay = 0.5;
 bool render = true;
-
+bool set_str_spk = true;
+bool snapshots = true;
 // -----------------------------------------------------------------------------
 
 int main() {
@@ -93,16 +101,27 @@ int main() {
     if (!use_airless_tire) {
         tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
     } else {
-        tire = chrono_types::make_shared<ANCFAirlessTire>("ANCFairless tire");
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetRimRadius(0.13);          // Default is 0.225
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetHeight(0.2);              // Default is 0.225
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetWidth(0.24);              // Default is 0.4
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetAlpha(0.05);              // Default is 0.05
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetYoungsModulus(10e9);      // Default is 76e9
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetPoissonsRatio(0.2);       // Default is 0.2
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivWidth(3);              // Default is 3
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivSpokeLength(3);        // Default is 3
-        std::dynamic_pointer_cast<ANCFAirlessTire>(tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
+        tire = chrono_types::make_shared<ANCFAirlessTire3443B>("ANCFairless tire");
+        // These are default sizes for the polaris tire
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetRimRadius(0.225);           // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHeight(0.225);              // Default is 0.225
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetWidth(0.4);                 // Default is 0.4
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetAlpha(0.05);                // Default is 0.05
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetOuterRingThickness(0.015);  // Default is 0.015
+        // tire->SetYoungsModulus(y_mod);  // Default is 76e9
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusSpokes(1e6);
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusOuterRing(5e9);
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetPoissonsRatio(0.3);       // Default is 0.2
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivWidth(3);              // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivSpokeLength(3);        // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetNumberSpokes(16);
+        // Options to set for straight spokes
+        if (set_str_spk) {
+            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHubRelativeRotation(0);
+            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureXPoint(0);
+            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureZPoint(0);
+        }
     }
 
     bool fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(tire) != nullptr;
@@ -126,9 +145,9 @@ int main() {
 
     if (fea_tire) {
         sys = new ChSystemSMC;
-        step_size = 1e-4;
+        step_size = 1e-3;
         solver_type = ChSolver::Type::PARDISO_MKL;
-        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        integrator_type = ChTimestepper::Type::HHT;
     } else {
         sys = new ChSystemNSC;
         step_size = 2e-4;
@@ -173,7 +192,7 @@ int main() {
     params.radius = 0.01;
     params.density = 1700;
     params.cohesion = 5e3;
-    params.length = 10;
+    params.length = 20;
     params.width = 1;
     params.depth = 0.2;
     rig.SetTerrainCRM(params);
@@ -199,12 +218,36 @@ int main() {
     //   longitudinal speed: 0.2 m/s
     //   angular speed: 10 RPM
     //   slip angle: sinusoidal +- 5 deg with 5 s period
-    if (set_longitudinal_speed)
-        rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionConst>(0.2));
-    if (set_angular_speed)
-        rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionConst>(10 * CH_RPM_TO_RAD_S));
-    if (set_slip_angle)
+    if (set_longitudinal_speed) {
+        ChFunctionSequence f_sequence;
+        auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, max_linear_speed / ramp_time);
+        f_sequence.InsertFunct(f_ramp, ramp_time, 1, false, false, false, 0);
+        auto f_const = chrono_types::make_shared<ChFunctionConst>(max_linear_speed);
+        f_sequence.InsertFunct(f_const, constant_time, 1, false, false, false, 1);
+        f_sequence.Setup();
+        rig.SetLongSpeedFunction(chrono_types::make_shared<ChFunctionSequence>(f_sequence));
+        std::cout << "Longitudinal speed enabled with max speed applied as ramp: " << max_linear_speed << " m/s"
+                  << std::endl;
+    }
+
+    if (set_angular_speed) {
+        double angular_vel = max_linear_speed / (wheel->GetRadius() * (1 - slip));
+        double rate = angular_vel / ramp_time;
+        ChFunctionSequence f_sequence;
+        auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, rate);
+        f_sequence.InsertFunct(f_ramp, ramp_time, 1, false, false, false, 0);
+        auto f_const = chrono_types::make_shared<ChFunctionConst>(angular_vel);
+        f_sequence.InsertFunct(f_const, constant_time, 1, false, false, false, 1);
+        f_sequence.Setup();
+        rig.SetAngSpeedFunction(chrono_types::make_shared<ChFunctionSequence>(f_sequence));
+        std::cout << "Angular speed enabled: With slip " << slip
+                  << " and max speed applied as ramp: " << max_linear_speed << " m/s" << std::endl;
+    }
+
+    if (set_slip_angle) {
         rig.SetSlipAngleFunction(chrono_types::make_shared<ChFunctionSine>(5 * CH_DEG_TO_RAD, 0.2));
+        std::cout << "Slip angle enabled: 5 deg amplitude, 0.2 Hz" << std::endl;
+    }
 
     // Scenario: specified longitudinal slip (overrrides other definitons of motion functions)
     ////rig.SetConstantLongitudinalSlip(0.2, 0.1);
@@ -234,6 +277,14 @@ int main() {
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
+    }
+
+    std::string snap_dir = out_dir + "/SNAPSHOTS";
+    if (render && snapshots) {
+        if (!filesystem::create_directory(filesystem::path(snap_dir))) {
+            std::cerr << "Error creating directory " << snap_dir << std::endl;
+            return 1;
+        }
     }
 
     // ---------------------------------
@@ -276,8 +327,8 @@ int main() {
         visFSI->SetLightIntensity(0.7);
         visFSI->SetLightDirection(CH_PI_2, CH_PI / 6);
         visFSI->EnableFluidMarkers(true);
-        visFSI->EnableBoundaryMarkers(true);
-        visFSI->EnableRigidBodyMarkers(true);
+        visFSI->EnableBoundaryMarkers(false);
+        visFSI->EnableRigidBodyMarkers(false);
         visFSI->EnableFlexBodyMarkers(true);
         visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
@@ -316,7 +367,6 @@ int main() {
     double time = 0;       // simulated time
     double sim_time = 0;   // simulation time
     int render_frame = 0;  // render frame counter
-    double sim_time_max = 10;
 
     // Data collection
     ChFunctionInterp long_slip_fct;
@@ -340,6 +390,12 @@ int main() {
 
             if (!visFSI->Render())
                 break;
+            if (snapshots) {
+                std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
+                std::ostringstream filename;
+                filename << snap_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
+                visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
+            }
             render_frame++;
 
 #ifdef CHRONO_POSTPROCESS
