@@ -32,6 +32,7 @@
 #include "chrono_vehicle/terrain/CRMTerrain.h"
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
+#include "chrono_models/vehicle/artcar/ARTcar.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
 
@@ -78,8 +79,8 @@ bool fix_chassis = false;
 
 // ===================================================================================================================
 
-std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
-void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain);
+std::shared_ptr<artcar::ARTcar> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
+void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrain);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 // ===================================================================================================================
@@ -119,13 +120,13 @@ int main(int argc, char* argv[]) {
     // Create vehicle
     // --------------
 
-    // cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.25;
+    cout << "Create vehicle..." << endl;
+    double vehicle_init_height = 0.7;
     bool fea_tires;
     auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
-    vehicle->GetChassis()->SetFixed(fix_chassis);
+    cout << "finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
-
+    cout << "finished creating vehicle"<< endl;
     // ---------------------------------
     // Set solver and integrator for MBD
     // ---------------------------------
@@ -254,7 +255,7 @@ int main(int argc, char* argv[]) {
     // --------------------------------
 
     cout << "Create path..." << endl;
-    ChPathFollowerDriver driver(*vehicle, path, "my_path", target_speed);
+    ChPathFollowerDriver driver(vehicle->GetVehicle(), path, "my_path", target_speed);
     driver.GetSteeringController().SetLookAheadDistance(2.0);
     driver.GetSteeringController().SetGains(1.0, 0, 0);
     driver.GetSpeedController().SetGains(0.6, 0.05, 0);
@@ -323,10 +324,10 @@ int main(int argc, char* argv[]) {
     int render_frame = 0;
 
     cout << "Start simulation..." << endl;
-
+    
     ChTimer timer;
     while (time < tend) {
-        const auto& veh_loc = vehicle->GetPos();
+        const auto& veh_loc = vehicle->GetVehicle().GetPos();
 
         // Set current driver inputs
         auto driver_inputs = driver.GetInputs();
@@ -369,17 +370,18 @@ int main(int argc, char* argv[]) {
         driver.Advance(step_size);
         timer.reset();
         timer.start();
+
         // (a) Sequential integration of terrain and vehicle systems
-        ////terrain.Advance(step_size);
-        ////vehicle->Advance(step_size);
+        // terrain.Advance(step_size);
+        // vehicle->Advance(step_size);
         // (b) Concurrent integration (vehicle in main thread)
-        ////std::thread th(&CRMTerrain::Advance, &terrain, step_size);
-        ////vehicle->Advance(step_size);
-        ////th.join();
-        // (c) Concurrent integration (terrain in main thread)
-        std::thread th(&ChWheeledVehicle::Advance, vehicle.get(), step_size);
-        terrain.Advance(step_size);
+        std::thread th(&CRMTerrain::Advance, &terrain, step_size);
+        vehicle->Advance(step_size);
         th.join();
+        // (c) Concurrent integration (terrain in main thread)
+        // std::thread th(&ChWheeledVehicle::Advance, vehicle->GetVehicle().get(), step_size);
+        // terrain.Advance(step_size);
+        // th.join();
         
         // Set correct overall RTF for the FSI problem
         timer.stop();
@@ -395,45 +397,61 @@ int main(int argc, char* argv[]) {
 
 // ===================================================================================================================
 
-std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
+std::shared_ptr<artcar::ARTcar> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
     fea_tires = false;
 
     // Create and initialize the vehicle
     // TODO: Change this to ART vehicle
-    auto vehicle = chrono_types::make_shared<WheeledVehicle>(vehicle::GetDataFile(vehicle_json), ChContactMethod::SMC);
-    vehicle->Initialize(init_pos);
-    vehicle->GetChassis()->SetFixed(false);
+    // auto vehicle = chrono_types::make_shared<WheeledVehicle>(vehicle::GetDataFile(vehicle_json), ChContactMethod::SMC);
+    // vehicle->Initialize(init_pos);
+    // vehicle->GetChassis()->SetFixed(false);
+    // vehicle->SetChassisVisualizationType(VisualizationType::MESH);
+    // vehicle->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
+    // vehicle->SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
+    // vehicle->SetWheelVisualizationType(VisualizationType::MESH);
+
+    // // Create and initialize the powertrain system
+    // auto engine = ReadEngineJSON(vehicle::GetDataFile(engine_json));
+    // auto transmission = ReadTransmissionJSON(vehicle::GetDataFile(transmission_json));
+    // auto powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
+    // vehicle->InitializePowertrain(powertrain);
+    auto vehicle = chrono_types::make_shared<artcar::ARTcar>();
+    vehicle->SetContactMethod(ChContactMethod::SMC);
+    vehicle->SetChassisFixed(false);
+    vehicle->SetInitPosition(init_pos);
+    vehicle->SetTireType(TireModelType::RIGID_MESH);
+    vehicle->SetMaxMotorVoltageRatio(0.16);
+    vehicle->SetStallTorque(0.3);
+    vehicle->SetTireRollingResistance(0.06);
+    vehicle->Initialize();
     vehicle->SetChassisVisualizationType(VisualizationType::MESH);
-    vehicle->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
-    vehicle->SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
+    vehicle->SetTireVisualizationType(VisualizationType::MESH);
+    vehicle->SetSuspensionVisualizationType(VisualizationType::MESH);
+    vehicle->SetSteeringVisualizationType(VisualizationType::MESH);
     vehicle->SetWheelVisualizationType(VisualizationType::MESH);
+    
+    
+    
 
-    // Create and initialize the powertrain system
-    auto engine = ReadEngineJSON(vehicle::GetDataFile(engine_json));
-    auto transmission = ReadTransmissionJSON(vehicle::GetDataFile(transmission_json));
-    auto powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
-    vehicle->InitializePowertrain(powertrain);
-
-    // Create and initialize the tires
-    for (auto& axle : vehicle->GetAxles()) {
-        for (auto& wheel : axle->GetWheels()) {
-            auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
-            vehicle->InitializeTire(tire, wheel, VisualizationType::MESH);
-            if (std::dynamic_pointer_cast<ChDeformableTire>(tire))
-                fea_tires = true;
-        }
-    }
-
+    // // Create and initialize the tires
+    // for (auto& axle : vehicle.GetVehicle()->GetAxles()) {
+    //     for (auto& wheel : axle->GetWheels()) {
+    //         auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
+    //         vehicle.InitializeTire(tire, wheel, VisualizationType::MESH);
+    //         if (std::dynamic_pointer_cast<ChDeformableTire>(tire))
+    //             fea_tires = true;
+    //     }
+    // }
     return vehicle;
 }
 
-void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
-    std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
+void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrain) {
+    std::string mesh_filename = vehicle::GetDataFile("artcar/tire.obj");
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
 
-    for (auto& axle : vehicle->GetAxles()) {
+    for (auto& axle : vehicle->GetVehicle().GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
             auto tire_fea = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire());
             if (tire_fea) {
