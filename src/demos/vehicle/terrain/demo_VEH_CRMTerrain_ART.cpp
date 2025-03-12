@@ -24,6 +24,7 @@
 
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
+#include "chrono/physics/ChBodyEasy.h"
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/ChDriver.h"
@@ -69,7 +70,7 @@ bool fix_chassis = false;
 
 // ===================================================================================================================
 
-std::shared_ptr<artcar::ARTcar> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
+std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrain);
 
 // ===================================================================================================================
@@ -112,7 +113,7 @@ int main(int argc, char* argv[]) {
     cout << "Create vehicle..." << endl;
     double vehicle_init_height = 0.2;
     bool fea_tires;
-    auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(-1, 0, vehicle_init_height), QUNIT), fea_tires);
+    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(-1, 0, vehicle_init_height), QUNIT), fea_tires);
     cout << "finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
     cout << "finished creating vehicle"<< endl;
@@ -321,7 +322,9 @@ int main(int argc, char* argv[]) {
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
-
+        // // test motor function working
+        // auto rot = chrono_types::make_shared<ChFunctionConst>(0.5);
+        // motor->SetAngleFunction(rot);
         // Synchronize systems
         driver.Synchronize(time);
         terrain.Synchronize(time);
@@ -360,7 +363,7 @@ int main(int argc, char* argv[]) {
 
 // ===================================================================================================================
 
-std::shared_ptr<artcar::ARTcar> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
+std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
     fea_tires = false;
 
     auto vehicle = chrono_types::make_shared<artcar::ARTcar>();
@@ -377,8 +380,22 @@ std::shared_ptr<artcar::ARTcar> CreateVehicle(const ChCoordsys<>& init_pos, bool
     vehicle->SetSuspensionVisualizationType(VisualizationType::MESH);
     vehicle->SetSteeringVisualizationType(VisualizationType::MESH);
     vehicle->SetWheelVisualizationType(VisualizationType::MESH);
-    
-    return vehicle;
+
+    auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
+    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("artcar/blade_final.obj"), 1000, true, true, false);
+    auto offsetpos = ChVector3d(0.5, 0, 0.05);
+    blade->SetPos(vehicle->GetChassisBody()->TransformPointLocalToParent(offsetpos));
+    blade->SetRot(vehicle->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
+    blade->SetMass(0.1);
+    blade->SetFixed(false);
+    vehicle->GetSystem()->AddBody(blade);
+
+    // create motor and apply it to the blade
+    auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
+    motor->Initialize(vehicle->GetChassisBody(), blade, ChFrame<>(blade->GetPos(), vehicle->GetChassisBody()->GetRot()));
+    vehicle->GetSystem()->Add(motor);
+
+    return std::make_tuple(vehicle, blade, motor);
 }
 
 void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrain) {
