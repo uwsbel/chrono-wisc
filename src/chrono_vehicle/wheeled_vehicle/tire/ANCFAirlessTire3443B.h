@@ -36,6 +36,8 @@ class CH_VEHICLE_API ANCFAirlessTire3443B : public ChANCFTire {
     virtual double GetRimRadius() const override { return m_rim_radius; }
     virtual double GetWidth() const override { return m_width; }
     virtual double GetDefaultPressure() const override { return 0; }
+    int GetNumOuterRingElems() const { return m_num_outer_ring_elems; }
+    int GetNumSpokeElems() const { return m_num_spoke_elems; }
     virtual std::vector<std::shared_ptr<fea::ChNodeFEAbase>> GetConnectedNodes() const override;
 
     void SetRimRadius(double rim_radius) { m_rim_radius = rim_radius; }
@@ -45,7 +47,7 @@ class CH_VEHICLE_API ANCFAirlessTire3443B : public ChANCFTire {
     void SetOuterRingThickness(double thickness) { m_t_outer_ring = thickness; }
     void SetSpokeThickness(double thickness) { m_t_spoke = thickness; }
     void SetNumberSpokes(int number) { m_num_spoke = number; }
-    void SetTSpokeFraction(double frac) { m_spoke_t_frac = frac;  };
+    void SetTSpokeFraction(double frac) { m_spoke_t_frac = frac; };
     void SetHubRelativeRotation(double ang) { m_hub_rel_ang = ang; };
     void SetSpokeCurvatureXPoint(double x) { m_spoke_curv_pnt_x = x; };
     void SetSpokeCurvatureZPoint(double z) { m_spoke_curv_pnt_z = z; };
@@ -63,11 +65,11 @@ class CH_VEHICLE_API ANCFAirlessTire3443B : public ChANCFTire {
     }
 
     void SetYoungsModulus(double E) {
-      m_ESpokes = E;
-      m_EOuterRing = E;
-  }
+        m_ESpokes = E;
+        m_EOuterRing = E;
+    }
 
-  // Set Youngs Modulus for Spokes and Outer Ring
+    // Set Youngs Modulus for Spokes and Outer Ring
     void SetYoungsModulusSpokes(double E) { m_ESpokes = E; }
     void SetYoungsModulusOuterRing(double E) { m_EOuterRing = E; }
 
@@ -90,6 +92,8 @@ class CH_VEHICLE_API ANCFAirlessTire3443B : public ChANCFTire {
     double m_spoke_curv_pnt_z;
     int m_num_spoke;
 
+    int m_num_outer_ring_elems;
+    int m_num_spoke_elems;
     int m_div_width;
     int m_div_spoke_len;
     int m_div_ring_per_spoke;

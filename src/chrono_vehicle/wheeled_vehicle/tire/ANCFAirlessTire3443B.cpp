@@ -35,7 +35,7 @@ ANCFAirlessTire3443B::ANCFAirlessTire3443B(const std::string& name)
       m_width(0.4),
       m_t_outer_ring(0.005),
       m_t_spoke(0.003),
-      m_spoke_t_frac(1.0/3.0),
+      m_spoke_t_frac(1.0 / 3.0),
       m_hub_rel_ang(10.0 * CH_DEG_TO_RAD),
       m_spoke_curv_pnt_x(0.5 * 0.225),
       m_spoke_curv_pnt_z(0.25 * 0.225),
@@ -47,10 +47,12 @@ ANCFAirlessTire3443B::ANCFAirlessTire3443B(const std::string& name)
       m_EOuterRing(76e9),
       m_nu(0.2),
       m_rho(2580),
-      m_alpha(0.05) {
-      // default contact material
-      m_matSpokes = chrono_types::make_shared<ChContactMaterialSMC>();
-      m_matOuterRing = chrono_types::make_shared<ChContactMaterialSMC>();
+      m_alpha(0.05),
+      m_num_outer_ring_elems(0),
+      m_num_spoke_elems(0) {
+    // default contact material
+    m_matSpokes = chrono_types::make_shared<ChContactMaterialSMC>();
+    m_matOuterRing = chrono_types::make_shared<ChContactMaterialSMC>();
 }
 
 void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) {
@@ -75,19 +77,19 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
     int divW = m_div_width;    // Number of elements in the width direction
 
     double rOut = m_rim_radius + m_height;  // meters; Radius of the midsurface of the outer ring of elements
-    double rHub = m_rim_radius;                 // meters; Radius of the rigid hub
-    double width = m_width;                     // meters; Width of the Tire
-    double tOut = m_t_outer_ring;               // meters; thickness of the outer ring of elements
-    double tSpoke = m_t_spoke;                  // meters; thickness of the spoke elements
+    double rHub = m_rim_radius;             // meters; Radius of the rigid hub
+    double width = m_width;                 // meters; Width of the Tire
+    double tOut = m_t_outer_ring;           // meters; thickness of the outer ring of elements
+    double tSpoke = m_t_spoke;              // meters; thickness of the spoke elements
     double spokeTFrac = m_spoke_t_frac;  // Faction of the spoke modeled by the Shell 3423 T element (0 to 1 exclusion)
     double angRelHub =
         m_hub_rel_ang;  // relative rotation of the hub with respect to the outer ring ranging from -\pi to \pi
     double spokeCurPntX = m_spoke_curv_pnt_x;  // X coordinate in the local spoke coordinate system for the
-                                                // third point on a circle defining the arc shape of the spoke.
+                                               // third point on a circle defining the arc shape of the spoke.
     double spokeCurPntZ =
         m_spoke_curv_pnt_z;  // Z coordinate in the local spoke coordinate system for the third point on a circle
-                               // defining the arc shape of the spoke. A value of 0 means a straight spoke.
-    
+                             // defining the arc shape of the spoke. A value of 0 means a straight spoke.
+
     //-------------------------------------------------
     // Derived geometry
     //-------------------------------------------------
@@ -181,13 +183,14 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
             auto nodeD_dr_du = nodeD_dr_dv.Cross(nodeD_dr_dw);
 
             // Set the values of the local element coordinates
-            element->SetLocalElRefCoords(nodeA->GetPos(), nodeA_dr_du, nodeA_dr_dv, nodeA_dr_dw, 
-                                         nodeB->GetPos(), nodeB_dr_du, nodeB_dr_dv, nodeB_dr_dw, 
-                                         nodeC->GetPos(), nodeC_dr_du, nodeC_dr_dv, nodeC_dr_dw, 
-                                         nodeD->GetPos(), nodeD_dr_du, nodeD_dr_dv, nodeD_dr_dw);
+            element->SetLocalElRefCoords(nodeA->GetPos(), nodeA_dr_du, nodeA_dr_dv, nodeA_dr_dw, nodeB->GetPos(),
+                                         nodeB_dr_du, nodeB_dr_dv, nodeB_dr_dw, nodeC->GetPos(), nodeC_dr_du,
+                                         nodeC_dr_dv, nodeC_dr_dw, nodeD->GetPos(), nodeD_dr_du, nodeD_dr_dv,
+                                         nodeD_dr_dw);
 
             // Add element to mesh
             m_mesh->AddElement(element);
+            m_num_outer_ring_elems++;
         }
     }
 
@@ -240,7 +243,8 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
                     ChVector3d loc_whl = wheel_frame.TransformPointLocalToParent(loc);
 
                     // Create the node
-                    auto node = chrono_types::make_shared<ChNodeFEAxyzDDD>(loc_whl, global_dr_du, global_dr_dv, global_dr_dw);
+                    auto node =
+                        chrono_types::make_shared<ChNodeFEAxyzDDD>(loc_whl, global_dr_du, global_dr_dv, global_dr_dw);
                     node->SetMass(0);
                     // node->SetFixed(true);
 
@@ -286,14 +290,14 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
                 element->SetAlphaDamp(alpha);  // Structural damping for this element
 
                 // Set the values of the local element coordinates
-                element->SetLocalElRefCoords(nodeA->GetPos(), xAxisSpoke_whl, yAxisSpoke_whl, zAxisSpoke_whl, 
+                element->SetLocalElRefCoords(nodeA->GetPos(), xAxisSpoke_whl, yAxisSpoke_whl, zAxisSpoke_whl,
                                              nodeB->GetPos(), xAxisSpoke_whl, yAxisSpoke_whl, zAxisSpoke_whl,
                                              nodeC->GetPos(), xAxisSpoke_whl, yAxisSpoke_whl, zAxisSpoke_whl,
                                              nodeD->GetPos(), xAxisSpoke_whl, yAxisSpoke_whl, zAxisSpoke_whl);
 
                 // Add element to mesh
                 m_mesh->AddElement(element);
-
+                m_num_spoke_elems++;
                 // The remaining elements only use the nodes that were created for this spoke
                 for (int i = 1; i < divElPerSpokeLen; i++) {
                     // Adjacent nodes
@@ -335,6 +339,7 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
 
                     // Add element to mesh
                     m_mesh->AddElement(element);
+                    m_num_spoke_elems++;
                 }
             }
         } else {
@@ -385,7 +390,8 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
                     ChVector3d loc_whl = wheel_frame.TransformPointLocalToParent(loc);
 
                     // Create the node
-                    auto node = chrono_types::make_shared<ChNodeFEAxyzDDD>(loc_whl, global_dr_du, global_dr_dv, global_dr_dw);
+                    auto node =
+                        chrono_types::make_shared<ChNodeFEAxyzDDD>(loc_whl, global_dr_du, global_dr_dv, global_dr_dw);
                     node->SetMass(0);
                     // node->SetFixed(true);
 
@@ -457,14 +463,14 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
                 auto nodeD_dr_du = nodeD_dr_dv.Cross(nodeD_dr_dw);
 
                 // Set the values of the local element coordinates
-                element->SetLocalElRefCoords(nodeA->GetPos(), nodeA_dr_du, nodeA_dr_dv, nodeA_dr_dw,
-                                             nodeB->GetPos(), nodeB_dr_du, nodeB_dr_dv, nodeB_dr_dw,
-                                             nodeC->GetPos(), nodeC_dr_du, nodeC_dr_dv, nodeC_dr_dw,
-                                             nodeD->GetPos(), nodeD_dr_du, nodeD_dr_dv, nodeD_dr_dw);
+                element->SetLocalElRefCoords(nodeA->GetPos(), nodeA_dr_du, nodeA_dr_dv, nodeA_dr_dw, nodeB->GetPos(),
+                                             nodeB_dr_du, nodeB_dr_dv, nodeB_dr_dw, nodeC->GetPos(), nodeC_dr_du,
+                                             nodeC_dr_dv, nodeC_dr_dw, nodeD->GetPos(), nodeD_dr_du, nodeD_dr_dv,
+                                             nodeD_dr_dw);
 
                 // Add element to mesh
                 m_mesh->AddElement(element);
-
+                m_num_spoke_elems++;
                 // The remaining elements only use the nodes that were created for this spoke
                 for (int i = 1; i < divElPerSpokeLen; i++) {
                     // Adjacent nodes
@@ -533,6 +539,7 @@ void ANCFAirlessTire3443B::CreateMesh(const ChFrameMoving<>& wheel_frame, Vehicl
 
                     // Add element to mesh
                     m_mesh->AddElement(element);
+                    m_num_spoke_elems++;
                 }
             }
         }

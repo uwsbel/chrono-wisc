@@ -79,9 +79,9 @@ bool set_longitudinal_speed = true;
 bool set_angular_speed = true;
 bool set_slip_angle = false;
 
-double max_linear_speed = 4;
-double ramp_time = 4;
-double constant_time = 5;
+double max_linear_speed = 5;
+double ramp_time = 5;
+double constant_time = 4;
 double slip = 0.1;
 double sim_time_max = ramp_time + constant_time;
 
@@ -115,7 +115,7 @@ int main() {
         std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivWidth(3);              // Default is 3
         std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivSpokeLength(3);        // Default is 3
         std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
-        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetNumberSpokes(16);
+        std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetNumberSpokes(80);
         // Options to set for straight spokes
         if (set_str_spk) {
             std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHubRelativeRotation(0);

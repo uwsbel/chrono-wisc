@@ -521,8 +521,7 @@ void ChTireTestRig::CreateTerrainRigid() {
     minfo.Y = m_params_rigid.Young_modulus;
     auto patch_mat = minfo.CreateMaterial(m_system->GetContactMethod());
 
-    auto patch =
-        terrain->AddPatch(patch_mat, ChCoordsys<>(location, QUNIT), m_params_rigid.length, m_params_rigid.width, 0.1);
+    auto patch = terrain->AddPatch(patch_mat, ChCoordsys<>(location), m_params_rigid.length, m_params_rigid.width, 0.1);
 
     patch->SetColor(ChColor(0.8f, 0.8f, 0.8f));
     patch->SetTexture(GetChronoDataFile("textures/pinkwhite.png"), 10 * (float)m_params_rigid.length,
@@ -603,7 +602,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     mat_props.mu_fric_s = 0.7;
     mat_props.mu_fric_2 = 0.7;
     mat_props.average_diam = 0.02;
-    mat_props.cohesion_coeff = m_params_crm.cohesion;
+    mat_props.cohesion_coeff = 1e3;
 
     ChFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
@@ -622,7 +621,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     terrain->SetElasticSPH(mat_props);
     terrain->SetSPHParameters(sph_params);
 
-    double loc_z = m_terrain_height - m_params_crm.depth;
+    double loc_z = m_terrain_height - m_params_crm.depth - 0.1;
     ChVector3d location(m_params_crm.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, loc_z);
     terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
                        BoxSide::ALL & ~BoxSide::Z_POS);
@@ -631,9 +630,8 @@ void ChTireTestRig::CreateTerrainCRM() {
     terrain->SetActiveDomain(ChVector3d(m_tire->GetRadius() * 2, m_tire->GetWidth() * 2, m_tire->GetRadius() * 2));
 
     if (auto fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(m_tire)) {
-        std::cout << "Adding FEA mesh to CRMTerrain" << std::endl;
         auto mesh = fea_tire->GetMesh();
-        terrain->AddFeaMesh(mesh, false);
+        terrain->AddFeaMesh(mesh, true);
     } else {
         auto rgd_tire = std::static_pointer_cast<ChRigidTire>(m_tire);
         assert(rgd_tire->UseContactMesh());

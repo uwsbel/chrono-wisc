@@ -45,6 +45,7 @@ void ChANCFTire::CreatePressureLoad() {
 }
 
 void ChANCFTire::CreateContactSurface() {
+    std::cout << "Creating contact surface" << std::endl;
     switch (m_contact_surface_type) {
         case ContactSurfaceType::NODE_CLOUD: {
             auto contact_surf = chrono_types::make_shared<ChContactSurfaceNodeCloud>(m_contact_mat);
@@ -54,7 +55,39 @@ void ChANCFTire::CreateContactSurface() {
         }
         case ContactSurfaceType::TRIANGLE_MESH: {
             auto contact_surf = chrono_types::make_shared<ChContactSurfaceMesh>(m_contact_mat);
-            contact_surf->AddFacesFromBoundary(*m_mesh, m_contact_surface_dim, false);
+            contact_surf->AddFacesFromBoundary(*m_mesh, m_contact_surface_dim, false, true, true, 0);
+            m_mesh->AddContactSurface(contact_surf);
+            break;
+        }
+    }
+}
+
+void ChANCFTire::CreateContactSurfaceWithOuterRingElements(int numOuterRingElems) {
+    std::cout << "Creating contact surface with " << numOuterRingElems << " outer ring elements" << std::endl;
+    switch (m_contact_surface_type) {
+        case ContactSurfaceType::NODE_CLOUD: {
+            auto contact_surf = chrono_types::make_shared<ChContactSurfaceNodeCloud>(m_contact_mat);
+            contact_surf->AddAllNodes(*m_mesh, m_contact_surface_dim);
+            m_mesh->AddContactSurface(contact_surf);
+            break;
+        }
+        case ContactSurfaceType::TRIANGLE_MESH: {
+            auto contact_surf = chrono_types::make_shared<ChContactSurfaceMesh>(m_contact_mat);
+
+            // For ANCFAirlessTire3443B, we can use the numOuterRingElems to customize the contact surface
+            // This is just an example - the actual implementation would depend on the specific requirements
+
+            // If we have outer ring elements, we can use them to create a more specific contact surface
+            if (numOuterRingElems > 0) {
+                std::cout << "Using " << numOuterRingElems << " outer ring elements for contact surface" << std::endl;
+                // Pass the number of outer ring elements to AddFacesFromBoundary
+                contact_surf->AddFacesFromBoundary(*m_mesh, m_contact_surface_dim, false, true, true,
+                                                   numOuterRingElems);
+            } else {
+                // Fall back to the standard method if no outer ring elements are specified
+                contact_surf->AddFacesFromBoundary(*m_mesh, m_contact_surface_dim, false);
+            }
+
             m_mesh->AddContactSurface(contact_surf);
             break;
         }
