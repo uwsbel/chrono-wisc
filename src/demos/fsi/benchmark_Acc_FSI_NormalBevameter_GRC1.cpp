@@ -154,8 +154,8 @@ int main(int argc, char* argv[]) {
                         /*time_step*/ 2e-5,
                         /*boundary_type*/ "adami",
                         /*viscosity_type*/ "artificial_bilateral",
-                        /*kernel_type*/ "cubic",
-                        /*artificial_viscosity*/ 0.3,
+                        /*kernel_type*/ "wendland",
+                        /*artificial_viscosity*/ 0.2,
                         /*max_pressure*/ 30 * 1000,  // 30 kPa
                         /*plate_diameter*/ 0.19,     // 19 cm
                         /*verbose*/ true,
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
                         /*write_marker_files*/ false,
                         /*mu_s*/ 0.6593,
                         /*mu_2*/ 0.6593,
-                        /*cohesions*/ 50,
+                        /*cohesions*/ 0,
                         /*densities*/ 1670,
                         /*y_modulus*/ 1e6};
 
@@ -204,9 +204,9 @@ void SimulateMaterial(int i, const SimParams& params) {
     double max_pressure_time = 3;
     std::cout << "t_end: " << t_end << std::endl;
 
-    double container_diameter = 0.3;       // Plate is 20 cm in diameter
-    double container_height = 0.018;       // 2.4 cm since experimentally the plate reaches 0.6 cm
-    double cyl_length = container_height;  // To prevent effect of sand falling on top of the plate
+    double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
+    double container_height = 0.010;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
+    double cyl_length = container_height;                     // To prevent effect of sand falling on top of the plate
 
     // Create a physics system
     ChSystemSMC sysMBS;
@@ -243,8 +243,8 @@ void SimulateMaterial(int i, const SimParams& params) {
     sph_params.initial_spacing = params.initial_spacing;
     sph_params.d0_multiplier = params.d0_multiplier;
     sph_params.artificial_viscosity = params.artificial_viscosity;
-    sph_params.xsph_coefficient = 0.25;
-    sph_params.shifting_coefficient = 1.0;
+    sph_params.xsph_coefficient = 0.0;
+    sph_params.shifting_coefficient = 0.0;
     sph_params.kernel_threshold = 0.8;
     sph_params.num_proximity_search_steps = params.ps_freq;
 
@@ -535,6 +535,8 @@ void SimulateMaterial(int i, const SimParams& params) {
                   << current_depth << "," << plate->GetPosDt().z() << "," << plate_NetPressure << ","
                   << plate_ExternalLoadPressure << std::endl;
             pres_out_frame++;
+            std::cout << "time: " << time << std::endl;
+            std::cout << "current_depth: " << current_depth << std::endl;
         }
 
         // Advance simulation for one timestep for all systems
