@@ -147,6 +147,14 @@ void SaveAllCFD(const std::string& dir,
     }
 }
 
+void SaveParticleDataCFD(const std::string& dir, OutputLevel level, FsiDataManager& data_mgr) {
+    SaveParticleDataCFD(dir, level,                                                        //
+                        data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD,    //
+                        data_mgr.derivVelRhoOriginalD, data_mgr.sphMarkers_D->rhoPresMuD,  //
+                        data_mgr.sr_tau_I_mu_i_Original,                                   //
+                        data_mgr.referenceArray, data_mgr.referenceArray_FEA);             //
+}
+
 void SaveParticleDataCFD(const std::string& dir,
                          OutputLevel level,
                          const thrust::device_vector<Real4>& posRadD,
@@ -295,6 +303,14 @@ void SaveAllCRM(const std::string& dir,
     }
 }
 
+void SaveParticleDataCRM(const std::string& dir, OutputLevel level, FsiDataManager& data_mgr) {
+    SaveParticleDataCRM(dir, level,                                                            //
+                        data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD,        //
+                        data_mgr.derivVelRhoOriginalD, data_mgr.sphMarkers_D->rhoPresMuD,      //
+                        data_mgr.sphMarkers_D->tauXxYyZzD, data_mgr.sphMarkers_D->tauXyXzYzD,  //
+                        data_mgr.referenceArray, data_mgr.referenceArray_FEA);                 //
+}
+
 void SaveParticleDataCRM(const std::string& dir,
                          OutputLevel level,
                          const thrust::device_vector<Real4>& posRadD,
@@ -391,6 +407,17 @@ void SaveAllSolid(const std::string& dir,
     }
 }
 
+void SaveSolidData(const std::string& dir, double time, FsiDataManager& data_mgr) {
+    SaveSolidData(dir, time,                                                                           //
+                  data_mgr.fsiBodyState_D->pos, data_mgr.fsiBodyState_D->rot,                          //
+                  data_mgr.fsiBodyState_D->lin_vel,                                                    //
+                  data_mgr.rigid_FSI_ForcesD, data_mgr.rigid_FSI_TorquesD,                             //
+                  data_mgr.fsiMesh1DState_D->pos_fsi_fea_D, data_mgr.fsiMesh1DState_D->vel_fsi_fea_D,  //
+                  data_mgr.flex1D_FSIforces_D,                                                         //
+                  data_mgr.fsiMesh2DState_D->pos_fsi_fea_D, data_mgr.fsiMesh2DState_D->vel_fsi_fea_D,  //
+                  data_mgr.flex2D_FSIforces_D);                                                        //
+}
+
 void SaveSolidData(const std::string& dir,
                    double time,
                    const thrust::device_vector<Real3>& posRigidD,
@@ -465,6 +492,11 @@ void SaveSolidData(const std::string& dir,
 
 // -----------------------------------------------------------------------------
 
+void WriteParticleFileCSV(const std::string& filename, FsiDataManager& data_mgr) {
+    WriteParticleFileCSV(filename, data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD,
+                         data_mgr.sphMarkers_D->rhoPresMuD, data_mgr.referenceArray);
+}
+
 void WriteParticleFileCSV(const std::string& outfilename,
                           thrust::device_vector<Real4>& posRadD,
                           thrust::device_vector<Real3>& velMasD,
@@ -488,7 +520,7 @@ void WriteParticleFileCSV(const std::string& outfilename,
         if (rP.w != -1)
             continue;
         Real4 pos = posRadH[i];
-        Real3 vel = velMasH[i] + mR3(1e-20);
+        Real3 vel = velMasH[i] + mR3(Real(1e-20));
 
         Real velMag = length(vel);
         ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x + eps << ", " << vel.y + eps
@@ -497,30 +529,6 @@ void WriteParticleFileCSV(const std::string& outfilename,
     }
     fileNameFluidParticles << ssFluidParticles.str();
     fileNameFluidParticles.close();
-}
-
-void WriteParticleFileCHPF(const std::string& outfilename,
-                           thrust::device_vector<Real4>& posRadD,
-                           thrust::host_vector<int4>& referenceArray) {
-    std::ofstream ptFile(outfilename, std::ios::out | std::ios::binary);
-
-    ParticleFormatWriter pw;
-
-    thrust::host_vector<Real4> posRadH = posRadD;
-    std::vector<float> pos_x(posRadH.size());
-    std::vector<float> pos_y(posRadH.size());
-    std::vector<float> pos_z(posRadH.size());
-
-    bool haveHelper = (referenceArray[0].z == -3) ? true : false;
-    bool haveGhost = (referenceArray[0].z == -2 || referenceArray[1].z == -2) ? true : false;
-
-    for (size_t i = referenceArray[haveHelper + haveGhost].x; i < referenceArray[haveHelper + haveGhost].y; i++) {
-        pos_x[i] = (float)posRadH[i].x;
-        pos_y[i] = (float)posRadH[i].y;
-        pos_z[i] = (float)posRadH[i].z;
-    }
-
-    pw.write(ptFile, ParticleFormatWriter::CompressionType::NONE, pos_x, pos_y, pos_z);
 }
 
 }  // end namespace sph

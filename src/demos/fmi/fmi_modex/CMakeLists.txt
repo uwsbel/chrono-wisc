@@ -16,7 +16,7 @@ endif()
 
 set(PROGRAM demo_FMI_VdP_modex)
 
-message(STATUS "...add ${PROGRAM}")
+# MESSAGE(STATUS "...add ${PROGRAM}")
 
 add_executable(${PROGRAM})
 source_group("" FILES ${PROGRAM}.cpp)
@@ -30,9 +30,13 @@ if (${FMU_EXPORT_SUPPORT})
   target_compile_definitions(${PROGRAM} PUBLIC VDP_FMU3_FILENAME="${VDP_FMU3_FILENAME}")
 endif()
 
-target_link_libraries(${PROGRAM} ChronoEngine ChronoEngine_fmi)
+target_link_libraries(${PROGRAM} Chrono_core Chrono_fmi)
 
 set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
+
+if(MSVC)
+  set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
+endif()
 
 if (${FMU_EXPORT_SUPPORT})
   add_dependencies(${PROGRAM} ${VDP_FMU2_MODEL_IDENTIFIER})
