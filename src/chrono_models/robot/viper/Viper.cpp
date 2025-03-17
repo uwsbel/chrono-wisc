@@ -215,8 +215,9 @@ void ViperPart::Construct(ChSystem* system) {
     m_body->SetFrameCOMToRef(m_cog);
 
     // Add visualization shape
-    if (m_visualize) {
-        printf("Viper Visualization Enabled!\n");
+    if (m_visualize &&
+        (m_mesh_name != "viper_L_up_sus" && m_mesh_name != "viper_R_up_sus" && m_mesh_name != "viper_L_bt_sus" &&
+         m_mesh_name != "viper_R_bt_sus" && m_mesh_name != "viper_L_steer" && m_mesh_name != "viper_R_steer")) {
         auto vis_mesh_file = GetChronoDataFile("robot/cobra/obj/" + m_mesh_name + ".obj");
         auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
         trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
@@ -228,7 +229,11 @@ void ViperPart::Construct(ChSystem* system) {
         trimesh_shape->SetMutable(false);
         m_body->AddVisualShape(trimesh_shape);
     }
-    // else if (m_visualize && (m_mesh_name == "viper_L_up_sus" || m_mesh_name == "viper_R_up_sus" || m_mesh_name == "viper_L_bt_sus" || m_mesh_name == "viper_R_bt_sus" || m_mesh_name == "viper_L_steer" || m_mesh_name == "viper_R_steer")) {
+    // else if (m_visualize &&
+    //            (m_mesh_name == "viper_L_up_sus" || m_mesh_name == "viper_R_up_sus" || m_mesh_name == "viper_L_bt_sus"
+    //            ||
+    //             m_mesh_name == "viper_R_bt_sus" || m_mesh_name == "viper_L_steer" || m_mesh_name == "viper_R_steer"))
+    //             {
     //     auto vis_mesh_file = GetChronoDataFile("robot/viper/render/" + m_mesh_name + ".obj");
     //     auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
     //     trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
@@ -397,9 +402,10 @@ Viper::Viper(ChSystem* system, ViperWheelType wheel_type) : m_system(system), m_
 void Viper::Create(ViperWheelType wheel_type) {
     // create rover chassis
     m_chassis = chrono_types::make_shared<ViperChassis>("chassis", m_default_material);
+    std::cout << "m_chassis created: " << std::endl;
 
     // initilize rover wheels
-    double wx = 0.5618 + 0.08;
+    double wx = 0.3618 + 0.08;
     double wy = 0.2067 + 0.32 + 0.0831;
     double wz = 0.0;
 
@@ -416,7 +422,7 @@ void Viper::Create(ViperWheelType wheel_type) {
     m_wheels[V_LB]->m_mesh_xform = ChFrame<>(VNULL, QuatFromAngleZ(CH_PI));
 
     // create rover upper and lower suspension arms
-    double cr_lx = 0.5618 + 0.08;
+    double cr_lx = 0.3618 + 0.08;
     double cr_ly = 0.2067;  // + 0.32/2;
     double cr_lz = 0.0525;
 
@@ -442,7 +448,7 @@ void Viper::Create(ViperWheelType wheel_type) {
     }
 
     // create uprights
-    double sr_lx = 0.5618 + 0.08;
+    double sr_lx = 0.3618 + 0.08;
     double sr_ly = 0.2067 + 0.32 + 0.0831;
     double sr_lz = 0.0;
     ChVector3d sr_rel_pos[] = {
@@ -478,16 +484,16 @@ void Viper::Initialize(const ChFrame<>& pos) {
 
     // add all constraints to the system
     // redefine pos data for constraints
-    double sr_lx = 0.5618 + 0.08;
+    double sr_lx = 0.3618 + 0.08;
     // double sr_ly = 0.2067 + 0.32 + 0.0831;
     // double sr_lz = 0.0;
     double sr_ly_joint = 0.2067 + 0.32;
 
-    double cr_lx = 0.5618 + 0.08;
+    double cr_lx = 0.3618 + 0.08;
     double cr_ly = 0.2067;  // + 0.32/2;
     double cr_lz = 0.0525;
 
-    double w_lx = 0.5618 + 0.08;
+    double w_lx = 0.3618 + 0.08;
     double w_ly = 0.2067 + 0.32 + 0.0831;
     double w_lz = 0.0;
 
@@ -558,7 +564,7 @@ void Viper::Initialize(const ChFrame<>& pos) {
         m_lift_motors[i]->SetMotorFunction(m_lift_motor_funcs[i]);
         AddRevoluteJoint(m_chassis->GetBody(), m_upper_arms[i]->GetBody(), m_chassis, cr_rel_pos_upper[i], z2x);
 
-        auto steer_rod = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false);
+        auto steer_rod = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, false, false);
         steer_rod->SetPos(m_wheels[i]->GetPos());
         steer_rod->SetFixed(false);
         m_system->Add(steer_rod);

@@ -299,20 +299,19 @@ int main(int argc, char* argv[]) {
             if (current_step % output_steps == 0) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                SaveParaViewFiles(time, sysFSI);
+                // SaveParaViewFiles(time, sysFSI);
             }
         }
-
         // Render system
         if (render && current_step % render_steps == 0) {
             if (!visFSI->Render())
                 break;
-                
             // Save snapshot if enabled
             if (snapshots && current_step % snapshot_steps == 0) {
                 std::cout << "  -- Saving snapshot " << snapshot_frame << " at t = " << time << std::endl;
                 std::ostringstream filename;
-                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << snapshot_frame << ".bmp";
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << snapshot_frame
+                         << ".bmp";
                 visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
                 snapshot_frame++;
             }
@@ -415,7 +414,7 @@ void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI) {
         ChQuaternion<> body_rot = body_ref_frame.GetRot();  // body->GetRot();
 
         auto mmesh = chrono_types::make_shared<ChTriangleMeshConnected>();
-        std::string obj_path = (GetChronoDataFile("robot/cobra/obj/cobra_chassis.obj"));
+        std::string obj_path = (GetChronoDataFile("robot/cobra/obj/viper_chassis.obj"));
         double scale_ratio = 1.0;
         mmesh->LoadWavefrontMesh(obj_path, false, true);
         mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
