@@ -217,7 +217,7 @@ void ViperPart::Construct(ChSystem* system) {
     // Add visualization shape
     if (m_visualize) {
         printf("Viper Visualization Enabled!\n");
-        auto vis_mesh_file = GetChronoDataFile("robot/viper/render/" + m_mesh_name + ".obj");
+        auto vis_mesh_file = GetChronoDataFile("robot/cobra/obj/" + m_mesh_name + ".obj");
         auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
         trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
         trimesh_vis->RepairDuplicateVertexes(1e-9);                               // if meshes are not watertight
@@ -228,10 +228,22 @@ void ViperPart::Construct(ChSystem* system) {
         trimesh_shape->SetMutable(false);
         m_body->AddVisualShape(trimesh_shape);
     }
+    // else if (m_visualize && (m_mesh_name == "viper_L_up_sus" || m_mesh_name == "viper_R_up_sus" || m_mesh_name == "viper_L_bt_sus" || m_mesh_name == "viper_R_bt_sus" || m_mesh_name == "viper_L_steer" || m_mesh_name == "viper_R_steer")) {
+    //     auto vis_mesh_file = GetChronoDataFile("robot/viper/render/" + m_mesh_name + ".obj");
+    //     auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
+    //     trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
+    //     trimesh_vis->RepairDuplicateVertexes(1e-9);                               // if meshes are not watertight
+
+    //     auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
+    //     trimesh_shape->SetMesh(trimesh_vis);
+    //     trimesh_shape->SetName(m_mesh_name);
+    //     trimesh_shape->SetMutable(false);
+    //     m_body->AddVisualShape(trimesh_shape);
+    // }
 
     // Add collision shape
     if (m_collide) {
-        auto col_mesh_file = GetChronoDataFile("robot/viper/col/" + m_mesh_name + ".obj");
+        auto col_mesh_file = GetChronoDataFile("robot/cobra/obj/" + m_mesh_name + ".obj");
         auto trimesh_col = ChTriangleMeshConnected::CreateFromWavefrontFile(col_mesh_file, false, false);
         trimesh_col->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
         trimesh_col->RepairDuplicateVertexes(1e-9);                               // if meshes are not watertight
@@ -245,7 +257,10 @@ void ViperPart::Construct(ChSystem* system) {
 }
 
 void ViperPart::CalcMassProperties(double density) {
-    auto mesh_filename = GetChronoDataFile("robot/viper/col/" + m_mesh_name + ".obj");
+    auto mesh_filename = GetChronoDataFile("robot/cobra/obj/" + m_mesh_name + ".obj");
+    if (m_mesh_name == "cobra_wheel_cyl") {
+        mesh_filename = GetChronoDataFile("robot/cobra/obj/cobra_wheel.obj");
+    }
     auto trimesh_col = ChTriangleMeshConnected::CreateFromWavefrontFile(mesh_filename, false, false);
     trimesh_col->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
     trimesh_col->RepairDuplicateVertexes(1e-9);                               // if meshes are not watertight
@@ -274,7 +289,7 @@ void ViperPart::Initialize(std::shared_ptr<ChBodyAuxRef> chassis) {
 // Rover Chassis
 ViperChassis::ViperChassis(const std::string& name, std::shared_ptr<ChContactMaterial> mat)
     : ViperPart(name, ChFrame<>(VNULL, QUNIT), mat, false) {
-    m_mesh_name = "viper_chassis";
+    m_mesh_name = "cobra_chassis";
     m_color = ChColor(1.0f, 1.0f, 1.0f);
     CalcMassProperties(165);
 }
@@ -295,13 +310,10 @@ ViperWheel::ViperWheel(const std::string& name,
     : ViperPart(name, rel_pos, mat, true) {
     switch (wheel_type) {
         case ViperWheelType::RealWheel:
-            m_mesh_name = "viper_wheel";
+            m_mesh_name = "cobra_wheel";
             break;
         case ViperWheelType::SimpleWheel:
-            m_mesh_name = "viper_simplewheel";
-            break;
-        case ViperWheelType::CylWheel:
-            m_mesh_name = "viper_cylwheel";
+            m_mesh_name = "cobra_simplewheel";
             break;
     }
 
