@@ -20,8 +20,7 @@
 
 namespace chrono {
 namespace fsi {
-
-using namespace sph;
+namespace sph {
 
 // -----------------------------------------------------------------------------
 
@@ -105,6 +104,43 @@ class FSIStatsVSG : public vsg3d::ChGuiComponentVSG {
             ImGui::EndTable();
         }
 
+        if (ImGui::BeginTable("Particles", 2, ImGuiTableFlags_BordersOuter | ImGuiTableFlags_SizingFixedFit,
+                              ImVec2(0.0f, 0.0f))) {
+            ImGui::TableNextColumn();
+            static bool sph_visible = m_vsysFSI->m_sph_markers;
+            if (ImGui::Checkbox("SPH", &sph_visible)) {
+                m_vsysFSI->m_sph_markers = !m_vsysFSI->m_sph_markers;
+                m_vsysFSI->m_vsys->SetParticleCloudVisibility(m_vsysFSI->m_sph_markers,
+                                                              ChFsiVisualizationVSG::ParticleCloudTag::SPH);
+            }
+
+            ImGui::TableNextColumn();
+            static bool bce_wall_visible = m_vsysFSI->m_bndry_bce_markers;
+            if (ImGui::Checkbox("BCE wall", &bce_wall_visible)) {
+                m_vsysFSI->m_bndry_bce_markers = !m_vsysFSI->m_bndry_bce_markers;
+                m_vsysFSI->m_vsys->SetParticleCloudVisibility(m_vsysFSI->m_bndry_bce_markers,
+                                                              ChFsiVisualizationVSG::ParticleCloudTag::BCE_WALL);
+            }
+
+            ImGui::TableNextColumn();
+            static bool bce_rigid_visible = m_vsysFSI->m_rigid_bce_markers;
+            if (ImGui::Checkbox("BCE rigid", &bce_rigid_visible)) {
+                m_vsysFSI->m_rigid_bce_markers = !m_vsysFSI->m_rigid_bce_markers;
+                m_vsysFSI->m_vsys->SetParticleCloudVisibility(m_vsysFSI->m_rigid_bce_markers,
+                                                              ChFsiVisualizationVSG::ParticleCloudTag::BCE_RIGID);
+            }
+
+            ImGui::TableNextColumn();
+            static bool bce_flex_visible = m_vsysFSI->m_flex_bce_markers;
+            if (ImGui::Checkbox("BCE flex", &bce_flex_visible)) {
+                m_vsysFSI->m_flex_bce_markers = !m_vsysFSI->m_flex_bce_markers;
+                m_vsysFSI->m_vsys->SetParticleCloudVisibility(m_vsysFSI->m_flex_bce_markers,
+                                                              ChFsiVisualizationVSG::ParticleCloudTag::BCE_FLEX);
+            }
+
+            ImGui::EndTable();
+        }
+
         ImGui::End();
     }
 
@@ -114,7 +150,7 @@ class FSIStatsVSG : public vsg3d::ChGuiComponentVSG {
 
 // -----------------------------------------------------------------------------
 
-ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiSystemSPH* sysFSI) : ChFsiVisualization(sysFSI) {
+ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiSystemSPH* sysFSI) : ChFsiVisualizationSPH(sysFSI) {
     m_vsys = new vsg3d::ChVisualSystemVSG();
     m_vsys->AttachSystem(m_sysMBS);
     m_vsys->SetWindowTitle("");
@@ -126,7 +162,7 @@ ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiSystemSPH* sysFSI) : ChFsiVisu
     m_vsys->SetClearColor(ChColor(18.0f / 255, 26.0f / 255, 32.0f / 255));
 }
 
-ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFluidSystemSPH* sysSPH) : ChFsiVisualization(sysSPH) {
+ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiFluidSystemSPH* sysSPH) : ChFsiVisualizationSPH(sysSPH) {
     m_vsys = new vsg3d::ChVisualSystemVSG();
     m_vsys->AttachSystem(m_sysMBS);
     m_vsys->SetWindowTitle("");
@@ -195,9 +231,12 @@ void ChFsiVisualizationVSG::SetClearColor(const ChColor& color) {
 }
 
 void ChFsiVisualizationVSG::Initialize() {
-    if (m_sph_markers) {
+    // Create particle clouds for SPH particles, as well as wall, rigid, and flex BCE markers
+    // Initialize their visibility flag
+    {
         m_sph_cloud = chrono_types::make_shared<ChParticleCloud>();
         m_sph_cloud->SetName("sph_particles");
+        m_sph_cloud->SetTag(ParticleCloudTag::SPH);
         m_sph_cloud->SetFixed(false);
         for (int i = 0; i < m_sysSPH->GetNumFluidMarkers(); i++) {
             m_sph_cloud->AddParticle(CSYSNULL);
@@ -208,11 +247,14 @@ void ChFsiVisualizationVSG::Initialize() {
         m_sph_cloud->RegisterColorCallback(m_color_fun);
         m_sph_cloud->RegisterVisibilityCallback(m_vis_sph_fun);
         m_sysMBS->Add(m_sph_cloud);
+
+        m_vsys->SetParticleCloudVisibility(m_sph_markers, ParticleCloudTag::SPH);
     }
 
-    if (m_bndry_bce_markers) {
+    {
         m_bndry_bce_cloud = chrono_types::make_shared<ChParticleCloud>();
         m_bndry_bce_cloud->SetName("bce_boundary");
+        m_bndry_bce_cloud->SetTag(ParticleCloudTag::BCE_WALL);
         m_bndry_bce_cloud->SetFixed(false);
         for (int i = 0; i < m_sysSPH->GetNumBoundaryMarkers(); i++) {
             m_bndry_bce_cloud->AddParticle(CSYSNULL);
@@ -222,11 +264,14 @@ void ChFsiVisualizationVSG::Initialize() {
         m_bndry_bce_cloud->AddVisualShape(sphere);
         m_bndry_bce_cloud->RegisterVisibilityCallback(m_vis_bndry_fun);
         m_sysMBS->Add(m_bndry_bce_cloud);
+
+        m_vsys->SetParticleCloudVisibility(m_bndry_bce_markers, ParticleCloudTag::BCE_WALL);
     }
 
-    if (m_rigid_bce_markers) {
+    {
         m_rigid_bce_cloud = chrono_types::make_shared<ChParticleCloud>();
         m_rigid_bce_cloud->SetName("bce_rigid");
+        m_rigid_bce_cloud->SetTag(ParticleCloudTag::BCE_RIGID);
         m_rigid_bce_cloud->SetFixed(false);
         for (int i = 0; i < m_sysSPH->GetNumRigidBodyMarkers(); i++) {
             m_rigid_bce_cloud->AddParticle(CSYSNULL);
@@ -235,11 +280,14 @@ void ChFsiVisualizationVSG::Initialize() {
         sphere->SetColor(m_rigid_bce_color);
         m_rigid_bce_cloud->AddVisualShape(sphere);
         m_sysMBS->Add(m_rigid_bce_cloud);
+
+        m_vsys->SetParticleCloudVisibility(m_rigid_bce_markers, ParticleCloudTag::BCE_RIGID);
     }
 
-    if (m_flex_bce_markers) {
+    {
         m_flex_bce_cloud = chrono_types::make_shared<ChParticleCloud>();
         m_flex_bce_cloud->SetName("bce_flex");
+        m_flex_bce_cloud->SetTag(ParticleCloudTag::BCE_FLEX);
         m_flex_bce_cloud->SetFixed(false);
         for (int i = 0; i < m_sysSPH->GetNumFlexBodyMarkers(); i++) {
             m_flex_bce_cloud->AddParticle(CSYSNULL);
@@ -248,6 +296,8 @@ void ChFsiVisualizationVSG::Initialize() {
         sphere->SetColor(m_flex_bce_color);
         m_flex_bce_cloud->AddVisualShape(sphere);
         m_sysMBS->Add(m_flex_bce_cloud);
+
+        m_vsys->SetParticleCloudVisibility(m_flex_bce_markers, ParticleCloudTag::BCE_FLEX);
     }
 
     auto fsi_states = chrono_types::make_shared<FSIStatsVSG>(this);
@@ -332,5 +382,6 @@ bool ChFsiVisualizationVSG::Render() {
     return true;
 }
 
+}  // namespace sph
 }  // namespace fsi
 }  // namespace chrono

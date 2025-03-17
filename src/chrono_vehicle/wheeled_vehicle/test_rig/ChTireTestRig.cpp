@@ -31,6 +31,7 @@
 #ifdef CHRONO_FSI
     #include "chrono_vehicle/terrain/CRMTerrain.h"
 using namespace chrono::fsi;
+using namespace chrono::fsi::sph;
 #endif
 
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
@@ -331,7 +332,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_ground_body->SetName("rig_ground");
     m_ground_body->SetFixed(true);
     {
-        auto box = chrono_types::make_shared<ChVisualShapeBox>(100, dim / 3, dim / 3);
+        auto box = chrono_types::make_shared<ChVisualShapeBox>(100, dim * CH_1_3, dim * CH_1_3);
         m_ground_body->AddVisualShape(box);
     }
 
@@ -351,7 +352,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
                                                         dim / 2,                     //
                                                         mat);
 
-        auto box = chrono_types::make_shared<ChVisualShapeBox>(dim / 3, dim / 3, 10 * dim);
+        auto box = chrono_types::make_shared<ChVisualShapeBox>(dim * CH_1_3, dim * CH_1_3, 10 * dim);
         box->AddMaterial(mat);
         m_carrier_body->AddVisualShape(box, ChFrame<>(ChVector3d(0, 0, -5 * dim)));
     }
@@ -590,7 +591,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     terrain->SetStepSizeCFD(m_tire_step);
 
     terrain->SetStepsizeMBD(m_tire_step);
-    ChFluidSystemSPH::ElasticMaterialProperties mat_props;
+    ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
     mat_props.density = m_params_crm.density;
     mat_props.Young_modulus = 2e6;
     mat_props.Poisson_ratio = 0.3;
@@ -600,7 +601,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     mat_props.average_diam = 0.0614;
     mat_props.cohesion_coeff = m_params_crm.cohesion;
 
-    ChFluidSystemSPH::SPHParameters sph_params;
+    ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = initSpace0;
     sph_params.d0_multiplier = 1.2;

@@ -42,9 +42,6 @@
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
 #endif
-#ifdef CHRONO_OPENGL
-    #include "chrono_opengl/ChVisualSystemOpenGL.h"
-#endif
 
 using std::cout;
 using std::endl;
@@ -61,7 +58,6 @@ static constexpr int tag_particles = 200; // all particles have a tag larger tha
 // -----------------------------------------------------------------------------
 // Construction of the terrain node:
 // - create the (multicore) Chrono system and set solver parameters
-// - create the OpenGL visualization window
 // -----------------------------------------------------------------------------
 ChVehicleCosimTerrainNodeGranularOMP::ChVehicleCosimTerrainNodeGranularOMP(double length,
                                                                            double width,
@@ -752,7 +748,7 @@ double ChVehicleCosimTerrainNodeGranularOMP::CalculatePackingDensity(double& dep
     double Vt = m_dimX * m_dimY * (z_max - z_min);
 
     // Find volume of granular particles
-    double Vs = m_num_particles * (4.0 / 3) * CH_PI * std::pow(m_radius_g, 3);
+    double Vs = m_num_particles * CH_4_3 * CH_PI * std::pow(m_radius_g, 3);
 
     // Packing density = Vs/Vt
     return Vs / Vt;
@@ -847,19 +843,7 @@ void ChVehicleCosimTerrainNodeGranularOMP::OnInitialize(unsigned int num_objects
 
     // Create the visualization window
     if (m_renderRT) {
-#if defined(CHRONO_OPENGL)
-        auto vsys_gl = chrono_types::make_shared<opengl::ChVisualSystemOpenGL>();
-        vsys_gl->AttachSystem(m_system);
-        vsys_gl->SetWindowTitle("Terrain Node (GranularOMP)");
-        vsys_gl->SetWindowSize(1280, 720);
-        vsys_gl->SetRenderMode(opengl::SOLID);
-        vsys_gl->Initialize();
-        vsys_gl->AddCamera(m_cam_pos, ChVector3d(0, 0, 0));
-        vsys_gl->SetCameraProperties(0.05f);
-        vsys_gl->SetCameraVertical(CameraVerticalDir::Z);
-
-        m_vsys = vsys_gl;
-#elif defined(CHRONO_VSG)
+#if defined(CHRONO_VSG)
         auto vsys_vsg = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
         vsys_vsg->AttachSystem(m_system);
         vsys_vsg->SetWindowTitle("Terrain Node (GranularOMP)");
@@ -907,7 +891,7 @@ void ChVehicleCosimTerrainNodeGranularOMP::UpdateMeshProxy(unsigned int i, MeshS
         const ChVector3d& pC = mesh_state.vpos[idx_verts[it].z()];
 
         // Position and orientation of proxy body
-        ChVector3d pos = (pA + pB + pC) / 3;
+        ChVector3d pos = (pA + pB + pC) * CH_1_3;
         proxy->bodies[it]->SetPos(pos);
         proxy->bodies[it]->SetRot(ChQuaternion<>(1, 0, 0, 0));
 
@@ -920,7 +904,7 @@ void ChVehicleCosimTerrainNodeGranularOMP::UpdateMeshProxy(unsigned int i, MeshS
         const ChVector3d& vB = mesh_state.vvel[idx_verts[it].y()];
         const ChVector3d& vC = mesh_state.vvel[idx_verts[it].z()];
 
-        ChVector3d vel = (vA + vB + vC) / 3;
+        ChVector3d vel = (vA + vB + vC) * CH_1_3;
         proxy->bodies[it]->SetPosDt(vel);
 
         //// RADU TODO: angular velocity
@@ -998,7 +982,7 @@ void ChVehicleCosimTerrainNodeGranularOMP::GetForceMeshProxy(unsigned int i, Mes
 
         // Centroid has barycentric coordinates {1/3, 1/3, 1/3}, so force is
         // distributed equally to the three vertices.
-        ChVector3d force(rforce.x / 3, rforce.y / 3, rforce.z / 3);
+        ChVector3d force(rforce.x * CH_1_3, rforce.y * CH_1_3, rforce.z * CH_1_3);
 
         // For each vertex of the triangle, if it appears in the map, increment
         // the total contact force. Otherwise, insert a new entry in the map.

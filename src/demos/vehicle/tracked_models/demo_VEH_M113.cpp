@@ -57,7 +57,7 @@ using std::endl;
 // =============================================================================
 
 // Run-time visualization system (IRRLICHT or VSG)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::IRRLICHT;
+ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 TrackShoeType shoe_type = TrackShoeType::SINGLE_PIN;
 DoublePinTrackShoeType shoe_topology = DoublePinTrackShoeType::ONE_CONNECTOR;
@@ -373,7 +373,7 @@ int main(int argc, char* argv[]) {
             double Sn = 2 * mat.E_eff * std::sqrt(eff_radius * delta);
             double loge = std::log(mat.cr_eff);
             double beta = loge / std::sqrt(loge * loge + CH_PI * CH_PI);
-            double kn = (2.0 / 3) * Sn;
+            double kn = CH_2_3 * Sn;
             double gn = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(Sn * eff_mass);
 
             double forceN = kn * delta - gn * relvel_n_mag;
@@ -397,7 +397,7 @@ int main(int argc, char* argv[]) {
     auto patch_mat = minfo.CreateMaterial(contact_method);
     auto patch = terrain.AddPatch(patch_mat, CSYSNORM, terrainLength, terrainWidth);
     patch->SetColor(ChColor(0.5f, 0.8f, 0.5f));
-    patch->SetTexture(vehicle::GetDataFile("terrain/textures/tile4.jpg"), 200, 200);
+    patch->SetTexture(vehicle::GetDataFile("terrain/textures/grass.jpg"), 20, 20);
     terrain.Initialize();
 
     // --------------------------------
@@ -422,12 +422,12 @@ int main(int argc, char* argv[]) {
             auto vis_irr = chrono_types::make_shared<ChTrackedVehicleVisualSystemIrrlicht>();
             vis_irr->SetWindowTitle("M113 Vehicle Demo");
             vis_irr->SetChaseCamera(ChVector3d(0, 0, 0), 6.0, 0.5);
-            ////vis_irr->SetChaseCameraPosition(vehicle.GetPos() + ChVector3d(0, 2, 0));
             vis_irr->SetChaseCameraMultipliers(1e-4, 10);
             vis_irr->Initialize();
             vis_irr->AddLightDirectional();
             vis_irr->AddSkyBox();
             vis_irr->AddLogo();
+            vis_irr->AttachVehicle(&m113.GetVehicle());
 
             vis = vis_irr;
 
@@ -452,9 +452,9 @@ int main(int argc, char* argv[]) {
             // Create the vehicle VSG interface
             auto vis_vsg = chrono_types::make_shared<ChTrackedVehicleVisualSystemVSG>();
             vis_vsg->SetWindowTitle("M113 Vehicle Demo");
-            vis_vsg->SetChaseCamera(ChVector3d(0, 0, 0), 7.0, 0.5);
+            vis_vsg->SetWindowSize(ChVector2i(1200, 900));
             vis_vsg->AttachVehicle(&m113.GetVehicle());
-            ////vis_vsg->ShowAllCoGs(0.3);
+            vis_vsg->SetChaseCamera(ChVector3d(0, 0, 0), 7.0, 0.5);
             vis_vsg->Initialize();
 
             vis = vis_vsg;
@@ -503,8 +503,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Engine type: " << m113.GetVehicle().GetEngine()->GetTemplateName() << std::endl;
     std::cout << "Transmission type: " << m113.GetVehicle().GetTransmission()->GetTemplateName() << std::endl;
     std::cout << "Vehicle mass: " << vehicle.GetMass() << std::endl;
-
-    vis->AttachVehicle(&m113.GetVehicle());
 
     // -----------------
     // Initialize output
