@@ -28,6 +28,7 @@
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/ChDriver.h"
+#include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 #include "chrono_vehicle/terrain/CRMTerrain.h"
@@ -62,8 +63,13 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 5;
-double terrain_width = 3;
+double terrain_length = 7;
+double terrain_width = 5;
+
+// Vehicle initial position
+double vehicle_init_x = 2.5;
+double vehicle_init_y = 1.5;
+double vehicle_init_z = 0.2;
 
 // Suspend vehicle
 bool fix_chassis = false;
@@ -72,6 +78,8 @@ bool fix_chassis = false;
 
 std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrain);
+void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain);
+std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 // ===================================================================================================================
 
@@ -80,7 +88,7 @@ int main(int argc, char* argv[]) {
     // Problem settings
     // ----------------
 
-    double target_speed = 7.0;
+    double target_speed = 5.0;
     double tend = 30;
     bool verbose = true;
 
@@ -110,13 +118,14 @@ int main(int argc, char* argv[]) {
     // Create vehicle
     // --------------
 
+    // TODO: add heading angle to the vehicle initialization
+    ChQuaterniond q180_z(0., 0., 0., 1.);
+
     cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.2;
     bool fea_tires;
-    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(-1, 0, vehicle_init_height), QUNIT), fea_tires);
-    cout << "finished creating vehicle"<< endl;
+    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), q180_z), fea_tires);
+    cout << "Finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
-    cout << "finished creating vehicle"<< endl;
     // ---------------------------------
     // Set solver and integrator for MBD
     // ---------------------------------
@@ -189,6 +198,10 @@ int main(int argc, char* argv[]) {
 
     // Add vehicle wheels as FSI solids
     CreateFSIWheels(vehicle, terrain);
+    
+    // Add blade as FSI solid
+    CreateFSIBlade(blade, terrain);
+    
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
     terrain.SetActiveDomainDelay(settling_time);
     // Construct the terrain and associated path
@@ -203,12 +216,12 @@ int main(int argc, char* argv[]) {
             break;
         case PatchType::HEIGHT_MAP:
             // Create a patch from a heigh field map image
-            terrain.Construct(vehicle::GetDataFile("terrain/height_maps/terrain_harry.bmp"),  // height map image file
+            terrain.Construct(vehicle::GetDataFile("terrain/art/padded_image_0.bmp"),   // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
                               {0, 0.3},                                                // height range
-                              0.2,                                                    // depth
+                              0.2,                                                     // depth
                               true,                                                    // uniform depth
-                              ChVector3d(0, 0, 0),                    // patch center
+                              ChVector3d(0, 0, 0),                                     // patch center
                               BoxSide::Z_NEG                                           // bottom wall
             );
             break;
@@ -232,12 +245,18 @@ int main(int argc, char* argv[]) {
     double x_max = aabb.max.x() - 4.5;
 
     // --------------------------------
-    // Create the driver
+    // Create the driver (Path follower)
     // --------------------------------
 
+    // ChDriver driver(vehicle->GetVehicle());
+    ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
+    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/art/wpts_data/wpts_0_1.txt");
+    cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
-
-    ChDriver driver(vehicle->GetVehicle());
+    ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
+    driver.GetSteeringController().SetLookAheadDistance(2);
+    driver.GetSteeringController().SetGains(0.9, 0, 0);
+    driver.GetSpeedController().SetGains(0.6, 0.0, 0);
     driver.Initialize();
 
     // -----------------------------
@@ -274,7 +293,7 @@ int main(int argc, char* argv[]) {
 
         visFSI->SetTitle("Wheeled vehicle on CRM deformable terrain");
         visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(ChVector3d(0, 6, 1.5), ChVector3d(0, -1, 0));
+        visFSI->AddCamera(ChVector3d(0, -8, 2.5), ChVector3d(0, -1, 0));
         visFSI->SetCameraMoveScale(0.2f);
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
@@ -305,8 +324,22 @@ int main(int argc, char* argv[]) {
     while (time < tend) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
 
-        // Set throttle to 1
-        driver.SetThrottle(1);
+        // Set current driver inputs
+        auto driver_inputs = driver.GetInputs();
+        // cout << "Current inputs: Steering = " << driver_inputs.m_steering << ", Throttle = " << driver_inputs.m_throttle << ", Braking = " << driver_inputs.m_braking << ", Clutch = " << driver_inputs.m_clutch << endl;
+
+        // Ramp up throttle to 1 from 0 for 0.5s
+        if (time < 0.5) {
+            driver_inputs.m_throttle = time / 0.5;
+        } else {
+            driver_inputs.m_throttle = 1;
+        }
+
+        Stop vehicle before reaching end of terrain patch
+        if (veh_loc.x() > x_max) {
+            driver_inputs.m_throttle = 0;
+            driver_inputs.m_braking = 1;
+        }        
 
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
@@ -322,14 +355,16 @@ int main(int argc, char* argv[]) {
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
+
         // // test motor function working
         // auto rot = chrono_types::make_shared<ChFunctionConst>(0.5);
         // motor->SetAngleFunction(rot);
+
         // Synchronize systems
         driver.Synchronize(time);
         terrain.Synchronize(time);
+
         // Get driver inputs
-        DriverInputs driver_inputs = driver.GetInputs();
         vehicle->Synchronize(time, driver_inputs, terrain);
 
         // Advance system state
@@ -371,10 +406,11 @@ std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared
     vehicle->SetChassisFixed(false);
     vehicle->SetInitPosition(init_pos);
     vehicle->SetTireType(TireModelType::RIGID_MESH);
-    vehicle->SetMaxMotorVoltageRatio(0.16);
-    vehicle->SetStallTorque(0.3);
+    vehicle->SetMaxMotorVoltageRatio(0.2);
+    vehicle->SetStallTorque(1);
     vehicle->SetTireRollingResistance(0.06);
     vehicle->Initialize();
+    vehicle->LockAxleDifferential(1, true);
     vehicle->SetChassisVisualizationType(VisualizationType::MESH);
     vehicle->SetTireVisualizationType(VisualizationType::MESH);
     vehicle->SetSuspensionVisualizationType(VisualizationType::MESH);
@@ -382,12 +418,13 @@ std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared
     vehicle->SetWheelVisualizationType(VisualizationType::MESH);
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
-    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("artcar/blade_final.obj"), 1000, true, true, false);
+    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("artcar/blade_final.obj"), 1000, true, false, false);
     auto offsetpos = ChVector3d(0.5, 0, 0.05);
     blade->SetPos(vehicle->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     blade->SetRot(vehicle->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
     blade->SetMass(0.1);
     blade->SetFixed(false);
+    
     vehicle->GetSystem()->AddBody(blade);
 
     // create motor and apply it to the blade
@@ -425,4 +462,67 @@ void CreateFSIWheels(std::shared_ptr<artcar::ARTcar> vehicle, CRMTerrain& terrai
             }
         }
     }
+}
+
+void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain) {
+    // Create geometry for the blade using its mesh
+    utils::ChBodyGeometry geometry;
+    geometry.materials.push_back(ChContactMaterialData());
+    
+    // Use the same mesh file that was used to create the blade
+    std::string mesh_filename = vehicle::GetDataFile("artcar/blade_final.obj");
+    geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
+    
+    // Add the blade as a rigid body to the FSI system
+    size_t num_blade_BCE = terrain.AddRigidBody(blade, geometry, false);
+    cout << "Added " << num_blade_BCE << " BCE markers on blade" << endl;
+}
+
+std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
+    cout << "Create path from " << path_file << "..." << endl;
+    
+    // Default path (fallback in case of errors)
+    std::vector<ChVector3d> default_points = {
+        ChVector3d(0, 0, 0.2),
+        ChVector3d(10, 0, 0.2)
+    };
+    
+    // Try to open the file
+    std::string full_path = vehicle::GetDataFile(path_file);
+    std::ifstream ifile(full_path);
+    if (!ifile.is_open()) {
+        cout << "ERROR: Failed to open path file: " << full_path << endl;
+        cout << "Using default straight path" << endl;
+        return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(default_points));
+    }
+    
+    // Each file will have exactly 10 points
+    std::vector<ChVector3d> points;
+    points.reserve(10);
+    std::string line;
+    
+    // Read points with only x and y coordinates, z will always be 0.1
+    while (std::getline(ifile, line)) {
+        double x, y;
+        std::istringstream iss(line);
+        if (iss >> x >> y) {
+            // Apply offsets to x and y, and set z to fixed value 0.1
+            points.push_back(ChVector3d(x - 2.5, y - 1.5, 0.1));
+        }
+    }
+    
+    // Verify we have enough points
+    if (points.size() < 2) {
+        cout << "ERROR: Not enough valid points in path file" << endl;
+        return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(default_points));
+    }
+    
+    for (size_t i = 0; i < points.size(); i++) {
+        cout << "Point " << i + 1 << ": " << points[i].x() << ", " << points[i].y() << ", " << points[i].z() << endl;
+    }
+    
+    cout << "Successfully read " << points.size() << " path points" << endl;
+    ifile.close();
+    
+    return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
 }
