@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
+#include <chrono>  // Added for timing measurements
 
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
@@ -34,6 +35,7 @@
 #include "chrono_vehicle/utils/ChVehiclePath.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_thirdparty/cxxopts/ChCLI.h"  // Added for command line parsing
 
 #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
 #ifdef CHRONO_OPENGL
@@ -63,8 +65,9 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::RECTANGULAR;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 20;
+double terrain_length = 1000;
 double terrain_width = 3;
+double terrain_height = 0.25;  // Added explicit variable for terrain height
 
 // Vehicle specification files
 std::string vehicle_json = "Polaris/Polaris.json";
@@ -85,16 +88,39 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 // ===================================================================================================================
 
 int main(int argc, char* argv[]) {
-    // ---------------- 
+    // ----------------
+    // Process command line arguments
+    // ----------------
+
+    // Create command line parser
+    ChCLI cli("Polaris wheeled vehicle on CRM terrain");
+
+    // Add command line options
+    cli.AddOption<double>("", "l,length", "Terrain length", std::to_string(terrain_length));
+    cli.AddOption<double>("", "w,width", "Terrain width", std::to_string(terrain_width));
+    cli.AddOption<double>("", "height", "Terrain height", std::to_string(terrain_height));
+
+    // Parse command line arguments
+    if (!cli.Parse(argc, argv, true))
+        return 0;
+
+    // Get terrain dimensions from command line
+    terrain_length = cli.GetAsType<double>("length");
+    terrain_width = cli.GetAsType<double>("width");
+    terrain_height = cli.GetAsType<double>("height");
+
+    cout << "Terrain dimensions: " << terrain_length << " x " << terrain_width << " x " << terrain_height << endl;
+
+    // ----------------
     // Problem settings
     // ----------------
 
     double target_speed = 7.0;
-    double tend = 30;
+    double tend = 10;  // Changed from 30 to 10 as requested
     bool verbose = true;
 
     // Visualization settings
-    bool render = true;                    // use run-time visualization
+    bool render = false;                   // use run-time visualization
     double render_fps = 200;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
@@ -206,9 +232,9 @@ int main(int argc, char* argv[]) {
     switch (patch_type) {
         case PatchType::RECTANGULAR:
             // Create a rectangular terrain patch
-            terrain.Construct({terrain_length, terrain_width, 0.25},  // length X width X height
-                              ChVector3d(terrain_length / 2, 0, 0),   // patch center
-                              BoxSide::ALL & ~BoxSide::Z_POS          // all boundaries, except top
+            terrain.Construct({terrain_length, terrain_width, terrain_height},  // length X width X height
+                              ChVector3d(terrain_length / 2, 0, 0),             // patch center
+                              BoxSide::ALL & ~BoxSide::Z_POS                    // all boundaries, except top
             );
             // Create straight line path
             path = StraightLinePath(ChVector3d(0, 0, vehicle_init_height),
@@ -219,7 +245,7 @@ int main(int argc, char* argv[]) {
             terrain.Construct(vehicle::GetDataFile("terrain/height_maps/bump64.bmp"),  // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
                               {0, 0.3},                                                // height range
-                              0.25,                                                    // depth
+                              terrain_height,                                          // depth
                               true,                                                    // uniform depth
                               ChVector3d(terrain_length / 2, 0, 0),                    // patch center
                               BoxSide::Z_NEG                                           // bottom wall
@@ -317,6 +343,8 @@ int main(int argc, char* argv[]) {
 
     cout << "Start simulation..." << endl;
 
+    // Add timing measurement for entire simulation
+    auto sim_start = std::chrono::high_resolution_clock::now();
     ChTimer timer;
     while (time < tend) {
         const auto& veh_loc = vehicle->GetPos();
@@ -338,6 +366,7 @@ int main(int argc, char* argv[]) {
             driver_inputs.m_braking = 1;
         }
 
+#ifdef CHRONO_VSG
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
@@ -349,9 +378,11 @@ int main(int argc, char* argv[]) {
                 break;
             render_frame++;
         }
-        if (!render) {
-            std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
-        }
+#endif
+
+        // if (!render) {
+        //     std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
+        // }
 
         // Synchronize systems
         driver.Synchronize(time);
@@ -382,6 +413,19 @@ int main(int argc, char* argv[]) {
         time += step_size;
         sim_frame++;
     }
+
+    // Calculate and print timing statistics
+    auto sim_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> sim_duration = sim_end - sim_start;
+    double real_time_taken = sim_duration.count();
+    double rtf_overall = real_time_taken / time;
+
+    cout << "\n=== Simulation Complete ===" << endl;
+    cout << "Terrain dimensions:   " << terrain_length << " x " << terrain_width << " x " << terrain_height << endl;
+    cout << "Time simulated:       " << time << " seconds" << endl;
+    cout << "Real time taken:      " << real_time_taken << " seconds" << endl;
+    cout << "Real-time factor:     " << rtf_overall << " (>1 means slower than real-time)" << endl;
+    cout << "=========================" << endl;
 
     return 0;
 }
