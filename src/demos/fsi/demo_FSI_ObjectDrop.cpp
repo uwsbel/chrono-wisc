@@ -44,15 +44,20 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 
-// Container dimensions
-ChVector3d csize(0.8, 0.8, 1.6);
+//// Container dimensions
+//ChVector3d csize(1.6, 1.6, 1.6);
+//// Dimensions of fluid domain
+//ChVector3d fsize(1.6, 1.6, 1.2);
 
+// Container dimensions
+ ChVector3d csize(1.0, 1.0, 1.6);
 // Dimensions of fluid domain
-ChVector3d fsize(0.8, 0.8, 1.2);
+ ChVector3d fsize(1.0, 1.0, 1.2);
+
 
 // Object type
-enum class ObjectType { SPHERE, CYLINDER };
-ObjectType object_type = ObjectType::CYLINDER;
+enum class ObjectType { SPHERE, CYLINDER, ACORN_MESH, SPHERE_MESH };
+ ObjectType object_type = ObjectType::SPHERE_MESH;
 
 // Object density
 double density = 500;
@@ -135,24 +140,25 @@ bool GetProblemSpecs(int argc,
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double initial_spacing = 0.025;
-    double step_size = 1e-4;
+    //double initial_spacing = 0.0015;
+    double initial_spacing = 0.025;  // initial spacing between SPH particles
+    double step_size = 5e-5;
 
     // Parse command line arguments
     double t_end = 3.0;
-    bool output = false;
+    bool output = true;
     double output_fps = 20;
     bool render = true;
     double render_fps = 400;
     bool verbose = true;
-    bool snapshots = false;
+    bool snapshots = true;
     int ps_freq = 1;
     std::string boundary_type = "adami";
-    std::string viscosity_type = "artificial_unilateral";
-    if (!GetProblemSpecs(argc, argv, t_end, verbose, output, output_fps, render, render_fps, snapshots, ps_freq,
-                         boundary_type, viscosity_type)) {
-        return 1;
-    }
+    std::string viscosity_type = "laminar";
+    //if (!GetProblemSpecs(argc, argv, t_end, verbose, output, output_fps, render, render_fps, snapshots, ps_freq,
+    //                     boundary_type, viscosity_type)) {
+    //    return 1;
+    //}
 
     // Create the Chrono system and associated collision system
     ChSystemNSC sysMBS;
@@ -174,7 +180,8 @@ int main(int argc, char* argv[]) {
     // Set CFD fluid properties
     ChFsiFluidSystemSPH::FluidProperties fluid_props;
     fluid_props.density = 1000;
-    fluid_props.viscosity = 1;
+    double kinematic_viscosity = 1e-6;
+    fluid_props.viscosity = kinematic_viscosity * fluid_props.density;
 
     fsi.SetCfdSPH(fluid_props);
 
@@ -186,9 +193,8 @@ int main(int argc, char* argv[]) {
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = 1;
     sph_params.max_velocity = 8.0;
-    sph_params.shifting_method = ShiftingMethod::XSPH;
-    sph_params.shifting_xsph_eps = 0.5;
-    sph_params.artificial_viscosity = 0.03;
+    //sph_params.shifting_method = ShiftingMethod::XSPH;
+    //sph_params.shifting_xsph_eps = 0.5;
     sph_params.eos_type = EosType::TAIT;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
@@ -203,15 +209,24 @@ int main(int argc, char* argv[]) {
         sph_params.boundary_type = BoundaryType::ADAMI;
     }
 
-    if (viscosity_type == "laminar") {
-        sph_params.viscosity_type = ViscosityType::LAMINAR;
-    } else if (viscosity_type == "artificial_bilateral") {
-        sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
-    } else {
-        sph_params.viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
-    }
+    //if (viscosity_type == "laminar") {
+    //    sph_params.viscosity_type = ViscosityType::LAMINAR;
+    //} else if (viscosity_type == "artificial_bilateral") {
+    //    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    //} else {
+    //    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
+    //}
+
+    sph_params.viscosity_type = ViscosityType::LAMINAR;
 
     fsi.SetSPHParameters(sph_params);
+
+    // create ground body
+    auto ground = chrono_types::make_shared<ChBody>();
+    ground->SetFixed(true);
+    ground->SetMass(10.f);
+    sysMBS.AddBody(ground);
+   
 
     // Create the rigid body
     utils::ChBodyGeometry geometry;
@@ -243,7 +258,7 @@ int main(int argc, char* argv[]) {
             double mass = density * ChCylinder::GetVolume(radius, length);
             auto inertia = mass * ChCylinder::GetGyration(radius, length / 2);
 
-            body->SetPos(ChVector3d(0, 0, initial_height * fsize.z() + radius));
+            body->SetPos(ChVector3d(0, 0, initial_height * fsize.z()));  // change position 
             body->SetRot(QUNIT);
             body->SetMass(mass);
             body->SetInertia(inertia);
@@ -253,8 +268,47 @@ int main(int argc, char* argv[]) {
 
             break;
         }
+        case ObjectType::ACORN_MESH: {
+            double mass = 9.75;
+            auto inertia = ChMatrix33d(5, 5, 5);  // approximate inertia 
+            ChVector3d initial_pos(0, 0, initial_height * fsize.z());  // initial position of the mesh
+
+                       
+            body->SetPos(initial_pos);
+            body->SetMass(mass);
+            body->SetInertia(inertia);
+
+            std::string mesh_filename = "C:/Users/fang/Documents/NREL_WATER/DualSPH/DualSPHTests/DropTest/float.obj";
+
+            // frame of interior point is local coordinates in the mesh frame 
+            geometry.coll_meshes.push_back(
+                utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL, 1.0));
+            break;
+        }
+        case ObjectType::SPHERE_MESH: {
+            double mass = 9.75;
+            auto inertia = ChMatrix33d(0.05, 0.05, 0.05);  // approximate inertia
+
+            ChVector3d initial_pos(0, 0, initial_height * fsize.z());  // initial position of the mesh
+
+            body->SetPos(initial_pos);
+            body->SetMass(mass);
+            body->SetInertia(inertia);
+
+            std::string mesh_filename = GetChronoDataFile("models/sphere.obj");
+
+            // frame of interior point is local coordinates in the mesh frame
+            geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL, radius));
+            break;
+        }
     }
 
+    
+    // add translational joint between ground and object
+    auto joint = chrono_types::make_shared<ChLinkLockPrismatic>();
+    joint->Initialize(ground, body, ChFramed(ChVector3d(0, 0, 0), QUNIT));
+    //sysMBS.AddLink(joint);
+    
     if (show_rigid)
         geometry.CreateVisualizationAssets(body, VisualizationType::COLLISION);
 
@@ -274,8 +328,9 @@ int main(int argc, char* argv[]) {
     // the simulation will crash
     ChVector3d cMin(-csize.x() / 2 - num_bce_layers * initial_spacing,
                     -csize.y() / 2 - num_bce_layers * initial_spacing, -0.1);
-    ChVector3d cMax(csize.x() / 2 + num_bce_layers * initial_spacing, csize.y() / 2 + num_bce_layers * initial_spacing,
-                    csize.z() + initial_height + radius);
+    ChVector3d cMax( csize.x() / 2 + num_bce_layers * initial_spacing, 
+                     csize.y() / 2 + num_bce_layers * initial_spacing,
+                     csize.z() + initial_height + radius);
     fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::NONE);
 
     // Initialize FSI problem
@@ -344,8 +399,8 @@ int main(int argc, char* argv[]) {
         visVSG->SetWindowTitle("Object Drop");
         visVSG->SetWindowSize(1280, 720);
         visVSG->SetWindowPosition(400, 400);
-        visVSG->AddCamera(ChVector3d(2.5 * fsize.x(), 2.5 * fsize.y(), 1.5 * fsize.z()),
-                          ChVector3d(0, 0, 0.5 * fsize.z()));
+        visVSG->AddCamera(ChVector3d(2.5 * fsize.x(), 2.5 * fsize.y(), 2.0 * fsize.z()),
+                          ChVector3d(0, 0, 1.5 * fsize.z()));
         visVSG->SetLightIntensity(0.9f);
         visVSG->SetLightDirection(-CH_PI_2, CH_PI / 6);
         visVSG->SetWireFrameMode(false);
@@ -372,13 +427,13 @@ int main(int argc, char* argv[]) {
         auto body_height = body->GetPos().z();
         ofile << time << "\t" << body_height << "\n";
 
-        if (output && time >= out_frame / output_fps) {
+        //if (output && time >= out_frame / output_fps) {
             if (verbose)
                 cout << " -- Output frame " << out_frame << " at t = " << time << endl;
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
 
             out_frame++;
-        }
+        //}
 
         // Render FSI system
         if (render && time >= render_frame / render_fps) {
