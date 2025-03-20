@@ -111,6 +111,10 @@ endif()
 if(ENABLE_MODULE_POSTPROCESS)
     list(APPEND LIBS "ChronoEngine_postprocess")
 endif()
+if(ENABLE_MODULE_SENSOR)
+  include_directories(${CH_SENSOR_INCLUDES})
+  list(APPEND LIBS "ChronoEngine_sensor")
+endif()
 
 #--------------------------------------------------------------
 # Create the executables

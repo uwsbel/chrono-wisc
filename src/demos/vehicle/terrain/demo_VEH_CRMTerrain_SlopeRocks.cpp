@@ -48,9 +48,29 @@
 
 #include "demos/SetChronoSolver.h"
 
+#include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChInertiaUtils.h"
+#include "chrono/geometry/ChTriangleMeshConnected.h"
+
+
+#include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChSegmentationCamera.h"
+#include "chrono_sensor/ChSensorManager.h"
+#include "chrono_sensor/filters/ChFilterAccess.h"
+#include "chrono_sensor/filters/ChFilterVisualize.h"
+#include "chrono_sensor/sensors/Sensor.h"
+#include "chrono_sensor/filters/ChFilterGrayscale.h"
+#include "chrono_sensor/filters/ChFilterSave.h"
+#include "chrono_sensor/filters/ChFilterVisualize.h"
+#include "chrono_sensor/filters/ChFilterCameraNoise.h"
+#include "chrono_sensor/filters/ChFilterImageOps.h"
+#include "chrono_sensor/optix/ChNVDBVolume.h"
+#include <execution>
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::vehicle;
+using namespace chrono::sensor;
 
 using std::cout;
 using std::cin;
@@ -80,11 +100,66 @@ std::string tire_json = "Polaris/Polaris_RigidTire.json";
 bool fix_chassis = false;
 
 // Add rocks to the terrain
-bool add_rocks = false;
+bool add_rocks = true;
 
 // Save snapshots of the simulation
 bool save_snapshots = false;
 
+
+// Sensor params
+// Noise model attached to the sensor
+enum NoiseModel {
+    CONST_NORMAL,     // Gaussian noise with constant mean and standard deviation
+    PIXEL_DEPENDENT,  // Pixel dependent gaussian noise
+    NONE              // No noise model
+};
+NoiseModel noise_model = NONE;
+
+// Camera lens model
+// Either PINHOLE or SPHERICAL
+CameraLensModelType lens_model = CameraLensModelType::PINHOLE;
+// Update rate in Hz
+float update_rate = 30;
+// Image width and height
+unsigned int image_width = 1280;
+unsigned int image_height = 720;
+// 720;
+// Camera's horizontal field of view
+float fov = (float)CH_PI / 2.;
+// Lag (in seconds) between sensing and when data becomes accessible
+float lag = 0.0f;
+// Exposure (in seconds) of each image
+float exposure_time = 0.00f;
+int alias_factor = 1;
+
+// -----------------------------------------------------------------------------
+// Simulation parameters
+// -----------------------------------------------------------------------------
+// Save camera images
+bool save = true;
+// Render camera images
+bool vis = true;
+// Output directory
+const std::string sensor_out_dir = "SENSOR_OUTPUT/SlopeRocks/";
+
+bool use_gi = false;
+
+
+
+// VDB info
+bool firstInst = true;
+std::vector<int> idList;
+int prevActiveVoxels = 0;
+std::vector<std::shared_ptr<ChBody>> voxelBodyList = {};
+std::vector<float> offsetXList = {};
+std::vector<float> offsetYList = {};
+int activeVoxels = 0;
+void createVoxelGrid(std::vector<ChVector3d> points,
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat);
+int num_meshes = 100;
+std::vector<std::shared_ptr<ChVisualShapeTriangleMesh>> regolith_meshes;  // ChVisualShapeTriangleMesh
+float slope_angle = 0.f;
 // ===================================================================================================================
 
 std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
@@ -109,12 +184,12 @@ int main(int argc, char* argv[]) {
     std::cout << "Example: " << argv[0] << " 25 rocks snapshots" << std::endl;
     std::cout << "================================================" << std::endl;
 
-    double target_speed = 4.0;
+    double target_speed = 2.0;
     double tend = 30;
     bool verbose = true;
 
     // Default slope angle (can be overridden by command line)
-    double slope_angle = 25.0;
+    double slope_angle = 30.0;
 
     // Parse command line arguments
     if (argc > 1) {
@@ -161,7 +236,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Selected slope angle: " << slope_angle << " degrees" << std::endl;
 
     // Visualization settings
-    bool render = true;                    // use run-time visualization
+    bool render = false;                    // use run-time visualization
     double render_fps = 200;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
@@ -179,7 +254,7 @@ int main(int argc, char* argv[]) {
     double active_box_hdim = 0.4;
 
     // Set SPH spacing
-    double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.04;
+    double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.02;
 
     // --------------
     // Create vehicle
@@ -339,6 +414,198 @@ int main(int argc, char* argv[]) {
     driver.GetSpeedController().SetGains(0.6, 0.05, 0);
     driver.Initialize();
 
+
+
+       //
+    // SENSOR SIMULATION BEGIN
+    //
+
+    // Load regolith meshes
+    std::string mesh_name_prefix = "sensor/geometries/regolith/particle_";
+    for (int i = 1; i <= num_meshes; i++) {
+        auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(
+            GetChronoDataFile(mesh_name_prefix + std::to_string(i) + ".obj"), false, true);
+        mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
+        auto trimesh_shape = std::make_shared<ChVisualShapeTriangleMesh>();
+        trimesh_shape->SetMesh(mmesh);
+        // std::cout << "OK1" << std::endl;
+        trimesh_shape->SetName("RegolithMesh" + std::to_string(i));
+        trimesh_shape->SetMutable(false);
+        regolith_meshes.push_back(trimesh_shape);
+    }
+
+    auto regolith_material = chrono_types::make_shared<ChVisualMaterial>();
+    regolith_material->SetAmbientColor({1, 1, 1});  // 0.65f,0.65f,0.65f
+    regolith_material->SetDiffuseColor({1, 1, 1});  // 0.29f, 0.29f, 0.235f
+    regolith_material->SetSpecularColor({1, 1, 1});
+    regolith_material->SetUseSpecularWorkflow(true);
+    regolith_material->SetRoughness(1.0f);
+    regolith_material->SetBSDF((unsigned int)BSDFType::HAPKE);
+    regolith_material->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f,
+                                          23.4f * (CH_PI / 180));
+    regolith_material->SetClassID(30000);
+    regolith_material->SetInstanceID(20000);
+
+    auto floor = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
+    floor->SetPos({0, 0, 0});
+    floor->SetFixed(true);
+    sysMBS->Add(floor);
+
+    // Create a Sensor manager
+    float intensity = 1.0;
+    auto manager = chrono_types::make_shared<ChSensorManager>(sysMBS);
+    manager->scene->AddPointLight({0, -5, 5}, {intensity, intensity, intensity}, 500);
+    manager->scene->SetAmbientLight({.1, .1, .1});
+    Background b;
+    b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    b.env_tex = GetChronoDataFile("sensor/textures/starmap_2020_4k.hdr");
+    manager->scene->SetBackground(b);
+    manager->SetVerbose(false);
+    manager->SetRayRecursions(4);
+    Integrator integrator = Integrator::LEGACY;
+    bool use_denoiser = false;
+
+    // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
+    chrono::ChFrame<double> offset_pose1(
+        {-1, -3, 1}, QuatFromAngleAxis(CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+    auto cam = chrono_types::make_shared<ChCameraSensor>(vehicle->GetChassis()->GetBody(),         // body camera is attached to
+                                                         update_rate,   // update rate in Hz
+                                                         offset_pose1,  // offset pose
+                                                         image_width,   // image width
+                                                         image_height,  // image height
+                                                         fov,           // camera's horizontal field of view
+                                                         alias_factor,  // super sampling factor
+                                                         lens_model,    // lens model type
+                                                         use_gi);
+    cam->SetIntegrator(integrator);
+    cam->SetName("Third Person Camera");
+    cam->SetLag(lag);
+    cam->SetCollectionWindow(exposure_time);
+    if (vis)
+        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Third Person Camera"));
+
+    if (save)
+        cam->PushFilter(
+            chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "CRM_DEMO_THIRD_PERSON_VIEW_RealSlope/"));
+    manager->AddSensor(cam);
+
+    //chrono::ChFrame<double> offset_pose2({-0.f, -1.7, 0.5}, QuatFromAngleAxis(.2, {-2, 3, 9.75}));
+    chrono::ChFrame<double> offset_pose2({-0.3f, -0.6, 0.8f}, QuatFromAngleAxis(0, {0,0,1})*QuatFromAngleAxis(CH_PI_2, {0,1,0}));
+    //-0.2f, -0.5, 1.f
+    auto cam2 = chrono_types::make_shared<ChCameraSensor>(vehicle->GetChassis()->GetBody(),  // body camera is attached to
+                                                          update_rate,                     // update rate in Hz
+                                                          offset_pose2,                    // offset pose
+                                                          image_width,                     // image width
+                                                          image_height,                    // image height
+                                                          fov,           // camera's horizontal field of view
+                                                          alias_factor,  // super sampling factor
+                                                          lens_model,    // lens model type
+                                                          use_denoiser);
+    cam2->SetIntegrator(integrator);
+    cam2->SetName("FRWheelCam");
+    cam2->SetLag(lag);
+    cam2->SetCollectionWindow(exposure_time);
+    if (vis)
+        cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "FRWheelCam"));
+
+    if (save)
+        cam2->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "FRWheelCam/"));
+    manager->AddSensor(cam2);
+
+   chrono::ChFrame<double> rrpose({-2.37f, -0.6, 0.8f}, QuatFromAngleAxis(0, {0,0,1})*QuatFromAngleAxis(CH_PI_2, {0,1,0}));
+   auto rrcam = chrono_types::make_shared<ChCameraSensor>(vehicle->GetChassis()->GetBody(),  // body camera is attached to
+                                                  update_rate,                       // update rate in Hz
+                                                  rrpose,                      // offset pose
+                                                  image_width,                       // image width
+                                                  image_height,                      // image height
+                                                  fov,           // camera's horizontal field of view
+                                                  alias_factor,  // super sampling factor
+                                                  lens_model,    // lens model type
+                                                  use_denoiser);
+    rrcam->SetIntegrator(integrator);
+    rrcam->SetName("RRWheelCam");
+    rrcam->SetLag(lag);
+    rrcam->SetCollectionWindow(exposure_time);
+    if (vis)
+        rrcam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "RRWheelCam"));
+
+    if (save)
+        rrcam->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "RRWheelCam/"));
+    manager->AddSensor(rrcam);
+
+    auto seg =
+        chrono_types::make_shared<ChSegmentationCamera>(vehicle->GetChassis()->GetBody(),  // body camera is attached to
+                                                        update_rate,                     // update rate in Hz
+                                                        offset_pose2,                    // offset pose
+                                                        image_width,                     // image width
+                                                        image_height,                    // image height
+                                                        fov,          // camera's horizontal field of view
+                                                        lens_model);  // FOV
+    seg->SetName("Semantic Segmentation Camera");
+    seg->SetLag(lag);
+    seg->SetCollectionWindow(exposure_time);
+
+    // Render the semantic mask
+    if (vis)
+        seg->PushFilter(
+            chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Semantic Segmentation"));
+
+    // Save the semantic mask
+    if (save)
+        seg->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "segmentation/"));
+
+    //manager->AddSensor(seg);
+
+    chrono::ChFrame<double> offset_pose3({-4.f, 0, .6f}, QuatFromAngleAxis(.2, {0, 1, 0}));
+    // chrono::ChFrame<double> offset_pose3({0, 0, 5.f}, Q_from_AngAxis(CH_PI_2, {0, 1, 0}));
+    auto cam3 = chrono_types::make_shared<ChCameraSensor>(vehicle->GetChassis()->GetBody(),  // body camera is attached to
+                                                          update_rate,                     // update rate in Hz
+                                                          offset_pose3,                    // offset pose
+                                                          image_width,                     // image width
+                                                          image_height,                    // image height
+                                                          fov,           // camera's horizontal field of view
+                                                          alias_factor,  // super sampling factor
+                                                          lens_model,    // lens model type
+                                                          use_denoiser);
+    cam3->SetIntegrator(integrator);
+    cam3->SetName("Rear Camera");
+    cam3->SetLag(lag);
+    cam3->SetCollectionWindow(exposure_time);
+    if (vis)
+        cam3->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Rear Camera"));
+
+    if (save)
+        cam3->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Rear_Cam_RealSlope/"));
+    manager->AddSensor(cam3);
+
+    chrono::ChFrame<double> offset_pose4({-7.f, 0, 3.f}, QuatFromAngleAxis(.2, {0, 1, 0}));
+    //chrono::ChFrame<double> offset_pose4({0, 0, 50.f}, QuatFromAngleAxis(CH_PI_2, {0, 1, 0}));
+    auto cam4 = chrono_types::make_shared<ChCameraSensor>(vehicle->GetChassis()->GetBody(),  // body camera is attached to
+                                                          update_rate,                     // update rate in Hz
+                                                          offset_pose4,                    // offset pose
+                                                          image_width,                     // image width
+                                                          image_height,                    // image height
+                                                          fov,           // camera's horizontal field of view
+                                                          alias_factor,  // super sampling factor
+                                                          lens_model,    // lens model type
+                                                          use_denoiser);
+    cam4->SetIntegrator(integrator);
+    cam4->SetName("Top Camera");
+    cam4->SetLag(lag);
+    cam4->SetCollectionWindow(exposure_time);
+    if (vis)
+        cam4->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Top Camera"));
+
+    if (save)
+        cam4->PushFilter(chrono_types::make_shared<ChFilterSave>(sensor_out_dir + "Top_Cam_RealSensor/"));
+    manager->AddSensor(cam4);
+
+    // Add NanoVDB particles
+
+    //
+    //  SENSOR SIMULATION END
+    //
+
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
@@ -422,10 +689,11 @@ int main(int argc, char* argv[]) {
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
-
+    int sensor_render_steps = (unsigned int)round(1 / (update_rate * step_size));
     cout << "Start simulation..." << endl;
 
     ChTimer timer;
+    std::vector<ChVector3d> h_points;
     while (time < tend) {
         const auto& veh_loc = vehicle->GetPos();
 
@@ -472,6 +740,15 @@ int main(int argc, char* argv[]) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
 
+        
+        if (sim_frame % sensor_render_steps == 0 && sim_frame > 0) {
+            // timerNVDB.start();;
+            h_points = sysFSI.GetFluidSystemSPH().GetParticlePositions();
+            createVoxelGrid(h_points, manager->scene, regolith_material);
+            manager->Update();
+        }
+
+       
         // Synchronize systems
         driver.Synchronize(time);
         terrain.Synchronize(time);
@@ -694,4 +971,169 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
     ifile.close();
 
     return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
+}
+
+void createVoxelGrid(std::vector<ChVector3d> points,
+                     std::shared_ptr<ChScene> scene,
+                     std::shared_ptr<ChVisualMaterial> vis_mat) {
+    std::cout << "Creating CPU Voxel Grid for " << points.size() << "particles " << std::endl;
+    float spacing = 0.02 / 2.f;
+    float r = spacing;
+    int pointsPerVoxel = 1;
+    float voxelSize = spacing;
+    std::cout << "VoxelSize=" << voxelSize << std::endl;
+
+    activeVoxels = points.size();
+
+    int numVoxelsToAdd = activeVoxels - prevActiveVoxels;
+    int numAdds = 0;
+    int numUpdates = 0;
+
+    if (!firstInst) {
+        thread_local std::mt19937 generator(std::random_device{}());
+        std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+        std::uniform_real_distribution<float> randpos(-0.02f, 0.02f);
+        std::uniform_real_distribution<float> randscale(1.f, 2.f);
+        int voxelCount = 0;
+        for (int i = 0; i < activeVoxels; i++) {
+            ChVector3d pos = points[i]; //(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
+            if (!idList.empty() && ((voxelCount < prevActiveVoxels) || (voxelCount < idList.size()))) {
+                numUpdates++;
+                auto voxelBody = voxelBodyList[idList[voxelCount]];
+                float offsetX = offsetXList[idList[voxelCount]];
+                float offsetY = offsetYList[idList[voxelCount]];
+                ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
+                //double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                //double yRot = voxelPos.y();
+                //double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                // Create a new rotated vector
+               // ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                voxelBody->SetPos(voxelPos);
+                //voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                // voxelBody->SetPos({voxelPos.x(), voxelPos.y(), voxelPos.z()});
+            }
+            // Create a sphere for each point
+            else if (numVoxelsToAdd > 0 && voxelCount >= prevActiveVoxels) {
+                //numAdds++;
+                //std::shared_ptr<ChBody> voxelBody;
+                //if (true) {
+                //    // std::cout << "Adding Mesh " << i << std::endl;
+                //    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                //    auto trimesh_shape = regolith_meshes[meshIndex];
+                //    trimesh_shape->SetScale(randscale(generator));
+                //    if (trimesh_shape->GetNumMaterials() == 0) {
+                //        trimesh_shape->AddMaterial(vis_mat);
+                //    } else {
+                //        trimesh_shape->GetMaterials()[0] = vis_mat;
+                //    }
+                //    voxelBody = chrono_types::make_shared<ChBody>();
+                //    voxelBody->AddVisualShape(trimesh_shape);
+                //} else {
+                //    auto voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+                //}
+                //float offsetX = randpos(generator);
+                //float offsetY = randpos(generator);
+                //// Set the position and other properties of the voxel body
+                //ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
+                //double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                //double yRot = voxelPos.y();
+                //double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                //ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                //voxelBody->SetPos(voxelPos);
+                ////voxelBody->SetRot(QuatFromAngleY(-slope_angle));
+                //voxelBody->SetFixed(true);
+
+                //int index = voxelBodyList.size();
+                //voxelBodyList.push_back(voxelBody);
+                //{
+                //    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                //    if (shape->GetNumMaterials() == 0) {
+                //        shape->AddMaterial(vis_mat);
+                //    } else {
+                //        shape->GetMaterials()[0] = vis_mat;
+                //    }
+                //}
+                //idList.emplace_back(index);
+                //offsetXList.emplace_back(offsetX);
+                //offsetYList.emplace_back(offsetY);
+            }
+            voxelCount++;
+        }
+
+    } else {
+        voxelBodyList.resize(activeVoxels);
+        idList.resize(activeVoxels);
+        offsetXList.resize(activeVoxels);
+        offsetYList.resize(activeVoxels);
+
+        // std::atomic<int> voxelCount(0);  // Thread-safe counter for the voxels
+
+        // Use std::for_each with parallel execution
+        std::for_each(std::execution::par, points.begin(), points.begin() + activeVoxels, [&](ChVector3d& point) {
+        //for (int i = 0; i < points.size(); i++) {
+            // Calculate the index based on the position in the loop
+            int i = &point - &points[0];  // Get the current index
+
+            thread_local std::mt19937 generator(std::random_device{}());
+            std::uniform_int_distribution<int> distribution(0, num_meshes - 1);
+            std::uniform_real_distribution<float> randpos(-.005f, .005f);
+            std::uniform_real_distribution<float> randscale(1.5f, 2.f);
+            // Compute voxel position in world space
+            ChVector3d pos = point;//points[i];//(points[6 * i], points[6 * i + 1], points[6 * i + 2]);
+            // Create voxelBody if necessary
+            if (numVoxelsToAdd > 0 && i >= prevActiveVoxels) {
+                std::shared_ptr<ChBody> voxelBody;
+                if (true) {
+                    // std::cout << "Adding Mesh " << i << std::endl;
+                    int meshIndex = distribution(generator);  // Randomly select a mesh (if needed)
+                    auto trimesh_shape = regolith_meshes[meshIndex];
+                    trimesh_shape->SetScale(randscale(generator));
+                    if (trimesh_shape->GetNumMaterials() == 0) {
+                        trimesh_shape->AddMaterial(vis_mat);
+                    } else {
+                        trimesh_shape->GetMaterials()[0] = vis_mat;
+                    }
+                    voxelBody = chrono_types::make_shared<ChBody>();
+                    voxelBody->AddVisualShape(trimesh_shape);
+
+                } else {
+                    // Create a sphere voxel
+                    voxelBody = chrono_types::make_shared<ChBodyEasySphere>(r, 1000, true, false);
+
+                    auto shape = voxelBody->GetVisualModel()->GetShapeInstances()[0].first;
+                    if (shape->GetNumMaterials() == 0) {
+                        shape->AddMaterial(vis_mat);
+                    } else {
+                        shape->GetMaterials()[0] = vis_mat;
+                    }
+                }
+
+                float offsetX = randpos(generator);
+                float offsetY = randpos(generator);
+                // Set the position and other properties of the voxel body
+                ChVector3d voxelPos(pos.x() + offsetX, pos.y() + offsetY, pos.z());
+                //double xRot = voxelPos.x() * cos(-slope_angle) + voxelPos.z() * sin(-slope_angle);
+                //double yRot = voxelPos.y();
+                //double zRot = -voxelPos.x() * sin(-slope_angle) + voxelPos.z() * cos(-slope_angle);
+
+                //// Create a new rotated vector
+                //ChVector3d rotatedVoxelPos(xRot, yRot, zRot);
+                voxelBody->SetPos(voxelPos);
+                voxelBody->SetFixed(true);
+
+                // Directly assign the voxelBody and index to the preallocated list positions
+                voxelBodyList[i] = voxelBody;
+                idList[i] = i;  // Assign index to idList slot
+                offsetXList[i] = offsetX;
+                offsetYList[i] = offsetY;
+            }
+            });
+        //}
+    }
+    prevActiveVoxels = activeVoxels;
+    std::cout << "Num Voxels: " << voxelBodyList.size() << std::endl;
+    scene->SetSprites(voxelBodyList);
+    firstInst = false;
 }
