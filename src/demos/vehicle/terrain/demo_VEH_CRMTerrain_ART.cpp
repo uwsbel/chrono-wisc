@@ -67,8 +67,8 @@ double terrain_length = 7;
 double terrain_width = 5;
 
 // Vehicle initial position
-double vehicle_init_x = 2.5;
-double vehicle_init_y = 1.5;
+double vehicle_init_x = 0;
+double vehicle_init_y = 0;
 double vehicle_init_z = 0.2;
 
 // Suspend vehicle
@@ -335,7 +335,7 @@ int main(int argc, char* argv[]) {
             driver_inputs.m_throttle = 1;
         }
 
-        Stop vehicle before reaching end of terrain patch
+        // Stop vehicle before reaching end of terrain patch
         if (veh_loc.x() > x_max) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
