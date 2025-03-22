@@ -44,20 +44,20 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 
-//// Container dimensions
+// Container dimensions
 //ChVector3d csize(1.6, 1.6, 1.6);
 //// Dimensions of fluid domain
 //ChVector3d fsize(1.6, 1.6, 1.2);
 
-// Container dimensions
- ChVector3d csize(1.0, 1.0, 1.6);
+ //Container dimensions
+ ChVector3d csize(2.2, 2.2, 1.6);
 // Dimensions of fluid domain
- ChVector3d fsize(1.0, 1.0, 1.2);
+ ChVector3d fsize(2.2, 2.2, 0.99);
 
 
 // Object type
 enum class ObjectShape { SPHERE_PRIMITIVE, CYLINDER_PRIMITIVE, MESH };
-ObjectShape object_shape = ObjectShape::CYLINDER_PRIMITIVE;
+ ObjectShape object_shape = ObjectShape::MESH;
 
 // Mesh specification (for object_shape = ObjectShape::MESH) 
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
@@ -70,7 +70,7 @@ double mesh_bottom_offset = 0.1;
 double density = 500;
 
 // Object initial height above floor (as a ratio of fluid height)
-double initial_height = 1.05;
+double initial_height = 1.0;
 // Visibility flags
 bool show_rigid = true;
 bool show_rigid_bce = false;
@@ -147,16 +147,16 @@ bool GetProblemSpecs(int argc,
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    //double initial_spacing = 0.0015;
-    double initial_spacing = 0.025;  // initial spacing between SPH particles
-    double step_size = 5e-5;
+    double initial_spacing = 0.015;  // initial spacing between SPH particles, this works
+    double step_size = 2.5e-5;
+
 
     // Parse command line arguments
     double t_end = 3.0;
     bool output = true;
     double output_fps = 20;
     bool render = true;
-    double render_fps = 400;
+    double render_fps = 100;
     bool verbose = true;
     bool snapshots = true;
     int ps_freq = 1;
@@ -186,22 +186,28 @@ int main(int argc, char* argv[]) {
 
     // Set CFD fluid properties
     ChFsiFluidSystemSPH::FluidProperties fluid_props;
-    fluid_props.density = 1000;
+    fluid_props.density = 998.5;
     double kinematic_viscosity = 1e-6;
     fluid_props.viscosity = kinematic_viscosity * fluid_props.density;
 
     fsi.SetCfdSPH(fluid_props);
-
+    
     // Set SPH solution parameters
     int num_bce_layers = 4;
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.num_bce_layers = num_bce_layers;
     sph_params.initial_spacing = initial_spacing;
-    sph_params.d0_multiplier = 1;
+    sph_params.kernel_type = KernelType::WENDLAND;
+    sph_params.d0_multiplier = 1.75;
     sph_params.max_velocity = 8.0;
     //sph_params.shifting_method = ShiftingMethod::XSPH;
     //sph_params.shifting_xsph_eps = 0.5;
+    sph_params.shifting_method = ShiftingMethod::DIFFUSION;
+    sph_params.shifting_diffusion_A = 1.;
+    sph_params.shifting_diffusion_AFSM = 3.;
+    sph_params.shifting_diffusion_AFST = 2.;
+
     sph_params.eos_type = EosType::TAIT;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
@@ -267,6 +273,7 @@ int main(int argc, char* argv[]) {
             ChVector3d com;
             trimesh->ComputeMassProperties(true, mass, com, inertia, mesh_scale);
             mass *= density;
+            std::cout << "mesh mass " << mass << std::endl;
             inertia *= density;
             bottom_offset = mesh_bottom_offset;
             geometry.coll_meshes.push_back(
@@ -277,8 +284,11 @@ int main(int argc, char* argv[]) {
     
     auto body = chrono_types::make_shared<ChBody>();
     body->SetName("object");
-    body->SetPos(ChVector3d(0, 0, initial_height * fsize.z() + bottom_offset));
+    body->SetPos(ChVector3d(0, 0, initial_height + fsize.z()));
+
+    std::cout << "capsule height " << body->GetPos().z() << std::endl;
     body->SetRot(QUNIT);
+    mass = 9.57;
     body->SetMass(mass);
     body->SetInertia(inertia);
     body->SetFixed(false);
@@ -311,17 +321,17 @@ int main(int argc, char* argv[]) {
 
     // Computational domain must always contain all BCE and Rigid markers - if these leave computational domain,
     // the simulation will crash
-    ////ChVector3d cMin(-csize.x() / 2 - num_bce_layers * initial_spacing,
-    ////                -csize.y() / 2 - num_bce_layers * initial_spacing, -0.1);
-    ////ChVector3d cMax(csize.x() / 2 + num_bce_layers * initial_spacing, csize.y() / 2 + num_bce_layers * initial_spacing,
-    ////                csize.z() + initial_height + radius);
-    ////fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::NONE);
+    ChVector3d cMin(-csize.x() / 2 - num_bce_layers * initial_spacing,
+                    -csize.y() / 2 - num_bce_layers * initial_spacing, -0.1);
+    ChVector3d cMax(csize.x() / 2 + num_bce_layers * initial_spacing, csize.y() / 2 + num_bce_layers * initial_spacing,
+                    csize.z() + initial_height + bottom_offset);
+    fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::NONE);
 
     // Initialize FSI problem
     fsi.Initialize();
 
     // Output directories
-    std::string out_dir = GetChronoOutputPath() + "FSI_Object_Drop/";
+    std::string out_dir = GetChronoOutputPath() + "FSI_Object_Drop_kernel_large/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -411,13 +421,13 @@ int main(int argc, char* argv[]) {
         auto body_height = body->GetPos().z();
         ofile << time << "\t" << body_height << "\n";
 
-        //if (output && time >= out_frame / output_fps) {
+        if (output && time >= out_frame / output_fps) {
             if (verbose)
                 cout << " -- Output frame " << out_frame << " at t = " << time << endl;
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
 
             out_frame++;
-        //}
+        }
 
         // Render FSI system
         if (render && time >= render_frame / render_fps) {
