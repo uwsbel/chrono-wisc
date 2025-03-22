@@ -209,6 +209,13 @@ __global__ void UpdateFluidD(Real4* posRadD,
         return;
     }
 
+    // check if position value is NaN
+    if (!IsFinite(posRadD[index])) {
+        printf("Error! particle position is NAN: thrown from FluidDynamics.cu, UpdateFluidDKernel !\n");
+        *error_flag = true;
+        return;
+    }
+
     // Only update active particles not extended active particles
     if (activityIdentifierSortedD[index] <= 0) {
         return;
