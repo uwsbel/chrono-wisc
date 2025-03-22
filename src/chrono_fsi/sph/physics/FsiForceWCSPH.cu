@@ -632,11 +632,19 @@ __device__ inline Real4 DifVelocityRho(Real3 dist3,
             // Poiseulle flow, or oil, honey, etc
             Real rAB_Dot_GradWh = dot(dist3, gradW);
             Real rAB_Dot_GradWh_OverDist = rAB_Dot_GradWh / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+            //derivV = -paramsD.markerMass *
+            //             (rhoPresMuA.y / (rhoPresMuA.x * rhoPresMuA.x) + rhoPresMuB.y / (rhoPresMuB.x * rhoPresMuB.x)) *
+            //             gradW +
+            //         paramsD.markerMass * 8.0f * paramsD.mu0 * rAB_Dot_GradWh_OverDist * (velMasA - velMasB) /
+            //             square(rhoPresMuA.x + rhoPresMuB.x);
+
+            float nu0 = paramsD.mu0 / paramsD.rho0;
             derivV = -paramsD.markerMass *
-                         (rhoPresMuA.y / (rhoPresMuA.x * rhoPresMuA.x) + rhoPresMuB.y / (rhoPresMuB.x * rhoPresMuB.x)) *
-                         gradW +
-                     paramsD.markerMass * 8.0f * paramsD.mu0 * rAB_Dot_GradWh_OverDist * (velMasA - velMasB) /
-                         square(rhoPresMuA.x + rhoPresMuB.x);
+                          (rhoPresMuA.y + rhoPresMuB.y) / (rhoPresMuA.x * rhoPresMuA.x) * gradW +
+                      paramsD.markerMass * 4.0f * nu0 * rAB_Dot_GradWh_OverDist * (velMasA - velMasB) /
+                          (rhoPresMuA.x + rhoPresMuB.x);
+
+
             break;
         }
     }
