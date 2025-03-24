@@ -61,6 +61,12 @@ using std::endl;
 
 // Run-time visualization system (OpenGL or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+class MarkerPositionVisibilityCallback : public ChFsiVisualization::MarkerVisibilityCallback {
+  public:
+    MarkerPositionVisibilityCallback() {}
+
+    virtual bool get(unsigned int n) const override { return pos[n].y < 0.5; }
+};
 
 bool use_airless_tire = true;
 // Tire specification file - When above is set to true, this is ignored
@@ -79,9 +85,9 @@ bool set_longitudinal_speed = true;
 bool set_angular_speed = true;
 bool set_slip_angle = false;
 
-double max_linear_speed = 5;
-double ramp_time = 5;
-double constant_time = 4;
+double max_linear_speed = 1;
+double ramp_time = 1;
+double constant_time = 8;
 double slip = 0.1;
 double sim_time_max = ramp_time + constant_time;
 
@@ -180,8 +186,8 @@ int main() {
 
     ChTireTestRig rig(wheel, tire, sys);
 
-    rig.SetGravitationalAcceleration(9.8);
-    rig.SetNormalLoad(2500);
+    rig.SetGravitationalAcceleration(1.62);
+    rig.SetNormalLoad(800);
 
     ////rig.SetCamberAngle(+15 * CH_DEG_TO_RAD);
 
@@ -191,10 +197,10 @@ int main() {
     ChTireTestRig::TerrainParamsCRM params;
     params.radius = 0.01;
     params.density = 1700;
-    params.cohesion = 5e3;
+    params.cohesion = 5e2;
     params.length = 20;
     params.width = 1;
-    params.depth = 0.2;
+    params.depth = 0.25;
     rig.SetTerrainCRM(params);
 
     // -----------------
@@ -286,7 +292,8 @@ int main() {
             return 1;
         }
     }
-
+    ChVector3d camera_pos(0.0, 3.0, 0.0);
+    ChVector3d camera_lookat(0, 0, -0.8);
     // ---------------------------------
     // Create the run-time visualization
     // ---------------------------------
@@ -321,17 +328,20 @@ int main() {
         }
 
         visFSI->SetTitle("Tire Test Rig on CRM deformable terrain");
+
         visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(ChVector3d(1.0, 2.5, 1.0), ChVector3d(0, 1, 0));
+        visFSI->AddCamera(camera_pos, camera_lookat);
         visFSI->SetCameraMoveScale(0.2f);
         visFSI->SetLightIntensity(0.7);
         visFSI->SetLightDirection(CH_PI_2, CH_PI / 6);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
-        visFSI->EnableRigidBodyMarkers(false);
-        visFSI->EnableFlexBodyMarkers(true);
+        visFSI->EnableRigidBodyMarkers(true);
+        visFSI->EnableFlexBodyMarkers(false);
         visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
+        visFSI->SetSPHVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
+        visFSI->SetBCEVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
         visFSI->AttachSystem(sys);
         visFSI->Initialize();
     }
@@ -386,7 +396,7 @@ int main() {
 
         if (time >= render_frame / render_fps) {
             auto& loc = rig.GetPos();
-            visFSI->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
+            visFSI->UpdateCamera(loc + camera_pos, loc + camera_lookat);
 
             if (!visFSI->Render())
                 break;

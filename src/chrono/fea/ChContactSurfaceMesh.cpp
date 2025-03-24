@@ -808,8 +808,6 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(const ChMesh& mesh,
                     continue;  // Skip this element
                 }
                 outer_ring_elem_count++;
-                std::cout << "Adding outer ring element " << outer_ring_elem_count << " of " << num_outer_ring_elems
-                          << " to contact surface" << std::endl;
             }
 
             std::shared_ptr<ChNodeFEAxyz> nA = mshell->GetNodeA();

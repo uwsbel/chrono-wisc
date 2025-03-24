@@ -33,6 +33,8 @@
 #include "chrono/physics/ChLinkMotorRotationSpeed.h"
 #include "chrono_vehicle/wheeled_vehicle/ChTire.h"
 #include "chrono_vehicle/wheeled_vehicle/ChWheel.h"
+#include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_vehicle/utils/ChVehiclePath.h"
 
 namespace chrono {
 namespace vehicle {

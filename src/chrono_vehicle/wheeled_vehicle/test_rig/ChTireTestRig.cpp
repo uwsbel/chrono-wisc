@@ -24,6 +24,7 @@
 #include "chrono/assets/ChTexture.h"
 #include "chrono/physics/ChLoadContainer.h"
 
+#include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 #include "chrono_vehicle/terrain/GranularTerrain.h"
@@ -36,6 +37,9 @@ using namespace chrono::fsi;
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChForceElementTire.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChRigidTire.h"
+#include "chrono/physics/ChInertiaUtils.h"
+
+using namespace chrono::vehicle;
 
 namespace chrono {
 namespace vehicle {
@@ -602,7 +606,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     mat_props.mu_fric_s = 0.7;
     mat_props.mu_fric_2 = 0.7;
     mat_props.average_diam = 0.02;
-    mat_props.cohesion_coeff = 1e3;
+    mat_props.cohesion_coeff = m_params_crm.cohesion;
 
     ChFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
@@ -623,11 +627,27 @@ void ChTireTestRig::CreateTerrainCRM() {
 
     double loc_z = m_terrain_height - m_params_crm.depth - 0.1;
     ChVector3d location(m_params_crm.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, loc_z);
-    terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
-                       BoxSide::ALL & ~BoxSide::Z_POS);
 
+    // if(height_map_path != ""){
+    //     terrain->Construct(vehicle::GetDataFile(height_map_path), m_params_crm.length, m_params_crm.width,
+    //                        {0, 0.3},  // height range
+    //                        0.25,      // depth
+    //                        true,      // uniform depth
+    //                        location,  // patch center
+    //                        BoxSide::ALL & ~BoxSide::Z_POS);
+    // } else {
+    //     terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
+    //                        BoxSide::ALL & ~BoxSide::Z_POS);
+    // }
+    terrain->Construct(vehicle::GetDataFile("terrain/height_maps/speed_bump.bmp"), m_params_crm.length,
+                       m_params_crm.width, {0, 0.3},  // height range
+                       0.25,                          // depth
+                       false,                         // uniform depth
+                       location,                      // patch center
+                       BoxSide::ALL & ~BoxSide::Z_POS);
+    // terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
+    //                    BoxSide::ALL & ~BoxSide::Z_POS);
     // Guesstimate of reasonable active domain size
-    terrain->SetActiveDomain(ChVector3d(m_tire->GetRadius() * 2, m_tire->GetWidth() * 2, m_tire->GetRadius() * 2));
 
     if (auto fea_tire = std::dynamic_pointer_cast<ChDeformableTire>(m_tire)) {
         auto mesh = fea_tire->GetMesh();
@@ -640,8 +660,86 @@ void ChTireTestRig::CreateTerrainCRM() {
         geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, trimesh, 0.0, 0));
         terrain->AddRigidBody(m_spindle_body, geometry, false);
     }
+    std::shared_ptr<ChContactMaterial> surfaceMaterial = ChContactMaterial::DefaultMaterial(ChContactMethod::SMC);
+
+    // Create sphere
+    // Create a sphere instead of rock
+    // double sphere_radius = 0.3;    // 15cm radius
+    // double sphere_density = 8000;  // Same density as before
+    // double sphere_mass = (4.0 / 3.0) * CH_PI * sphere_radius * sphere_radius * sphere_radius * sphere_density;
+    // ChVector3d sphere_inertia = (2.0 / 5.0) * sphere_mass * sphere_radius * sphere_radius * ChVector3d(1, 1, 1);
+
+    // // set the abs orientation, position and velocity
+    // auto sphere_body = chrono_types::make_shared<ChBody>();
+    // ChVector3d sphere_pos = ChVector3d(m_params_crm.length / 4 - 0.9, m_params_crm.width / 2, loc_z);
+
+    // sphere_body->SetMass(sphere_mass);
+    // sphere_body->SetInertiaXX(sphere_inertia);
+    // sphere_body->SetPos(sphere_pos);
+    // sphere_body->SetRot(ChQuaternion<>(1, 0, 0, 0));
+    // sphere_body->SetFixed(true);
+
+    // // Add collision shape
+    // auto sphere_coll = chrono_types::make_shared<ChCollisionShapeSphere>(surfaceMaterial, sphere_radius);
+    // sphere_body->AddCollisionShape(sphere_coll);
+    // sphere_body->EnableCollision(false);  // Enable collision (was disabled for rock)
+
+    // // Add visual shape
+    // auto sphere_vis = chrono_types::make_shared<ChVisualShapeSphere>(sphere_radius);
+    // sphere_vis->SetTexture(GetChronoDataFile("textures/bluewhite.png"));  // Optional: add texture
+    // sphere_body->AddVisualShape(sphere_vis);
+
+    // // Add geometry for the terrain system
+    // utils::ChBodyGeometry geometry;
+    // geometry.materials.push_back(ChContactMaterialData());
+    // geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere_radius));
+    // geometry.vis_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere_radius));
+
+    // terrain->AddRigidBody(sphere_body, geometry, true);
+    // Create a cylinder
+    double cyl_radius = 0.26;   // 30cm radius
+    double cyl_height = 0.6;    // 60cm height
+    double cyl_density = 8000;  // Same density as before
+    double cyl_mass = CH_PI * cyl_radius * cyl_radius * cyl_height * cyl_density;
+    // Cylinder inertia about centroidal axes
+    double Ixx = cyl_mass * (3 * cyl_radius * cyl_radius + cyl_height * cyl_height) / 12.0;
+    double Iyy = cyl_mass * cyl_radius * cyl_radius / 2.0;
+    ChVector3d cyl_inertia(Ixx, Iyy, Ixx);  // For cylinder aligned with Y axis
+
+    auto cyl_body = chrono_types::make_shared<ChBody>();
+    ChVector3d cyl_pos = ChVector3d(m_params_crm.length / 4 - 0.9, m_params_crm.width / 2, loc_z);
+
+    // Rotate cylinder to lie horizontally along Y axis
+    ChQuaternion<> rot_x = QuatFromAngleX(CH_PI_2);  // Rotate 90 degrees around X axis
+
+    cyl_body->SetMass(cyl_mass);
+    cyl_body->SetInertiaXX(cyl_inertia);
+    cyl_body->SetPos(cyl_pos);
+    cyl_body->SetRot(rot_x);
+    cyl_body->SetFixed(true);
+
+    // Add collision shape
+    auto cyl_coll = chrono_types::make_shared<ChCollisionShapeCylinder>(surfaceMaterial, cyl_radius, cyl_height / 2);
+    cyl_body->AddCollisionShape(cyl_coll);
+    cyl_body->EnableCollision(true);
+
+    // Add visual shape
+    auto cyl_vis = chrono_types::make_shared<ChVisualShapeCylinder>(cyl_radius, cyl_height);
+    cyl_vis->SetTexture(GetChronoDataFile("textures/bluewhite.png"));
+    cyl_body->AddVisualShape(cyl_vis);
+
+    // Add geometry for the terrain system
+    utils::ChBodyGeometry geometry;
+    geometry.materials.push_back(ChContactMaterialData());
+    geometry.coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(VNULL, QUNIT, cyl_radius, cyl_height));
+    geometry.vis_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(VNULL, QUNIT, cyl_radius, cyl_height));
+
+    terrain->AddRigidBody(cyl_body, geometry, true);
+
+    terrain->SetActiveDomain(ChVector3d(m_tire->GetRadius() * 2, m_tire->GetWidth() * 2, m_tire->GetRadius() * 2));
 
     terrain->Initialize();
+
     auto aabb = terrain->GetSPHBoundingBox();
     std::cout << "  SPH particles:     " << terrain->GetNumSPHParticles() << std::endl;
     std::cout << "  Bndry BCE markers: " << terrain->GetNumBoundaryBCEMarkers() << std::endl;
