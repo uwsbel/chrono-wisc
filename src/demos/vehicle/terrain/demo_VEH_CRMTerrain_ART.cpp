@@ -67,7 +67,7 @@ double terrain_length = 7;
 double terrain_width = 5;
 
 // Vehicle initial position
-double vehicle_init_x = 0;
+double vehicle_init_x = -2;
 double vehicle_init_y = 0;
 double vehicle_init_z = 0.2;
 
@@ -335,11 +335,12 @@ int main(int argc, char* argv[]) {
             driver_inputs.m_throttle = 1;
         }
 
-        // Stop vehicle before reaching end of terrain patch
-        if (veh_loc.x() > x_max) {
-            driver_inputs.m_throttle = 0;
-            driver_inputs.m_braking = 1;
-        }        
+        // // Stop vehicle before reaching end of terrain patch
+        // if (veh_loc.x() > x_max) {
+        //     driver_inputs.m_throttle = 0;
+        //     driver_inputs.m_braking = 1;
+        //     std::cout << "Vehicle reached end of terrain patch" << std::endl;
+        // }        
 
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
@@ -406,9 +407,9 @@ std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared
     vehicle->SetChassisFixed(false);
     vehicle->SetInitPosition(init_pos);
     vehicle->SetTireType(TireModelType::RIGID_MESH);
-    vehicle->SetMaxMotorVoltageRatio(0.2);
+    vehicle->SetMaxMotorVoltageRatio(0.8);
     vehicle->SetStallTorque(1);
-    vehicle->SetTireRollingResistance(0.06);
+    vehicle->SetTireRollingResistance(0.04);
     vehicle->Initialize();
     vehicle->LockAxleDifferential(1, true);
     vehicle->SetChassisVisualizationType(VisualizationType::MESH);
@@ -418,7 +419,7 @@ std::tuple<std::shared_ptr<artcar::ARTcar>, std::shared_ptr<ChBody>, std::shared
     vehicle->SetWheelVisualizationType(VisualizationType::MESH);
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
-    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("artcar/blade_final.obj"), 1000, true, false, false);
+    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("artcar/blade_final.obj"), 1000, true, true, false);
     auto offsetpos = ChVector3d(0.5, 0, 0.05);
     blade->SetPos(vehicle->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     blade->SetRot(vehicle->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));

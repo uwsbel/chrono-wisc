@@ -64,12 +64,12 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 7;
-double terrain_width = 5;
+double terrain_length = 25;
+double terrain_width = 25;
 
 // Vehicle initial position
-double vehicle_init_x = 2.0;
-double vehicle_init_y = 0;
+double vehicle_init_x = 2.5;
+double vehicle_init_y = 2.5;
 double vehicle_init_z = 0.2;
 
 // Suspend vehicle
@@ -120,11 +120,11 @@ int main(int argc, char* argv[]) {
     // --------------
 
     // TODO: add heading angle to the vehicle initialization
-    ChQuaterniond q180_z(0., 0., 0., 1.);
+    auto init_heading = QuatFromAngleZ(CH_PI/4);
 
     cout << "Create vehicle..." << endl;
     bool fea_tires;
-    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), q180_z), fea_tires);
+    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires);
     cout << "Finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
     // ---------------------------------
@@ -217,9 +217,9 @@ int main(int argc, char* argv[]) {
             break;
         case PatchType::HEIGHT_MAP:
             // Create a patch from a heigh field map image
-            terrain.Construct(vehicle::GetDataFile("terrain/art/padded_image_0.bmp"),   // height map image file
+            terrain.Construct(vehicle::GetDataFile("terrain/gator/terrain.bmp"),   // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, 0.3},                                                // height range
+                              {0, 0.6},                                                // height range
                               0.2,                                                     // depth
                               true,                                                    // uniform depth
                               ChVector3d(0, 0, 0),                                     // patch center
@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
 
     // ChDriver driver(vehicle->GetVehicle());
     ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/art/wpts_data/wpts_0_1.txt");
+    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts_0_1.txt");
     cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
     ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
@@ -425,7 +425,7 @@ std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_p
     gator->SetTireVisualizationType(VisualizationType::MESH);
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
-    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("gator/gator_frontblade.obj"), 1000, true, false, false);
+    auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("gator/gator_frontblade.obj"), 1000, true, true, false);
     auto offsetpos = ChVector3d(1.75, 0, -0.3);
     blade->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
