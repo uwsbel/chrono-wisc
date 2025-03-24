@@ -30,7 +30,9 @@ message(STATUS "  Use double precision? ${CH_USE_FSI_DOUBLE}")
 
 set(FSI_FILES
     ChApiFsi.h
+    ChConfigFsi.h
     ChFsiDefinitions.h
+    ChFsiUtils.h
     ChFsiSystem.h
     ChFsiSystem.cpp
     ChFsiFluidSystem.h
