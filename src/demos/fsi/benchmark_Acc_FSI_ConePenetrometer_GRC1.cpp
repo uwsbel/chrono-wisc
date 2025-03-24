@@ -171,12 +171,12 @@ int main(int argc, char* argv[]) {
     ConeProperties coneProp;  // Create cone instance
 
     SimParams params = {/*ps_freq*/ 1,
-                        /*initial_spacing*/ 0.002,
-                        /*d0_multiplier*/ 1.3,
-                        /*time_step*/ 5e-5,
+                        /*initial_spacing*/ 0.001,
+                        /*d0_multiplier*/ 1.1,
+                        /*time_step*/ 2e-5,
                         /*boundary_type*/ "adami",
-                        /*viscosity_type*/ "artificial_bilateral",
-                        /*kernel_type*/ "cubic",
+                        /*viscosity_type*/ "artificial_unilateral",
+                        /*kernel_type*/ "wendland",
                         /*artificial_viscosity*/ 0.2,
                         /*penetration_depth*/ 0.18,  // 18 cm is the max depth
                         /*verbose*/ true,
@@ -186,9 +186,9 @@ int main(int argc, char* argv[]) {
                         /*render*/ true,
                         /*render_fps*/ 400,
                         /*write_marker_files*/ false,
-                        /*mu_s*/ 0.5727,
-                        /*mu_2*/ 0.5727,
-                        /*cohesions*/ 0,
+                        /*mu_s*/ 0.67,
+                        /*mu_2*/ 0.67,
+                        /*cohesions*/ 100,
                         /*densities*/ 1600,
                         /*y_modulus*/ 1e6};
 

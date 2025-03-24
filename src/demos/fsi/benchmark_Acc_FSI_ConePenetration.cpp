@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
     bool verbose = true;
     bool output = true;
     double output_fps = 100;
-    bool snapshots = true;
+    bool snapshots = false;
     bool render = true;
     double render_fps = 400;
 
@@ -229,7 +229,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bool write_marker_files = false;
+    bool write_marker_files = true;
     // Print all problem specs
     std::cout << "Problem Specs:" << std::endl;
     std::cout << "t_end: " << t_end << std::endl;
@@ -540,6 +540,7 @@ int main(int argc, char* argv[]) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
             }
+            std::cout << " -- Output frame " << out_frame << " at t = " << time << std::endl;
             out_frame++;
         }
 #ifdef CHRONO_VSG

@@ -1548,6 +1548,70 @@ size_t ChFluidSystemSPH::AddSphereBCE(std::shared_ptr<ChBody> body,
     return AddPointsBCE(body, points, frame, solid);
 }
 
+void ChFluidSystemSPH::CreateBCE_On_Wheel_Grouser(std::vector<ChVector3d>& posRadBCE,
+                                                  double wheel_rad,
+                                                  double wheel_w,
+                                                  double gro_h,
+                                                  double gro_w,
+                                                  int gro_num,
+                                                  double spacing,
+                                                  bool cartesian) {
+    int num_layers = (int)std::floor(1.00001 * wheel_w / spacing) + 1;
+    for (size_t si = 0; si < num_layers; si++) {
+        Real s = -0.5 * wheel_w + spacing * si;
+        if (cartesian)
+            for (Real x = -wheel_rad; x <= wheel_rad; x += spacing) {
+                for (Real y = -wheel_rad; y <= wheel_rad; y += spacing) {
+                    if (x * x + y * y <= wheel_rad * wheel_rad)
+                        posRadBCE.push_back(ChVector3d(x, s, y));
+                }
+            }
+        else {
+            ChVector3d centerPointLF = {0, s, 0};
+            posRadBCE.push_back(ChVector3d(0, s, 0));
+            // wheel
+            int numr = (int)std::floor(1.00001 * wheel_rad / spacing);
+            for (size_t ir = 0; ir < numr; ir++) {
+                Real r = spacing + ir * spacing;
+                int numTheta = (int)std::floor(2 * 3.1415 * r / spacing);
+                for (size_t t = 0; t < numTheta; t++) {
+                    double teta = t * 2 * 3.1415 / numTheta;
+                    ChVector3d BCE_Pos_local = {r * cos(teta), 0, r * sin(teta)};
+                    BCE_Pos_local += centerPointLF;
+                    posRadBCE.push_back(BCE_Pos_local);
+                }
+            }
+            // grouser
+            int numr_g = (int)std::floor(1.00001 * gro_h / spacing);
+            int numw_g = (int)std::floor(1.00001 * gro_w / spacing) + 1;
+            for (size_t ir_g = 0; ir_g < numr_g; ir_g++) {
+                Real r = 0.5 * spacing + ir_g * spacing + wheel_rad;
+                for (size_t t = 0; t < gro_num; t++) {
+                    for (size_t iw_g = 0; iw_g < numw_g; iw_g++) {
+                        Real teta = t * 2 * 3.1415 / gro_num + iw_g * spacing / wheel_rad;
+                        ChVector3d BCE_Pos_local = {r * cos(teta), 0, r * sin(teta)};
+                        BCE_Pos_local += centerPointLF;
+                        posRadBCE.push_back(BCE_Pos_local);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ChFluidSystemSPH::AddWheelBCE_Grouser(std::shared_ptr<ChBody> body,
+                                           const ChFrame<>& frame,
+                                           double radius,
+                                           double wide,
+                                           double grouser_height,
+                                           double grouser_wide,
+                                           int grouser_num,
+                                           bool cartesian) {
+    std::vector<ChVector3d> bce;
+    CreateBCE_On_Wheel_Grouser(bce, radius, wide, grouser_height, grouser_wide, grouser_num, m_paramsH->d0, cartesian);
+    AddPointsBCE(body, bce, frame, true);
+}
+
 size_t ChFluidSystemSPH::AddCylinderBCE(std::shared_ptr<ChBody> body,
                                         const ChFrame<>& frame,
                                         double radius,

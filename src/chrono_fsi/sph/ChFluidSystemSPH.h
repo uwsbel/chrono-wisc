@@ -395,6 +395,26 @@ class CH_FSI_API ChFluidSystemSPH : public ChFluidSystem {
                           bool solid,
                           bool polar = true);
 
+    // Wei functions to make custom BCEs for a wheel
+    void CreateBCE_On_Wheel_Grouser(std::vector<ChVector3d>& posRadBCE,
+                                    double wheel_rad,
+                                    double wheel_w,
+                                    double gro_h,
+                                    double gro_w,
+                                    int gro_num,
+                                    double kernel_h,
+                                    bool cartesian);
+
+    // Wei functions to make custom BCEs for a wheel
+    void AddWheelBCE_Grouser(std::shared_ptr<ChBody> body,
+                             const ChFrame<>& frame,
+                             double radius,
+                             double wide,
+                             double grouser_height,
+                             double grouser_wide,
+                             int grouser_num,
+                             bool cartesian);
+
     /// Add BCE markers for a cone of specified radius and height and associate them with the given body.
     /// The cone is assumed centered at the origin of the provided frame and aligned with its Z axis.
     /// BCE markers are created inside the cone if solid=true, and outside the cone otherwise.

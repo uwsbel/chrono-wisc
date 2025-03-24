@@ -24,8 +24,19 @@ set(DEMOS ${DEMOS}
    benchmark_Acc_FSI_ConePenetrometer
    benchmark_Acc_FSI_ConePenetrometer_GRC1
    benchmark_Acc_FSI_NormalBevameter_GRC1
+   benchmark_Acc_FSI_Viper_SingleWheel
+   benchmark_Acc_FSI_Rassor_SingleDrum
 )
 
+if(ENABLE_MODULE_VEHICLE)
+
+	if(ENABLE_MODULE_VSG)
+        set(DEMOS ${DEMOS}
+            benchmark_Acc_SCM_Viper_SingleWheel
+            benchmark_Acc_SCM_Rassor_SingleDrum
+        )
+	endif()
+endif()
 if(ENABLE_MODULE_PARDISO_MKL)
    set(DEMOS ${DEMOS}
       demo_FSI_Flexible_Plate
@@ -33,6 +44,8 @@ if(ENABLE_MODULE_PARDISO_MKL)
       demo_FSI_Flexible_Toroidal_Tire
    )
 endif()
+
+
 
 #--------------------------------------------------------------
 
@@ -44,6 +57,10 @@ list(APPEND LIBS "ChronoEngine")
 if(ENABLE_MODULE_VSG)
     include_directories(${CH_VSG_INCLUDES})
     list(APPEND LIBS "ChronoEngine_vsg")
+endif()
+
+if(ENABLE_MODULE_VEHICLE)
+  list(APPEND LIBS "ChronoEngine_vehicle")
 endif()
 
 if(ENABLE_MODULE_OPENGL)
