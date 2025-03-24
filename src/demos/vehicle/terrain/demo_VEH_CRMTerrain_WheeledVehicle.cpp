@@ -34,6 +34,8 @@
 #include "chrono_vehicle/utils/ChVehiclePath.h"
 #include "demos/vehicle/WheeledVehicleJSON.h"
 
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
+
 #include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
@@ -66,8 +68,11 @@ ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::RECTANGULAR;
 
+enum class TireType { ANCF_TOROIDAL, ANCF_AIRLESS };
+TireType tire_type = TireType::ANCF_TOROIDAL;
+
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 20;
+double terrain_length = 40;
 double terrain_width = 3;
 
 // Vehicle specification files
@@ -95,13 +100,13 @@ int main(int argc, char* argv[]) {
     // Problem settings
     // ----------------
 
-    double target_speed = 7.0;
+    double target_speed = 3.0;
     double tend = 30;
     bool verbose = true;
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
-    double render_fps = 200;               // rendering FPS
+    double render_fps = 10;                // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
@@ -120,7 +125,7 @@ int main(int argc, char* argv[]) {
     // Set SPH spacing
     double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.04;
 
-    bool add_trailer = true;
+    bool add_trailer = false;
 
     auto trailer_model = UT_Model();
 
@@ -148,6 +153,7 @@ int main(int argc, char* argv[]) {
 
         for (auto& axle : trailer->GetAxles()) {
             for (auto& wheel : axle->GetWheels()) {
+                // if (tire_type == TireType::ANCF_AIRLESS) {
                 auto tire = chrono_types::make_shared<ANCFAirlessTire3443B>("Airless3443B");
                 std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetRimRadius(0.225);  // Default is 0.225
                 std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHeight(0.225);     // Default is 0.225
@@ -171,6 +177,18 @@ int main(int argc, char* argv[]) {
                 }
 
                 trailer->InitializeTire(tire, wheel, VisualizationType::MESH);
+                // } else if (tire_type == TireType::ANCF_TOROIDAL) {
+                //     auto ancf_tire = chrono_types::make_shared<ANCFToroidalTire>("ANCFtoroidal tire");
+                //     ancf_tire->SetRimRadius(0.30375);
+                //     ancf_tire->SetHeight(0.15);
+                //     ancf_tire->SetThickness(0.015);
+                //     ancf_tire->SetDivCircumference(40);
+                //     ancf_tire->SetDivWidth(8);
+                //     ancf_tire->SetPressure(320e3);
+                //     ancf_tire->SetAlpha(0.05);
+
+                //     trailer->InitializeTire(ancf_tire, wheel, VisualizationType::MESH);
+                // }
             }
         }
     }
@@ -206,6 +224,7 @@ int main(int argc, char* argv[]) {
 
     // Set collision system
     sysMBS->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
+    sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
 
     // ----------------------
     // Create the CRM terrain
@@ -214,7 +233,7 @@ int main(int argc, char* argv[]) {
     CRMTerrain terrain(*sysMBS, spacing);
     ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
     terrain.SetVerbose(verbose);
-    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
     terrain.SetStepSizeCFD(step_size);
 
     // Disable automatic integration of the (vehicle) multibody system
@@ -236,7 +255,7 @@ int main(int argc, char* argv[]) {
     ChFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = spacing;
-    sph_params.d0_multiplier = 1;
+    sph_params.d0_multiplier = 1.2;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
@@ -483,31 +502,44 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
     // Create and initialize the tires
     for (auto& axle : vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
-            // auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
-            auto tire = chrono_types::make_shared<ANCFAirlessTire3443B>("Airless3443B");
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetRimRadius(0.225);           // Default is 0.225
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHeight(0.225);              // Default is 0.225
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetWidth(0.4);                 // Default is 0.4
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetAlpha(0.05);                // Default is 0.05
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetOuterRingThickness(0.015);  // Default is 0.015
-            // tire->SetYoungsModulus(y_mod);  // Default is 76e9
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusSpokes(1e6);
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusOuterRing(5e9);
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetPoissonsRatio(0.3);       // Default is 0.2
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivWidth(3);              // Default is 3
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivSpokeLength(3);        // Default is 3
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivOuterRingPerSpoke(3);  // Default is 3
-            std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetNumberSpokes(16);
-            // Options to set for straight spokes
-            if (set_str_spk) {
-                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHubRelativeRotation(0);
-                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureXPoint(0);
-                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureZPoint(0);
-            }
+            if (tire_type == TireType::ANCF_AIRLESS) {
+                auto tire = chrono_types::make_shared<ANCFAirlessTire3443B>("Airless3443B");
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetRimRadius(0.225);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHeight(0.225);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetWidth(0.4);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetAlpha(0.05);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetOuterRingThickness(0.015);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusSpokes(1e6);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetYoungsModulusOuterRing(5e9);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetPoissonsRatio(0.3);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivWidth(3);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivSpokeLength(3);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetDivOuterRingPerSpoke(3);
+                std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetNumberSpokes(16);
 
-            vehicle->InitializeTire(tire, wheel, VisualizationType::MESH);
-            if (std::dynamic_pointer_cast<ChDeformableTire>(tire))
-                fea_tires = true;
+                if (set_str_spk) {
+                    std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetHubRelativeRotation(0);
+                    std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureXPoint(0);
+                    std::dynamic_pointer_cast<ANCFAirlessTire3443B>(tire)->SetSpokeCurvatureZPoint(0);
+                }
+
+                vehicle->InitializeTire(tire, wheel, VisualizationType::MESH);
+                if (std::dynamic_pointer_cast<ChDeformableTire>(tire))
+                    fea_tires = true;
+            } else if (tire_type == TireType::ANCF_TOROIDAL) {
+                auto ancf_tire = chrono_types::make_shared<ANCFToroidalTire>("ANCFtoroidal tire");
+                ancf_tire->SetRimRadius(0.30375);
+                ancf_tire->SetHeight(0.15);
+                ancf_tire->SetThickness(0.015);
+                ancf_tire->SetDivCircumference(40);
+                ancf_tire->SetDivWidth(8);
+                ancf_tire->SetPressure(0);
+                ancf_tire->SetAlpha(0.15);
+
+                vehicle->InitializeTire(ancf_tire, wheel, VisualizationType::MESH);
+                if (std::dynamic_pointer_cast<ChDeformableTire>(ancf_tire))
+                    fea_tires = true;
+            }
         }
     }
 
@@ -545,10 +577,12 @@ void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle,
         }
     }
 
-    for (auto& axle : trailer->GetAxles()) {
-        for (auto& wheel : axle->GetWheels()) {
-            auto mesh = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire())->GetMesh();
-            terrain.AddFeaMesh(mesh, false);
+    if (trailer) {
+        for (auto& axle : trailer->GetAxles()) {
+            for (auto& wheel : axle->GetWheels()) {
+                auto mesh = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire())->GetMesh();
+                terrain.AddFeaMesh(mesh, false);
+            }
         }
     }
 }
