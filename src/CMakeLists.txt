@@ -522,6 +522,7 @@ add_subdirectory(chrono_models)
 add_subdirectory(chrono_sensor)
 add_subdirectory(chrono_synchrono)
 add_subdirectory(chrono_ros)
+add_subdirectory(chrono_powerelectronics)
 add_subdirectory(chrono_swig/chrono_python)
 add_subdirectory(chrono_swig/chrono_csharp)
 
@@ -676,6 +677,13 @@ if(CH_ENABLE_MODULE_FMI)
 else()
   set(CHRONO_FMI "#undef CHRONO_FMI")
 endif()
+
+if(CH_ENABLE_MODULE_POWERELECTRONICS)
+  set(CHRONO_POWERELECTRONICS "#define CHRONO_POWERELECTRONICS")
+else()
+  set(CHRONO_POWERELECTRONICS "#undef CHRONO_POWERELECTRONICS")
+endif()
+
 
 if(CH_ENABLE_MODULE_ROS)
   set(CHRONO_ROS "#define CHRONO_ROS")
