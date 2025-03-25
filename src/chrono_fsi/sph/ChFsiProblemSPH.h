@@ -32,8 +32,9 @@
 
 namespace chrono {
 namespace fsi {
+namespace sph {
 
-/// @addtogroup fsi_physics
+/// @addtogroup fsisph
 /// @{
 
 /// Base class to set up a Chrono::FSI problem.
@@ -49,20 +50,20 @@ class CH_FSI_API ChFsiProblemSPH {
     ChFsiSystemSPH& GetSystemFSI() { return m_sysFSI; }
 
     /// Access the underlying SPH system.
-    ChFluidSystemSPH& GetFluidSystemSPH() { return m_sysSPH; }
+    ChFsiFluidSystemSPH& GetFluidSystemSPH() { return m_sysSPH; }
 
     /// Access the underlying MBS system.
     ChSystem& GetMultibodySystem() { return m_sysFSI.GetMultibodySystem(); }
 
     /// Enable solution of a CFD problem.
-    void SetCfdSPH(const ChFluidSystemSPH::FluidProperties& fluid_props);
+    void SetCfdSPH(const ChFsiFluidSystemSPH::FluidProperties& fluid_props);
 
     /// Enable solution of elastic SPH (for continuum representation of granular dynamics).
     /// By default, a ChSystemFSI solves an SPH fluid dynamics problem.
-    void SetElasticSPH(const ChFluidSystemSPH::ElasticMaterialProperties& mat_props);
+    void SetElasticSPH(const ChFsiFluidSystemSPH::ElasticMaterialProperties& mat_props);
 
     /// Set SPH method parameters.
-    void SetSPHParameters(const ChFluidSystemSPH::SPHParameters& sph_params);
+    void SetSPHParameters(const ChFsiFluidSystemSPH::SPHParameters& sph_params);
 
     /// Add a rigid body to the FSI problem.
     /// BCE markers are created for the provided geometry (which may or may not match the body collision geometry).
@@ -120,7 +121,7 @@ class CH_FSI_API ChFsiProblemSPH {
         /// Set values for particle properties.
         /// The default implementation sets pressure and velocity to zero and constant density and viscosity.
         /// If an override is provided, it must set *all* particle properties.
-        virtual void set(const ChFluidSystemSPH& sysSPH, const ChVector3d& pos) {
+        virtual void set(const ChFsiFluidSystemSPH& sysSPH, const ChVector3d& pos) {
             p0 = 0;
             rho0 = sysSPH.GetDensity();
             mu0 = sysSPH.GetViscosity();
@@ -147,11 +148,6 @@ class CH_FSI_API ChFsiProblemSPH {
     /// Set integration step size for multibody dynamics.
     /// If a value is not provided, the MBS system is integrated with the same step used for fluid dynamics.
     void SetStepsizeMBD(double step) { m_sysFSI.SetStepsizeMBD(step); }
-
-    /// Disable automatic integration of the associated multibody system.
-    /// If MBD integration is disabled, it is the caller's responsibility to advance the dynamics of the associated
-    /// multibody system, separate from the call to advance the dynamics of the fluid system.
-    void DisableMBD() { m_sysFSI.DisableMBD(); }
 
     /// Explicitly set the computational domain limits.
     /// By default, this is set so that it encompasses all SPH particles and BCE markers.
@@ -268,7 +264,7 @@ class CH_FSI_API ChFsiProblemSPH {
     /// defined by the body BCEs. Note that this assumes the BCE markers form a watertight boundary.
     int ProcessBodyMesh(RigidBody& b, ChTriangleMeshConnected trimesh, const ChVector3d& interior_point);
 
-    ChFluidSystemSPH m_sysSPH;         ///< underlying Chrono SPH system
+    ChFsiFluidSystemSPH m_sysSPH;         ///< underlying Chrono SPH system
     ChFsiSystemSPH m_sysFSI;           ///< underlying Chrono FSI system
     double m_spacing;                  ///< particle and marker spacing
     std::shared_ptr<ChBody> m_ground;  ///< ground body
@@ -423,7 +419,7 @@ class CH_FSI_API DepthPressurePropertiesCallback : public ChFsiProblemSPH::Parti
   public:
     DepthPressurePropertiesCallback(double zero_height) : ParticlePropertiesCallback(), zero_height(zero_height) {}
 
-    virtual void set(const ChFluidSystemSPH& sysSPH, const ChVector3d& pos) override {
+    virtual void set(const ChFsiFluidSystemSPH& sysSPH, const ChVector3d& pos) override {
         double gz = std::abs(sysSPH.GetGravitationalAcceleration().z());
         double c2 = sysSPH.GetSoundSpeed() * sysSPH.GetSoundSpeed();
         p0 = sysSPH.GetDensity() * gz * (zero_height - pos.z());
@@ -481,8 +477,9 @@ class CH_FSI_API WaveTankParabolicBeach : public ChFsiProblemCartesian::WaveTank
     double alpha;
 };
 
-/// @} fsi_physics
+/// @} fsisph
 
+}  // namespace sph
 }  // namespace fsi
 }  // namespace chrono
 

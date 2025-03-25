@@ -37,6 +37,7 @@ using std::endl;
 
 namespace chrono {
 namespace fsi {
+namespace sph {
 
 // ----------------------------------------------------------------------------
 
@@ -68,15 +69,15 @@ void ChFsiProblemSPH::SetVerbose(bool verbose) {
     m_verbose = verbose;
 }
 
-void ChFsiProblemSPH::SetCfdSPH(const ChFluidSystemSPH::FluidProperties& fluid_props) {
+void ChFsiProblemSPH::SetCfdSPH(const ChFsiFluidSystemSPH::FluidProperties& fluid_props) {
     m_sysSPH.SetCfdSPH(fluid_props);
 }
 
-void ChFsiProblemSPH::SetElasticSPH(const ChFluidSystemSPH::ElasticMaterialProperties& mat_props) {
+void ChFsiProblemSPH::SetElasticSPH(const ChFsiFluidSystemSPH::ElasticMaterialProperties& mat_props) {
     m_sysSPH.SetElasticSPH(mat_props);
 }
 
-void ChFsiProblemSPH::SetSPHParameters(const ChFluidSystemSPH::SPHParameters& sph_params) {
+void ChFsiProblemSPH::SetSPHParameters(const ChFsiFluidSystemSPH::SPHParameters& sph_params) {
     m_sysSPH.SetSPHParameters(sph_params);
 }
 
@@ -1294,5 +1295,6 @@ ChVector3d ChFsiProblemCylindrical::Grid2Point(const ChVector3i& p) {
     return ChVector3d(x, y, z);
 }
 
+}  // end namespace sph
 }  // end namespace fsi
 }  // end namespace chrono

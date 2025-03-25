@@ -21,8 +21,9 @@
 
 namespace chrono {
 namespace fsi {
+namespace sph {
 
-/// @addtogroup fsi_physics
+/// @addtogroup fsisph
 /// @{
 
 /// Physics problem type.
@@ -62,7 +63,8 @@ enum class FrictionLaw { CONSTANT, LINEAR, NONLINEAR };
 /// Linear solver type.
 enum class SolverType { JACOBI, BICGSTAB, GMRES, CR, CG, SAP };
 
-/// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+
 /// Enumeration for specifying whether the sides of a computational domain are
 /// periodic or not. Sides can be combined using binary OR operations.
 namespace PeriodicSide {
@@ -142,8 +144,9 @@ enum class OutputLevel {
     CRM_FULL         ///< STATE_PRESSURE plus normal and shear stress
 };
 
-/// @} fsi_physics
+/// @} fsisph
 
+}  // namespace sph
 }  // namespace fsi
 }  // namespace chrono
 

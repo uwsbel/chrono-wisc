@@ -29,6 +29,7 @@
 #include <thrust/transform.h>
 
 #include "chrono_fsi/sph/physics/FsiDataManager.cuh"
+#include "chrono_fsi/sph/math/CustomMath.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -79,15 +80,15 @@ void FsiBodyStateD::resize(size_t s) {
 }
 
 void FsiMeshStateH::resize(size_t s) {
-    pos_fsi_fea_H.resize(s);
-    vel_fsi_fea_H.resize(s);
-    acc_fsi_fea_H.resize(s);
+    pos.resize(s);
+    vel.resize(s);
+    acc.resize(s);
 }
 
 void FsiMeshStateD::resize(size_t s) {
-    pos_fsi_fea_D.resize(s);
-    vel_fsi_fea_D.resize(s);
-    acc_fsi_fea_D.resize(s);
+    pos.resize(s);
+    vel.resize(s);
+    acc.resize(s);
 }
 
 void FsiBodyStateD::CopyFromH(const FsiBodyStateH& bodyStateH) {
@@ -100,9 +101,9 @@ void FsiBodyStateD::CopyFromH(const FsiBodyStateH& bodyStateH) {
 }
 
 void FsiMeshStateD::CopyFromH(const FsiMeshStateH& meshStateH) {
-    thrust::copy(meshStateH.pos_fsi_fea_H.begin(), meshStateH.pos_fsi_fea_H.end(), pos_fsi_fea_D.begin());
-    thrust::copy(meshStateH.vel_fsi_fea_H.begin(), meshStateH.vel_fsi_fea_H.end(), vel_fsi_fea_D.begin());
-    thrust::copy(meshStateH.acc_fsi_fea_H.begin(), meshStateH.acc_fsi_fea_H.end(), acc_fsi_fea_D.begin());
+    thrust::copy(meshStateH.pos.begin(), meshStateH.pos.end(), pos.begin());
+    thrust::copy(meshStateH.vel.begin(), meshStateH.vel.end(), vel.begin());
+    thrust::copy(meshStateH.acc.begin(), meshStateH.acc.end(), acc.begin());
 }
 
 FsiBodyStateD& FsiBodyStateD::operator=(const FsiBodyStateD& other) {
@@ -122,9 +123,9 @@ FsiMeshStateD& FsiMeshStateD::operator=(const FsiMeshStateD& other) {
     if (this == &other) {
         return *this;
     }
-    thrust::copy(other.pos_fsi_fea_D.begin(), other.pos_fsi_fea_D.end(), pos_fsi_fea_D.begin());
-    thrust::copy(other.vel_fsi_fea_D.begin(), other.vel_fsi_fea_D.end(), vel_fsi_fea_D.begin());
-    thrust::copy(other.acc_fsi_fea_D.begin(), other.acc_fsi_fea_D.end(), acc_fsi_fea_D.begin());
+    thrust::copy(other.pos.begin(), other.pos.end(), pos.begin());
+    thrust::copy(other.vel.begin(), other.vel.end(), vel.begin());
+    thrust::copy(other.acc.begin(), other.acc.end(), acc.begin());
     return *this;
 }
 
@@ -153,7 +154,7 @@ void ProximityDataD::resize(size_t s) {
 
 //---------------------------------------------------------------------------------------
 
-FsiDataManager::FsiDataManager(std::shared_ptr<SimParams> params) : paramsH(params) {
+FsiDataManager::FsiDataManager(std::shared_ptr<ChFsiParamsSPH> params) : paramsH(params) {
     countersH = chrono_types::make_shared<Counters>();
 
     sphMarkers_D = chrono_types::make_shared<SphMarkerDataD>();
@@ -396,10 +397,12 @@ void FsiDataManager::Initialize(unsigned int num_fsi_bodies,
     //// TODO: why is this sized for both WCSPH and ISPH?!?
     vel_XSPH_D.resize(countersH->numAllMarkers);  // TODO (Huzaifa): Check if this is always sorted or not
 
-    Real tiny = Real(1e-20);
-    vis_vel_SPH_D.resize(countersH->numAllMarkers, mR3(tiny));
-    sr_tau_I_mu_i.resize(countersH->numAllMarkers, mR4(tiny));           // sorted
-    sr_tau_I_mu_i_Original.resize(countersH->numAllMarkers, mR4(tiny));  // unsorted
+    if (paramsH->sph_method == SPHMethod::I2SPH) {
+        Real tiny = Real(1e-20);
+        vis_vel_SPH_D.resize(countersH->numAllMarkers, mR3(tiny));
+        sr_tau_I_mu_i.resize(countersH->numAllMarkers, mR4(tiny));           // sorted
+        sr_tau_I_mu_i_Original.resize(countersH->numAllMarkers, mR4(tiny));  // unsorted
+    }
 
     //// TODO: why is this sized for both WCSPH and ISPH?!?
     bceAcc.resize(countersH->numAllMarkers, mR3(0));  // Rigid/flex body accelerations from motion
@@ -697,6 +700,95 @@ std::vector<int> FsiDataManager::FindParticlesInBox(const Real3& hsize,
     std::vector<int> indices_H;
     thrust::copy(indices_D.begin(), indices_D.end(), indices_H.begin());
     return indices_H;
+}
+
+size_t FsiDataManager::GetCurrentGPUMemoryUsage() const {
+    size_t total_bytes = 0;
+
+    // SPH marker data
+    total_bytes += sphMarkers_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sphMarkers_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sphMarkers_D->rhoPresMuD.capacity() * sizeof(Real4);
+    total_bytes += sphMarkers_D->tauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += sphMarkers_D->tauXyXzYzD.capacity() * sizeof(Real3);
+
+    // Sorted SPH marker data (state 1)
+    total_bytes += sortedSphMarkers1_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers1_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers1_D->rhoPresMuD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers1_D->tauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers1_D->tauXyXzYzD.capacity() * sizeof(Real3);
+
+    // Sorted SPH marker data (state 2)
+    total_bytes += sortedSphMarkers2_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers2_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers2_D->rhoPresMuD.capacity() * sizeof(Real4);
+
+    // Proximity data
+    total_bytes += markersProximity_D->gridMarkerHashD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->gridMarkerIndexD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->cellStartD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->cellEndD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->mapOriginalToSorted.capacity() * sizeof(uint);
+
+    // FSI body state data
+    total_bytes += fsiBodyState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->lin_vel.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->lin_acc.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->rot.capacity() * sizeof(Real4);
+    total_bytes += fsiBodyState_D->ang_vel.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->ang_acc.capacity() * sizeof(Real3);
+
+    // FSI mesh state data (1D)
+    total_bytes += fsiMesh1DState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh1DState_D->vel.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh1DState_D->acc.capacity() * sizeof(Real3);
+
+    // FSI mesh state data (2D)
+    total_bytes += fsiMesh2DState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh2DState_D->vel.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh2DState_D->acc.capacity() * sizeof(Real3);
+
+    // Fluid data
+    total_bytes += derivVelRhoD.capacity() * sizeof(Real4);
+    total_bytes += derivVelRhoOriginalD.capacity() * sizeof(Real4);
+    total_bytes += derivTauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += derivTauXyXzYzD.capacity() * sizeof(Real3);
+    total_bytes += vel_XSPH_D.capacity() * sizeof(Real3);
+    total_bytes += vis_vel_SPH_D.capacity() * sizeof(Real3);
+    total_bytes += sr_tau_I_mu_i.capacity() * sizeof(Real4);
+    total_bytes += sr_tau_I_mu_i_Original.capacity() * sizeof(Real4);
+    total_bytes += bceAcc.capacity() * sizeof(Real3);
+
+    // Activity and neighbor data
+    total_bytes += activityIdentifierOriginalD.capacity() * sizeof(int32_t);
+    total_bytes += activityIdentifierSortedD.capacity() * sizeof(int32_t);
+    total_bytes += extendedActivityIdentifierOriginalD.capacity() * sizeof(int32_t);
+    total_bytes += prefixSumExtendedActivityIdD.capacity() * sizeof(uint);
+    total_bytes += activeListD.capacity() * sizeof(uint);
+    total_bytes += numNeighborsPerPart.capacity() * sizeof(uint);
+    total_bytes += neighborList.capacity() * sizeof(uint);
+    total_bytes += freeSurfaceIdD.capacity() * sizeof(uint);
+
+    // BCE data
+    total_bytes += rigid_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += flex1D_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += flex2D_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += rigid_BCEsolids_D.capacity() * sizeof(uint);
+    total_bytes += flex1D_BCEsolids_D.capacity() * sizeof(uint3);
+    total_bytes += flex2D_BCEsolids_D.capacity() * sizeof(uint3);
+
+    // FSI forces
+    total_bytes += rigid_FSI_ForcesD.capacity() * sizeof(Real3);
+    total_bytes += rigid_FSI_TorquesD.capacity() * sizeof(Real3);
+    total_bytes += flex1D_FSIforces_D.capacity() * sizeof(Real3);
+    total_bytes += flex2D_FSIforces_D.capacity() * sizeof(Real3);
+
+    // FSI nodes
+    total_bytes += flex1D_Nodes_D.capacity() * sizeof(int2);
+    total_bytes += flex2D_Nodes_D.capacity() * sizeof(int3);
+
+    return total_bytes;
 }
 
 }  // namespace sph

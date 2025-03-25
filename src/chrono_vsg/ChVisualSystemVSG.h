@@ -55,6 +55,8 @@
 namespace chrono {
 namespace vsg3d {
 
+class ChVisualSystemVSGPlugin;
+
 /// @addtogroup vsg_module
 /// @{
 
@@ -66,6 +68,12 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// divisions used to discretize a full circle. The default value of 24 corresponds to 15-degree divisions.
     ChVisualSystemVSG(int num_divs = 24);
     ~ChVisualSystemVSG();
+
+    /// Attach a custom plugin.
+    /// Plugins offer a mechanism for extending a base VSG visual system with custom functionality; e.g., for rendering,
+    /// controlling, and displaying information for specific types of Chrono systems. An arbitrary number of plugins can
+    /// be attached to a VSG visual system. Attaching plugins muct be done *before* initialization of the VSG system.
+    void AttachPlugin(std::shared_ptr<ChVisualSystemVSGPlugin> plugin);
 
     /// Initialize the visualization system.
     virtual void Initialize() override;
@@ -154,13 +162,14 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     void SetRefFrameScale(double axis_length);
     void ToggleRefFrameVisibility();
 
-    /// Render COG frames for all bodies in the system.
-    virtual void RenderCOGFrames(double axis_length = 1) override;
-    void SetCOGFrameScale(double axis_length);
-    void ToggleCOGFrameVisibility();
+    /// Render COM frames for all bodies in the system.
+    void SetCOMFrameScale(double axis_length);
+    void ToggleCOMFrameVisibility();
+
+    /// Render COM symbol for all bodies in the system.
+    void ToggleCOMSymbolVisibility();
 
     /// Render joint frames for all links in the system.
-    void RenderJointFrames(double axis_length = 1);
     void SetJointFrameScale(double axis_length);
     void ToggleJointFrameVisibility();
 
@@ -175,11 +184,17 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     void SetWindowTitle(const std::string& title);
     void SetClearColor(const ChColor& color);
     void SetOutputScreen(int screenNum = 0);
-    void SetFullscreen(bool yesno = false);
-    void SetUseSkyBox(bool yesno);
 
-    /// Draw the scene objects as wireframes.
-    void SetWireFrameMode(bool mode = true) { m_wireframe = mode; }
+    /// Enable full-screen mode (default: false).
+    /// This function must be called before Initialize().
+    void EnableFullscreen(bool val = true);
+
+    /// Enable/disable use of a sky box background (default: false).
+    /// This function must be called before Initialize().
+    void EnableSkyBox(bool val = true);
+
+    /// Enable/disable rendering objects as wireframe (Default: false).
+    void EnableWireframeMode(bool mode = true) { m_wireframe = mode; }
 
     /// Set the camera up vector (default: Z).
     void SetCameraVertical(CameraVerticalDir upDir);
@@ -209,9 +224,12 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Get estimated FPS.
     double GetRenderingFPS() const { return m_fps; }
 
-    /// Enable/disable rendering of shadows.
+    /// Enable/disable rendering of shadows (default: false).
     /// This function must be called before Initialize().
-    void SetShadows(bool yesno = false) { m_use_shadows = yesno; }
+    void EnableShadows(bool val = true) { m_use_shadows = val; }
+
+    /// Indicate whether or not shadows are enabled.
+    bool AreShadowsEnabled() const { return m_use_shadows; }
 
     void SetLightIntensity(float intensity);
     void SetLightDirection(double azimuth, double elevation);
@@ -246,7 +264,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Toggle GUI visibility for all GUI components.
     void ToggleGuiVisibility() { m_show_gui = !m_show_gui; }
 
-    /// Return boolean indicating whether or not GUI are visible.
+    /// Indicate whether or not GUI is visible.
     bool IsGuiVisible() const { return m_show_gui; }
 
     /// Set visibility for the default (base) GUI component (default: true).
@@ -255,11 +273,11 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Toggle GUI visibility for the default (base) GUI component.
     void ToggleBaseGuiVisibility();
 
-    /// Return boolean indicating whether or not the default (base) GUI is visible.
+    /// Indicate whether or not the default (base) GUI is visible.
     bool IsBaseGuiVisible() const { return m_show_base_gui; }
 
-    /// Set logo visible (default: true).
-    void SetLogoVisible(bool yesno) { m_show_logo = yesno; }
+    /// Disable showing the Chrono logo (default: true).
+    void HideLogo() { m_show_logo = false; }
 
     /// Set logo display height (in pixels, default: 64).
     void SetLogoHeight(float height) { m_logo_height = height; }
@@ -269,7 +287,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// relative to the right-top corner of the rendering window.
     void SetLogoPosition(const ChVector2f& position) { m_logo_pos = position; }
 
-    /// Return boolean indicating whether or not logo is visible.
+    /// Indicate whether or not logo is visible.
     bool IsLogoVisible() const { return m_show_logo; }
 
     /// Add a user-defined VSG event handler.
@@ -283,8 +301,8 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     void Update();
 
     int m_screen_num = -1;
-    bool m_use_fullscreen = false;
-    bool m_use_shadows = false;
+    bool m_use_fullscreen;
+    bool m_use_shadows;
 
     vsg::ref_ptr<vsg::Window> m_window;
     vsg::ref_ptr<vsg::Viewer> m_viewer;  ///< high-level VSG rendering manager
@@ -318,7 +336,8 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     vsg::ref_ptr<vsg::Switch> m_contactForcesScene;
     vsg::ref_ptr<vsg::Switch> m_absFrameScene;
     vsg::ref_ptr<vsg::Switch> m_refFrameScene;
-    vsg::ref_ptr<vsg::Switch> m_cogFrameScene;
+    vsg::ref_ptr<vsg::Switch> m_comFrameScene;
+    vsg::ref_ptr<vsg::Switch> m_comSymbolScene;
     vsg::ref_ptr<vsg::Switch> m_jointFrameScene;
     vsg::ref_ptr<vsg::Group> m_decoScene;
 
@@ -355,8 +374,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     bool m_show_visibility_controls;  ///< enable/disable global visibility controls
 
-    /// Export screen image as file (png, bmp, tga, jpg).
-    void ExportScreenImage();
+    std::vector<std::shared_ptr<ChVisualSystemVSGPlugin>> m_plugins;
 
   private:
     enum class ObjectType { BODY, LINK, OTHER };
@@ -456,12 +474,21 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Bind the joint frames.
     void BindLinkFrame(const std::shared_ptr<ChLinkBase>& link);
 
+    void BindCOMSymbols();
+
     /// Utility function to populate a VSG group with visualization shapes (from the given visual model).
     void PopulateVisGroup(vsg::ref_ptr<vsg::Group> group, std::shared_ptr<ChVisualModel> model, bool wireframe);
 
     /// Utility function to populate a VSG group with collision shapes (from the given collision model).
     /// The VSG shapes are always rendered wireframe.
     void PopulateCollGroup(vsg::ref_ptr<vsg::Group> group, std::shared_ptr<ChCollisionModel> model);
+
+    /// Utility functions to collect active body positions from all assemblies in all systems.
+    static void CollectActiveBodyCOMPositions(const ChAssembly& assembly, std::vector<ChVector3d>& positions);
+    static void ConvertCOMPositions(const std::vector<ChVector3d>& c, vsg::ref_ptr<vsg::vec4Array> v, double w);
+
+    /// Export screen image as file (png, bmp, tga, jpg).
+    void ExportScreenImage();
 
     std::map<std::size_t, vsg::ref_ptr<vsg::Node>> m_objCache;
     std::hash<std::string> m_stringHash;
@@ -475,7 +502,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     int m_numThreads = 16;
     vsg::ref_ptr<vsg::OperationThreads> m_loadThreads;
 
-    bool m_useSkybox;
+    bool m_use_skybox;
     std::string m_skyboxPath;
 
     vsg::dvec3 m_cameraUpVector;
@@ -518,12 +545,19 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     // Frame rendering
     bool m_show_abs_frame;       ///< flag to toggle absolute frame visibility
     bool m_show_ref_frames;      ///< flag to toggle object reference frame visibility
-    bool m_show_cog_frames;      ///< flag to toggle COG frame visibility
-    bool m_show_joint_frames;    ///< flag to toggle COG frame visibility
+    bool m_show_com_frames;      ///< flag to toggle COM frame visibility
+    bool m_show_com_symbols;     ///< flag to toggle COM symbol visibility
+    bool m_show_joint_frames;    ///< flag to toggle link frame visibility
     double m_abs_frame_scale;    ///< current absolute frame scale
     double m_ref_frame_scale;    ///< current reference frame scale
-    double m_cog_frame_scale;    ///< current COG frame scale
+    double m_com_frame_scale;    ///< current COM frame scale
+    double m_com_symbol_ratio;   ///< COM symbol scale relative to current COM frame scale
     double m_joint_frame_scale;  ///< current joint frame scale
+
+    vsg::ref_ptr<vsg::vec3Array> m_com_symbol_vertices;
+    vsg::ref_ptr<vsg::vec4Array> m_com_symbol_positions;
+    bool m_com_size_changed;
+    bool m_com_symbols_empty;
 
     unsigned int m_frame_number;                      ///< current number of rendered frames
     double m_start_time;                              ///< wallclock time at first render
@@ -536,6 +570,46 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     friend class ChBaseEventHandlerVSG;
     ////friend class ChDrawContactsVSG;
     ////friend class ChDeferredDeleteVSG;
+};
+
+// -----------------------------------------------------------------------------
+
+/// Base class for a plugin for a VSG visual system.
+/// Plugins offer a mechanism for extending a base VSG visual system with custom functionality; e.g., for rendering,
+/// controlling, and displaying information for specific types of Chrono systems. An arbitrary number of plugins can
+/// be attached to a VSG visual system.
+class ChVisualSystemVSGPlugin {
+  public:
+    virtual ~ChVisualSystemVSGPlugin() {}
+
+    /// TODO - remove AddEventHandler?
+    /// A plugin can call the VSG system's AddEventHandler in its OnAttach() function.
+    
+    /// Add custom event handlers for this plugin.
+    void AddEventHandler(std::shared_ptr<ChEventHandlerVSG> eh) { m_evhandler.push_back(eh); }
+
+    /// Get a reference to the VSG visual system to which the plugin was attached.
+    ChVisualSystemVSG& GetVisualSystemVSG() const { return *m_vsys; }
+
+  protected:
+    ChVisualSystemVSGPlugin() {}
+
+    /// Allow this plugin to perform any operations when it is attached to a VSG visual system.
+    /// The pointer `m_vsys` to the associated VSG visual system is set before calling OnAttach.
+    virtual void OnAttach() {}
+
+    /// Allow this plugin to perform any pre-initialization operations.
+    /// This function is called before the initialization of the associated VSG visual system.
+    virtual void OnInitialize() {}
+
+    /// Allow this plugin to perform any pre-rendering operations.
+    /// This function is called before updating and rendering the associated VSG visual system.
+    virtual void OnRender() {}
+
+    std::vector<std::shared_ptr<ChEventHandlerVSG>> m_evhandler;  ///< list of all additional event handlers
+    ChVisualSystemVSG* m_vsys;                                    ///< associated VSG visual system
+
+    friend class ChVisualSystemVSG;
 };
 
 /// @} vsg_module

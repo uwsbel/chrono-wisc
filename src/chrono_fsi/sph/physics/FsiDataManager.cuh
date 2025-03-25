@@ -29,21 +29,16 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 
-#include "chrono_fsi/ChConfigFsi.h"
+#include "chrono_fsi/sph/ChFsiParamsSPH.h"
 
-#include "chrono_fsi/sph/physics/ChParams.h"
-#include "chrono_fsi/sph/physics/ChMarkerType.cuh"
-#include "chrono_fsi/sph/math/CustomMath.h"
-#include "chrono_fsi/sph/utils/ChUtilsDevice.cuh"
+#include "chrono_fsi/sph/physics/MarkerType.cuh"
+#include "chrono_fsi/sph/utils/UtilsDevice.cuh"
 
 namespace chrono {
 namespace fsi {
-
-class ChFluidSystemSPH;
-
 namespace sph {
 
-/// @addtogroup fsi_physics
+/// @addtogroup fsisph_physics
 /// @{
 
 /// typedef device iterators for shorthand SPH operation of thrust vectors of Real3
@@ -134,20 +129,20 @@ struct FsiBodyStateD {
 
 /// FEA mesh states on host.
 struct FsiMeshStateH {
-    thrust::host_vector<Real3> pos_fsi_fea_H;  ///< mesh node positions
-    thrust::host_vector<Real3> vel_fsi_fea_H;  ///< mesh node velocities
-    thrust::host_vector<Real3> acc_fsi_fea_H;  ///< mesh node accelerations
+    thrust::host_vector<Real3> pos;  ///< mesh node positions
+    thrust::host_vector<Real3> vel;  ///< mesh node velocities
+    thrust::host_vector<Real3> acc;  ///< mesh node accelerations
 
     // zipIterFlexH iterator();
     void resize(size_t s);
-    size_t size() { return pos_fsi_fea_H.size(); };
+    size_t size() { return pos.size(); };
 };
 
 /// FEA mesh state on device.
 struct FsiMeshStateD {
-    thrust::device_vector<Real3> pos_fsi_fea_D;  ///< mesh node positions
-    thrust::device_vector<Real3> vel_fsi_fea_D;  ///< mesh node velocities
-    thrust::device_vector<Real3> acc_fsi_fea_D;  ///< mesh node accelerations
+    thrust::device_vector<Real3> pos;  ///< mesh node positions
+    thrust::device_vector<Real3> vel;  ///< mesh node velocities
+    thrust::device_vector<Real3> acc;  ///< mesh node accelerations
 
     // zipIterFlexD iterator();
     void CopyFromH(const FsiMeshStateH& meshStateH);
@@ -209,9 +204,8 @@ struct Counters {
 // -----------------------------------------------------------------------------
 
 /// Data manager for the SPH-based FSI system.
-class FsiDataManager {
-  public:
-    FsiDataManager(std::shared_ptr<SimParams> params);
+struct FsiDataManager {
+    FsiDataManager(std::shared_ptr<ChFsiParamsSPH> params);
     virtual ~FsiDataManager();
 
     /// Add an SPH particle given its position, physical properties, velocity, and stress.
@@ -281,8 +275,8 @@ class FsiDataManager {
     /// Extract FSI forces on flex2D nodes.
     std::vector<Real3> GetFlex2dForces();
 
-    std::shared_ptr<SimParams> paramsH;   ///< simulation parameters (host)
-    std::shared_ptr<Counters> countersH;  ///< problem counters (host)
+    std::shared_ptr<ChFsiParamsSPH> paramsH;  ///< simulation parameters (host)
+    std::shared_ptr<Counters> countersH;      ///< problem counters (host)
 
     std::shared_ptr<SphMarkerDataD> sphMarkers_D;         ///< Information of SPH particles at state 1 on device
     std::shared_ptr<SphMarkerDataD> sortedSphMarkers1_D;  ///< Information of SPH particles at state 2 on device
@@ -360,7 +354,6 @@ class FsiDataManager {
     thrust::host_vector<int3> flex2D_Nodes_H;    ///< node indices for each 2-D flex face (host)
     thrust::device_vector<int3> flex2D_Nodes_D;  ///< node indices for each 2-D flex face (device)
 
-  private:
     void ConstructReferenceArray();
     void SetCounters(unsigned int num_fsi_bodies,
                      unsigned int num_fsi_nodes1D,
@@ -375,10 +368,11 @@ class FsiDataManager {
     /// Initializes device vectors to zero.
     void ResetData();
 
-    friend class chrono::fsi::ChFluidSystemSPH;
+    /// Add this method declaration in the FsiDataManager struct
+    size_t GetCurrentGPUMemoryUsage() const;
 };
 
-/// @} fsi_physics
+/// @} fsisph_physics
 
 }  // namespace sph
 }  // end namespace fsi
