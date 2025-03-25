@@ -95,11 +95,11 @@ int main(int argc, char* argv[]) {
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
-    double render_fps = 200;               // rendering FPS
+    double render_fps = 20;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
-    bool chase_cam = false;                 // chase-cam or fixed camera
+    bool chase_cam = true;                 // chase-cam or fixed camera
 
     // CRM material properties
     double density = 1700;
@@ -219,10 +219,10 @@ int main(int argc, char* argv[]) {
             // Create a patch from a heigh field map image
             terrain.Construct(vehicle::GetDataFile("terrain/gator/terrain.bmp"),   // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, 0.6},                                                // height range
-                              0.2,                                                     // depth
+                              {0, 0.5},                                                // height range
+                              0.15,                                                     // depth
                               true,                                                    // uniform depth
-                              ChVector3d(0, 0, 0),                                     // patch center
+                              ChVector3d(12.5, 12.5, 0),                                     // patch center
                               BoxSide::Z_NEG                                           // bottom wall
             );
             break;
@@ -254,12 +254,12 @@ int main(int argc, char* argv[]) {
 
     // ChDriver driver(vehicle->GetVehicle());
     ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts_0_1.txt");
+    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts_0_2.txt");
     cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
     ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
-    driver.GetSteeringController().SetLookAheadDistance(0.1);
-    driver.GetSteeringController().SetGains(0.5, 0.5, 0);
+    driver.GetSteeringController().SetLookAheadDistance(2.0);
+    driver.GetSteeringController().SetGains(0.1, 0.5, 0);
     driver.GetSpeedController().SetGains(0.6, 0.0, 0);
     driver.Initialize();
 
@@ -327,6 +327,9 @@ int main(int argc, char* argv[]) {
     ChTimer timer;
     while (time < tend) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
+        const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
+        auto front_load = blade->GetAppliedForce();
+        const auto& blade_loc = blade->GetPos();
 
         // Set current driver inputs
         auto driver_inputs = driver.GetInputs();
@@ -349,12 +352,14 @@ int main(int argc, char* argv[]) {
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
-                ChVector3d cam_loc = veh_loc + ChVector3d(-6, 6, 1.5);
+                ChVector3d cam_loc = veh_loc + ChVector3d(6, 2.5, 1.5);
                 ChVector3d cam_point = veh_loc;
                 visFSI->UpdateCamera(cam_loc, cam_point);
              }
             if (!visFSI->Render())
                 break;
+            // echo vehicle state
+            std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " <<driver_inputs.m_steering<< "  " <<driver_inputs.m_throttle<< "  " << front_load.Length() <<  "  " << veh_rot.x()<<  "  " << veh_rot.y()<<  "  " << veh_rot.z() << std::endl;
             render_frame++;
         }
         if (!render) {
@@ -426,7 +431,7 @@ std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_p
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
     auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("gator/gator_frontblade.obj"), 1000, true, true, false);
-    auto offsetpos = ChVector3d(1.75, 0, -0.3);
+    auto offsetpos = ChVector3d(1.75, 0, -0.2);
     blade->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
     blade->SetMass(0.1);
@@ -503,9 +508,9 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
         return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(default_points));
     }
     
-    // Each file will have exactly 10 points
+    // Each file will have exactly 20 points
     std::vector<ChVector3d> points;
-    points.reserve(10);
+    points.reserve(20);
     std::string line;
     
     // Read points with only x and y coordinates, z will always be 0.1
@@ -514,7 +519,7 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
         std::istringstream iss(line);
         if (iss >> x >> y) {
             // Apply offsets to x and y, and set z to fixed value 0.1
-            points.push_back(ChVector3d(x - 2.5, y - 1.5, 0.1));
+            points.push_back(ChVector3d(x , y, 0.1));
         }
     }
     
