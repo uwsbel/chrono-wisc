@@ -6,18 +6,22 @@
 
 option(CH_ENABLE_MODULE_POWERELECTRONICS "Enable the Chrono::PowerElectronics module" OFF)
 
+# Allow users to specify additional include directories
+set(CH_POWERELECTRONICS_ADDITIONAL_INCLUDES "" CACHE STRING "Additional include directories for Chrono::PowerElectronics module")
+
 IF(NOT CH_ENABLE_MODULE_POWERELECTRONICS)
   return()
 ENDIF()
 
 message(STATUS "\n==== Chrono::PowerElectronics module ====\n")
 
+# Set includes from user input
+set(CH_POWERELECTRONICS_INCLUDES "${CH_POWERELECTRONICS_ADDITIONAL_INCLUDES}")
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS True )
 
 set(CXX_FLAGS "${CH_CXX_FLAGS}")
 set(LINKER_FLAGS "${CH_LINKERFLAG_SHARED}")
-set(CH_POWERELECTRONICS_INCLUDES "")
 set(CH_POWERELECTRONICS_LIBRARIES "Chrono_core")
 set(CH_POWERELECTRONICS_LINKED_LIBRARIES "")
 

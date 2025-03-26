@@ -56,8 +56,11 @@
 #include "chrono/core/ChRealtimeStep.h"
 #include "chrono/core/ChRandom.h"
 
+#ifdef CHRONO_IRRLICHT
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 #include "chrono_irrlicht/ChIrrMeshTools.h"
+#endif
+
 #include <chrono/physics/ChSystem.h>
 
     // ======== ChElectronics headers ========
@@ -73,19 +76,23 @@
 // ======== NAMESPACES ========
 // ============================
 using namespace ::chrono;
+#ifdef CHRONO_IRRLICHT
 using namespace ::chrono::irrlicht;
+#endif
 using namespace ::chrono::powerelectronics;
 // namespace py = pybind11;
 // namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 // Use the main namespaces of Irrlicht
+#ifdef CHRONO_IRRLICHT
 using namespace irr;
 using namespace irr::core;
 using namespace irr::scene;
 using namespace irr::video;
 using namespace irr::io;
 using namespace irr::gui;
+#endif
 
 // =====================================
 // ======== FUNCTIONS & CLASSES ========
@@ -299,6 +306,7 @@ int main(int argc, char* argv[]) {
     // ===============================================
     // ======== IRRLICHT VISUALIZATION SYSTEM ========
     // ===============================================
+#ifdef CHRONO_IRRLICHT
     auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();
     vis->AttachSystem(&sys);
     vis->SetWindowSize(1200, 800);
@@ -310,6 +318,7 @@ int main(int argc, char* argv[]) {
     vis->AddLight(ChVector3d(30.f, 100.f, -30.f), 300, ChColor(0.7f, 0.7f, 0.7f));
     vis->EnableBodyFrameDrawing(true);
     vis->EnableLinkFrameDrawing(true);
+#endif
 
     // =================================
     // ======== SOLVER SETTINGS ========
@@ -382,6 +391,7 @@ int main(int argc, char* argv[]) {
 
     while (t_sim_mechanics < t_simulation_STOP && brake_flag == 1) {
         // ======== RUN -> the Irrlicht visualizer ========
+#ifdef CHRONO_IRRLICHT
         vis->Run();
         //tools::drawGrid(vis.get(), 2, 2, 30, 30, ChCoordsys<>(ChVector3d(0, 0.01, 0), QuatFromAngleX(CH_PI_2)),ChColor(0.3f, 0.3f, 0.3f), true);
         if (vis->Run()) { brake_flag = 1; } // Check if the User wanted to stop de simulation before: t_simulation_STOP
@@ -389,6 +399,7 @@ int main(int argc, char* argv[]) {
         vis->BeginScene();
         vis->Render();
         vis->EndScene();
+#endif
 
         if (t_sampling_electronic_counter >= T_ToSample_electronic)
         {

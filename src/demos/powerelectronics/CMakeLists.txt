@@ -44,7 +44,7 @@ endif()
 
 if(CH_ENABLE_MODULE_VSG)
   include_directories(${CH_VSG_INCLUDES})
-  list(APPEND LIBS "ChronoEngine_vsg")
+  list(APPEND LIBS "Chrono_vsg")
 endif()
 
 if(CH_ENABLE_MODULE_POWERELECTRONICS)
