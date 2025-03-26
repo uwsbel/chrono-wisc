@@ -56,6 +56,7 @@ endif()
 if(CH_ENABLE_MODULE_POWERELECTRONICS)
     set(DEMOS ${DEMOS}
         demo_VEH_PE_CRMTerrain_WheeledVehicle
+        demo_VEH_PE_CRMTerrain_WheeledVehicle_DBP
     )
 endif()
 
