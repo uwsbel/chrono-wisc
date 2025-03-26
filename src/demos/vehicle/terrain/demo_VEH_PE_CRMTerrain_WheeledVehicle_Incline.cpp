@@ -28,10 +28,10 @@
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
-#include "chrono_vehicle/wheeled_vehicle/driveline/SimpleDriveline.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledTrailer.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
+#include "chrono_vehicle/wheeled_vehicle/driveline/SimpleDriveline.h"
 #include "chrono_vehicle/terrain/CRMTerrain.h"
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
@@ -71,7 +71,7 @@ using std::endl;
 
 // CRM terrain patch type
 enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
-PatchType patch_type = PatchType::RECTANGULAR;
+PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
 double terrain_length = 20;
@@ -196,9 +196,31 @@ int main(int argc, char* argv[]) {
     // Problem settings
     // ----------------
 
+    // Display usage information
+    if (argc > 1 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")) {
+        std::cout << "Usage: " << argv[0] << " [slope_angle]" << std::endl;
+        std::cout << "  slope_angle: Angle of the terrain slope in degrees (0-45, default: 30)" << std::endl;
+        return 0;
+    }
+
     double target_speed = 4.0;
     double tend = 30;
     bool verbose = true;
+
+    // Parse command line arguments
+    int slope_angle = 30;  // Default angle value
+    if (argc > 1) {
+        try {
+            slope_angle = std::stoi(argv[1]);
+            if (slope_angle < 0 || slope_angle > 45) {
+                std::cerr << "Warning: Angle should be between 0 and 45 degrees. Using default value of 30." << std::endl;
+                slope_angle = 30;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing command line argument: " << e.what() << std::endl;
+            std::cerr << "Using default angle value of 30 degrees." << std::endl;
+        }
+    }
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
@@ -213,12 +235,12 @@ int main(int argc, char* argv[]) {
     // CRM material properties
     double density = 1700;
     double cohesion = 5e5;
-    double friction = 0.6;
+    double friction = 0.8;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
 
     // CRM (moving) active box dimension
-    double active_box_hdim = 0.6;
+    double active_box_hdim = 0.4;
     double settling_time = 0;
 
     // Set SPH spacing
@@ -245,7 +267,6 @@ int main(int argc, char* argv[]) {
     auto hm2 = std::make_shared<HubMotor>(spindle2);
     auto hm3 = std::make_shared<HubMotor>(spindle3);
     auto hm4 = std::make_shared<HubMotor>(spindle4);
-
 
 
     // ---------------------------------
@@ -298,7 +319,7 @@ int main(int argc, char* argv[]) {
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = friction;
     mat_props.mu_fric_2 = friction;
-    mat_props.average_diam = 0.02;
+    mat_props.average_diam = 0.005;
     mat_props.cohesion_coeff = cohesion;
     terrain.SetElasticSPH(mat_props);
 
@@ -306,12 +327,12 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = spacing;
-    sph_params.d0_multiplier = 1.3;
+    sph_params.d0_multiplier = 1;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
+    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
     sph_params.boundary_type = BoundaryType::ADAMI;
     terrain.SetSPHParameters(sph_params);
 
@@ -336,20 +357,27 @@ int main(int argc, char* argv[]) {
             path = StraightLinePath(ChVector3d(0, 0, vehicle_init_height),
                                     ChVector3d(terrain_length, 0, vehicle_init_height), 1);
             break;
-        case PatchType::HEIGHT_MAP:
+        case PatchType::HEIGHT_MAP: {
+            double max_slope_distance = terrain_length / 2;  // This was how the bmp file was mad
+            double angle = slope_angle;                      // Use the command line argument value
+            double max_height = max_slope_distance * tan(angle * 3.14 / 180);
+            std::string height_map_file =
+                "terrain/height_maps/slope_" + std::to_string(static_cast<int>(angle)) + ".bmp";
+            std::cout << "Height map file: " << height_map_file << std::endl;
+            std::cout << "Using slope angle: " << angle << " degrees" << std::endl;
             // Create a patch from a heigh field map image
-            terrain.Construct(vehicle::GetDataFile("terrain/height_maps/bump64.bmp"),  // height map image file
-                              terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, 0.3},                                                // height range
-                              0.25,                                                    // depth
-                              true,                                                    // uniform depth
-                              ChVector3d(terrain_length / 2, 0, 0),                    // patch center
-                              BoxSide::Z_NEG                                           // bottom wall
+            terrain.Construct(vehicle::GetDataFile(height_map_file),  // height map image file
+                              terrain_length, terrain_width,          // length (X) and width (Y)
+                              {0, max_height},                        // height range
+                              0.25,                                   // depth
+                              true,                                   // uniform depth
+                              ChVector3d(terrain_length / 2, 0, 0),   // patch center
+                              BoxSide::Z_NEG                          // bottom wall
             );
             // Create straight line path
             path = StraightLinePath(ChVector3d(0, 0, vehicle_init_height),
                                     ChVector3d(terrain_length, 0, vehicle_init_height), 1);
-            break;
+            } break;
         case PatchType::MARKER_DATA:
             // Create a patch using SPH particles and BCE markers from files
             terrain.Construct(vehicle::GetDataFile("terrain/sph/S-lane_RMS/sph_particles.txt"),  // SPH marker locations
@@ -359,54 +387,6 @@ int main(int argc, char* argv[]) {
             path = CreatePath("terrain/sph/S-lane_RMS/path.txt");
             break;
     }
-
-    // Add a draggable cube
-    auto cube = chrono_types::make_shared<ChBody>();
-    
-    // Set cube properties
-    double cube_density = 1500;  // Density in kg/m^3 
-    ChVector3d cube_size(0.6, 0.6, 0.6);  // Cube dimensions in m
-    
-    // Calculate mass and inertia from density and size
-    double cube_volume = cube_size.x() * cube_size.y() * cube_size.z();
-    double cube_mass = cube_density * cube_volume;
-    double cube_inertia = cube_mass * (cube_size.x() * cube_size.x() + cube_size.y() * cube_size.y()) / 12.0;
-    
-    cube->SetMass(cube_mass);
-    cube->SetInertiaXX(ChVector3d(cube_inertia, cube_inertia, cube_inertia));
-    cube->SetPos(ChVector3d(2.0, 0, 0.6));  // Initial position 1m behind vehicle
-    cube->SetFixed(false);
-    cube->EnableCollision(false);
-
-    // Add collision geometry for the cube
-    auto cube_mat = chrono_types::make_shared<ChContactMaterialSMC>();
-    cube_mat->SetFriction(0.8f);
-    cube_mat->SetRestitution(0.1f);
-    cube_mat->SetYoungModulus(1e8);
-    cube_mat->SetPoissonRatio(0.3);
-
-    auto cube_shape = chrono_types::make_shared<ChCollisionShapeBox>(cube_mat, cube_size.x(), cube_size.y(), cube_size.z());
-    cube->AddCollisionShape(cube_shape);
-
-    // Add visualization for the cube
-    auto cube_vis = chrono_types::make_shared<ChVisualShapeBox>(cube_size);
-    cube_vis->SetColor(ChColor(0.8f, 0.2f, 0.2f));  // Red color
-    cube->AddVisualShape(cube_vis);
-
-    sysMBS->AddBody(cube);
-
-    // Add cube to FSI system
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(ChContactMaterialData());
-    geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(VNULL, QUNIT, ChBox(cube_size), 0));
-    terrain.AddRigidBody(cube, geometry, false);
-
-    // Create a distance constraint between the vehicle chassis and the cube
-    auto distance_constraint = chrono_types::make_shared<ChLinkDistance>();
-    distance_constraint->Initialize(vehicle->GetChassisBody(), cube, false, 
-                                  ChVector3d(-1.0, 0, 0),  // Point on chassis (1m behind)
-                                  ChVector3d(0, 0, 0));    // Point on cube (center)
-    sysMBS->AddLink(distance_constraint);
 
     // Initialize the terrain system
     terrain.Initialize();
@@ -434,7 +414,7 @@ int main(int argc, char* argv[]) {
     // Set up output
     // -----------------------------
 
-    std::string out_dir = GetChronoOutputPath() + "CRM_Wheeled_Vehicle_DBP/";
+    std::string out_dir = GetChronoOutputPath() + "CRM_Wheeled_Vehicle/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -588,7 +568,7 @@ int main(int argc, char* argv[]) {
             vis->Render();
             
             // Save snapshot if enabled
-            if (snapshots && render_frame % (int)(render_fps / 100) == 0) {  
+            if (snapshots && render_frame % (int)(render_fps / 10) == 0) {  // Save 10 snapshots per second
                 std::ostringstream filename;
                 filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << snapshot_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
@@ -615,8 +595,6 @@ int main(int argc, char* argv[]) {
         hm3->Synchronize(time, driver_inputs_hm,spindle3->GetAngVelLocal()[2]*149.);
         hm4->Synchronize(time, driver_inputs_hm,spindle4->GetAngVelLocal()[2]*149.);
         
-
-
         // Advance simulation
         terrain.Advance(step_size);
         // vehicle->Advance(step_size);
@@ -630,7 +608,6 @@ int main(int argc, char* argv[]) {
         spindle2->EmptyAccumulators();
         spindle3->EmptyAccumulators();
         spindle4->EmptyAccumulators();
-
 
         spindle1->AccumulateTorque(ChVector3d(0,hm1->GetOutputMotorshaftTorque()*149.,0),true); 
         spindle2->AccumulateTorque(ChVector3d(0,hm2->GetOutputMotorshaftTorque()*149.,0),true);
@@ -682,6 +659,7 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
     vehicle->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
     vehicle->SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
     vehicle->SetWheelVisualizationType(VisualizationType::MESH);
+
 
     // Create and initialize the powertrain system
     // auto engine = ReadEngineJSON(vehicle::GetDataFile(engine_json));

@@ -97,10 +97,10 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
 
     double ang_vel = this->shaft_angvel*0.10472; // RPM to Rad/S
 
-    if (this->spindle != nullptr) {
-        ang_vel = spindle->GetAngVelLocal()[2];
-    }
-    std::cout << "Current " << IVprobe1 << " Ang Vel " << ang_vel << std::endl;
+    // if (this->spindle != nullptr) {
+    //     ang_vel = spindle->GetAngVelLocal()[2];
+    // }
+    // std::cout << "Current " << IVprobe1 << " Ang Vel " << ang_vel << std::endl;
 
 
     this->VbackemfCVAR = ke_motor * ang_vel ;
