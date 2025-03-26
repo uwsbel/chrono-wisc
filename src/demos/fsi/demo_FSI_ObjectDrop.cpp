@@ -50,15 +50,15 @@ using std::endl;
 //// Dimensions of fluid domain
 //ChVector3d fsize(1.6, 1.6, 1.2);
 
- //Container dimensions
- ChVector3d csize(2.2, 2.2, 1.6);
+//Container dimensions
+ChVector3d csize(2.2, 2.2, 1.4);
 // Dimensions of fluid domain
- ChVector3d fsize(2.2, 2.2, 0.99);
+ChVector3d fsize(2.2, 2.2, 0.99);
 
 
 // Object type
 enum class ObjectShape { SPHERE_PRIMITIVE, CYLINDER_PRIMITIVE, MESH };
- ObjectShape object_shape = ObjectShape::MESH;
+ObjectShape object_shape = ObjectShape::MESH;
 
 // Mesh specification (for object_shape = ObjectShape::MESH) 
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
 
     // Default parameter values
     double initial_spacing = 0.015;  // initial spacing between SPH particles
-    double step_size = 2.5e-5;      // integration step size
+    double step_size = 2e-5;      // integration step size
     double d0 = 1.75;
     std::string viscosity_type = "laminar_dual";
     double fluid_density = 998.5;
@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
     fsi.SetCfdSPH(fluid_props);
     
     // Set SPH solution parameters
-    int num_bce_layers = 4;
+    int num_bce_layers = 5;   // this seems quite large... but let's see if it makes a difference. 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.num_bce_layers = num_bce_layers;
@@ -295,10 +295,49 @@ int main(int argc, char* argv[]) {
     // Enable depth-based initial pressure for SPH particles
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(fsize.z()));
 
+
+    // manually add side walls as BCE markers
+    // create one chbody for all four side walls 
+    auto side_walls = chrono_types::make_shared<ChBody>();
+    side_walls->SetFixed(true);
+    side_walls->SetPos(ChVector3d(0, 0, 0));
+
+    // create side wall geometry as box
+    auto geometry_side_walls = utils::ChBodyGeometry();
+    double wall_thickness = (num_bce_layers - 1) * initial_spacing;  // thickness of the wall is the same as the thickness of the BCE layer
+    // add box shape, left side, position is (-csize.x()/2 - num_bce_layers * initial_spacing/2.0, 0, csize.z()/2)
+    geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+        ChVector3d(-csize.x() / 2 - wall_thickness / 2.0 - initial_spacing, 0, csize.z() / 2), 
+        Q_ROTATE_Z_TO_X,
+        ChVector3d( csize.z() + 2 * num_bce_layers * initial_spacing, csize.x() + initial_spacing, wall_thickness), 0));
+
+    // other side 
+    geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+        ChVector3d(csize.x() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, 0, csize.z() / 2), 
+        -Q_ROTATE_Z_TO_X,
+        ChVector3d(csize.z() + 2 * num_bce_layers * initial_spacing, csize.x() + initial_spacing, wall_thickness), 0));
+
+    // walls in y location 
+    geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+        ChVector3d(0, -csize.y() / 2 - wall_thickness / 2.0 - initial_spacing, csize.z() / 2), 
+        Q_ROTATE_Z_TO_Y,
+        ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing, wall_thickness), 0));
+
+    // last wall ... 
+    geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
+        ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing,
+                   wall_thickness),
+        0));
+
+    // attach geometry to side walls
+    fsi.AddRigidBody(side_walls, geometry_side_walls, false, true);
+
+
     // Create SPH material and boundaries
     fsi.Construct(fsize,                          // length x width x depth
                   ChVector3d(0, 0, 0),            // position of bottom origin
-                  BoxSide::ALL & ~BoxSide::Z_POS  // all boundaries except top
+                  BoxSide::Z_NEG  // all boundaries except top
     );
 
     // Computational domain must always contain all BCE and Rigid markers - if these leave computational domain,

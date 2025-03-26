@@ -943,6 +943,22 @@ __global__ void Navier_Stokes(Real4* sortedDerivVelRho,
         derivVelRho +=
             DifVelocityRho(dist3, d, sortedPosRad[index], sortedPosRad[j], velMasA, velMasB, rhoPresMuA, rhoPresMuB);
 
+
+        if (!IsFinite(derivVelRho)) {
+            // add more information about the NAN particle, like its position, density and pressure
+            // so there's A and B particles
+            Real3 posRadA = mR3(sortedPosRad[index]);
+            Real3 posRadB = mR3(sortedPosRad[j]);
+            Real4 rhoPresMuA = sortedRhoPreMu[index];
+            Real4 rhoPresMuB = sortedRhoPreMu[j];
+            printf("Error! particle derivVel is NAN: thrown from FsiForceWCSPH.cu, collideD !\n");
+            printf("threadId: %d, posA: %f, %f, %f, posB: %f, %f, %f\n", index, posRadA.x, posRadA.y, posRadA.z, posRadB.x, posRadB.y, posRadB.z);
+            printf("threadId: %d,rhoA: %e, rhoB: %e, pA: %e, pB %e\n", index, rhoPresMuA.x, rhoPresMuB.x, rhoPresMuA.y, rhoPresMuB.y);
+            *error_flag = true;
+        }
+
+
+
         if (paramsD.USE_Consistent_G && paramsD.USE_Consistent_L) {
             preGra += GradientOperator(Gi, dist3, sortedPosRad[index], sortedPosRad[j], -rhoPresMuA.y, rhoPresMuB.y,
                                        rhoPresMuA, rhoPresMuB);
@@ -985,10 +1001,6 @@ __global__ void Navier_Stokes(Real4* sortedDerivVelRho,
         }
     }
 
-    if (!IsFinite(derivVelRho)) {
-        printf("Error! particle derivVel is NAN: thrown from FsiForceWCSPH.cu, collideD !\n");
-        *error_flag = true;
-    }
 
     // add gravity and other body force to fluid markers
     if (IsSphParticle(rhoPresMuA.w)) {
