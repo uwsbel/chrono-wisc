@@ -53,6 +53,12 @@ if(CH_ENABLE_MODULE_PARDISO_MKL AND CH_ENABLE_MODULE_IRRLICHT)
     )
 endif()
 
+if(CH_ENABLE_MODULE_POWERELECTRONICS)
+    set(DEMOS ${DEMOS}
+        demo_VEH_PE_CRMTerrain_WheeledVehicle
+    )
+endif()
+
 #--------------------------------------------------------------
 
 set(UTILS "../../SetChronoSolver.h")
@@ -94,6 +100,10 @@ if(CH_ENABLE_MODULE_VSG)
     if(CH_ENABLE_MODULE_FSI)
       list(APPEND LIBS "Chrono_fsisph_vsg")
     endif()
+endif()
+
+if(CH_ENABLE_MODULE_POWERELECTRONICS)
+    list(APPEND LIBS "ChronoEngine_powerelectronics")
 endif()
 
 #--------------------------------------------------------------
