@@ -595,6 +595,8 @@ set(CV_WV_TIRE_FILES
     wheeled_vehicle/tire/FEATire.cpp
     wheeled_vehicle/tire/ANCFToroidalTire.h
     wheeled_vehicle/tire/ANCFToroidalTire.cpp
+    wheeled_vehicle/tire/ANCFToroidalTire3443.h
+    wheeled_vehicle/tire/ANCFToroidalTire3443.cpp
 	wheeled_vehicle/tire/ANCFAirlessTire.h
     wheeled_vehicle/tire/ANCFAirlessTire.cpp
 	wheeled_vehicle/tire/ANCFAirlessTireV2.h
