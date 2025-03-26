@@ -138,6 +138,15 @@ if(CH_ENABLE_MODULE_MULTICORE)
     endif()
 endif()
 
+
+if(CH_ENABLE_MODULE_POWERELECTRONICS)
+    option(BUILD_DEMOS_PE "Build demo programs for PE module" TRUE)
+    mark_as_advanced(FORCE BUILD_DEMOS_PE)
+    if(BUILD_DEMOS_PE)
+      add_subdirectory(powerelectronics)
+    endif()
+endif()
+
 if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
     option(BUILD_DEMOS_VEHICLE "Build demo programs for Vehicle module" TRUE)
     mark_as_advanced(FORCE BUILD_DEMOS_VEHICLE)
