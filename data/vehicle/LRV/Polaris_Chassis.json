@@ -9,7 +9,7 @@
         "Location": [  0.0,  0.0, 0.2 ],
         "Orientation": [ 1, 0, 0, 0 ]
       },
-      "Mass": 640.0,
+      "Mass": 300.0,
       "Moments of Inertia": [ 10.44, 423.44, 475.65 ],
       "Products of Inertia": [ 0, 0, 0 ],
       "Void": false

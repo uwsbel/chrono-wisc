@@ -212,9 +212,9 @@ int main(int argc, char* argv[]) {
     bool snapshots = true;                // save snapshots during simulation
 
     // CRM material properties
-    double density = 1700;
-    double cohesion = 5e5;
-    double friction = 0.6;
+    double density = 1800;
+    double cohesion = 5e2;
+    double friction = 0.9;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
 
@@ -230,7 +230,7 @@ int main(int argc, char* argv[]) {
     // --------------
 
     cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.5;
+    double vehicle_init_height = 0.6;
     bool fea_tires;
     auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
@@ -285,7 +285,7 @@ int main(int argc, char* argv[]) {
     CRMTerrain terrain(*sysMBS, spacing);
     ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
     terrain.SetVerbose(verbose);
-    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
     terrain.SetStepSizeCFD(step_size);
 
     // Register the vehicle with the CRM terrain
@@ -365,7 +365,7 @@ int main(int argc, char* argv[]) {
     auto cube = chrono_types::make_shared<ChBody>();
     
     // Set cube properties
-    double cube_density = 1500;  // Density in kg/m^3 
+    double cube_density = 2500;  // Density in kg/m^3 
     ChVector3d cube_size(0.6, 0.6, 0.6);  // Cube dimensions in m
     
     // Calculate mass and inertia from density and size
@@ -405,7 +405,7 @@ int main(int argc, char* argv[]) {
     // Create a distance constraint between the vehicle chassis and the cube
     auto distance_constraint = chrono_types::make_shared<ChLinkDistance>();
     distance_constraint->Initialize(vehicle->GetChassisBody(), cube, false, 
-                                  ChVector3d(-1.0, 0, 0),  // Point on chassis (1m behind)
+                                  ChVector3d(-0.5, 0, 0),  // Point on chassis (1m behind)
                                   ChVector3d(0, 0, 0));    // Point on cube (center)
     sysMBS->AddLink(distance_constraint);
 

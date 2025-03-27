@@ -234,9 +234,9 @@ int main(int argc, char* argv[]) {
     bool snapshots = true;                // save snapshots during simulation
 
     // CRM material properties
-    double density = 1700;
-    double cohesion = 5e5;
-    double friction = 0.8;
+    double density = 1800;
+    double cohesion = 5e2;
+    double friction = 0.9;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
 
@@ -306,7 +306,7 @@ int main(int argc, char* argv[]) {
     CRMTerrain terrain(*sysMBS, spacing);
     ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
     terrain.SetVerbose(verbose);
-    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
     terrain.SetStepSizeCFD(step_size);
 
     // Register the vehicle with the CRM terrain
@@ -320,7 +320,7 @@ int main(int argc, char* argv[]) {
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = friction;
     mat_props.mu_fric_2 = friction;
-    mat_props.average_diam = 0.005;
+    mat_props.average_diam = 0.002;
     mat_props.cohesion_coeff = cohesion;
     terrain.SetElasticSPH(mat_props);
 
@@ -328,7 +328,7 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = spacing;
-    sph_params.d0_multiplier = 1;
+    sph_params.d0_multiplier = 1.2;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
