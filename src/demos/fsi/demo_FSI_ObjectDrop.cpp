@@ -63,7 +63,7 @@ ObjectShape object_shape = ObjectShape::MESH;
 // Mesh specification (for object_shape = ObjectShape::MESH) 
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
 double mesh_scale = 1;
-double mesh_bottom_offset = 0.1;
+double mesh_bottom_offset = 0.14;  // is there a better way to determine this? 
 
 double initial_height = 1.0;
 double density = 600;
@@ -140,6 +140,13 @@ int main(int argc, char* argv[]) {
     double t_end = 5.0;             // simulation duration
     bool output = true;
     double output_fps = 20;
+    const ChVector3d gravity(0, 0, -9.8);
+
+    // given initial height, compute impact velocity
+
+    double impact_velocity = -sqrt(2 * std::abs(gravity.z()) * (initial_height - mesh_bottom_offset));
+    bool use_impact_velocity = true;
+
 
     // Default parameter values
     double initial_spacing = 0.015;  // initial spacing between SPH particles
@@ -166,7 +173,6 @@ int main(int argc, char* argv[]) {
     ChFsiSystemSPH& sysFSI = fsi.GetSystemFSI();
 
     // Set gravitational acceleration
-    const ChVector3d gravity(0, 0, -9.8);
     fsi.SetGravitationalAcceleration(gravity);
 
     // Set integration step size
@@ -208,7 +214,6 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_diffusion_A = 1.;
     sph_params.shifting_diffusion_AFSM = 3.;
     sph_params.shifting_diffusion_AFST = 2.;
-
     sph_params.eos_type = EosType::TAIT;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
@@ -270,7 +275,17 @@ int main(int argc, char* argv[]) {
     
     auto body = chrono_types::make_shared<ChBody>();
     body->SetName("object");
-    body->SetPos(ChVector3d(0, 0, initial_height + fsize.z()));
+
+    if (use_impact_velocity) {
+        body->SetPos(ChVector3d(0, 0, fsize.z() + 2 * initial_spacing + mesh_bottom_offset));
+        body->SetPosDt(ChVector3d(0, 0, impact_velocity));
+
+    } else {
+        body->SetPos(ChVector3d(0, 0, initial_height + fsize.z()));
+        body->SetPosDt(ChVector3d(0, 0, 0));
+    }
+
+    // body->SetPos(ChVector3d(0, 0, initial_height + fsize.z()));
 
     std::cout << "capsule height " << body->GetPos().z() << std::endl;
     body->SetRot(QUNIT);
