@@ -82,8 +82,9 @@ std::string vehicle_json = "LRV/Polaris.json";
 std::string engine_json = "LRV/Polaris_EngineSimpleMap.json";
 std::string transmission_json = "LRV/Polaris_AutomaticTransmissionSimpleMap.json";
 std::string driveline_json = "LRV/Polaris_simple_driveline.json";
-std::string tire_json = "LRV/Polaris_RigidTire.json";
-////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
+std::string tire_json = "LRV/Polaris_RigidMeshTire.json";
+// Also change the mesh in CreateFSIWheels()
+// std::string tire_json = "LRV/Polaris_RigidMeshTire_lug.json";
 
 // Suspend vehicle
 bool fix_chassis = false;
@@ -703,7 +704,7 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
 }
 
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
-    std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
+    std::string mesh_filename = vehicle::GetDataFile("LRV/meshes/Polaris_tire_collision.obj");
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
