@@ -2557,9 +2557,41 @@ void ChFsiFluidSystemSPH::CreatePoints_Mesh(ChTriangleMeshConnected& mesh, doubl
                     intersectCounter[0] += t_inter[0];
                     intersectCounter[1] += t_inter[1];
                 }
+                
+                if (((intersectCounter[0] % 2) == 1) && ((intersectCounter[1] % 2) == 1)){  // inside mesh
+                    // i want to check one more step to make sure the point (which essentially is a sphere with radius delta/2) is NOT intersecting the mesh
+                    // so have to check the distance from the point to the mesh
+                    // if the distance is less than delta/2, then the point is intersecting the mesh
+                    // so we need to reject the point
+                    // to do this, we need to get the normal of the mesh (note that the mesh normal is pointing outwards, but our point is inside the mesh)
+                    // we also need to connect the point and one vertice of the mesh to form a line
+                    // and then project this line onto the normal of the mesh 
+                    // if any projection is less than delta/2, then the point is intersecting the mesh, and we reject the point and break
+                    // otherwise, we accept the point
+                    bool is_intersecting = false;
+                    // if (check_intersecting) {
+                        for (unsigned int i = 0; i < mesh.m_face_v_indices.size(); ++i) {
+                            auto& t_face = mesh.m_face_v_indices[i];
+                            auto& v1 = mesh.m_vertices[t_face.x()];
+                            auto& v2 = mesh.m_vertices[t_face.y()];
+                            auto& v3 = mesh.m_vertices[t_face.z()];
 
-                if (((intersectCounter[0] % 2) == 1) && ((intersectCounter[1] % 2) == 1))  // inside mesh
-                    points.push_back(ChVector3d(x, y, z));
+                            auto normal = -Vcross(v2 - v1, v3 - v1);
+                            normal.Normalize();
+
+                            ChVector3d line = ray_origin - v1;
+                            double projection = Vdot(line, normal);
+                            if (projection < delta / 2.) {
+                                // point is intersecting the mesh
+                                is_intersecting = true;
+                                break;
+                            }
+                        }
+                    // }
+                    if (!is_intersecting) {
+                        points.push_back(ChVector3d(x, y, z));
+                    }
+                }
             }
         }
     }
