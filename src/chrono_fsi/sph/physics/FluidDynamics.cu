@@ -365,13 +365,13 @@ __global__ void UpdateFluidD(Real4* posRadD,
     if (!IsFinite(rhoPresMu)) {
         // i don't know why this is happening, but i'm going to put some print here
         Real3 posRad = mR3(posRadD[index]);
-        Real4 rhoPresMu = rhoPresMuD[index];
+        Real4 rhoPresMu_old = rhoPresMuD[index];
         Real3 velMas = velMasD[index];
         Real4 derivVelRho = derivVelRhoD[index];
 
-        printf("threadId: %d, pos: %f, %f, %f, rho: %e, p: %e, vel: %f, %f, %f, derivVelRho: %f, %f, %f\n", 
-        index, posRad.x, posRad.y, posRad.z, rhoPresMu.x, rhoPresMu.y, 
-        velMas.x, velMas.y, velMas.z, derivVelRho.x, derivVelRho.y, derivVelRho.z);
+        printf("threadId: %d, pos: %f, %f, %f, rho: %e, p: %e, rho_old: %e, p_old: %e, vel: %f, %f, %f, derivVelRho: %f, %f, %f, %f\n", 
+        index, posRad.x, posRad.y, posRad.z, rhoPresMu.x, rhoPresMu.y, rhoPresMu_old.x, rhoPresMu_old.y, 
+        velMas.x, velMas.y, velMas.z, derivVelRho.x, derivVelRho.y, derivVelRho.z, derivVelRho.w);
 
         printf("Error! particle rho pressure is NAN: thrown from FluidDynamics.cu, UpdateFluidDKernel !\n");
         *error_flag = true;
