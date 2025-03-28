@@ -1,81 +1,88 @@
 #=============================================================================
 # CMake configuration file for Chrono Matlab module
+# 
+# Cannot be used stand-alone (it's loaded by CMake config. file in parent dir.)
 #=============================================================================
 
-option(CH_ENABLE_MODULE_MATLAB "Enable the Chrono Matlab module" OFF)
+option(ENABLE_MODULE_MATLAB "Enable the Chrono Matlab module" OFF)
 
 # Return now if this module is not enabled
-IF(NOT CH_ENABLE_MODULE_MATLAB)
-  MARK_AS_ADVANCED(FORCE Matlab_ROOT_DIR)
+IF(NOT ENABLE_MODULE_MATLAB)
+  MARK_AS_ADVANCED(FORCE MATLAB_SDK_ROOT)
   RETURN()
 ENDIF()
 
-message(STATUS "\n==== Chrono Matlab module ====\n")
+MESSAGE(STATUS "\n==== Chrono Matlab module ====\n")
 
-# --------------------------------------------------------
+MARK_AS_ADVANCED(CLEAR MATLAB_SDK_ROOT)
 
-set(Chrono_MATLAB_HEADERS
+SET(MATLAB_SDK_ROOT "" CACHE PATH "Path to Matlab SDK installation.")
+
+SET(ChronoEngine_MATLAB_HEADERS
   ChApiMatlab.h
   ChMatlabEngine.h
   ChSolverMatlab.h
 )
 
-set(Chrono_MATLAB_SOURCES
+SET(ChronoEngine_MATLAB_SOURCES
   ChMatlabEngine.cpp
   ChSolverMatlab.cpp
 )
 
-# --------------------------------------------------------
+SOURCE_GROUP("" FILES ${ChronoEngine_MATLAB_HEADERS} ${ChronoEngine_MATLAB_SOURCES})
 
-find_package(Matlab COMPONENTS MAT_LIBRARY ENG_LIBRARY REQUIRED)
+SET (CH_MATLABINC "${MATLAB_SDK_ROOT}/include")
 
-if(Matlab_FOUND)
-  message(STATUS "Matlab version: ${Matlab_VERSION}")
-  message(STATUS "Matlab C++ ENGINE library: ${Matlab_ENGINE_LIBRARY}")
-  message(STATUS "Matlab C ENG library:      ${Matlab_ENG_LIBRARY}")
-  message(STATUS "Matlab MX library:         ${Matlab_MX_LIBRARY}")
-  message(STATUS "Matlab MAT library:        ${Matlab_MAT_LIBRARY}")
-endif()
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    IF ("${CH_COMPILER}" STREQUAL "COMPILER_MSVC")
+        SET (CH_MATLABLIB 
+                "${MATLAB_SDK_ROOT}/lib/win32/microsoft/libeng.lib" 
+                "${MATLAB_SDK_ROOT}/lib/win32/microsoft/libmx.lib" 
+                "${MATLAB_SDK_ROOT}/lib/win32/microsoft/libmat.lib" )
+    ELSEIF ("${CH_COMPILER}" STREQUAL "COMPILER_MSVC_X64")
+        SET (CH_MATLABLIB 
+                "${MATLAB_SDK_ROOT}/lib/win64/microsoft/libeng.lib" 
+                "${MATLAB_SDK_ROOT}/lib/win64/microsoft/libmx.lib" 
+                "${MATLAB_SDK_ROOT}/lib/win64/microsoft/libmat.lib" )
+    ENDIF()
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    SET (CH_MATLABLIB 
+            "${MATLAB_SDK_ROOT}/../bin/glnxa64/libeng.so" 
+            "${MATLAB_SDK_ROOT}/../bin/glnxa64/libmx.so" 
+            "${MATLAB_SDK_ROOT}/../bin/glnxa64/libmat.so")
+            
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    SET (CH_MATLABLIB 
+            "${MATLAB_SDK_ROOT}/../bin/maci64/libeng.dylib" 
+            "${MATLAB_SDK_ROOT}/../bin/maci64/libmx.dylib" 
+            "${MATLAB_SDK_ROOT}/../bin/maci64/libmat.dylib")
+ENDIF()
 
-# --------------------------------------------------------
+SET (CH_MATLABINC "${CH_MATLABINC}" PARENT_SCOPE )
+SET (CH_MATLABLIB "${CH_MATLABLIB}" PARENT_SCOPE )
 
-add_library(Chrono_matlab ${Chrono_MATLAB_SOURCES} ${Chrono_MATLAB_HEADERS})
-add_library(Chrono::matlab ALIAS Chrono_matlab)
- 
-if(CH_WHOLE_PROG_OPT)
-  set_target_properties(Chrono_matlab PROPERTIES COMPILE_FLAGS "/GL")
-  set_target_properties(Chrono_matlab PROPERTIES LINK_FLAGS "/LTCG")
-endif()
+INCLUDE_DIRECTORIES(${MATLAB_SDK_ROOT}/include)
 
-if (CH_STATIC)
-  set_target_properties(Chrono_matlab PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
-
-if(MSVC)
-  set_target_properties(Chrono_matlab PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
-
-target_link_libraries(Chrono_matlab PRIVATE Chrono_core)
-
-target_link_libraries(Chrono_matlab PRIVATE Matlab::MatlabEngine) # C++
-target_link_libraries(Chrono_matlab PUBLIC Matlab::eng)           # C
-#target_link_libraries(Chrono_matlab PRIVATE Matlab::mat)
-#target_link_libraries(Chrono_matlab PRIVATE Matlab::mx)
+ADD_LIBRARY(ChronoEngine_matlab 
+            ${ChronoEngine_MATLAB_SOURCES}
+            ${ChronoEngine_MATLAB_HEADERS})
+            
+SET_TARGET_PROPERTIES(ChronoEngine_matlab PROPERTIES
+            COMPILE_FLAGS "${CH_CXX_FLAGS}"
+            LINK_FLAGS "${CH_LINKERFLAG_LIB}")
                           
-target_compile_definitions(Chrono_matlab PRIVATE "CH_API_COMPILE_MATLAB")
+target_compile_definitions(ChronoEngine_matlab PRIVATE "CH_API_COMPILE_MATLAB")
+target_compile_definitions(ChronoEngine_matlab PRIVATE "CH_IGNORE_DEPRECATED")
 
-install(TARGETS Chrono_matlab
-  EXPORT ChronoTargets
-  RUNTIME DESTINATION bin
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  INCLUDES DESTINATION include/chrono_matlab
-)      
+TARGET_LINK_LIBRARIES(ChronoEngine_matlab 
+                      ChronoEngine
+                      ${CH_MATLABLIB})
+    
+ADD_DEPENDENCIES(ChronoEngine_matlab ChronoEngine) 
 
-#-------------------------------------------------------------------------------
-# Install files
-#-------------------------------------------------------------------------------
+INSTALL(TARGETS ChronoEngine_matlab
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)       
 
-# Old way
-install(FILES ${Chrono_MATLAB_HEADERS}
-        DESTINATION include/chrono_matlab)
+INSTALL(FILES ${ChronoEngine_MATLAB_HEADERS} DESTINATION include/chrono_matlab)

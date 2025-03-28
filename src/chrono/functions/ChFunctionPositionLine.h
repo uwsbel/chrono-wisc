@@ -30,11 +30,7 @@ namespace chrono {
 class ChApi ChFunctionPositionLine : public ChFunctionPosition {
   public:
     ChFunctionPositionLine();
-
-    ChFunctionPositionLine(std::shared_ptr<ChLine> line);
-
     ChFunctionPositionLine(const ChFunctionPositionLine& other);
-
     virtual ~ChFunctionPositionLine();
 
     /// "Virtual" copy constructor.

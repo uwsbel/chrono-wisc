@@ -349,35 +349,7 @@ class ChApi ChBuilderBeamTaperedTimoshenkoFPM {
 /// Class for an object that continuously extrude a beam (composed of ChElementBeamEuler elements) with prescribed
 /// velocity.
 class ChApi ChExtruderBeamEuler {
-  public:
-    /// Initialize and add required constraints to system
-    ChExtruderBeamEuler(ChSystem* msystem,                         ///< system to store the constraints
-                        std::shared_ptr<ChMesh> mmesh,             ///< mesh to store the resulting elements
-                        std::shared_ptr<ChBeamSectionEuler> sect,  ///< section material for beam elements
-                        double mh,                                 ///< element length
-                        const ChCoordsys<> moutlet,  ///< outlet pos & orientation (z is extrusion direction)
-                        double mspeed                ///< speed
-    );
-
-    ~ChExtruderBeamEuler();
-
-    /// Set the material for the beam, and enables collision detection for the beam nodes.
-    /// By default, collision not enabled.
-    void SetContact(
-        std::shared_ptr<ChContactMaterialSMC> mcontact_material,  ///< material to use for surface
-        double mcontact_radius  ///< radius of colliding spheres at each node (usually = to avg.beam thickness)
-    );
-
-    /// Create beam elements, if needed, and update the constraint that imposes the extrusion speed.
-    void Update();
-
-    /// Access the list of created elements.
-    std::vector<std::shared_ptr<ChElementBeamEuler>>& GetLastBeamElements() { return beam_elems; }
-
-    /// Access the list of created nodes.
-    std::vector<std::shared_ptr<ChNodeFEAxyzrot>>& GetLastBeamNodes() { return beam_nodes; }
-
-  private:
+  protected:
     std::vector<std::shared_ptr<ChElementBeamEuler>> beam_elems;
     std::vector<std::shared_ptr<ChNodeFEAxyzrot>> beam_nodes;
 
@@ -398,6 +370,34 @@ class ChApi ChExtruderBeamEuler {
 
     std::shared_ptr<ChContactSurfaceNodeCloud> contactcloud;
     double contact_radius;
+
+  public:
+    /// Initialize and add required constraints to system
+    ChExtruderBeamEuler(ChSystem* msystem,                         ///< system to store the constraints
+                        std::shared_ptr<ChMesh> mmesh,             ///< mesh to store the resulting elements
+                        std::shared_ptr<ChBeamSectionEuler> sect,  ///< section material for beam elements
+                        double mh,                                 ///< element length
+                        const ChCoordsys<> moutlet,  ///< outlet pos & orientation (x is extrusion direction)
+                        double mspeed                ///< speed
+    );
+
+    ~ChExtruderBeamEuler();
+
+    /// Set the material for the beam, and enables collision detection for the beam nodes.
+    /// By default, collision not enabled.
+    void SetContact(
+        std::shared_ptr<ChContactMaterialSMC> mcontact_material,  ///< material to use for surface
+        double mcontact_radius  ///< radius of colliding spheres at each node (usually = to avg.beam thickness)
+    );
+
+    /// Create beam elements, if needed, and update the constraint that imposes the extrusion speed.
+    void Update();
+
+    /// Access the list of created elements.
+    std::vector<std::shared_ptr<ChElementBeamEuler>>& GetLastBeamElements() { return beam_elems; }
+
+    /// Access the list of created nodes.
+    std::vector<std::shared_ptr<ChNodeFEAxyzrot>>& GetLastBeamNodes() { return beam_nodes; }
 };
 
 /// Class for an object that continuously extrude a beam (composed of ChElementBeamIGA elements) with prescribed
@@ -433,7 +433,7 @@ class ChApi ChExtruderBeamIGA {
                       std::shared_ptr<ChMesh> mmesh,                ///< mesh to store the resulting elements
                       std::shared_ptr<ChBeamSectionCosserat> sect,  ///< section material for beam elements
                       double mh,                                    ///< element length
-                      const ChCoordsys<> moutlet,  ///< outlet pos & orientation (z is extrusion direction)
+                      const ChCoordsys<> moutlet,  ///< outlet pos & orientation (x is extrusion direction)
                       double mspeed,               ///< speed
                       int morder                   ///< element order, default =3 (cubic)
     );

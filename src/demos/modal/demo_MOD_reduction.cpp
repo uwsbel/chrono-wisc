@@ -287,14 +287,14 @@ void CreateCantilever(ChSystem& sys,
 
     // VISUALIZATION ASSETS:
 
-    auto visualizeInternalA = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto visualizeInternalA = chrono_types::make_shared<ChVisualShapeFEA>(mesh_internal);
     visualizeInternalA->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MY);
     visualizeInternalA->SetColorscaleMinMax(-600, 600);
     visualizeInternalA->SetSmoothFaces(true);
     visualizeInternalA->SetWireframe(false);
     mesh_internal->AddVisualShapeFEA(visualizeInternalA);
 
-    auto visualizeInternalB = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto visualizeInternalB = chrono_types::make_shared<ChVisualShapeFEA>(mesh_internal);
     visualizeInternalB->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_CSYS);
     visualizeInternalB->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizeInternalB->SetSymbolsThickness(0.2);
@@ -302,7 +302,7 @@ void CreateCantilever(ChSystem& sys,
     visualizeInternalB->SetZbufferHide(false);
     mesh_internal->AddVisualShapeFEA(visualizeInternalB);
 
-    auto visualizeBoundaryB = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto visualizeBoundaryB = chrono_types::make_shared<ChVisualShapeFEA>(mesh_boundary);
     visualizeBoundaryB->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_CSYS);
     visualizeBoundaryB->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     visualizeBoundaryB->SetSymbolsThickness(0.4);
@@ -368,7 +368,7 @@ int main(int argc, char* argv[]) {
 
     // CREATE THE MODEL
 
-    // Create a Chrono physical system
+    // Create a Chrono::Engine physical system
     ChSystemNSC sys;
 
     // no gravity used here

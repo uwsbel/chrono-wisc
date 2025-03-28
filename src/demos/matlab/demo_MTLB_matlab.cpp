@@ -12,7 +12,7 @@
 // Authors: Alessandro Tasora
 // =============================================================================
 //
-//   Demonstration on how to call Matlab from Chrono
+//   Demonstration on how to call Matlab from Chrono::Engine
 //
 // =============================================================================
 

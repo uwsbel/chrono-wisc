@@ -21,14 +21,13 @@
 #include "chrono/fea/ChElementBar.h"
 #include "chrono/fea/ChLinkNodeFrame.h"
 #include "chrono/fea/ChLinkNodeSlopeFrame.h"
+#include "chrono/assets/ChVisualShapeFEA.h"
 #include "chrono/solver/ChIterativeSolverLS.h"
-
-#include "FEAvisualization.h"
+#include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 
 using namespace chrono;
 using namespace chrono::fea;
-
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+using namespace chrono::irrlicht;
 
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
@@ -192,25 +191,25 @@ int main(int argc, char* argv[]) {
     sys.Add(my_mesh);
 
     // Options for visualization in irrlicht
-    auto mvisualizemesh = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemesh = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemesh->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_FIELD_VALUE);
     mvisualizemesh->SetShrinkElements(true, 0.85);
     mvisualizemesh->SetSmoothFaces(false);
     my_mesh->AddVisualShapeFEA(mvisualizemesh);
 
-    auto mvisualizemeshref = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemeshref = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemeshref->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     mvisualizemeshref->SetWireframe(true);
     mvisualizemeshref->SetDrawInUndeformedReference(true);
     my_mesh->AddVisualShapeFEA(mvisualizemeshref);
 
-    auto mvisualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemeshC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_DOT_POS);
     mvisualizemeshC->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     mvisualizemeshC->SetSymbolsThickness(0.015);
     my_mesh->AddVisualShapeFEA(mvisualizemeshC);
 
-    auto mvisualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemeshD = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemeshD->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NONE);
     mvisualizemeshD->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     mvisualizemeshD->SetSymbolsScale(1);
@@ -218,9 +217,16 @@ int main(int argc, char* argv[]) {
     mvisualizemeshD->SetZbufferHide(false);
     my_mesh->AddVisualShapeFEA(mvisualizemeshD);
 
-    // Create the run-time visualization system
-    auto vis = CreateVisualizationSystem(vis_type, CameraVerticalDir::Y, sys, "Brick Elements",
-                                         ChVector3d(1.7, 1.0, -1.7), ChVector3d(0.2, 0.2, 0.0));
+    // Create the Irrlicht visualization system
+    auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+    vis->SetWindowSize(800, 600);
+    vis->SetWindowTitle("Brick Elements");
+    vis->Initialize();
+    vis->AddLogo();
+    vis->AddSkyBox();
+    vis->AddTypicalLights();
+    vis->AddCamera(ChVector3d(1.7, 1.0, -1.7), ChVector3d(0.2, 0.2, 0.0));
+    vis->AttachSystem(&sys);
 
     // Perform a dynamic time integration:
 

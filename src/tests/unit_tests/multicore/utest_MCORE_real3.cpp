@@ -15,7 +15,7 @@
 // Chrono::Multicore unit test for real3 class
 // =============================================================================
 
-#include "../ut_utils.h"
+#include "unit_testing.h"
 
 #ifdef CHRONO_MULTICORE_USE_DOUBLE
 const double precision = 1e-10;

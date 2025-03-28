@@ -39,7 +39,7 @@ using namespace chrono::irrlicht;
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Create a Chrono physical system
+    // Create a Chrono::Engine physical system
     ChSystemSMC sys;
 
     sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
@@ -135,14 +135,14 @@ int main(int argc, char* argv[]) {
     // coordinates and vertex colors as in the FEM elements.
     // Such triangle mesh can be rendered by Irrlicht or POVray or whatever
     // postprocessor that can handle a colored ChVisualShapeTriangleMesh).
-    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamA->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MY);
     mvisualizebeamA->SetColorscaleMinMax(-0.001, 6);
     mvisualizebeamA->SetSmoothFaces(true);
     mvisualizebeamA->SetWireframe(false);
     my_mesh->AddVisualShapeFEA(mvisualizebeamA);
 
-    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_CSYS);
     mvisualizebeamC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     mvisualizebeamC->SetSymbolsThickness(0.02);

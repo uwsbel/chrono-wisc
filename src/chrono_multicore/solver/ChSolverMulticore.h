@@ -21,6 +21,7 @@
 #pragma once
 
 #include "chrono_multicore/ChDataManager.h"
+#include "chrono/multicore_math/ChMulticoreMath.h"
 #include "chrono_multicore/constraints/ChConstraintRigidRigid.h"
 #include "chrono_multicore/physics/Ch3DOFContainer.h"
 #include "chrono_multicore/constraints/ChConstraintBilateral.h"
@@ -120,6 +121,7 @@ class CH_MULTICORE_API ChSolverMulticore {
     ChConstraintBilateral* bilateral;
     Ch3DOFContainer* three_dof;
     Ch3DOFContainer* fem;
+    Ch3DOFContainer* mpm;
 
     ChMulticoreDataManager* data_manager;  ///< Pointer to the system's data manager
 

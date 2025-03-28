@@ -14,6 +14,7 @@
 
 //// RADU:
 ////  - is there a need for having the mesh in the constructor?
+////  - SetMesh / GetMesh should be private (or eliminated).  Use friend classes
 
 #ifndef CHCONTACTSURFACE_H
 #define CHCONTACTSURFACE_H
@@ -43,9 +44,6 @@ class ChApi ChContactSurface {
 
     /// Set the owner physics item (e.g., an FEA mesh).
     void SetPhysicsItem(ChPhysicsItem* physics_item) { m_physics_item = physics_item; }
-
-    /// Get the current axis-aligned bounding box.
-    virtual ChAABB GetAABB() const = 0;
 
     /// Disable self-collisions (default: enabled).
     /// Calling this function results in all associated collision models being placed in the same collision family and

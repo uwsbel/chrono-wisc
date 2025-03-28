@@ -281,10 +281,12 @@ int main(int argc, char** argv) {
         }
         auto driver = chrono_types::make_shared<MyDriver>(0.2);
         viper->SetDriver(driver);
+        viper->SetIntegratorType(ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED, ChSolver::Type::BARZILAIBORWEIN);
         viper->SetVerbose(verbose);
         viper->SetInitialLocation(ChVector3d(init_loc.x(), init_loc.y(), 0.5));
         viper->SetInitialYaw(0);
         viper->SetStepSize(step_size);
+        viper->SetNumThreads(1);
         viper->SetOutDir(out_dir, suffix);
         if (renderRT)
             viper->EnableRuntimeVisualization(render_fps);
@@ -307,6 +309,7 @@ int main(int argc, char** argv) {
             new ChVehicleCosimTireNodeRigid(rank - 2, vehicle::GetDataFile("cosim/viper/Viper_RigidTire_cyl.json"));
         tire->SetVerbose(verbose);
         tire->SetStepSize(step_size);
+        tire->SetNumThreads(1);
         tire->SetOutDir(out_dir, suffix);
 
         node = tire;

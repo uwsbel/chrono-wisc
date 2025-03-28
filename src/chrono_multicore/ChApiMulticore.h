@@ -54,7 +54,7 @@
     @brief Module for multicore parallel simulation
 
     This module implements multicore parallel computing algorithms that can be
-    used as a faster alternative to the default simulation algorithms in Chrono.
+    used as a faster alternative to the default simulation algorithms in Chrono::Engine.
     This is achieved using OpenMP, CUDA, Thrust, etc.
 
     For additional information, see:

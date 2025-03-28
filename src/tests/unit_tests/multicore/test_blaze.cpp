@@ -23,8 +23,7 @@
 #include <tuple>
 
 #include "chrono_multicore/ChDataManager.h"
-
-#include "../ut_utils.h"
+#include "unit_testing.h"
 
 using namespace chrono;
 std::vector<std::tuple<int, int, chrono::real> > data;

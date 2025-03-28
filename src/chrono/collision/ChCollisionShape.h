@@ -16,7 +16,6 @@
 #define CH_COLLISION_SHAPE
 
 #include "chrono/core/ChApiCE.h"
-#include "chrono/geometry/ChGeometry.h"
 #include "chrono/physics/ChContactMaterial.h"
 
 namespace chrono {
@@ -60,10 +59,6 @@ class ChApi ChCollisionShape {
 
     std::shared_ptr<ChContactMaterial> GetMaterial() const { return m_material; }
     ChContactMethod GetContactMethod() const { return m_material->GetContactMethod(); }
-
-    /// Get the shape bounding box.
-    /// The default implementation returns an inverted AABB.
-    virtual ChAABB GetBoundingBox() const { return ChAABB(); }
 
     /// Method to allow serialization of transient data to archives.
     virtual void ArchiveOut(ChArchiveOut& archive_out);

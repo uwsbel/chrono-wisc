@@ -36,10 +36,10 @@
 #include "chrono/fea/ChMeshExporter.h"
 #include "chrono/fea/ChBuilderBeam.h"
 
-#include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/ChSystemFsi.h"
 
 #ifdef CHRONO_OPENGL
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationGL.h"
+    #include "chrono_fsi/visualization/ChFsiVisualizationGL.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -47,10 +47,6 @@
 using namespace chrono;
 using namespace chrono::fea;
 using namespace chrono::fsi;
-
-using std::cout;
-using std::cerr;
-using std::endl;
 
 // -----------------------------------------------------------------
 
@@ -92,55 +88,49 @@ double t_end = 10.0;
 bool output = true;
 double output_fps = 20;
 
-// Verbose terminal output
-bool verbose = true;
-
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
 bool render = true;
 float render_fps = 100;
 
 // -----------------------------------------------------------------
 
-std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiSystemSPH& sysFSI);
+std::shared_ptr<fea::ChMesh> Create_MB_FE(ChSystemSMC& sysMBS, ChSystemFsi& sysFSI);
 
 // -----------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
     // Create an MBS system and an FSI system
     ChSystemSMC sysMBS;
-    ChFluidSystemSPH sysSPH;
-    ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
+    ChSystemFsi sysFSI(&sysMBS);
 
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // Use the default input file or you may enter your input parameters as a command line argument
     std::string inputJson = GetChronoDataFile("fsi/input_json/demo_FSI_Flexible_Toroidal_Tire_Granular.json");
     if (argc == 1) {
-        if (verbose)
-            cout << "Use the default JSON file" << endl;
+        std::cout << "Use the default JSON file" << std::endl;
     } else if (argc == 2) {
-        if (verbose)
-            cout << "Use the specified JSON file" << endl;
+        std::cout << "Use the specified JSON file" << std::endl;
         std::string my_inputJson = std::string(argv[1]);
         inputJson = my_inputJson;
     } else {
-        cerr << "usage: ./demo_FSI_Flexible_Toroidal_Tire_Granular <json_file>" << endl;
+        std::cout << "usage: ./demo_FSI_Flexible_Toroidal_Tire_Granular <json_file>" << std::endl;
         return 1;
     }
-    sysSPH.ReadParametersFromFile(inputJson);
+    sysFSI.ReadParametersFromFile(inputJson);
 
-    sysSPH.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
+    sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
-    auto initSpace0 = sysSPH.GetInitialSpacing();
+    auto initSpace0 = sysFSI.GetInitialSpacing();
     ChVector3d cMin = ChVector3d(-5 * bxDim, -byDim / 2.0 - initSpace0 / 2.0, -5 * bzDim);
     ChVector3d cMax = ChVector3d(5 * bxDim, byDim / 2.0 + initSpace0 / 2.0, 10 * bzDim);
-    sysSPH.SetBoundaries(cMin, cMax);
+    sysFSI.SetBoundaries(cMin, cMax);
 
     // Set SPH discretization type, consistent or inconsistent
-    sysSPH.SetConsistentDerivativeDiscretization(false, false);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
     // Set cohsion of the granular material
-    sysSPH.SetCohesionForce(2000.0);
+    sysFSI.SetCohesionForce(2000.0);
 
     // Create SPH particles of fluid region
     chrono::utils::ChGridSampler<> sampler(initSpace0);
@@ -149,35 +139,35 @@ int main(int argc, char* argv[]) {
     chrono::utils::ChGenerator::PointVector points = sampler.SampleBox(boxCenter, boxHalfDim);
     size_t numPart = points.size();
     for (int i = 0; i < numPart; i++) {
-        sysSPH.AddSPHParticle(points[i]);
+        sysFSI.AddSPHParticle(points[i]);
     }
 
     // Create solids
-    auto mesh = CreateSolidPhase(sysFSI);
+    auto mesh = Create_MB_FE(sysMBS, sysFSI);
 
     // Initialize FSI system
     sysFSI.Initialize();
 
     // Create oputput directories
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
-        cerr << "Error creating directory " << out_dir << endl;
+        std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
-    out_dir = out_dir + "/" + sysSPH.GetPhysicsProblemString() + "_" + sysSPH.GetSphMethodTypeString();
+    out_dir = out_dir + "/" + sysFSI.GetPhysicsProblemString() + "_" + sysFSI.GetSphMethodTypeString();
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
-        cerr << "Error creating directory " << out_dir << endl;
+        std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
     if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
-        cerr << "Error creating directory " << out_dir + "/particles" << endl;
+        std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
         return 1;
     }
     if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
-        cerr << "Error creating directory " << out_dir + "/fsi" << endl;
+        std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
         return 1;
     }
     if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
-        cerr << "Error creating directory " << out_dir + "/vtk" << endl;
+        std::cerr << "Error creating directory " << out_dir + "/vtk" << std::endl;
         return 1;
     }
 
@@ -208,28 +198,21 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Simulation loop
-    double dT = sysFSI.GetStepSizeCFD();
+    double dT = sysFSI.GetStepSize();
     double time = 0.0;
     int sim_frame = 0;
     int out_frame = 0;
     int render_frame = 0;
 
-    double timer_CFD = 0;
-    double timer_MBD = 0;
-    double timer_FSI = 0;
-    double timer_step = 0;
-
     ChTimer timer;
     timer.start();
     while (time < t_end) {
-        if (verbose)
-            cout << sim_frame << " time: " << time << endl;
+        std::cout << sim_frame << " time: " << time << std::endl;
 
         if (output && time >= out_frame / output_fps) {
-            if (verbose)
-                cout << "-------- Output" << endl;
-            sysSPH.SaveParticleData(out_dir + "/particles");
-            sysSPH.SaveSolidData(out_dir + "/fsi", time);
+            std::cout << "-------- Output" << std::endl;
+            sysFSI.PrintParticleToFile(out_dir + "/particles");
+            sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
             static int counter = 0;
             std::string filename = out_dir + "/vtk/flex_body." + std::to_string(counter++) + ".vtk";
             fea::ChMeshExporter::WriteFrame(mesh, out_dir + "/Flex_MESH.vtk", filename);
@@ -245,25 +228,13 @@ int main(int argc, char* argv[]) {
         }
 #endif
 
-        sysFSI.DoStepDynamics(dT);
-
-        timer_CFD += sysFSI.GetTimerCFD();
-        timer_MBD += sysFSI.GetTimerMBD();
-        timer_FSI += sysFSI.GetTimerFSI();
-        timer_step += sysFSI.GetTimerStep();
-        if (verbose && sim_frame == 2000) {
-            cout << "Cummulative timers at time: " << time << endl;
-            cout << "   timer CFD:  " << timer_CFD << endl;
-            cout << "   timer MBD:  " << timer_MBD << endl;
-            cout << "   timer FSI:  " << timer_FSI << endl;
-            cout << "   timer step: " << timer_step << endl;
-        }
+        sysFSI.DoStepDynamics_FSI();
 
         time += dT;
         sim_frame++;
     }
     timer.stop();
-    cout << "\nSimulation time: " << timer() << " seconds\n" << endl;
+    std::cout << "\nSimulation time: " << timer() << " seconds\n" << std::endl;
 
     return 0;
 }
@@ -271,12 +242,9 @@ int main(int argc, char* argv[]) {
 //--------------------------------------------------------------------
 // Create the objects of the MBD system. Rigid/flexible bodies, and if
 // fsi, their bce representation are created and added to the systems
-std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
-    ChFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
-    ChSystem& sysMBS = sysFSI.GetMultibodySystem();
-
-    sysFSI.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+std::shared_ptr<fea::ChMesh> Create_MB_FE(ChSystemSMC& sysMBS, ChSystemFsi& sysFSI) {
     sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    sysFSI.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
 
     auto ground = chrono_types::make_shared<ChBody>();
     ground->SetFixed(true);
@@ -296,7 +264,7 @@ std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
     ground->EnableCollision(true);
 
     // Fluid representation of walls
-    sysSPH.AddBoxContainerBCE(ground,                                         //
+    sysFSI.AddBoxContainerBCE(ground,                                         //
                               ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT),  //
                               ChVector3d(bxDim, byDim, bzDim),                //
                               ChVector3i(2, 0, -1));
@@ -451,8 +419,8 @@ std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
 
                 ChVector3d center = 0.25 * (element->GetNodeA()->GetPos() + element->GetNodeB()->GetPos() +
                                             element->GetNodeC()->GetPos() + element->GetNodeD()->GetPos());
-                cout << "Adding element" << num_elem << "  with center:  " << center.x() << " " << center.y()
-                          << " " << center.z() << endl;
+                std::cout << "Adding element" << num_elem << "  with center:  " << center.x() << " " << center.y()
+                          << " " << center.z() << std::endl;
 
                 num_elem++;
             }

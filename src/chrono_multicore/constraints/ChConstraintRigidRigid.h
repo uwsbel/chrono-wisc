@@ -19,6 +19,7 @@
 #pragma once
 
 #include "chrono_multicore/ChDataManager.h"
+#include "chrono/multicore_math/ChMulticoreMath.h"
 
 namespace chrono {
 

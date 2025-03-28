@@ -26,8 +26,9 @@
 #include "chrono/fea/ChBuilderBeam.h"
 #include "chrono/fea/ChElementBeamEuler.h"
 #include "chrono/fea/ChMesh.h"
+#include "chrono/assets/ChVisualShapeFEA.h"
 
-#include "FEAvisualization.h"
+#include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 
 #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
 
@@ -35,8 +36,7 @@
 
 using namespace chrono;
 using namespace chrono::fea;
-
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+using namespace chrono::irrlicht;
 
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
         std::cout << " Ki_num:\n"<< mKi_num << std::endl;
      return 1;
      */
-    // Create a Chrono physical system
+    // Create a Chrono::Engine physical system
     ChSystemSMC sys;
 
     sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
@@ -238,14 +238,14 @@ int main(int argc, char* argv[]) {
     // coordinates and vertex colors as in the FEM elements.
     // Such triangle mesh can be rendered by Irrlicht or POVray or whatever
     // postprocessor that can handle a colored ChVisualShapeTriangleMesh).
-    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamA->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MX);
     mvisualizebeamA->SetColorscaleMinMax(-500, 500);
     mvisualizebeamA->SetSmoothFaces(true);
     mvisualizebeamA->SetWireframe(false);
     my_mesh->AddVisualShapeFEA(mvisualizebeamA);
 
-    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_CSYS);
     mvisualizebeamC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     mvisualizebeamC->SetSymbolsThickness(0.006);
@@ -253,9 +253,16 @@ int main(int argc, char* argv[]) {
     mvisualizebeamC->SetZbufferHide(false);
     my_mesh->AddVisualShapeFEA(mvisualizebeamC);
 
-    // Create the run-time visualization system
-    auto vis = CreateVisualizationSystem(vis_type, CameraVerticalDir::Y, sys, "Beams and constraints",
-                                         ChVector3d(0, 0.6, -1.0));
+    // Create the Irrlicht visualization system
+    auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+    vis->SetWindowSize(800, 600);
+    vis->SetWindowTitle("Beams and constraints");
+    vis->Initialize();
+    vis->AddLogo();
+    vis->AddSkyBox();
+    vis->AddTypicalLights();
+    vis->AddCamera(ChVector3d(0.0, 0.6, -1.0));
+    vis->AttachSystem(&sys);
 
     // SIMULATION LOOP
 
@@ -282,6 +289,9 @@ int main(int argc, char* argv[]) {
     while (vis->Run()) {
         vis->BeginScene();
         vis->Render();
+
+        tools::drawGrid(vis.get(), 0.05, 0.05, 20, 20, ChCoordsys<>(VNULL, CH_PI_2, VECT_Z), ChColor(0.4f, 0.4f, 0.4f),
+                        true);
 
         sys.DoStepDynamics(0.001);
 

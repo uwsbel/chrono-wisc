@@ -1,3 +1,5 @@
+message(STATUS "Unit test programs for Vehicle module...")
+
 set(TESTS
     utest_VEH_destructors
 )
@@ -14,28 +16,28 @@ endif()
 
 #--------------------------------------------------------------
 
-list(APPEND LIBS "Chrono_core")
-list(APPEND LIBS "Chrono_vehicle")
+set(COMPILER_FLAGS "${CH_CXX_FLAGS}")
+set(LINKER_FLAGS "${CH_LINKERFLAG_EXE}")
+list(APPEND LIBS "ChronoEngine")
+list(APPEND LIBS "ChronoEngine_vehicle")
 
 #--------------------------------------------------------------
 # Add executables
 
-MESSAGE(STATUS "Add unit test programs for VEHICLE module")
-
 foreach(PROGRAM ${TESTS})
-    # MESSAGE(STATUS "...add ${PROGRAM}")
+    message(STATUS "...add ${PROGRAM}")
 
     add_executable(${PROGRAM}  "${PROGRAM}.cpp")
     source_group(""  FILES "${PROGRAM}.cpp")
 
-    SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES FOLDER tests)
+    set_target_properties(${PROGRAM} PROPERTIES
+        FOLDER demos
+        COMPILE_FLAGS "${COMPILER_FLAGS}"
+        LINK_FLAGS "${LINKER_FLAGS}"
+    )
     
     set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
     target_link_libraries(${PROGRAM} ${LIBS} gtest_main)
-
-    if(MSVC)
-      set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
 
     install(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
     ##add_test(${PROGRAM} ${PROJECT_BINARY_DIR}/bin/${PROGRAM})

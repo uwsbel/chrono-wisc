@@ -19,12 +19,16 @@
 //
 // =============================================================================
 
-#include "chrono/utils/ChUtils.h"
-#include "chrono/utils/ChFilters.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
+#include "chrono/utils/ChFilters.h"
+#include "chrono/utils/ChUtils.h"
 
+#include "chrono_vehicle/ChConfigVehicle.h"
+#include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/output/ChVehicleOutputASCII.h"
+
+#include "chrono_thirdparty/filesystem/path.h"
 
 #ifdef CHRONO_IRRLICHT
     #include "chrono_vehicle/driver/ChInteractiveDriverIRR.h"
@@ -44,10 +48,7 @@ using namespace chrono::vsg3d;
 using namespace chrono::postprocess;
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
-
-#include "demos/vehicle/WheeledVehicleModels.h"
-#include "demos/SetChronoSolver.h"
+#include "../WheeledVehicleModels.h"
 
 // =============================================================================
 
@@ -66,8 +67,11 @@ double terrainWidth = 200.0;   // size in Y direction
 // Contact method
 ChContactMethod contact_method = ChContactMethod::SMC;
 
-// Render frequency
-double render_fps = 50;
+// Simulation step sizes
+double step_size = 2e-3;
+
+// Time interval between two render frames
+double render_step_size = 1.0 / 50;  // FPS = 50
 
 // End time (used only if no run-time visualization)
 double t_end = 20;
@@ -87,7 +91,7 @@ bool blender_output = false;
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2024 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Select vehicle model (see WheeledVehicleModels.h)
+    // Select vehicle model (see VehicleModel.h)
     auto models = WheeledVehicleModel::List();
 
     int num_models = (int)models.size();
@@ -100,22 +104,15 @@ int main(int argc, char* argv[]) {
     std::cout << std::endl;
     ChClampValue(which, 1, num_models);
 
-    const auto& vehicle_model = models[which - 1].first;
+    auto vehicle_model = models[which - 1].first;
 
     // Create the vehicle model
     vehicle_model->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     vehicle_model->Create(contact_method, ChCoordsys<>(ChVector3d(0, 0, 0.5), QUNIT));
     auto& vehicle = vehicle_model->GetVehicle();
-    auto sys = vehicle.GetSystem();
-
-    // Set solver and integrator
-    double step_size = 2e-3;
-    auto solver_type = ChSolver::Type::BARZILAIBORWEIN;
-    auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
-    SetChronoSolver(*sys, solver_type, integrator_type);
 
     // Create the terrain
-    RigidTerrain terrain(sys);
+    RigidTerrain terrain(vehicle.GetSystem());
 
     ChContactMaterialData minfo;
     minfo.mu = 0.9f;
@@ -217,6 +214,11 @@ int main(int argc, char* argv[]) {
         vis_type = ChVisualSystem::Type::IRRLICHT;
 #endif
 
+    // Set the time response for steering and throttle keyboard inputs.
+    double steering_time = 1.0;  // time to go from 0 to +1 (or from 0 to -1)
+    double throttle_time = 1.0;  // time to go from 0 to +1
+    double braking_time = 0.3;   // time to go from 0 to +1
+
     std::string title = "Vehicle demo - " + vehicle_model->ModelName();
     std::shared_ptr<ChVehicleVisualSystem> vis;
     std::shared_ptr<ChDriver> driver;
@@ -236,9 +238,9 @@ int main(int argc, char* argv[]) {
 
             // Create the interactive Irrlicht driver system
             auto driver_irr = chrono_types::make_shared<ChInteractiveDriverIRR>(*vis_irr);
-            driver_irr->SetSteeringDelta(0.02);
-            driver_irr->SetThrottleDelta(0.02);
-            driver_irr->SetBrakingDelta(0.02);
+            driver_irr->SetSteeringDelta(render_step_size / steering_time);
+            driver_irr->SetThrottleDelta(render_step_size / throttle_time);
+            driver_irr->SetBrakingDelta(render_step_size / braking_time);
             driver_irr->Initialize();
             if (driver_mode == DriverMode::PLAYBACK) {
                 driver_irr->SetInputDataFile(driver_file);
@@ -270,9 +272,9 @@ int main(int argc, char* argv[]) {
 
             // Create the interactive VSG driver system
             auto driver_vsg = chrono_types::make_shared<ChInteractiveDriverVSG>(*vis_vsg);
-            driver_vsg->SetSteeringDelta(0.02);
-            driver_vsg->SetThrottleDelta(0.02);
-            driver_vsg->SetBrakingDelta(0.02);
+            driver_vsg->SetSteeringDelta(render_step_size / steering_time);
+            driver_vsg->SetThrottleDelta(render_step_size / throttle_time);
+            driver_vsg->SetBrakingDelta(render_step_size / braking_time);
             if (driver_mode == DriverMode::PLAYBACK) {
                 driver_vsg->SetInputDataFile(driver_file);
                 driver_vsg->SetInputMode(ChInteractiveDriverVSG::InputMode::DATAFILE);
@@ -291,7 +293,7 @@ int main(int argc, char* argv[]) {
         // ---------------------------------------------------------
 
 #ifdef CHRONO_POSTPROCESS
-    postprocess::ChBlender blender_exporter(sys);
+    postprocess::ChBlender blender_exporter(vehicle.GetSystem());
     if (blender_output) {
         blender_exporter.SetBasePath(blender_dir);
         blender_exporter.SetCamera(ChVector3d(4.0, 2, 1.0), ChVector3d(0, 0, 0), 50);
@@ -310,20 +312,24 @@ int main(int argc, char* argv[]) {
     std::cout << "\n============ Vehicle subsystems ============" << std::endl;
     vehicle.LogSubsystemTypes();
 
-    // Simulation loop
+    // Number of simulation steps between miscellaneous events
+    int render_steps = (int)std::ceil(render_step_size / step_size);
+
+    // Initialize simulation frame counters
+    int step_number = 0;
+    int render_frame = 0;
+
     vehicle.EnableRealtime(true);
 
-    int sim_frame = 0;
-    int render_frame = 0;
     while (true) {
-        double time = sys->GetChTime();
+        double time = vehicle.GetSystem()->GetChTime();
 
         if (vis) {
             if (!vis->Run())
                 break;
 
             // Render scene and output post-processing data
-            if (time >= render_frame / render_fps) {
+            if (step_number % render_steps == 0) {
                 vis->BeginScene();
                 vis->Render();
                 vis->EndScene();
@@ -332,7 +338,7 @@ int main(int argc, char* argv[]) {
                     // Zero-pad frame numbers in file names for postprocessing
                     std::ostringstream filename;
                     filename << pov_dir << "/data_" << std::setw(4) << std::setfill('0') << render_frame + 1 << ".dat";
-                    utils::WriteVisualizationAssets(sys, filename.str());
+                    utils::WriteVisualizationAssets(vehicle.GetSystem(), filename.str());
                 }
 
 #ifdef CHRONO_POSTPROCESS
@@ -398,7 +404,7 @@ int main(int argc, char* argv[]) {
             vis->Advance(step_size);
 
         // Increment frame number
-        sim_frame++;
+        step_number++;
     }
 
     if (driver_mode == DriverMode::RECORD) {

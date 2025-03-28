@@ -32,13 +32,6 @@ ChCollisionShapeConvexHull::ChCollisionShapeConvexHull(std::shared_ptr<ChContact
     this->points = points;
 }
 
-ChAABB ChCollisionShapeConvexHull::GetBoundingBox() const {
-    ChAABB aabb;
-    for (const auto& p : points)
-        aabb += ChAABB(p, p);
-    return aabb;
-}
-
 std::vector<std::shared_ptr<ChCollisionShapeConvexHull>> ChCollisionShapeConvexHull::Read(
     std::shared_ptr<ChContactMaterial> material,
     const std::string& filename) {

@@ -16,8 +16,6 @@
 //
 // =============================================================================
 
-#include "chrono/multicore_math/thrust.h"
-
 #include "chrono/collision/multicore/ChCollisionUtils.h"
 #include "chrono/collision/ChCollisionModel.h"
 

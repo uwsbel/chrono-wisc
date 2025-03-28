@@ -4,81 +4,63 @@
 # Cannot be used stand-alone (it's loaded by CMake config. file in parent dir.)
 #=============================================================================
 
-option(CH_ENABLE_MODULE_POSTPROCESS "Enable the Chrono Postprocess module" OFF)
+option(ENABLE_MODULE_POSTPROCESS "Enable the Chrono Postprocess module" OFF)
 
 # Return now if this module is not enabled
-if(NOT CH_ENABLE_MODULE_POSTPROCESS)
+IF(NOT ENABLE_MODULE_POSTPROCESS)
 	RETURN()
-endif()
+ENDIF()
 
-message(STATUS "\n==== Chrono Postprocess module ====\n")
-
-#-----------------------------------------------------------------------------
-
-find_package(Gnuplot QUIET)
-
-if(GNUPLOT_FOUND)
-  message(STATUS "Gnuplot executable: ${GNUPLOT_EXECUTABLE}")
-  message(STATUS "Gnuplot version:    ${GNUPLOT_VERSION_STRING}")
-endif()
+MESSAGE(STATUS "\n==== Chrono Postprocess module ====\n")
 
 #-----------------------------------------------------------------------------
+# LIST THE FILES THAT MAKE THE POSTPROCESS LIBRARY
 
-set(Chrono_POSTPROCESS_SOURCES 
+SET(ChronoEngine_POSTPROCESS_SOURCES 
     ChPovRay.cpp
     ChBlender.cpp
 )
 
-set(Chrono_POSTPROCESS_HEADERS
+SET(ChronoEngine_POSTPROCESS_HEADERS
     ChApiPostProcess.h 
     ChPostProcessBase.h
+    ChGnuPlot.h
     ChPovRay.h
     ChBlender.h
 )
 
-if(GNUPLOT_FOUND)
-  set(Chrono_POSTPROCESS_HEADERS ${Chrono_POSTPROCESS_HEADERS}
-      ChGnuPlot.h)
-endif()
-
-source_group("" FILES 
-            ${Chrono_POSTPROCESS_SOURCES} 
-            ${Chrono_POSTPROCESS_HEADERS})
+SOURCE_GROUP("" FILES 
+            ${ChronoEngine_POSTPROCESS_SOURCES} 
+            ${ChronoEngine_POSTPROCESS_HEADERS})
 
 #-----------------------------------------------------------------------------	
 # In most cases, you do not need to edit the lines below.
 
-add_library(Chrono_postprocess ${Chrono_POSTPROCESS_SOURCES} ${Chrono_POSTPROCESS_HEADERS})
-add_library(Chrono::postprocess ALIAS Chrono_postprocess)
+# The POSTPROCESS library is added to the project,
+# and some custom properties of this target are set.
 
-if(CH_WHOLE_PROG_OPT)
-  set_target_properties(Chrono_postprocess PROPERTIES COMPILE_FLAGS "/GL")
-  set_target_properties(Chrono_postprocess PROPERTIES LINK_FLAGS "/LTCG")
-endif()
+ADD_LIBRARY(ChronoEngine_postprocess 
+			${ChronoEngine_POSTPROCESS_SOURCES}
+			${ChronoEngine_POSTPROCESS_HEADERS})
 
-if (CH_STATIC)
-  set_target_properties(Chrono_postprocess PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
+SET_TARGET_PROPERTIES(ChronoEngine_postprocess PROPERTIES
+                      COMPILE_FLAGS "${CH_CXX_FLAGS}"
+                      LINK_FLAGS "${CH_LINKERFLAG_LIB}")
+                          
+target_compile_definitions(ChronoEngine_postprocess PRIVATE "CH_API_COMPILE_POSTPROCESS")
+target_compile_definitions(ChronoEngine_postprocess PRIVATE "CH_IGNORE_DEPRECATED")
 
-if(MSVC)
-  set_target_properties(Chrono_postprocess PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
-
-target_compile_definitions(Chrono_postprocess PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_POSTPROCESS>)
-
-target_link_libraries(Chrono_postprocess PRIVATE Chrono_core)
-
-install(TARGETS Chrono_postprocess
-        EXPORT ChronoTargets
+TARGET_LINK_LIBRARIES(ChronoEngine_postprocess 
+	                  ChronoEngine)
+	
+ADD_DEPENDENCIES(ChronoEngine_postprocess ChronoEngine)
+	
+INSTALL(TARGETS ChronoEngine_postprocess
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        INCLUDES DESTINATION include/chrono_vehicle)
+        ARCHIVE DESTINATION lib)		
 
-#-------------------------------------------------------------------------------
-# Install files
-#-------------------------------------------------------------------------------
-
-# Old way
-install(FILES ${Chrono_POSTPROCESS_HEADERS}
+INSTALL(FILES ${ChronoEngine_POSTPROCESS_HEADERS}
         DESTINATION include/chrono_postprocess)
+
+

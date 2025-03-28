@@ -43,8 +43,11 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <TShort_Array1OfShortReal.hxx>
 
-namespace chrono {
-namespace cascade {
+/// Main Irrlicht namespace (Chrono extensions).
+namespace irr {
+
+/// Irrlicht base classes (Chrono extensions).
+namespace scene {
 
 /// @addtogroup cascade_module
 /// @{
@@ -53,9 +56,9 @@ namespace cascade {
 class ChCascadeIrrMeshTools {
   public:
     /// Function to convert an OpenCASCADE face into a Irrlicht mesh for visualization.
-    static void fillIrrlichtMeshFromCascadeFace(irr::scene::IMesh* pMesh,
+    static void fillIrrlichtMeshFromCascadeFace(scene::IMesh* pMesh,
                                                 const TopoDS_Face& F,
-                                                irr::video::SColor clr = irr::video::SColor(255, 255, 255, 255)) {
+                                                video::SColor clr = video::SColor(255, 255, 255, 255)) {
         BRepAdaptor_Surface BS(F, Standard_False);
         Handle(BRepAdaptor_HSurface) gFace = new BRepAdaptor_HSurface(BS);
 
@@ -116,12 +119,12 @@ class ChCascadeIrrMeshTools {
     }
 
     /// Function to convert an OpenCASCADE shape into a Irrlicht mesh, for visualization.
-    static void fillIrrlichtMeshFromCascade(irr::scene::IMesh* pMesh,
+    static void fillIrrlichtMeshFromCascade(scene::IMesh* pMesh,
                                             const TopoDS_Shape& mshape,
                                             double deflection = 1,
                                             bool relative_deflection = false,
                                             double angulardeflection = 0.5,
-                                            irr::video::SColor clr = irr::video::SColor(255, 255, 255, 255)) {
+                                            video::SColor clr = video::SColor(255, 255, 255, 255)) {
         BRepTools::Clean(mshape);
         BRepMesh_IncrementalMesh M(mshape, deflection, relative_deflection, angulardeflection, true);
         // std::cout << "    ..tesselation done" << std::endl;
@@ -137,7 +140,7 @@ class ChCascadeIrrMeshTools {
 
 /// @} cascade_module
 
-}  // end namespace cascade
-}  // end namespace chrono
+}  // namespace scene
+}  // namespace irr
 
 #endif

@@ -16,8 +16,6 @@
 #include "chrono/core/ChFrame.h"
 #include "chrono/core/ChFrame.h"
 
-#include "chrono/geometry/ChGeometry.h"
-
 #include "chrono/assets/ChColor.h"
 #include "chrono/assets/ChVisualMaterial.h"
 
@@ -91,10 +89,6 @@ class ChApi ChVisualShape {
 
     /// Get the number of visualization materials.
     unsigned int GetNumMaterials() const { return (unsigned int)material_list.size(); }
-
-    /// Get the shape bounding box.
-    /// The default implementation returns an inverted AABB.
-    virtual ChAABB GetBoundingBox() const { return ChAABB(); }
 
     /// Method to allow serialization of transient data to archives.
     virtual void ArchiveOut(ChArchiveOut& archive_out);

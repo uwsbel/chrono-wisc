@@ -5,6 +5,7 @@
 #include <tuple>
 
 #include "chrono_synchrono/SynApi.h"
+
 #include "chrono_vehicle/ChDriver.h"
 #include "chrono_vehicle/ChVehicle.h"
 #include "chrono_vehicle/utils/ChSteeringController.h"
@@ -19,7 +20,8 @@ class SYN_API ChMultiplePathSteeringController : public vehicle::ChSteeringContr
     /// Construct a steering controller to track the specified path.
     /// This version uses default controller parameters (zero gains).
     /// The user is responsible for calling SetGains and SetLookAheadDistance.
-    ChMultiplePathSteeringController(std::vector<std::shared_ptr<ChBezierCurve>> paths, int lane = 0);
+    ChMultiplePathSteeringController(std::vector<std::shared_ptr<ChBezierCurve>> paths,
+                                     int lane = 0);
 
     /// Destructor for ChPathSteeringController.
     ~ChMultiplePathSteeringController() {}
@@ -41,13 +43,11 @@ class SYN_API ChMultiplePathSteeringController : public vehicle::ChSteeringContr
     virtual void Reset(const ChFrameMoving<>& ref_frame) override;
 
     /// Calculate the current target point location.
-    /// The target point is the point on the associated path that is closest to the current location of the sentinel
-    /// point.
+    /// The target point is the point on the associated path that is closest to the current location of the sentinel point.
     virtual void CalcTargetLocation() override;
 
     /// Advance the state of the PID controller.
-    /// This function performs the required integration for the integral component of the PID controller and returns the
-    /// calculated steering value.
+    /// This function performs the required integration for the integral component of the PID controller and returns the calculated steering value.
     virtual double Advance(const ChFrameMoving<>& ref_frame, double time, double step) override;
 
   private:
@@ -120,7 +120,9 @@ class SYN_API ChMultiPathFollowerACCDriver : public vehicle::ChDriver {
     void changePath(int path) { m_steeringPID.changePath(path); }
 
     /// Add another path into the array.
-    unsigned addPath(std::shared_ptr<ChBezierCurve> path) { return m_steeringPID.addPath(path); }
+    unsigned addPath(std::shared_ptr<ChBezierCurve> path) {
+        return m_steeringPID.addPath(path);
+    }
 
   private:
     void Create();

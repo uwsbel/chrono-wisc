@@ -33,7 +33,7 @@ except OSError as exc:
        print("Error creating output directory " )
 
 
-# Create a Chrono physical system
+# Create a Chrono::Engine physical system
 sys = chrono.ChSystemSMC()
 
 # Create a mesh, that is a container for groups
@@ -345,12 +345,12 @@ if (bench3):
 # Such triangle mesh can be rendered by Irrlicht or POVray or whatever
 # postprocessor that can handle a colored ChVisualShapeTriangleMesh).
 
-mvisualizeshellA = chrono.ChVisualShapeFEA()
+mvisualizeshellA = chrono.ChVisualShapeFEA(mesh)
 mvisualizeshellA.SetSmoothFaces(True)
 mvisualizeshellA.SetWireframe(True)
 mesh.AddVisualShapeFEA(mvisualizeshellA)
 
-mvisualizeshellC = chrono.ChVisualShapeFEA()
+mvisualizeshellC = chrono.ChVisualShapeFEA(mesh)
 mvisualizeshellC.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 mvisualizeshellC.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_NODE_CSYS)
 mvisualizeshellC.SetSymbolsThickness(0.05)

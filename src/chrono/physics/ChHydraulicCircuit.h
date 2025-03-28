@@ -25,6 +25,7 @@
 #ifndef CH_HYDRAULIC_CIRCUIT_H
 #define CH_HYDRAULIC_CIRCUIT_H
 
+#include "chrono/physics/ChExternalDynamics.h"
 #include "chrono/physics/ChBody.h"
 #include "chrono/functions/ChFunction.h"
 

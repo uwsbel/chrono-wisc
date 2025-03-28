@@ -98,7 +98,7 @@ class MyEventReceiver : public IEventReceiver {
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Create a Chrono physical system
+    // Create a ChronoENGINE physical system
     ChSystemNSC sys;
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
 

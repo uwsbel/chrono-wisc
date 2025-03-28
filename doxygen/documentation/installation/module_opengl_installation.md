@@ -24,7 +24,7 @@ Compared to the [VSG](group__vsg__module.html) or [IRRLICHT module](group__irrli
 ## Building and installing prerequisistes
 
 The simplest way to build and install all requirements for the Chrono::OpenGL module is to use the utility scripts provided with the Chrono distribution. 
-These scripts (`buildGL.bat` and `buildGL.sh`, for Windows and Linux, respectively) are available in the `contrib/build-scripts/opengl` directory of the [Chrono repository](https://github.com/projectchrono/chrono/tree/main/contrib/build-scripts/opengl). 
+These scripts (`buildGL.bat` and `buildGL.sh`, for Windows and Linux, respectively) are available in the `contrib/build-scripts/vsg` directory of the [Chrono repository](https://github.com/projectchrono/chrono/tree/main/contrib/build-scripts/opengl). 
 
 1. Copy the appropriate script and place in an arbitrary temporary directory.
 2. Edit the script copy to:
@@ -37,11 +37,12 @@ These scripts (`buildGL.bat` and `buildGL.sh`, for Windows and Linux, respective
 
 ## Building instructions
 
-1. Repeat the instructions for the [full installation](@ref tutorial_install_chrono).
+1. Repeat the instructions for the [full installation](@ref tutorial_install_chrono), but when you see 
+   the CMake window, you must add the following steps:
    
-2. Set `CH_ENABLE_MODULE_OPENGL` to 'on'.
+2. Set the `ENABLE_MODULE_OPENGL` as 'on', then press 'Configure' (to refresh the variable list) 
  
-3. When prompted, provide the paths to the various GL project configuration scripts (`GLEW_DIR`, `glfw3_DIR`, and glm_DIR). 
+3. When prompted, provide the paths to the various GL project configuration scripts (`GLEW_DIR`, `glfw3_DIR`) as well as the path to tyhe `GLM` include headers. 
 	 
 4. Press 'Configure' again, then 'Generate', and proceed as usual in the installation instructions.
 

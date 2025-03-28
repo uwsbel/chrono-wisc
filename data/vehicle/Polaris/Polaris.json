@@ -39,7 +39,7 @@
   ],
 
   "Driveline": {
-    "Input File": "Polaris/Polaris_DrivelineSimple.json",
+    "Input File": "Polaris/Polaris_4WD.json",
     "Suspension Indexes": [ 0, 1 ]
   }
 }

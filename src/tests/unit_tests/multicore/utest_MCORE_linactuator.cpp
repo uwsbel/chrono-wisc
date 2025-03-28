@@ -27,7 +27,7 @@
     #include "chrono_opengl/ChVisualSystemOpenGL.h"
 #endif
 
-#include "../ut_utils.h"
+#include "unit_testing.h"
 
 using namespace chrono;
 

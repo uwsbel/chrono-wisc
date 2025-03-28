@@ -15,7 +15,6 @@
 // Torsion chassis connector model constructed with data from file (JSON format).
 //
 // =============================================================================
-
 #ifndef CHASSIS_CONNECTOR_TORSION_H
 #define CHASSIS_CONNECTOR_TORSION_H
 

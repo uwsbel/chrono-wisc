@@ -20,8 +20,7 @@
 
 #pragma once
 
-#include "chrono/multicore_math/types.h"
-
+#include "chrono/multicore_math/ChMulticoreMath.h"
 #include "chrono_multicore/ChMulticoreDefines.h"
 
 namespace chrono {

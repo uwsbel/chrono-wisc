@@ -17,41 +17,44 @@ set(POST_DEMOS_IRR
 
 #--------------------------------------------------------------
 
-# MESSAGE(STATUS "Demo programs for POSTPROCESS module...")
+message(STATUS "Demo programs for POSTPROCESS module...")
 
 foreach(PROGRAM ${POST_DEMOS})
-    # MESSAGE(STATUS "...add ${PROGRAM}")
+    message(STATUS "...add ${PROGRAM}")
 
     add_executable(${PROGRAM}  "${PROGRAM}.cpp")
     source_group(""  FILES  "${PROGRAM}.cpp")
     
-    set_target_properties(${PROGRAM} PROPERTIES FOLDER demos)
+    set_target_properties(${PROGRAM} PROPERTIES 
+        FOLDER demos
+        COMPILE_FLAGS "${CH_CXX_FLAGS}"
+        LINK_FLAGS "${CH_LINKERFLAG_EXE}")
     set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")    
-    target_link_libraries(${PROGRAM} Chrono_core Chrono_postprocess)
-    if(MSVC)
-      set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
+    target_link_libraries(${PROGRAM} ChronoEngine ChronoEngine_postprocess)
+    add_dependencies(${PROGRAM} ChronoEngine ChronoEngine_postprocess)
 
     install(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 endforeach()
 
-if(CH_ENABLE_MODULE_IRRLICHT)
+if(ENABLE_MODULE_IRRLICHT)
+
+    include_directories(${CH_IRRLICHT_INCLUDES})
 
     foreach(PROGRAM ${POST_DEMOS_IRR})
-        # MESSAGE(STATUS "...add ${PROGRAM}")
+        message(STATUS "...add ${PROGRAM}")
 
         add_executable(${PROGRAM}  "${PROGRAM}.cpp")
         source_group(""  FILES  "${PROGRAM}.cpp")
-        set_target_properties(${PROGRAM} PROPERTIES FOLDER demos)
+        set_target_properties(${PROGRAM} PROPERTIES 
+            FOLDER demos
+            COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_IRRLICHT_CXX_FLAGS}"
+            LINK_FLAGS "${CH_LINKERFLAG_EXE}")
         set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
         target_link_libraries(${PROGRAM} 
-        	Chrono_core
-            Chrono_postprocess
-            Chrono_irrlicht)
-        
-        if(MSVC)
-          set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-        endif()
+        	ChronoEngine
+            ChronoEngine_postprocess
+            ChronoEngine_irrlicht)
+        add_dependencies(${PROGRAM} ChronoEngine ChronoEngine_postprocess ChronoEngine_irrlicht)
 
         install(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
     endforeach()

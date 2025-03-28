@@ -5,30 +5,42 @@
 #===============================================================================
 
 
-option(CH_ENABLE_MODULE_GPU "Enable the Chrono::GPU module" OFF)
+option(ENABLE_MODULE_GPU "Enable the Chrono::GPU module" OFF)
 
 # Return now if this module is not enabled
-if(NOT CH_ENABLE_MODULE_GPU)
+if(NOT ENABLE_MODULE_GPU)
   return()
 endif()
 
 message(STATUS "\n==== Chrono GPU module ====\n")
 
-# Return now if CUDA is not available
-if(NOT CHRONO_CUDA_FOUND)
-    message("Chrono::GPU requires CUDA, but CUDA was not found; disabling Chrono::GPU")
-    set(CH_ENABLE_MODULE_GPU OFF CACHE BOOL "Enable the Chrono::GPU module" FORCE)
-    return()
-endif()
-
 # Return now if Eigen version < 3.3.6
 if(EIGEN3_VERSION VERSION_LESS "3.3.6")
     message("Eigen version (${EIGEN3_VERSION}) is less than the required version (3.3.6); disabling Chrono::GPU")
-    set(CH_ENABLE_MODULE_GPU OFF CACHE BOOL "Enable the Chrono::GPU module" FORCE)
+    set(ENABLE_MODULE_GPU OFF CACHE BOOL "Enable the Chrono::GPU module" FORCE)
     return()
 endif()
 
-message(STATUS "Chrono CUDA architectures: ${CHRONO_CUDA_ARCHITECTURES}")
+# Return now if CUDA is not available
+if(NOT CUDA_FOUND)
+    message("Chrono::GPU requires CUDA, but CUDA was not found; disabling Chrono::GPU")
+    set(ENABLE_MODULE_GPU OFF CACHE BOOL "Enable the Chrono::GPU module" FORCE)
+    return()
+endif()
+
+# ------------------------------------------------------------------------------
+# Hack to deal with MSVC runtime libraries
+# ------------------------------------------------------------------------------
+
+if(MSVC)
+  if(USE_MSVC_STATIC_RUNTIME)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+  else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+  endif()
+endif()
 
 # ----------------------------------------------------------------------------
 # Generate and install configuration header file.
@@ -47,16 +59,64 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_gpu/ChConfigGpu.h"
         DESTINATION include/chrono_gpu)
 
 # ------------------------------------------------------------------------------
+# Collect all additional include directories necessary for the GPU module
+# ------------------------------------------------------------------------------
+
+include_directories(${CUDA_INCLUDE_DIRS})
+
+set(CH_GPU_INCLUDES ${CUDA_INCLUDE_DIRS})
+set(CH_GPU_CXX_FLAGS "")
+set(CH_GPU_C_FLAGS "")
+set(CH_CPU_COMPILE_DEFS "")
+set(CH_GPU_LINKER_FLAGS "${CH_LINKERFLAG_LIB}")
+set(CH_GPU_LINKED_LIBRARIES ChronoEngine ${CUDA_FRAMEWORK})
+
+# ------------------------------------------------------------------------------
+# Add optional run-time visualization support
+# ------------------------------------------------------------------------------
+
+if(ENABLE_MODULE_OPENGL)
+  include_directories(${CH_OPENGL_INCLUDES})
+  set(CH_GPU_INCLUDES ${CH_GPU_INCLUDES} ${CH_OPENGL_INCLUDES})
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+     set(CH_GPU_LINKER_FLAGS  "${CH_GPU_LINKER_FLAGS} -framework IOKit -framework Cocoa -framework OpenGL")
+  endif()
+  list(APPEND CH_GPU_LINKED_LIBRARIES ChronoEngine_opengl)
+endif()
+
+# ------------------------------------------------------------------------------
+# Add optional HDF5 support
+# ------------------------------------------------------------------------------
+
+#if(HDF5_FOUND)
+#    include_directories(${HDF5_INCLUDE_DIRS})
+#    set(CH_GPU_INCLUDES ${CH_GPU_INCLUDES} ${HDF5_INCLUDE_DIRS})
+##    set(CH_CPU_COMPILE_DEFS "${CH_CPU_COMPILE_DEFS} ${HDF5_COMPILE_DEFS} ${H5_BUILT_AS_DYNAMIC_LIB}")
+#    set(CH_CPU_COMPILE_DEFS "${CH_CPU_COMPILE_DEFS} ${H5_BUILT_AS_DYNAMIC_LIB}")
+#    list(APPEND CH_GPU_LINKED_LIBRARIES ${HDF5_CXX_LIBRARIES})
+#    add_definitions(-DUSE_HDF5)
+#endif()
+
+# ------------------------------------------------------------------------------
+# Make some variables visible from parent directory
+# ------------------------------------------------------------------------------
+
+set(CH_GPU_CXX_FLAGS "${CH_GPU_CXX_FLAGS}" PARENT_SCOPE)
+set(CH_GPU_C_FLAGS "${CH_GPU_C_FLAGS}" PARENT_SCOPE)
+set(CH_GPU_INCLUDES "${CH_GPU_INCLUDES}" PARENT_SCOPE)
+
+# ------------------------------------------------------------------------------
 # List the files in the Chrono::GPU module
 # ------------------------------------------------------------------------------
 
-set(GPU_BASE_FILES
+set(ChronoEngine_GPU_BASE
     ChApiGpu.h
     ChGpuDefines.h
     )
-source_group("" FILES ${GPU_BASE_FILES})
 
-set(GPU_PHYSICS_FILES
+source_group("" FILES ${ChronoEngine_GPU_BASE})
+
+set(ChronoEngine_GPU_PHYSICS
     physics/ChSystemGpu.h
     physics/ChSystemGpu.cpp
     physics/ChSystemGpu_impl.h
@@ -65,9 +125,10 @@ set(GPU_PHYSICS_FILES
     physics/ChSystemGpuMesh_impl.cpp
     physics/ChGpuBoundaryConditions.h
     )
-source_group(physics FILES ${GPU_PHYSICS_FILES})
 
-set(GPU_CUDA_FILES
+source_group(physics FILES ${ChronoEngine_GPU_PHYSICS})
+
+set(ChronoEngine_GPU_CUDA
     cuda/ChGpu_SMC.cu
     cuda/ChGpu_SMC.cuh
     cuda/ChGpu_SMC_trimesh.cu
@@ -79,129 +140,117 @@ set(GPU_CUDA_FILES
     cuda/ChGpuCUDAalloc.hpp
     cuda/ChCudaMathUtils.cuh
     )
-source_group(cuda FILES ${GPU_CUDA_FILES})
 
-set(GPU_UTILITY_FILES
+source_group(cuda FILES ${ChronoEngine_GPU_CUDA})
+
+set(ChronoEngine_GPU_UTILITIES
     utils/ChGpuUtilities.h
     utils/ChGpuJsonParser.h
     utils/ChGpuSphereDecomp.h
     )
-source_group(utilities FILES ${GPU_UTILITY_FILES})
 
-set(GPU_VIS_FILES
-    visualization/ChGpuVisualization.h
-    visualization/ChGpuVisualization.cpp
-)
-source_group(visualization FILES ${GPU_VIS_FILES})
+source_group(utilities FILES ${ChronoEngine_GPU_UTILITIES})
 
-set(GPU_GL_FILES
-    visualization/ChGpuVisualizationGL.h
-    visualization/ChGpuVisualizationGL.cpp
+set(ChronoEngine_GPU_VISUALIZATION
+    utils/ChGpuVisualization.h
+    utils/ChGpuVisualization.cpp
    )
-source_group("" FILES ${GPU_GL_FILES})
+source_group(utilities FILES ${ChronoEngine_GPU_VISUALIZATION})
 
 # ------------------------------------------------------------------------------
-# Set dependencies on other Chrono modules
+# Add the ChronoEngine_gpu library
 # ------------------------------------------------------------------------------
 
-set(DEPENDENCIES_GPU "")
-if(CH_ENABLE_MODULE_OPENGL)
-  list (APPEND DEPENDENCIES_GPU "OPENGL")
-endif()
+CUDA_ADD_LIBRARY(ChronoEngine_gpu
+                 ${ChronoEngine_GPU_BASE}
+                 ${ChronoEngine_GPU_PHYSICS}
+                 ${ChronoEngine_GPU_CUDA}
+                 ${ChronoEngine_GPU_UTILITIES}
+                 ${ChronoEngine_GPU_VISUALIZATION}
+                 )
 
-set(DEPENDENCIES_GPU ${DEPENDENCIES_GPU} PARENT_SCOPE)
+set_target_properties(ChronoEngine_gpu PROPERTIES
+                      COMPILE_FLAGS "${CH_GPU_CXX_FLAGS}"
+                      LINK_FLAGS "${CH_GPU_LINKER_FLAGS}"
+                      COMPILE_DEFINITIONS "CH_API_COMPILE_GPU ${CH_CPU_COMPILE_DEFS}")
 
-# ------------------------------------------------------------------------------
-# Add the Chrono_gpu library
-# ------------------------------------------------------------------------------
+#if(HDF5_FOUND)
+#target_compile_definitions(ChronoEngine_gpu PRIVATE ${HDF5_COMPILE_DEFS})
+#endif()
 
-message(STATUS "Add Chrono_gpu library")
+target_link_libraries(ChronoEngine_gpu ${CH_GPU_LINKED_LIBRARIES})
+target_include_directories(ChronoEngine_gpu PUBLIC "${CUB_INCLUDE_DIR}/../")
 
-add_library(Chrono_gpu
-            ${GPU_BASE_FILES}
-            ${GPU_PHYSICS_FILES}
-            ${GPU_CUDA_FILES}
-            ${Chrono_GPU_UTILITIES}
-            ${GPU_VIS_FILES})
-
-add_library(Chrono::gpu ALIAS Chrono_gpu)
-
-if (CH_STATIC)
-  set_target_properties(Chrono_gpu PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
-
-if(MSVC)
-  set_target_properties(Chrono_gpu PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
-
-target_compile_definitions(Chrono_gpu PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_GPU>)
-
-target_link_libraries(Chrono_gpu PRIVATE Chrono_core)
-
-target_link_libraries(Chrono_gpu PUBLIC CUDA::cudart_static)
-target_link_libraries(Chrono_gpu PUBLIC CUDA::nvrtc)
-target_link_libraries(Chrono_gpu PUBLIC CUDA::cuda_driver)
-target_link_libraries(Chrono_gpu PUBLIC CUDA::cublas)
-target_link_libraries(Chrono_gpu PUBLIC CUDA::cusparse)
-
-set_target_properties(Chrono_gpu PROPERTIES CUDA_ARCHITECTURES ${CHRONO_CUDA_ARCHITECTURES})
-
-install(TARGETS Chrono_gpu
-        EXPORT ChronoTargets
+install(TARGETS ChronoEngine_gpu
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        INCLUDES DESTINATION include/chrono_gpu
-)
+        ARCHIVE DESTINATION lib)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
+        DESTINATION include/chrono_gpu
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp")
+
+mark_as_advanced(FORCE
+                 CUDA_BUILD_CUBIN
+                 CUDA_BUILD_EMULATION
+                 CUDA_SEPARABLE_COMPILATION
+                 CUDA_SDK_ROOT_DIR
+                 CUDA_VERBOSE_BUILD
+                 CUDA_HOST_COMPILER)
 
 # ------------------------------------------------------------------------------
-# Add the Chrono_gpu_opengl library
+# Additional dependencies, specific to this module
 # ------------------------------------------------------------------------------
 
-if(CH_ENABLE_MODULE_OPENGL)
+# ----- CUDA support -----
 
-    message(STATUS "Add Chrono_gpu_opengl library")
+option(GPU_VERBOSE_PTXAS "Enable verbose output from ptxas during compilation" OFF)
+mark_as_advanced(GPU_VERBOSE_PTXAS)
 
-    add_library(Chrono_gpu_opengl ${GPU_GL_FILES})
-    add_library(Chrono::gpu_opengl ALIAS Chrono_gpu_opengl)
+if(GPU_VERBOSE_PTXAS)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --ptxas-options=-v")
+endif()
 
-    if (CH_STATIC)
-      set_target_properties(Chrono_gpu_opengl PROPERTIES POSITION_INDEPENDENT_CODE ON)
+#message(STATUS "NVCC Flags: ${CUDA_NVCC_FLAGS}")
+
+set(CUDA_SEPARABLE_COMPILATION OFF)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+
+    set(CUDA_SEPARABLE_COMPILATION ON)
+    target_compile_options(ChronoEngine_gpu PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                           --generate-line-info
+                           --device-debug
+                           >)
+
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+
+    set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -G -Xcompiler -g")
+    set(CUDA_NVCC_FLAGS_RELEASE "${CUDA_NVCC_FLAGS_RELEASE} -Xcompiler -O3 -Xptxas -O3 -Xcompiler -DNDEBUG")
+    set(CUDA_NVCC_FLAGS_RELWITHDEBINFO "${CUDA_NVCC_FLAGS_RELWITHDEBINFO} -Xcompiler -O2 -Xcompiler -g -Xcompiler -DNDEBUG")
+    set(CUDA_NVCC_FLAGS_MINSIZEREL "${CUDA_NVCC_FLAGS_MINSIZEREL} -Xcompiler -Os -Xcompiler -DNDEBUG")
+    message(STATUS "NVCC Release flags are" ${CUDA_NVCC_FLAGS_RELEASE})
+       
+    if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+        if(${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER 4.9)
+            set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+        else()
+            message(FATAL_ERROR "Using GCC version ${CMAKE_CXX_COMPILER_VERSION}. GCC <= 4.9 is not supported! Please use a newer compiler")
+        endif()
     endif()
-    
-    if(MSVC)
-      set_target_properties(Chrono_gpu_opengl PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
+    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; --compiler-options -fPIC --compiler-options -Wall -lineinfo)
 
-    target_compile_definitions(Chrono_gpu_opengl PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_GPU>)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
-    target_link_libraries(Chrono_gpu_opengl PRIVATE Chrono_core Chrono_gpu)
-    target_link_libraries(Chrono_gpu_opengl PUBLIC Chrono_opengl)
-
-    target_link_libraries(Chrono_gpu_opengl PRIVATE CUDA::cudart_static)
-    target_link_libraries(Chrono_gpu_opengl PRIVATE CUDA::nvrtc)
-    target_link_libraries(Chrono_gpu_opengl PRIVATE CUDA::cuda_driver)
-    target_link_libraries(Chrono_gpu_opengl PRIVATE CUDA::cublas)
-    target_link_libraries(Chrono_gpu_opengl PRIVATE CUDA::cusparse)
-
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        target_compile_options(Chrono_gpu_opengl PUBLIC $<$<COMPILE_LANGUAGE:CXX>:"-framework IOKit -framework Cocoa -framework OpenGL">)
-    endif()
-      
-    install(TARGETS Chrono_gpu_opengl
-            EXPORT ChronoTargets
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION lib
-            ARCHIVE DESTINATION lib
-            INCLUDES DESTINATION include/chrono_gpu)
+    message(FATAL_ERROR "macOS is not supported!")
 
 endif()
 
-#-------------------------------------------------------------------------------
-# Install files
-#-------------------------------------------------------------------------------
+message(STATUS "NVCC Flags: ${CUDA_NVCC_FLAGS}")
 
-# Old way (install headers preserving directory structure)
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
-        DESTINATION include/chrono_gpu
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh")
+# Install required chrono_thirdparty headers
+if(DEFINED ${CUB_INCLUDE_DIR})
+   install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/cub
+           DESTINATION include/chrono_thirdparty
+           FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")
+endif()

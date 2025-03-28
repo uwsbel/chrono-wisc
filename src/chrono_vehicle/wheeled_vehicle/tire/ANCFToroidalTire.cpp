@@ -20,7 +20,6 @@
 
 #include <cmath>
 
-#include "chrono/fea/ChElementShellANCF_3423.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ANCFToroidalTire.h"
 
 using namespace chrono::fea;

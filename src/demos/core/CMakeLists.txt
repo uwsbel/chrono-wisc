@@ -1,7 +1,7 @@
 #--------------------------------------------------------------
 # Add executables
 
-set(DEMOS
+SET(DEMOS
   demo_CH_coords
   demo_CH_linalg
   demo_CH_matrix_ref
@@ -15,36 +15,23 @@ set(DEMOS
   demo_CH_filesystem
 )
 
-#--------------------------------------------------------------
 
-# Set include paths, compiler & linker flags, and libraries
+MESSAGE(STATUS "Demo programs for CORE module...")
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+FOREACH(PROGRAM ${DEMOS})
+    MESSAGE(STATUS "...add ${PROGRAM}")
 
-list(APPEND LIBS Chrono_core)
+    ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
+    SOURCE_GROUP(""  FILES "${PROGRAM}.cpp")
 
-if(CH_ENABLE_MODULE_PARDISO_MKL)
-  list(APPEND LIBS "Chrono_pardisomkl")
-endif()
+    SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES
+        FOLDER demos
+        COMPILE_FLAGS "${CH_CXX_FLAGS}"
+        LINK_FLAGS "${CH_LINKERFLAG_EXE}")
+    SET_PROPERTY(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
+    TARGET_LINK_LIBRARIES(${PROGRAM} ChronoEngine)
+    ADD_DEPENDENCIES(${PROGRAM} ChronoEngine)
 
-if(CH_ENABLE_MODULE_MUMPS)
-    list(APPEND LIBS "Chrono_mumps")
-endif()
-
-#--------------------------------------------------------------
-
-message(STATUS "Add demo programs for CORE module")
-
-foreach(PROGRAM ${DEMOS})
-    add_executable(${PROGRAM}  "${PROGRAM}.cpp")
-    source_group(""  FILES "${PROGRAM}.cpp")
-
-    set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
-    target_link_libraries(${PROGRAM} ${LIBS})
-    if(MSVC)
-      set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
-
-    install(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
-endforeach(PROGRAM)
+    INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
+ENDFOREACH(PROGRAM)
 

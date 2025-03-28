@@ -30,7 +30,7 @@ print ("Example: PyChrono using  beam finite elements");
 #
 
 
-# Create a Chrono physical system
+# Create a Chrono::Engine physical system
 sys = chrono.ChSystemSMC()
 
 ## Create a mesh, that is a container for groups
@@ -145,14 +145,14 @@ sys.Add(mesh)
 # asset that is internally managed) by setting  proper
 # coordinates and vertex colors as in the FEM elements.
 
-visualizebeamA = chrono.ChVisualShapeFEA()
+visualizebeamA = chrono.ChVisualShapeFEA(mesh)
 visualizebeamA.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_ELEM_BEAM_MZ)
 visualizebeamA.SetColorscaleMinMax(-0.4, 0.4)
 visualizebeamA.SetSmoothFaces(True)
 visualizebeamA.SetWireframe(False)
 mesh.AddVisualShapeFEA(visualizebeamA)
 
-visualizebeamC = chrono.ChVisualShapeFEA()
+visualizebeamC = chrono.ChVisualShapeFEA(mesh)
 visualizebeamC.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_NODE_CSYS)
 visualizebeamC.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 visualizebeamC.SetSymbolsThickness(0.006)

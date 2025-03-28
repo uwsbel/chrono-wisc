@@ -4,20 +4,21 @@
 # Cannot be used stand-alone (it's loaded by CMake config. file in parent dir.)
 #=============================================================================
 
-option(CH_ENABLE_MODULE_MODAL "Enable the Chrono Modal module" OFF)
+option(ENABLE_MODULE_MODAL "Enable the Chrono Modal module" OFF)
 
 # Return now if this module is not enabled
-if(NOT CH_ENABLE_MODULE_MODAL)
-  mark_as_advanced(FORCE spectra_INCLUDE_DIR)
-  mark_as_advanced(FORCE spectra_DIR)
-  return()
-endif()
+IF(NOT ENABLE_MODULE_MODAL)
+	MARK_AS_ADVANCED(FORCE SPECTRA_INCLUDE_DIR)
+	RETURN()
+ENDIF()
 
-message(STATUS "\n==== Chrono Modal module ====\n")
+MESSAGE(STATUS "\n==== Chrono Modal module ====\n")
+
+MARK_AS_ADVANCED(CLEAR SPECTRA_INCLUDE_DIR)
 
 #-----------------------------------------------------------------------------
 
-set(Chrono_MODAL_SOURCES 
+SET(ChronoEngine_MODAL_SOURCES 
     ChModalAssembly.cpp
     ChModalDamping.cpp
     ChSymGenEigenvalueSolver.cpp
@@ -29,7 +30,7 @@ set(Chrono_MODAL_SOURCES
     ChKrylovSchurEig.cpp
 )
 
-set(Chrono_MODAL_HEADERS
+SET(ChronoEngine_MODAL_HEADERS
     ChApiModal.h 
     ChModalAssembly.h
     ChModalDamping.h
@@ -42,86 +43,48 @@ set(Chrono_MODAL_HEADERS
     ChKrylovSchurEig.h
 )
 
-if(CH_ENABLE_MODULE_IRRLICHT)
-  set(Chrono_MODAL_HEADERS ${Chrono_MODAL_HEADERS}
-      ChModalVisualSystemIrrlicht.h
-  )
+SOURCE_GROUP("" FILES 
+            ${ChronoEngine_MODAL_SOURCES} 
+            ${ChronoEngine_MODAL_HEADERS})
+
+#-----------------------------------------------------------------------------	
+# In most cases, you do not need to edit the lines below.
+
+SET(SPECTRA_INCLUDE_DIR "" CACHE PATH "Path to the SPECTRA include dir, ex. C:/foo/Spectra/includes.")
+
+INCLUDE_DIRECTORIES(${SPECTRA_INCLUDE_DIR})
+set(CH_MODAL_INCLUDES "${SPECTRA_INCLUDE_DIR}" PARENT_SCOPE)
+
+# The MODAL library is added to the project,
+# and some custom properties of this target are set.
+
+# The generated .cxx wrapper can be so huge that the /bigobj flag is required in VC++
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG}   /bigobj")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /bigobj")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /bigobj")
 endif()
 
-source_group("" FILES ${Chrono_MODAL_SOURCES} ${Chrono_MODAL_HEADERS})
+ADD_LIBRARY(ChronoEngine_modal 
+			${ChronoEngine_MODAL_SOURCES}
+			${ChronoEngine_MODAL_HEADERS})
 
-#-----------------------------------------------------------------------------
-# Find Spectra
-#-----------------------------------------------------------------------------
+SET_TARGET_PROPERTIES(ChronoEngine_modal PROPERTIES
+                      COMPILE_FLAGS "${CH_CXX_FLAGS}"
+                      LINK_FLAGS "${CH_LINKERFLAG_LIB}")
+                          
+target_compile_definitions(ChronoEngine_modal PRIVATE "CH_API_COMPILE_MODAL")
+target_compile_definitions(ChronoEngine_modal PRIVATE "CH_IGNORE_DEPRECATED")
 
-find_package(Spectra REQUIRED)
-if(${spectra_FOUND})
-  message(STATUS "Spectra include dir: ${spectra_INCLUDE_DIR}")
-  mark_as_advanced(FORCE spectra_INCLUDE_DIR)
-  mark_as_advanced(FORCE spectra_DIR)
-else()
-  message("ERROR: Spectra cannot be found. Set either spectra_INCLUDE_DIR to the location of the Spectra headers or provide location of spectra-config.cmake through spectra_DIR.")
-  set(spectra_INCLUDE_DIR "" CACHE PATH "Path to Spectra directory (should contain a subfolder named 'Spectra'")
-  set(spectra_DIR "" CACHE PATH "Path to Spectra config file (should contain the 'spectra-config.cmake' file")
-  mark_as_advanced(CLEAR spectra_INCLUDE_DIR)
-  mark_as_advanced(CLEAR spectra_DIR)
-  return()
-endif()
-
-set(spectra_INCLUDE_DIR ${spectra_INCLUDE_DIR} PARENT_SCOPE)
-
-# ------------------------------------------------------------------------------
-# Set dependencies on other Chrono modules
-# ------------------------------------------------------------------------------
-
-set(DEPENDENCIES_MODAL "")
-if(CH_ENABLE_MODULE_IRRLICHT)
-  list (APPEND DEPENDENCIES_MODAL "IRRLICHT")
-endif()
-
-set(DEPENDENCIES_MODAL ${DEPENDENCIES_MODAL} PARENT_SCOPE)
-
-#-----------------------------------------------------------------------------
-# Add the Chrono_modal library
-#-----------------------------------------------------------------------------
-
-add_library(Chrono_modal ${Chrono_MODAL_SOURCES} ${Chrono_MODAL_HEADERS})
-add_library(Chrono::modal ALIAS Chrono_modal)
-
-if(CH_WHOLE_PROG_OPT)
-  set_target_properties(Chrono_modal PROPERTIES COMPILE_FLAGS "/GL")
-  set_target_properties(Chrono_modal PROPERTIES LINK_FLAGS "/LTCG")
-endif()
-
-if (CH_STATIC)
-  set_target_properties(Chrono_modal PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
-
-if(MSVC)
-  set_target_properties(Chrono_modal PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
-
-target_compile_definitions(Chrono_modal PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_MODAL>)
-
-target_link_libraries(Chrono_modal PRIVATE Chrono_core)
-target_link_libraries(Chrono_modal PRIVATE Spectra::Spectra)
-
-install(TARGETS Chrono_modal
-        EXPORT ChronoTargets
+TARGET_LINK_LIBRARIES(ChronoEngine_modal 
+	                  ChronoEngine)
+	
+ADD_DEPENDENCIES(ChronoEngine_modal ChronoEngine)
+	
+INSTALL(TARGETS ChronoEngine_modal
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        INCLUDES DESTINATION include/chrono_modal
-        )
+        ARCHIVE DESTINATION lib)		
 
-#-------------------------------------------------------------------------------
-# Install files
-#-------------------------------------------------------------------------------
-
-# Old way
-install(FILES ${Chrono_MODAL_HEADERS}
+INSTALL(FILES ${ChronoEngine_MODAL_HEADERS}
         DESTINATION include/chrono_modal)
-
-# Install files for chrono-config (in both build and install trees)
-file(COPY ${CMAKE_SOURCE_DIR}/cmake/FindSpectra.cmake DESTINATION ${CMAKE_BINARY_DIR}/cmake/)
-install(FILES "${CMAKE_SOURCE_DIR}/cmake/FindSpectra.cmake" DESTINATION ${CH_CONFIG_INSTALL_PATH})

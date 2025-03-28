@@ -41,7 +41,8 @@ namespace chrono {
 
 using namespace fea;
 
-ChVisualShapeFEA::ChVisualShapeFEA() : physics_item(nullptr) {
+ChVisualShapeFEA::ChVisualShapeFEA(std::shared_ptr<fea::ChMesh> fea_mesh) {
+    FEMmesh = fea_mesh;
     fem_data_type = DataType::SURFACE;
     fem_glyph = GlyphType::NONE;
 
@@ -821,11 +822,8 @@ void ChVisualShapeFEA::UpdateBuffers_ContactSurfaceMesh(std::shared_ptr<ChContac
 }
 
 void ChVisualShapeFEA::Update(ChPhysicsItem* updater, const ChFrame<>& frame) {
-    if (!physics_item)
+    if (!FEMmesh)
         return;
-
-    assert(dynamic_cast<ChMesh*>(physics_item));
-    auto FEMmesh = static_cast<ChMesh*>(physics_item);
 
     auto trianglemesh = m_trimesh_shape->GetMesh();
 

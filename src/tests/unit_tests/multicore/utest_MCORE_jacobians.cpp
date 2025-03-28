@@ -24,7 +24,7 @@
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 
-#include "../ut_utils.h"
+#include "unit_testing.h"
 
 #ifdef CHRONO_OPENGL
     #include "chrono_opengl/ChVisualSystemOpenGL.h"

@@ -63,7 +63,7 @@
       }
   ],
 
-  "Structural Damping Coefficient":  0.15,
+  "Structural Damping Coefficient":  0.005,
 
   "Default Pressure":                200.0e3,
 

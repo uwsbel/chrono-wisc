@@ -16,10 +16,10 @@
 //
 //  - constraints and 'motor' objects
 //  - using IRRLICHT as a realtime 3D viewer of a slider-crank mechanism
-//    simulated with Chrono.
+//    simulated with Chrono::Engine.
 //  - using the real-time step.
 //
-// This is just a possible method of integration of Chrono + Irrlicht;
+// This is just a possible method of integration of Chrono::Engine + Irrlicht;
 // many others are possible.
 //
 // =============================================================================

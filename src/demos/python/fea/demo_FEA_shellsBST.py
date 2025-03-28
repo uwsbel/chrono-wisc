@@ -34,7 +34,7 @@ except OSError as exc:
     if exc.errno != errno.EEXIST:
        print("Error creating output directory " )
 
-# Create a Chrono physical system
+# Create a Chrono::Engine physical system
 sys = chrono.ChSystemSMC()
 
 
@@ -281,14 +281,14 @@ if (False) :
 # postprocessor that can handle a colored ChVisualShapeTriangleMesh).
 
 
-mvisualizeshellA = chrono.ChVisualShapeFEA()
+mvisualizeshellA = chrono.ChVisualShapeFEA(mesh)
 #mvisualizeshellA.SetSmoothFaces(True)
 #mvisualizeshellA.SetWireframe(True)
 mvisualizeshellA.SetShellResolution(2)
 #mvisualizeshellA.SetBackfaceCull(True)
 mesh.AddVisualShapeFEA(mvisualizeshellA)
 
-mvisualizeshellB = chrono.ChVisualShapeFEA()
+mvisualizeshellB = chrono.ChVisualShapeFEA(mesh)
 mvisualizeshellB.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 mvisualizeshellB.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_NODE_DOT_POS)
 mvisualizeshellB.SetSymbolsThickness(0.006)

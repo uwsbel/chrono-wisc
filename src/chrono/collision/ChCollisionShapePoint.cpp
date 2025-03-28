@@ -30,12 +30,6 @@ ChCollisionShapePoint::ChCollisionShapePoint(std::shared_ptr<ChContactMaterial> 
     this->radius = radius;
 }
 
-ChAABB ChCollisionShapePoint::GetBoundingBox() const {
-    ChAABB aabb;
-    aabb += ChAABB(point - radius, point + radius);
-    return aabb;
-}
-
 void ChCollisionShapePoint::ArchiveOut(ChArchiveOut& archive_out) {
     // version number
     archive_out.VersionWrite<ChCollisionShapePoint>();

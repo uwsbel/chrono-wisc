@@ -25,14 +25,14 @@
 #include "chrono/physics/ChInertiaUtils.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 
-#include "chrono_fsi/sph/ChFsiSystemSPH.h"
-
-#include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
+#include "chrono_fsi/ChSystemFsi.h"
+#include "chrono_fsi/visualization/ChFsiVisualization.h"
+#include "chrono/assets/ChVisualSystem.h"
 #ifdef CHRONO_OPENGL
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationGL.h"
+    #include "chrono_fsi/visualization/ChFsiVisualizationGL.h"
 #endif
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/visualization/ChFsiVisualizationVSG.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -51,8 +51,8 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_Viper/";
 bool save_obj = false;
 
 // Physical properties of terrain particles
-double initSpacing = 0.01;
-double kernelMultiplier = 1;
+double iniSpacing = 0.01;
+double kernelLength = 0.01;
 double density = 1700.0;
 
 // Dimension of the space domain
@@ -119,8 +119,8 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
 }
 
 // Forward declaration of helper functions
-void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI);
-void CreateSolidPhase(ChFsiSystemSPH& sysFSI);
+void SaveParaViewFiles(ChSystemFsi& sysFSI, ChSystemNSC& sysMBS, double mTime);
+void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI);
 
 int main(int argc, char* argv[]) {
     // Create oputput directories
@@ -143,16 +143,11 @@ int main(int argc, char* argv[]) {
 
     // Create a physical system and a corresponding FSI system
     ChSystemNSC sysMBS;
-    ChFluidSystemSPH sysSPH;
-    ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
+    ChSystemFsi sysFSI(&sysMBS);
 
     ChVector3d gravity = ChVector3d(0, 0, -9.81);
     sysMBS.SetGravitationalAcceleration(gravity);
     sysFSI.SetGravitationalAcceleration(gravity);
-
-    // Set the simulation stepsize
-    sysFSI.SetStepSizeCFD(dT);
-    sysFSI.SetStepsizeMBD(dT);
 
     // Read JSON file with simulation parameters
     std::string inputJson = GetChronoDataFile("fsi/input_json/demo_FSI_Viper_granular_NSC.json");
@@ -162,34 +157,37 @@ int main(int argc, char* argv[]) {
         std::cout << "usage: ./demo_ROBOT_Viper_SPH <json_file>" << std::endl;
         return 1;
     }
-    sysSPH.ReadParametersFromFile(inputJson);
+    sysFSI.ReadParametersFromFile(inputJson);
 
     // Set the initial particle spacing
-    sysSPH.SetInitialSpacing(initSpacing);
+    sysFSI.SetInitialSpacing(iniSpacing);
 
-    // Set the SPH kernel (h = kernelMultiplier * initSpacing)
-    sysSPH.SetKernelMultiplier(kernelMultiplier);
+    // Set the SPH kernel length
+    sysFSI.SetKernelLength(kernelLength);
 
     // Set the terrain density
-    sysSPH.SetDensity(density);
+    sysFSI.SetDensity(density);
+
+    // Set the simulation stepsize
+    sysFSI.SetStepSize(dT);
 
     // Set the simulation domain size
-    sysSPH.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
+    sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
 
     // Set SPH discretization type, consistent or inconsistent
-    sysSPH.SetConsistentDerivativeDiscretization(false, false);
+    sysFSI.SetConsistentDerivativeDiscretization(false, false);
 
     // Set the SPH method
-    sysSPH.SetSPHMethod(SPHMethod::WCSPH);
+    sysFSI.SetSPHMethod(SPHMethod::WCSPH);
 
     // Set the periodic boundary condition
-    double initSpace0 = sysSPH.GetInitialSpacing();
-    ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * initSpacing, -bzDim * 10);
-    ChVector3d cMax(bxDim / 2 * 2, byDim / 2 + 0.5 * initSpacing, bzDim * 20);
-    sysSPH.SetBoundaries(cMin, cMax);
+    double initSpace0 = sysFSI.GetInitialSpacing();
+    ChVector3d cMin(-bxDim / 2 * 2, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 10);
+    ChVector3d cMax(bxDim / 2 * 2, byDim / 2 + 0.5 * iniSpacing, bzDim * 20);
+    sysFSI.SetBoundaries(cMin, cMax);
 
-    // Set simulation data output level
-    sysSPH.SetOutputLevel(OutputLevel::STATE);
+    // Set simulation data output length
+    sysFSI.SetOutputLength(0);
 
     // Create an initial box for the terrain patch
     chrono::utils::ChGridSampler<> sampler(initSpace0);
@@ -202,8 +200,8 @@ int main(int argc, char* argv[]) {
     auto gz = std::abs(gravity.z());
     int numPart = (int)points.size();
     for (int i = 0; i < numPart; i++) {
-        double pre_ini = sysSPH.GetDensity() * gz * (-points[i].z() + bzDim);
-        sysSPH.AddSPHParticle(points[i], sysSPH.GetDensity(), 0, sysSPH.GetViscosity(),
+        double pre_ini = sysFSI.GetDensity() * gz * (-points[i].z() + bzDim);
+        sysFSI.AddSPHParticle(points[i], sysFSI.GetDensity(), 0, sysFSI.GetViscosity(),
                               ChVector3d(0),         // initial velocity
                               ChVector3d(-pre_ini),  // tauxxyyzz
                               ChVector3d(0)          // tauxyxzyz
@@ -212,7 +210,7 @@ int main(int argc, char* argv[]) {
 
     // Create MBD and BCE particles for the solid domain
     std::cout << "Generate BCE markers" << std::endl;
-    CreateSolidPhase(sysFSI);
+    CreateSolidPhase(sysMBS, sysFSI);
 
     // Complete construction of the FSI system
     sysFSI.Initialize();
@@ -261,7 +259,7 @@ int main(int argc, char* argv[]) {
         visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetSPHColorCallback(
-            chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), 0, bzDim));
+            chrono_types::make_shared<HeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), 0, bzDim));
         visFSI->AttachSystem(&sysMBS);
         visFSI->Initialize();
     }
@@ -285,9 +283,9 @@ int main(int argc, char* argv[]) {
         if (output) {
             ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
             if (current_step % output_steps == 0) {
-                sysSPH.SaveParticleData(out_dir + "/particles");
-                sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                SaveParaViewFiles(time, sysFSI);
+                sysFSI.PrintParticleToFile(out_dir + "/particles");
+                sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
+                SaveParaViewFiles(sysFSI, sysMBS, time);
             }
         }
 
@@ -298,7 +296,7 @@ int main(int argc, char* argv[]) {
         }
 
         timer.start();
-        sysFSI.DoStepDynamics(dT);
+        sysFSI.DoStepDynamics_FSI();
         timer.stop();
 
         time += dT;
@@ -315,10 +313,7 @@ int main(int argc, char* argv[]) {
 // Create the objects of the MBD system. Rigid bodies and their
 // BCE representations are created and added to the systems
 //------------------------------------------------------------------
-void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
-    ChFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
-    ChSystem& sysMBS = sysFSI.GetMultibodySystem();
-
+void CreateSolidPhase(ChSystemNSC& sysMBS, ChSystemFsi& sysFSI) {
     // Create a body for the rigid soil container
     auto box = chrono_types::make_shared<ChBodyEasyBox>(10, 10, 0.02, 1000, false, false);
     box->SetPos(ChVector3d(0, 0, 0));
@@ -326,10 +321,10 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
     sysMBS.Add(box);
 
     // Get the initial SPH particle spacing
-    double initSpace0 = sysSPH.GetInitialSpacing();
+    double initSpace0 = sysFSI.GetInitialSpacing();
 
     // Fluid-Solid Coupling at the walls via BCE particles
-    sysSPH.AddBoxContainerBCE(box,                                        //
+    sysFSI.AddBoxContainerBCE(box,                                        //
                               ChFrame<>(ChVector3d(0, 0, bzDim), QUNIT),  //
                               ChVector3d(bxDim, byDim, 2 * bzDim),        //
                               ChVector3i(2, 0, -1));
@@ -348,7 +343,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
     trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
 
     std::vector<ChVector3d> BCE_wheel;
-    sysSPH.CreatePoints_Mesh(*trimesh, initSpace0, BCE_wheel);
+    sysFSI.CreateMeshPoints(*trimesh, initSpace0, BCE_wheel);
 
     // Add BCE particles and mesh of wheels to the system
     for (int i = 0; i < 4; i++) {
@@ -368,9 +363,9 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
 
         sysFSI.AddFsiBody(wheel_body);
         if (i == 0 || i == 2) {
-            sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
+            sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
         } else {
-            sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
+            sysFSI.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
         }
     }
 }
@@ -378,9 +373,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
-void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI) {
-    ChSystem& sysMBS = sysFSI.GetMultibodySystem();
-
+void SaveParaViewFiles(ChSystemFsi& sysFSI, ChSystemNSC& sysMBS, double mTime) {
     std::string rover_dir = out_dir + "/rover";
     std::string filename;
     static int frame_number = -1;
@@ -773,6 +766,6 @@ void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI) {
 
     std::cout << "-------------------------------------" << std::endl;
     std::cout << " Output frame:  " << frame_number << std::endl;
-    std::cout << " Time:          " << time << std::endl;
+    std::cout << " Time:          " << mTime << std::endl;
     std::cout << "-------------------------------------" << std::endl;
 }

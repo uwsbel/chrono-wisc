@@ -5,13 +5,17 @@
 INCLUDE_DIRECTORIES(${CH_MULTICORE_INCLUDES})
 
 SET(LIBRARIES
-    Chrono_core
-    Chrono_multicore
+    ChronoEngine
+    ChronoEngine_multicore
 )
 
-IF(CH_ENABLE_MODULE_OPENGL)
+IF(ENABLE_MODULE_OPENGL)
     INCLUDE_DIRECTORIES(${CH_OPENGL_INCLUDES})
-    SET(LIBRARIES ${LIBRARIES} Chrono_opengl)
+    SET(LIBRARIES ${LIBRARIES} ChronoEngine_opengl)
+
+    IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+       SET (CH_LINKERFLAG_EXE  "${CH_LINKERFLAG_EXE} -framework IOKit -framework Cocoa -framework OpenGL")
+    ENDIF()
 ENDIF()
 
 # ------------------------------------------------------------------------------
@@ -25,13 +29,13 @@ SET(DEMOS
     demo_MCORE_mixerSMC
     demo_MCORE_mixerNSC
     demo_MCORE_fluidNSC
-    demo_MCORE_snow
+    demo_MCORE_snowMPM
     demo_MCORE_particlesNSC
     demo_MCORE_cratering
 )
 
 # Add programs that require OpenGL
-if(CH_ENABLE_MODULE_OPENGL)
+if(ENABLE_MODULE_OPENGL)
     set(DEMOS
         ${DEMOS} 
         demo_MCORE_motors
@@ -43,11 +47,10 @@ if(CH_ENABLE_MODULE_OPENGL)
 endif()
 
 # Add programs that require Irrlicht
-if(CH_ENABLE_MODULE_IRRLICHT)
-    set(LIBRARIES ${LIBRARIES} Chrono_irrlicht)
+if(ENABLE_MODULE_IRRLICHT)
+	include_directories(${CH_IRRLICHT_INCLUDES})
 
-	set(DEMOS
-        ${DEMOS}
+	set(DEMOS_IRRLICHT
 		demo_MCORE_custom_contact
         demo_MCORE_collision_object)
 endif()
@@ -56,20 +59,42 @@ endif()
 # Add all executables
 # ------------------------------------------------------------------------------
 
-message(STATUS "Add demo programs for MULTICORE module")
+MESSAGE(STATUS "Demo programs for MULTICORE module...")
 
 FOREACH(PROGRAM ${DEMOS})
-    # MESSAGE(STATUS "...add ${PROGRAM}")
+    MESSAGE(STATUS "...add ${PROGRAM}")
 
     ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
     SOURCE_GROUP(""  FILES "${PROGRAM}.cpp")
-    set_target_properties(${PROGRAM} PROPERTIES FOLDER demos)
+
+    SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES
+        FOLDER demos
+        COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_MULTICORE_CXX_FLAGS}"
+        LINK_FLAGS "${CH_LINKERFLAG_EXE}"
+    )
     SET_PROPERTY(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
     TARGET_LINK_LIBRARIES(${PROGRAM} ${LIBRARIES})
-
-    if(MSVC)
-      set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
+    ADD_DEPENDENCIES(${PROGRAM} ${LIBRARIES})
 
     INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 ENDFOREACH(PROGRAM)
+
+FOREACH(PROGRAM ${DEMOS_IRRLICHT})
+  MESSAGE(STATUS "...add ${PROGRAM}")
+
+  ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
+  SOURCE_GROUP(""  FILES  "${PROGRAM}.cpp")
+
+  SET_TARGET_PROPERTIES(${PROGRAM}  PROPERTIES
+    FOLDER demos
+    COMPILE_FLAGS "${CH_CXX_FLAGS}  ${CH_MULTICORE_CXX_FLAGS} ${CH_IRRLICHT_CXX_FLAGS}"
+    LINK_FLAGS "${CH_LINKERFLAG_EXE}")
+  SET_PROPERTY(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
+  TARGET_LINK_LIBRARIES(${PROGRAM}
+    ChronoEngine
+    ChronoEngine_multicore
+    ChronoEngine_irrlicht)    
+  ADD_DEPENDENCIES (${PROGRAM} ChronoEngine ChronoEngine_multicore ChronoEngine_irrlicht)
+
+  INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
+ENDFOREACH()

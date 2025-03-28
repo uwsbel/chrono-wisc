@@ -139,26 +139,26 @@ sys.Add(mesh)
 # Options for visualization in irrlicht
 # -------------------------------------
 
-visualizemeshA = chrono.ChVisualShapeFEA()
+visualizemeshA = chrono.ChVisualShapeFEA(mesh)
 visualizemeshA.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NODE_SPEED_NORM)
 visualizemeshA.SetColorscaleMinMax(0.0, 5.50)
 visualizemeshA.SetShrinkElements(True, 0.85)
 visualizemeshA.SetSmoothFaces(True)
 mesh.AddVisualShapeFEA(visualizemeshA)
 
-visualizemeshB = chrono.ChVisualShapeFEA()
+visualizemeshB = chrono.ChVisualShapeFEA(mesh)
 visualizemeshB.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_SURFACE)
 visualizemeshB.SetWireframe(True)
 visualizemeshB.SetDrawInUndeformedReference(True)
 mesh.AddVisualShapeFEA(visualizemeshB)
 
-visualizemeshC = chrono.ChVisualShapeFEA()
+visualizemeshC = chrono.ChVisualShapeFEA(mesh)
 visualizemeshC.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_NODE_DOT_POS)
 visualizemeshC.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 visualizemeshC.SetSymbolsThickness(0.004)
 mesh.AddVisualShapeFEA(visualizemeshC)
 
-visualizemeshD = chrono.ChVisualShapeFEA()
+visualizemeshD = chrono.ChVisualShapeFEA(mesh)
 visualizemeshD.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_ELEM_TENS_STRAIN)
 visualizemeshD.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 visualizemeshD.SetSymbolsScale(1)

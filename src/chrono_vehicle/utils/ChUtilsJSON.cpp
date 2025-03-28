@@ -27,7 +27,6 @@
 #include "chrono_vehicle/chassis/ChassisConnectorHitch.h"
 #include "chrono_vehicle/chassis/ChassisConnectorArticulated.h"
 #include "chrono_vehicle/chassis/ChassisConnectorTorsion.h"
-#include "chrono_vehicle/chassis/ChassisConnectorFifthWheel.h"
 
 #include "chrono_vehicle/powertrain/EngineSimple.h"
 #include "chrono_vehicle/powertrain/EngineSimpleMap.h"
@@ -725,10 +724,8 @@ std::shared_ptr<ChChassisConnector> ReadChassisConnectorJSON(const std::string& 
         connector = chrono_types::make_shared<ChassisConnectorArticulated>(d);
     } else if (subtype.compare("ChassisConnectorTorsion") == 0) {
         connector = chrono_types::make_shared<ChassisConnectorTorsion>(d);
-    } else if (subtype.compare("ChassisConnectorFifthWheel") == 0) {
-        connector = chrono_types::make_shared<ChassisConnectorFifthWheel>(d);
     } else {
-        throw std::invalid_argument("Connector type not supported in ReadChassisConnectorJSON.");
+        throw std::invalid_argument("Chassis type not supported in ReadChassisConnectorJSON.");
     }
 
     return connector;

@@ -58,7 +58,6 @@ ChSystem::ChSystem()
       stepcount(0),
       setupcount(0),
       solvecount(0),
-      output_dir("."),
       write_matrix(false),
       ncontacts(0),
       composition_strategy(new ChContactMaterialCompositionStrategy),
@@ -1233,8 +1232,10 @@ unsigned int ChSystem::GetNumContacts() {
     return contact_container->GetNumContacts();
 }
 
-unsigned int ChSystem::ComputeCollisions() {
+double ChSystem::ComputeCollisions() {
     CH_PROFILE("ComputeCollisions");
+
+    double mretC = 0.0;
 
     timer_collision.start();
 
@@ -1276,7 +1277,7 @@ unsigned int ChSystem::ComputeCollisions() {
 
     timer_collision.stop();
 
-    return ncontacts;
+    return mretC;
 }
 
 // -----------------------------------------------------------------------------

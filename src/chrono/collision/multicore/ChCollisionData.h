@@ -21,7 +21,7 @@
 
 #include "chrono/physics/ChContactContainer.h"
 
-#include "chrono/multicore_math/types.h"
+#include "chrono/multicore_math/ChMulticoreMath.h"
 
 namespace chrono {
 

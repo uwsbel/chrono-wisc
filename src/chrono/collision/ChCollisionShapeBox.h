@@ -42,9 +42,6 @@ class ChApi ChCollisionShapeBox : public ChCollisionShape {
     /// Get the box dimensions.
     ChVector3d GetLengths() const { return gbox.GetLengths(); }
 
-    /// Get the shape bounding box.
-    virtual ChAABB GetBoundingBox() const override { return gbox.GetBoundingBox(); }
-
     /// Method to allow serialization of transient data to archives.
     virtual void ArchiveOut(ChArchiveOut& archive_out) override;
 

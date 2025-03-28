@@ -3,64 +3,65 @@
 # These example programs require run-time visualization.
 #=============================================================================
 
-if(NOT CH_ENABLE_MODULE_IRRLICHT AND NOT CH_ENABLE_MODULE_VSG)
+if(NOT ENABLE_MODULE_IRRLICHT AND NOT ENABLE_MODULE_VSG)
     return()
-endif()
-
-#--------------------------------------------------------------
-# List of all Cascade demos
-
-set(DEMOS
-    demo_CAS_stepfile
-    demo_CAS_robot
-    demo_CAS_profile
-)
-
-if(CH_ENABLE_MODULE_IRRLICHT)
-  set(DEMOS ${DEMOS}
-      demo_CAS_converter
-  )
 endif()
 
 #--------------------------------------------------------------
 # Additional paths and settings
 
-list(APPEND LIBS Chrono_core)
-list(APPEND LIBS "Chrono_cascade")
+include_directories(${OpenCASCADE_INCLUDE_DIR})
+set(COMPILER_FLAGS "${CH_CXX_FLAGS}")
+set(LINKER_FLAGS "${CH_LINKERFLAG_EXE} ${OpenCASCADE_LINKER_FLAGS}")
+list(APPEND LIBS "ChronoEngine")
+list(APPEND LIBS "ChronoEngine_cascade")
 
-if(CH_ENABLE_MODULE_IRRLICHT)
-    list(APPEND LIBS "Chrono_irrlicht")
+if(ENABLE_MODULE_IRRLICHT)
+    include_directories(${CH_IRRLICHT_INCLUDES})
+    set(COMPILER_FLAGS "${COMPILER_FLAGS} ${CH_IRRLICHT_CXX_FLAGS}")
+    list(APPEND LIBS "ChronoEngine_irrlicht")
 endif()
 
-if(CH_ENABLE_MODULE_VSG)
-    list(APPEND LIBS "Chrono_vsg")
+if(ENABLE_MODULE_VSG)
+    include_directories(${CH_VSG_INCLUDES})
+    list(APPEND LIBS "ChronoEngine_vsg")
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")	
+    add_definitions( "/DWNT" )
+endif()	
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    add_definitions(-DHAVE_IOSTREAM)
+    add_definitions(-DHAVE_LIMITS_H)
 endif()
 
 #--------------------------------------------------------------
+# List of all Cascade demos
 
-message(STATUS "Add demo programs for CASCADE module")
+set(DEMOS_CAS
+	demo_CAS_converter
+	demo_CAS_stepfile
+	demo_CAS_robot
+	demo_CAS_profile
+)
 
-foreach(PROGRAM ${DEMOS})
-    # MESSAGE(STATUS "...add ${PROGRAM}")
+message(STATUS "Demo programs for OpenCASCADE module...")
+
+#--------------------------------------------------------------
+# Add demo executables
+
+foreach(PROGRAM ${DEMOS_CAS})
+    message(STATUS "...add ${PROGRAM}")
 
     add_executable(${PROGRAM} "${PROGRAM}.cpp")
     source_group(""  FILES "${PROGRAM}.cpp")
 
-    if(WIN32)
-      target_compile_definitions(Chrono_cascade PRIVATE WNT)
-    endif()
-    if(UNIX)
-      target_compile_definitions(Chrono_cascade PRIVATE HAVE_IOSTREAM)
-      target_compile_definitions(Chrono_cascade PRIVATE HAVE_LIMITS_H)
-    endif()
+    set_target_properties(${PROGRAM} PROPERTIES COMPILE_FLAGS "${COMPILER_FLAGS}" LINK_FLAGS "${LINKER_FLAGS}")
     if(APPLE)
       set_target_properties(${PROGRAM} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_INFO_PLIST})
     endif()    
-    if(MSVC)
-      set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-    endif()
     set_property(TARGET ${PROGRAM} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
-    
     target_link_libraries(${PROGRAM} ${LIBS})
 
     install(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO}) 

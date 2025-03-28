@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# Load the Chrono units
+# Load the Chrono::Engine units
 import pychrono as chrono
 from pychrono import irrlicht as chronoirr
 import numpy as np

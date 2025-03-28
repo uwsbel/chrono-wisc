@@ -38,8 +38,9 @@ class CH_VEHICLE_API ChChassisConnectorHitch : public ChChassisConnector {
     virtual std::string GetTemplateName() const override { return "ChassisConnectorHitch"; }
 
     /// Initialize this chassis connector subsystem.
-    /// The subsystem is initialized by attaching it to the specified front and rear chassis bodies at their conection
-    /// points.
+    /// The subsystem is initialized by attaching it to the specified front and rear
+    /// chassis bodies at the specified location (with respect to and expressed in
+    /// the reference frame of the front chassis).
     virtual void Initialize(std::shared_ptr<ChChassis> front,    ///< [in] front chassis
                             std::shared_ptr<ChChassisRear> rear  ///< [in] rear chassis
                             ) override;

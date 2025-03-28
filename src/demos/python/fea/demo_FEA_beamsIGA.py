@@ -31,7 +31,7 @@ print ("Example: FEA of the Jeffcott rotor passing through resonance.");
 #
 
 
-# Create a Chrono physical system
+# Create a Chrono::Engine physical system
 sys = chrono.ChSystemSMC()
 
 mesh = fea.ChMesh()
@@ -144,12 +144,12 @@ rotmotor1.SetMotorFunction(f_ramp)
 
 # Attach a visualization of the FEM mesh.
 
-mvisualizebeamA = chrono.ChVisualShapeFEA()
+mvisualizebeamA = chrono.ChVisualShapeFEA(mesh)
 mvisualizebeamA.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_SURFACE)
 mvisualizebeamA.SetSmoothFaces(True)
 mesh.AddVisualShapeFEA(mvisualizebeamA)
 
-mvisualizebeamC = chrono.ChVisualShapeFEA()
+mvisualizebeamC = chrono.ChVisualShapeFEA(mesh)
 mvisualizebeamC.SetFEMglyphType(chrono.ChVisualShapeFEA.GlyphType_NODE_CSYS)
 mvisualizebeamC.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_NONE)
 mvisualizebeamC.SetSymbolsThickness(0.006)

@@ -274,6 +274,7 @@ class chrono::ChVectorDynamic : public Eigen::Matrix<T, Eigen::Dynamic, 1, Eigen
         }
 
         void GetMatrixData(double* p, int len) {
+            int r = $self->rows();
             int c = $self->cols();
             //double matr[len];
             //double* matr = $self->data();
@@ -330,6 +331,7 @@ namespace chrono {
         }
 
         void GetMatrixData(double* p, int len) {
+            int r = $self->rows();
             int c = $self->cols();
             for (int i = 0; i < len; i++){
                 int ri = floor (i/c);

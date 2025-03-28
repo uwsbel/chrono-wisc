@@ -2,7 +2,7 @@ set(COMPONENT_NAME "FMU3_vdp")
 set(COMPONENT_MAIN_DIR "${DEMO_FMU_MAIN_DIR}")
 set(COMPONENT_SOURCES vdpFMU.h vdpFMU.cpp)
 set(COMPONENT_RESOURCES_DIR "")
-set(COMPONENT_CHRONO_DEPENDENCIES Chrono_core)
+set(COMPONENT_CHRONO_DEPENDENCIES ChronoEngine)
 set(COMPONENT_DLL_DEPENDENCIES "")
 
 set(FMU_ME TRUE)
@@ -11,7 +11,10 @@ set(FMU_ME TRUE)
 #--------------------------------------------------------------
 
 # Set include paths, compiler & linker flags, and libraries
-list(APPEND LIBS Chrono_core)
+include_directories(${CH_INCLUDES})
+set(COMPILER_FLAGS "${CH_CXX_FLAGS}")
+set(LINKER_FLAGS "${CH_LINKERFLAG_EXE}")
+list(APPEND LIBS "ChronoEngine")
 
 include_directories(${FMU_TOOLS_DIR})
 
@@ -49,11 +52,8 @@ add_dependencies(${FMU_MODEL_IDENTIFIER} ${COMPONENT_CHRONO_DEPENDENCIES})
 # add FMU target
 target_sources(${FMU_MODEL_IDENTIFIER} PRIVATE ${COMPONENT_SOURCES})
 
-target_link_libraries(${FMU_MODEL_IDENTIFIER} ${LIBS})
-
-if(MSVC)
-  set_target_properties(${FMU_MODEL_IDENTIFIER} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
+set_target_properties(${FMU_MODEL_IDENTIFIER} PROPERTIES FOLDER demos COMPILE_FLAGS "${COMPILER_FLAGS}" LINK_FLAGS "${LINKER_FLAGS}")
+target_link_libraries(${FMU_MODEL_IDENTIFIER} ${LIBS})  
 
 #--------------------------------------------------------------
 

@@ -38,21 +38,22 @@
 #include "chrono/fea/ChElementShellANCF_3423.h"
 #include "chrono/fea/ChMeshFileLoader.h"
 #include "chrono/fea/ChBuilderBeam.h"
+#include "chrono/assets/ChVisualShapeFEA.h"
 
-#include "FEAvisualization.h"
+#include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 
 using namespace chrono;
 using namespace chrono::fea;
+using namespace chrono::irrlicht;
 
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // ------------------------------------------------------------
 
 class PrintContactInfo : public ChContactContainer::AddContactCallback {
   public:
     virtual void OnAddContact(const ChCollisionInfo& cinfo, ChContactMaterialComposite* const material) override {
-        ////auto contactableA = cinfo.modelA->GetContactable();
-        ////auto contactableB = cinfo.modelB->GetContactable();
+        auto contactableA = cinfo.modelA->GetContactable();
+        auto contactableB = cinfo.modelB->GetContactable();
 
         std::cout << "  " << cinfo.vpA.z() << "  |  " << cinfo.vpB.z() << std::endl;
     }
@@ -102,7 +103,7 @@ int main(int argc, char* argv[]) {
     // ------------------------------------------
     // Create a mesh with ShellANCF_3423 elements
     // ------------------------------------------
-
+    /*
     auto mesh_shells = chrono_types::make_shared<ChMesh>();
     auto mat_shells = chrono_types::make_shared<ChMaterialShellANCF>(1000, 1e8, 0.3);
 
@@ -126,12 +127,12 @@ int main(int argc, char* argv[]) {
     double dz = 0.01;
 
     ////auto contact_surf_shells = chrono_types::make_shared<ChContactSurfaceMesh>(contact_material);
-    ////contact_surf_shells->AddFacesFromBoundary(*mesh_shells, sphere_swept_thickness);
     ////mesh_shells->AddContactSurface(contact_surf_shells);
+    ////contact_surf_shells->AddFacesFromBoundary(sphere_swept_thickness);
 
     auto contact_surf_shells = chrono_types::make_shared<ChContactSurfaceNodeCloud>(contact_material);
-    contact_surf_shells->AddAllNodes(*mesh_shells, sphere_swept_thickness);
     mesh_shells->AddContactSurface(contact_surf_shells);
+    contact_surf_shells->AddAllNodes(sphere_swept_thickness);
 
     for (auto& e : mesh_shells->GetElements()) {
         auto e_shell = std::dynamic_pointer_cast<ChElementShellANCF_3423>(e);
@@ -147,16 +148,16 @@ int main(int argc, char* argv[]) {
 
     // FEA visualization
     {
-        auto fea_vis = chrono_types::make_shared<ChVisualShapeFEA>();
+        auto fea_vis = chrono_types::make_shared<ChVisualShapeFEA>(mesh_shells);
         fea_vis->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
         fea_vis->SetWireframe(true);
         mesh_shells->AddVisualShapeFEA(fea_vis);
     }
-
+    */
     // ------------------------------------------
     // Create a mesh with CableANCF elements
     // ------------------------------------------
-
+    
     auto mesh_cables = chrono_types::make_shared<ChMesh>();
 
     auto section_cables = chrono_types::make_shared<ChBeamSectionCable>();
@@ -175,29 +176,29 @@ int main(int argc, char* argv[]) {
     const auto& nodes_cables = builder.GetLastBeamNodes();
 
     ////auto contact_surf_cables = chrono_types::make_shared<ChContactSurfaceMesh>(contact_material);
-    ////contact_surf_cables->AddFacesFromBoundary(*mesh_cables, 0.01);
     ////mesh_cables->AddContactSurface(contact_surf_cables);
+    ////contact_surf_cables->AddFacesFromBoundary(0.01);
 
-    auto contact_surf_cables = chrono_types::make_shared<ChContactSurfaceNodeCloud>(contact_material);
-    contact_surf_cables->AddAllNodes(*mesh_cables, 0.01);
+    ////auto contact_surf_cables = chrono_types::make_shared<ChContactSurfaceNodeCloud>(contact_material);
+    ////mesh_cables->AddContactSurface(contact_surf_cables);
+    ////contact_surf_cables->AddAllNodes(0.01);
+
+    auto contact_surf_cables = chrono_types::make_shared<ChContactSurfaceSegmentSet>(contact_material);
     mesh_cables->AddContactSurface(contact_surf_cables);
-
-    ////auto contact_surf_cables = chrono_types::make_shared<ChContactSurfaceSegmentSet>(contact_material);
-    ////contact_surf_cables->AddAllSegments(*mesh_cables, 0.01);
-    ////mesh_cables->AddContactSurface(contact_surf_cables);
+    contact_surf_cables->AddAllSegments(0.01);
 
     // Add the mesh to the system
     sys.Add(mesh_cables);
-
+    
     // FEA visualization
     {
-        auto fea_vis = chrono_types::make_shared<ChVisualShapeFEA>();
+        auto fea_vis = chrono_types::make_shared<ChVisualShapeFEA>(mesh_cables);
         fea_vis->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_SPEED_NORM);
         fea_vis->SetColorscaleMinMax(0.0, 5.50);
         fea_vis->SetSmoothFaces(true);
         mesh_cables->AddVisualShapeFEA(fea_vis);
     }
-
+    
     // Register callback for printing contact info
     auto contact_callback = chrono_types::make_shared<PrintContactInfo>();
     sys.GetContactContainer()->RegisterAddContactCallback(contact_callback);
@@ -206,8 +207,18 @@ int main(int argc, char* argv[]) {
     // Create run-time visualization system
     // ------------------------------------
 
-    auto vis = CreateVisualizationSystem(vis_type, CameraVerticalDir::Z, sys, "ANCF Contact", ChVector3d(0.4, 0.4, 0.4),
-                                         ChVector3d(-0.25, -0.25, 0.0));
+    auto vsys = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+    vsys->AttachSystem(&sys);
+    vsys->SetWindowSize(800, 600);
+    vsys->SetWindowTitle("ANCF Contact");
+    vsys->SetCameraVertical(CameraVerticalDir::Z);
+    vsys->Initialize();
+    vsys->AddLogo();
+    vsys->AddSkyBox();
+    vsys->AddTypicalLights();
+    vsys->AddCamera(ChVector3d(0.4, 0.4, 0.4), ChVector3d(-0.25, -0.25, 0.0));
+    vsys->EnableContactDrawing(ContactsDrawMode::CONTACT_DISTANCES);
+    vsys->EnableShadows();
 
     // -------------------------
     // Set solver and integrator
@@ -239,13 +250,13 @@ int main(int argc, char* argv[]) {
     // ---------------
     // Simulation loop
     // ---------------
-
+    
     double time_step = 5e-4;
 
-    while (vis->Run()) {
-        vis->BeginScene();
-        vis->Render();
-        vis->EndScene();
+    while (vsys->Run()) {
+        vsys->BeginScene();
+        vsys->Render();
+        vsys->EndScene();
 
         std::cout << "Time t = " << sys.GetChTime() << "s \n";
         for (auto n : nodes_cables)

@@ -29,18 +29,21 @@
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChMeshFileLoader.h"
 #include "chrono/fea/ChNodeFEAxyzP.h"
+#include "chrono/assets/ChVisualShapeFEA.h"
 
-#include "FEAvisualization.h"
+#include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
+
+// Remember to use the namespace 'chrono' because all classes
+// of Chrono::Engine belong to this namespace and its children...
 
 using namespace chrono;
 using namespace chrono::fea;
-
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::IRRLICHT;
+using namespace chrono::irrlicht;
 
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Create a Chrono physical system
+    // Create a Chrono::Engine physical system
     ChSystemSMC sys;
 
     // Create a mesh, that is a container for groups
@@ -105,20 +108,20 @@ int main(int argc, char* argv[]) {
 
     // Paint the colored mesh with temperature scale (NODE_FIELD_VALUE is the scalar field of the Poisson problem)
 
-    auto mvisualizemesh = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemesh = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemesh->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_FIELD_VALUE);  // plot V, potential field
     mvisualizemesh->SetColorscaleMinMax(-0.1, 24);
     my_mesh->AddVisualShapeFEA(mvisualizemesh);
 
     // This will paint the wireframe
-    auto mvisualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemeshB = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemeshB->SetFEMdataType(ChVisualShapeFEA::DataType::SURFACE);
     mvisualizemeshB->SetColorscaleMinMax(-0.1, 24);
     mvisualizemeshB->SetWireframe(true);
     my_mesh->AddVisualShapeFEA(mvisualizemeshB);
 
     // This will paint the E vector field as line vectors
-    auto mvisualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizemeshC = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizemeshC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     mvisualizemeshC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::ELEM_VECT_DP);
     mvisualizemeshC->SetSymbolsScale(0.00002);
@@ -126,9 +129,17 @@ int main(int argc, char* argv[]) {
     mvisualizemeshC->SetZbufferHide(false);
     my_mesh->AddVisualShapeFEA(mvisualizemeshC);
 
-    // Create the run-time visualization system
-    auto vis =
-        CreateVisualizationSystem(vis_type, CameraVerticalDir::Y, sys, "FEM electrostatics", ChVector3d(0, 0.2, -0.3));
+    // Create the Irrlicht visualization system
+    auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+    vis->AttachSystem(&sys);
+    vis->SetWindowSize(800, 600);
+    vis->SetWindowTitle("FEM electrostatics");
+    vis->Initialize();
+    vis->AddLogo();
+    vis->AddSkyBox();
+    vis->AddLight(ChVector3d(20, 20, 20), 90, ChColor(0.5f, 0.5f, 0.5f));
+    vis->AddLight(ChVector3d(-20, 20, -20), 90, ChColor(0.7f, 0.8f, 0.8f));
+    vis->AddCamera(ChVector3d(0., 0.2, -0.3));
 
     // SIMULATION LOOP
 

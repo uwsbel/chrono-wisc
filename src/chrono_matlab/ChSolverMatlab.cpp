@@ -29,6 +29,7 @@ ChSolverMatlab::ChSolverMatlab() {
 
 // Solve using the Matlab default direct solver (as in x=A\b)
 double ChSolverMatlab::Solve(ChSystemDescriptor& sysd) {
+
     ChSparseMatrix Z;
     ChVectorDynamic<double> rhs;
     sysd.BuildSystemMatrix(&Z, &rhs);
@@ -47,9 +48,7 @@ double ChSolverMatlab::Solve(ChSystemDescriptor& sysd) {
     mengine->Eval("residual = norm(Z*sol - rhs);");
     ChMatrixDynamic<> residual;
     mengine->GetVariable(residual, "residual");
-
-    if (verbose)
-        std::cout << " Matlab computed residual:" << residual(0, 0) << std::endl;
+    std::cout << " Matlab computed residual:" << residual(0, 0) << std::endl;
 
     return 0;
 }

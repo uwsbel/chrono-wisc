@@ -18,7 +18,9 @@
 #include "chrono/collision/multicore/ChNarrowphase.h"
 #include "chrono/collision/multicore/ChCollisionUtils.h"
 
-#include "../ut_utils.h"
+#include "gtest/gtest.h"
+
+#include "unit_testing.h"
 
 using namespace chrono;
 using namespace chrono::mc_utils;

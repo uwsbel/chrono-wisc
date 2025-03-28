@@ -23,11 +23,10 @@
 
 #include <tuple>
 
-#include "chrono_synchrono/SynApi.h"
 #include "chrono_synchrono/flatbuffer/message/SynSPATMessage.h"
 #include "chrono_synchrono/flatbuffer/message/SynApproachMessage.h"
 
-#ifdef CHRONO_SENSOR
+#ifdef SENSOR
     #include "chrono_sensor/sensors/ChLidarSensor.h"
 #endif
 
@@ -40,20 +39,20 @@ namespace synchrono {
 /// @param p point that the distance is computed from
 /// @param l1 one end of the line
 /// @param l2 other end of the line
-SYN_API double DistanceToLine(ChVector3d p, ChVector3d l1, ChVector3d l2);
+double DistanceToLine(ChVector3d p, ChVector3d l1, ChVector3d l2);
 
 /// @brief front, back and width define a box, check if pos is inside that box
 /// @param pos vector position to be checked against the box
 /// @param front vector position, line between this and back divides the box into two rectangles
 /// @param back vector defining the back center of the box rectangle
 /// @param width i.e. box_area = width * (front - back).length
-SYN_API bool IsInsideBox(ChVector3d pos, ChVector3d front, ChVector3d back, double width);
+bool IsInsideBox(ChVector3d pos, ChVector3d front, ChVector3d back, double width);
 
 /// @brief Checks if pos is inside the (assumed convex) quadrilateral defined by vectors for each vertex
-SYN_API bool IsInsideQuad(ChVector3d pos, ChVector3d sp1, ChVector3d sp2, ChVector3d cp3, ChVector3d cp4);
+bool IsInsideQuad(ChVector3d pos, ChVector3d sp1, ChVector3d sp2, ChVector3d cp3, ChVector3d cp4);
 
 /// @brief Compute barycentric coordinates (u, v, w) for point p with respect to triangle (a, b, c)
-SYN_API void Barycentric(ChVector3d p, ChVector3d a, ChVector3d b, ChVector3d c, double& u, double& v, double& w);
+void Barycentric(ChVector3d p, ChVector3d a, ChVector3d b, ChVector3d c, double& u, double& v, double& w);
 
 /// @brief update inside_box, dist and current_* variables based on info from a MAP message
 /// @param synmsg must be castable to type SynMAPMessage
@@ -64,40 +63,40 @@ SYN_API void Barycentric(ChVector3d p, ChVector3d a, ChVector3d b, ChVector3d c,
 /// @param[in,out] current_approach if we're in a box, which approach that belonged to
 /// @param[in,out] current_intersection if we're in a box, which intersection that belonged to
 /// @param[in,out] dist if vehicle is in box, how far is the vehicle from the box's stopping point (front of the box)
-SYN_API void UpdateLaneInfoFromMAP(std::shared_ptr<SynMessage> synmsg,
-                                   ChVector3d veh_pos,
-                                   const int& rank,
-                                   bool& inside_box,
-                                   int& current_lane,
-                                   int& current_approach,
-                                   int& current_intersection,
-                                   double& dist);
+void UpdateLaneInfoFromMAP(std::shared_ptr<SynMessage> synmsg,
+                           ChVector3d veh_pos,
+                           const int& rank,
+                           bool& inside_box,
+                           int& current_lane,
+                           int& current_approach,
+                           int& current_intersection,
+                           double& dist);
 
 /// @brief update current_lane, inside_box and dist based on info from an Approach Message
-SYN_API void UpdateInsideBoxFromApproachMessage(std::shared_ptr<SynApproachMessage> app_msg,
-                                                ChVector3d veh_pos,
-                                                int& current_lane,
-                                                bool& inside_box,
-                                                double& dist);
-
-/// @brief calls UpdateInsideBoxFromApproachMessage
-SYN_API void UpdateInsideBoxFromMessage(std::shared_ptr<SynMessage> synmsg,
+void UpdateInsideBoxFromApproachMessage(std::shared_ptr<SynApproachMessage> app_msg,
                                         ChVector3d veh_pos,
                                         int& current_lane,
                                         bool& inside_box,
                                         double& dist);
 
-/// @brief Given an intersection, approach and lane, parse a SPAT message (synmsg) and return the lane color
-SYN_API LaneColor GetLaneColorFromMessage(std::shared_ptr<SynMessage> synmsg,
-                                          const int intersection,
-                                          const int approach,
-                                          const int lane);
+/// @brief calls UpdateInsideBoxFromApproachMessage
+void UpdateInsideBoxFromMessage(std::shared_ptr<SynMessage> synmsg,
+                                ChVector3d veh_pos,
+                                int& current_lane,
+                                bool& inside_box,
+                                double& dist);
 
-#ifdef CHRONO_SENSOR
+/// @brief Given an intersection, approach and lane, parse a SPAT message (synmsg) and return the lane color
+LaneColor GetLaneColorFromMessage(std::shared_ptr<SynMessage> synmsg,
+                                  const int intersection,
+                                  const int approach,
+                                  const int lane);
+
+#ifdef SENSOR
 /// @brief Refresh passed lidar data, and search the resulting point cloud for points closer than min_val
-SYN_API double GetProximityToPointCloud(std::shared_ptr<sensor::ChLidarSensor> lidar,
-                                        double min_val,
-                                        sensor::UserDIBufferPtr& recent_lidar_data);
+double GetProximityToPointCloud(std::shared_ptr<sensor::ChLidarSensor> lidar,
+                                double min_val,
+                                &sensor::UserDIBUfferPtr recent_lidar_data);
 #endif
 
 /// @} synchrono_controller
@@ -105,4 +104,4 @@ SYN_API double GetProximityToPointCloud(std::shared_ptr<sensor::ChLidarSensor> l
 }  // namespace synchrono
 }  // namespace chrono
 
-#endif
+#endif  // SYN_CONTROLLER_FUNCTIONS_H

@@ -20,19 +20,17 @@
 #include "chrono/physics/ChSystemSMC.h"
 #include "chrono/timestepper/ChTimestepper.h"
 #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
+#include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 
-#include "FEAvisualization.h"
 #include "FEAcables.h"
 
 using namespace chrono;
 using namespace fea;
 
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
-
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Create a Chrono physical system
+    // Create a Chrono::Engine physical system
     ChSystemSMC sys;
 
     sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
@@ -54,14 +52,14 @@ int main(int argc, char* argv[]) {
     // Such triangle mesh can be rendered by Irrlicht or POVray or whatever
     // postprocessor that can handle a colored ChVisualShapeTriangleMesh).
 
-    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamA = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamA->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MZ);
     mvisualizebeamA->SetColorscaleMinMax(-0.4, 0.4);
     mvisualizebeamA->SetSmoothFaces(true);
     mvisualizebeamA->SetWireframe(false);
     my_mesh->AddVisualShapeFEA(mvisualizebeamA);
 
-    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>();
+    auto mvisualizebeamC = chrono_types::make_shared<ChVisualShapeFEA>(my_mesh);
     mvisualizebeamC->SetFEMglyphType(ChVisualShapeFEA::GlyphType::NODE_CSYS);
     mvisualizebeamC->SetFEMdataType(ChVisualShapeFEA::DataType::NONE);
     mvisualizebeamC->SetSymbolsThickness(0.006);
@@ -69,9 +67,16 @@ int main(int argc, char* argv[]) {
     mvisualizebeamC->SetZbufferHide(false);
     my_mesh->AddVisualShapeFEA(mvisualizebeamC);
 
-    // Create the run-time visualization system
-    auto vis =
-        CreateVisualizationSystem(vis_type, CameraVerticalDir::Y, sys, "Cables FEM (MKL)", ChVector3d(0, 0.6, -1.0));
+    // Create the Irrlicht visualization system
+    auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();
+    vis->SetWindowSize(800, 600);
+    vis->SetWindowTitle("Cables FEM (MKL)");
+    vis->Initialize();
+    vis->AddLogo();
+    vis->AddSkyBox();
+    vis->AddTypicalLights();
+    vis->AddCamera(ChVector3d(0.0, 0.6, -1.0));
+    vis->AttachSystem(&sys);
 
     // Configure PardisoMKL solver.
     // For this simple and relatively small problem, use of the sparsity pattern learner may introduce additional

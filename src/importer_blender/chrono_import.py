@@ -2199,6 +2199,8 @@ def unregister():
     bpy.app.handlers.frame_change_post.remove(callback_post)
 
     # sidebar UI:
+    
+register()
 
 # The following is executed all times one runs this chrono_import.py script in Blender
 # scripting editor: it effectively register the add-on "by hand".

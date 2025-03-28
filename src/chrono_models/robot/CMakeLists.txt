@@ -4,7 +4,7 @@
 # Cannot be used stand-alone (it's loaded by CMake config. file in parent dir.)
 #=============================================================================
 
-MESSAGE(STATUS "Add ChronoModels_robot library")
+MESSAGE(STATUS "Robot models...")
 
 #-----------------------------------------------------------------------------
 
@@ -19,6 +19,13 @@ set(CRM_ROBOSIMIAN_FILES
     robosimian/RoboSimian.cpp
     robosimian/RoboSimian.h
 )
+
+if(ENABLE_MODULE_IRRLICHT)
+set(CRM_ROBOSIMIAN_FILES ${CRM_ROBOSIMIAN_FILES}
+    robosimian/RoboSimianVisualSystemIrrlicht.cpp
+    robosimian/RoboSimianVisualSystemIrrlicht.h
+)
+endif()
 
 source_group("robosimian" FILES ${CRM_ROBOSIMIAN_FILES})
 
@@ -62,20 +69,14 @@ source_group("copters" FILES ${CRM_COPTERS_FILES})
 
 #-----------------------------------------------------------------------------
 
-set(CRM_INDUSTRIAL_FILES
-    industrial/IndustrialRobot.h industrial/IndustrialRobot.cpp
-    industrial/IndustrialRobotSCARA.h industrial/IndustrialRobotSCARA.cpp
-    industrial/IndustrialRobotSCARA_CAD.h industrial/IndustrialRobotSCARA_CAD.cpp
-    industrial/IndustrialRobot6dof.h industrial/IndustrialRobot6dof.cpp
-    industrial/IndustrialRobot6dofCAD.h industrial/IndustrialRobot6dofCAD.cpp
-    industrial/IndustrialKinematics.h industrial/IndustrialKinematics.cpp
-    industrial/IndustrialKinematicsSCARA.h industrial/IndustrialKinematicsSCARA.cpp
-    industrial/IndustrialKinematics6dofSpherical.h industrial/IndustrialKinematics6dofSpherical.cpp
-    industrial/IndustrialKinematicsNdofNumerical.h industrial/IndustrialKinematicsNdofNumerical.cpp
-    industrial/TrajectoryInterpolator.h industrial/TrajectoryInterpolator.cpp
-)
+set(CXX_FLAGS ${CH_CXX_FLAGS})
+set(LIBRARIES "ChronoEngine")
 
-source_group("industrial" FILES ${CRM_INDUSTRIAL_FILES})
+if(ENABLE_MODULE_IRRLICHT)
+    set(CXX_FLAGS "${CXX_FLAGS} ${CH_IRRLICHT_CXX_FLAGS}")
+    list(APPEND LIBRARIES ChronoEngine_irrlicht)
+    include_directories(${CH_IRRLICHT_INCLUDES})
+endif()
 
 #-----------------------------------------------------------------------------
 
@@ -86,39 +87,23 @@ add_library(ChronoModels_robot
             ${CRM_VIPER_FILES}
             ${CRM_TURTLEBOT_FILES}
             ${CRM_COPTERS_FILES}
-            ${CRM_INDUSTRIAL_FILES}
             )
-add_library(Chrono::models_robot ALIAS ChronoModels_robot)
 
-if(CH_WHOLE_PROG_OPT)
-  set_target_properties(ChronoModels_robot PROPERTIES COMPILE_FLAGS "/GL")
-  set_target_properties(ChronoModels_robot PROPERTIES LINK_FLAGS "/LTCG")
-endif()
+set_target_properties(ChronoModels_robot PROPERTIES
+                      COMPILE_FLAGS "${CXX_FLAGS}"
+                      LINK_FLAGS "${CH_LINKERFLAG_LIB}")
 
-if (CH_STATIC)
-  set_target_properties(ChronoModels_robot PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
+target_compile_definitions(ChronoModels_robot PRIVATE "CH_API_COMPILE_MODELS")
+target_compile_definitions(ChronoModels_robot PRIVATE "CH_IGNORE_DEPRECATED")
 
-if(MSVC)
-  set_target_properties(ChronoModels_robot PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
-endif()
-
-target_compile_definitions(ChronoModels_robot PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_MODELS>)
-
-target_link_libraries(ChronoModels_robot PUBLIC Chrono_core)
+target_link_libraries(ChronoModels_robot ${LIBRARIES})
 
 install(TARGETS ChronoModels_robot
-        EXPORT ChronoTargets
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        INCLUDES DESTINATION include/chrono_models/robot)
+        ARCHIVE DESTINATION lib)
 
-# -------------------------------------------------------------------------------------------------
-# Install files
-# -------------------------------------------------------------------------------------------------
-
-# Old way (install headers preserving directory structure)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
         DESTINATION include/chrono_models/robot
         FILES_MATCHING PATTERN "*.h")
+
