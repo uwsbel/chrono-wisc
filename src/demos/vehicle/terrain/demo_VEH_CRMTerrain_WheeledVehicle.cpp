@@ -392,13 +392,21 @@ int main(int argc, char* argv[]) {
 
         // Synchronize systems
         driver.Synchronize(time);
-        vis->Synchronize(time, driver_inputs);
+#ifdef CHRONO_VSG
+        if (render) {
+            vis->Synchronize(time, driver_inputs);
+        }
+#endif
         terrain.Synchronize(time);
         vehicle->Synchronize(time, driver_inputs, terrain);
 
         // Advance system state
         driver.Advance(step_size);
-        vis->Advance(step_size);
+#ifdef CHRONO_VSG
+        if (render) {
+            vis->Advance(step_size);
+        }
+#endif
         // Coupled FSI problem (CRM terrain + vehicle)
         terrain.Advance(step_size);
 
