@@ -25,6 +25,7 @@
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChLinkMotorLinearPosition.h"
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/ChDriver.h"
@@ -64,20 +65,25 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 25;
-double terrain_width = 25;
+double terrain_length = 8;
+double terrain_width = 4;
 
 // Vehicle initial position
-double vehicle_init_x = 2.5;
-double vehicle_init_y = 2.5;
-double vehicle_init_z = 0.2;
+double vehicle_init_x = -2.0;
+double vehicle_init_y = 0;
+double vehicle_init_z = 0.3;
 
 // Suspend vehicle
 bool fix_chassis = false;
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
+double blade_yaw = 0.26;
+double blade_pitch = 0.0;
+double blade_vertical = 0.0;
+double throttle_ctrl = 1.0;
+double pile_max_height = 0.25;
+std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires, double yaw, double pitch, double vertical);
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain);
 void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
@@ -90,16 +96,17 @@ int main(int argc, char* argv[]) {
     // ----------------
 
     double target_speed = 1.0;
-    double tend = 30;
+    double tend = 7;
     bool verbose = true;
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
     double render_fps = 20;               // rendering FPS
+    double control_step_size = 1/20;               // control FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
-    bool chase_cam = true;                 // chase-cam or fixed camera
+    bool chase_cam = false;                 // chase-cam or fixed camera
 
     // CRM material properties
     double density = 1700;
@@ -120,13 +127,15 @@ int main(int argc, char* argv[]) {
     // --------------
 
     // TODO: add heading angle to the vehicle initialization
-    auto init_heading = QuatFromAngleZ(CH_PI/4);
+    auto init_heading = QuatFromAngleZ(0.0f);
 
     cout << "Create vehicle..." << endl;
     bool fea_tires;
-    auto [vehicle, blade, motor] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires);
+    auto [vehicle, blade] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires, blade_yaw, blade_pitch, blade_vertical);
     cout << "Finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
+
+    //motor_vertmove->SetMotionFunction(consfun);
     // ---------------------------------
     // Set solver and integrator for MBD
     // ---------------------------------
@@ -219,10 +228,10 @@ int main(int argc, char* argv[]) {
             // Create a patch from a heigh field map image
             terrain.Construct(vehicle::GetDataFile("terrain/gator/terrain.bmp"),   // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, 0.5},                                                // height range
-                              0.15,                                                     // depth
+                              {0, pile_max_height},                                                // height range
+                              0.45,                                                     // depth
                               true,                                                    // uniform depth
-                              ChVector3d(12.5, 12.5, 0),                                     // patch center
+                              ChVector3d(0, 0, 0),                                     // patch center
                               BoxSide::Z_NEG                                           // bottom wall
             );
             break;
@@ -254,13 +263,14 @@ int main(int argc, char* argv[]) {
 
     // ChDriver driver(vehicle->GetVehicle());
     ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts_0_2.txt");
+    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts.txt");
     cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
-    ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
-    driver.GetSteeringController().SetLookAheadDistance(2.0);
-    driver.GetSteeringController().SetGains(0.1, 0.5, 0);
-    driver.GetSpeedController().SetGains(0.6, 0.0, 0);
+    // ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
+    // driver.GetSteeringController().SetLookAheadDistance(2.0);
+    // driver.GetSteeringController().SetGains(0.1, 0.5, 0);
+    // driver.GetSpeedController().SetGains(0.6, 0.0, 0);
+    ChDriver driver(vehicle->GetVehicle());
     driver.Initialize();
 
     // -----------------------------
@@ -297,7 +307,9 @@ int main(int argc, char* argv[]) {
 
         visFSI->SetTitle("Wheeled vehicle on CRM deformable terrain");
         visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(ChVector3d(0, -8, 2.5), ChVector3d(0, -1, 0));
+        visFSI->SetCameraVertical(CameraVerticalDir::Z);
+        visFSI->SetImageOutput(true);
+        visFSI->SetImageOutputDirectory("./demo");
         visFSI->SetCameraMoveScale(0.2f);
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
@@ -311,6 +323,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
         }
         visFSI->AttachSystem(sysMBS);
+        visFSI->AddCamera(ChVector3d(0, -2, 2.5), ChVector3d(0, 0, 0));
         visFSI->Initialize();
     }
 
@@ -321,44 +334,38 @@ int main(int argc, char* argv[]) {
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
-
+    int control_steps = 100;
+    int control_step = 0;
+    bool saveframes = true;
     cout << "Start simulation..." << endl;
     
     ChTimer timer;
+    bool saved_particle = false;
     while (time < tend) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
+        auto veh_speed = vehicle->GetVehicle().GetSpeed();
         const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
         auto front_load = blade->GetAppliedForce();
         const auto& blade_loc = blade->GetPos();
 
         // Set current driver inputs
+        // auto steering = veh_loc.y()*0.1;
+        // auto throttle = (target_speed-veh_speed)*0.5;
+        driver.SetThrottle(throttle_ctrl);
+        driver.SetSteering(0.0);
         auto driver_inputs = driver.GetInputs();
-        // cout << "Current inputs: Steering = " << driver_inputs.m_steering << ", Throttle = " << driver_inputs.m_throttle << ", Braking = " << driver_inputs.m_braking << ", Clutch = " << driver_inputs.m_clutch << endl;
-
-        // Ramp up throttle to 1 from 0 for 0.5s
-        if (time < 0.5) {
-            driver_inputs.m_throttle = time / 0.5;
-        } else {
-            driver_inputs.m_throttle = 1;
-        }
-
-        // // Stop vehicle before reaching end of terrain patch
-        // if (veh_loc.x() > x_max) {
-        //     driver_inputs.m_throttle = 0;
-        //     driver_inputs.m_braking = 1;
-        //     std::cout << "Vehicle reached end of terrain patch" << std::endl;
-        // }        
 
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
-                ChVector3d cam_loc = veh_loc + ChVector3d(6, 2.5, 1.5);
+                ChVector3d cam_loc = veh_loc + ChVector3d(6, 0, 2.5);
                 ChVector3d cam_point = veh_loc;
                 visFSI->UpdateCamera(cam_loc, cam_point);
              }
             if (!visFSI->Render())
                 break;
-            // echo vehicle state
+            // echo vehicle state 
+            // TODO: Write it into CSV instead of printing to console, maybe add also the engine power consumption. @Ganesh
             std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " <<driver_inputs.m_steering<< "  " <<driver_inputs.m_throttle<< "  " << front_load.Length() <<  "  " << veh_rot.x()<<  "  " << veh_rot.y()<<  "  " << veh_rot.z() << std::endl;
             render_frame++;
         }
@@ -386,29 +393,28 @@ int main(int argc, char* argv[]) {
         terrain.Advance(step_size);
         vehicle->Advance(step_size);
         // (b) Concurrent integration (vehicle in main thread)
-        // std::thread th(&CRMTerrain::Advance, &terrain, step_size);
-        // vehicle->Advance(step_size);
-        // th.join();
+        // std::thread th(&CRMTerrain::Advance, &terrain, step_size);40
         // (c) Concurrent integration (terrain in main thread)
         // std::thread th(&ChWheeledVehicle::Advance, vehicle->GetVehicle().get(), step_size);
-        // terrain.Advance(step_size);
-        // th.join();
-        
-        // Set correct overall RTF for the FSI problem
+        // terrain.Advance(step_size);+ ChVector3d(6, 0, 0)
         timer.stop();
         double rtf = timer() / step_size;
         sysFSI.SetRtf(rtf);
 
+        // TODO: conditional saving for ouput the particle csv file, need to change file name @Ganesh
+        if (veh_loc.x() > 2.5 && saved_particle == false) {
+            sysFSI.GetFluidSystemSPH().SaveParticleData("./testparticle");
+            saved_particle = true;
+        }
         time += step_size;
         sim_frame++;
     }
-
     return 0;
 }
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
+std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires, double yaw, double pitch, double vertical) {
     fea_tires = false;
 
     auto gator = chrono_types::make_shared<gator::Gator>();
@@ -431,20 +437,21 @@ std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_p
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
     auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("gator/gator_frontblade.obj"), 1000, true, true, false);
-    auto offsetpos = ChVector3d(1.75, 0, -0.2);
+    auto offsetpos = ChVector3d(1.75, 0, -0.3 - vertical);
+
     blade->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
-    blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
+    blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2+pitch) * QuatFromAngleY(yaw));
     blade->SetMass(0.1);
     blade->SetFixed(false);
-    
     gator->GetSystem()->AddBody(blade);
 
-    // create motor and apply it to the blade
-    auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
-    motor->Initialize(gator->GetChassisBody(), blade, ChFrame<>(blade->GetPos(), gator->GetChassisBody()->GetRot()));
-    gator->GetSystem()->Add(motor);
 
-    return std::make_tuple(gator, blade, motor);
+    // create motors and apply it to the blade
+    auto lock = chrono_types::make_shared<ChLinkLockLock>();
+    lock->Initialize(gator->GetChassisBody(), blade, ChFrame<>(blade->GetPos(), gator->GetChassisBody()->GetRot()));
+    gator->GetSystem()->Add(lock);
+
+    return std::make_tuple(gator, blade);
 }
 
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain) {
@@ -495,7 +502,8 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
     
     // Default path (fallback in case of errors)
     std::vector<ChVector3d> default_points = {
-        ChVector3d(0, 0, 0.2),
+        ChVector3d(-10, 0, 0.2),
+        ChVector3d(-10, 0, 0.2),
         ChVector3d(10, 0, 0.2)
     };
     
@@ -538,3 +546,4 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
     
     return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
 }
+
