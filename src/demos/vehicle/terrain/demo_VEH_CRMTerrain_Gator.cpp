@@ -21,6 +21,10 @@
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
+#include <fstream>
+#include <filesystem>
+#include "chrono_thirdparty/cxxopts/ChCLI.h"
+
 
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
@@ -78,15 +82,49 @@ bool fix_chassis = false;
 
 // ===================================================================================================================
 
-double blade_yaw = 0.26;
-double blade_pitch = 0.0;
-double blade_vertical = 0.0;
-double throttle_ctrl = 1.0;
-double pile_max_height = 0.25;
 std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires, double yaw, double pitch, double vertical);
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain);
 void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
+
+bool GetProblemSpecs(int argc,
+                     char** argv,
+                     double& blade_yaw,
+                     double& blade_pitch,
+                     double& blade_vertical,
+                     double& throttle_ctrl,
+                     double& pile_max_height) {
+    ChCLI cli(argv[0], "Soil Leveling Gator Configuration");
+
+    // Add options for all parameters with their default values
+    cli.AddOption<double>("Blade", "yaw", "Blade yaw angle in radians", std::to_string(blade_yaw));
+    cli.AddOption<double>("Blade", "pitch", "Blade pitch angle in radians", std::to_string(blade_pitch));
+    cli.AddOption<double>("Blade", "vertical", "Blade vertical offset", std::to_string(blade_vertical));
+    cli.AddOption<double>("Control", "throttle", "Throttle control value (0-1)", std::to_string(throttle_ctrl));
+    cli.AddOption<double>("Terrain", "pile_height", "Maximum pile height", std::to_string(pile_max_height));
+
+    // Display help if no arguments
+    if (argc == 1) {
+        std::cout << "Using default parameters. Override with command line options:\n\n";
+        cli.Help();
+        return true;  // Continue with defaults
+    }
+
+    // Parse command-line arguments
+    if (!cli.Parse(argc, argv)) {
+        cli.Help();
+        return false;
+    }
+
+    // Retrieve values from CLI
+    blade_yaw = cli.GetAsType<double>("yaw");
+    blade_pitch = cli.GetAsType<double>("pitch");
+    blade_vertical = cli.GetAsType<double>("vertical");
+    throttle_ctrl = cli.GetAsType<double>("throttle");
+    pile_max_height = cli.GetAsType<double>("pile_height");
+
+    return true;
+}
 
 // ===================================================================================================================
 
@@ -96,7 +134,7 @@ int main(int argc, char* argv[]) {
     // ----------------
 
     double target_speed = 1.0;
-    double tend = 7;
+    double tend = 4;
     bool verbose = true;
 
     // Visualization settings
@@ -121,6 +159,18 @@ int main(int argc, char* argv[]) {
 
     // Set SPH spacing
     double spacing = 0.02;
+
+    // Parameters for the run - default values
+    double blade_yaw = 0.26;
+    double blade_pitch = 0.0;
+    double blade_vertical = 0.0;
+    double throttle_ctrl = 0.5;
+    double pile_max_height = 0.5;
+
+    // Process command-line parameters
+    if (!GetProblemSpecs(argc, argv, blade_yaw, blade_pitch, blade_vertical, throttle_ctrl, pile_max_height)) {
+        return 1;
+    }
 
     // --------------
     // Create vehicle
@@ -263,7 +313,7 @@ int main(int argc, char* argv[]) {
 
     // ChDriver driver(vehicle->GetVehicle());
     ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts.txt");
+    // std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts.txt");
     cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
     // ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
@@ -277,55 +327,54 @@ int main(int argc, char* argv[]) {
     // Create run-time visualization
     // -----------------------------
 
-#ifndef CHRONO_OPENGL
-    if (vis_type == ChVisualSystem::Type::OpenGL)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::OpenGL;
-#endif
-#if !defined(CHRONO_OPENGL) && !defined(CHRONO_VSG)
-    render = false;
-#endif
 
-    std::shared_ptr<ChFsiVisualization> visFSI;
-    if (render) {
-        switch (vis_type) {
-            case ChVisualSystem::Type::OpenGL:
-#ifdef CHRONO_OPENGL
-                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI);
-#endif
-                break;
-            case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
-                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
-#endif
-                break;
+#if defined(CHRONO_OPENGL) || defined(CHRONO_VSG)
+    #ifndef CHRONO_OPENGL
+        if (vis_type == ChVisualSystem::Type::OpenGL)
+            vis_type = ChVisualSystem::Type::VSG;
+    #endif
+    #ifndef CHRONO_VSG
+        if (vis_type == ChVisualSystem::Type::VSG)
+            vis_type = ChVisualSystem::Type::OpenGL;
+    #endif
+        std::shared_ptr<ChFsiVisualization> visFSI;
+        if (render) {
+            switch (vis_type) {
+                case ChVisualSystem::Type::OpenGL:
+                #ifdef CHRONO_OPENGL
+                                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI);
+                #endif
+                    break;
+                    case ChVisualSystem::Type::VSG: {
+                #ifdef CHRONO_VSG
+                                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+                #endif
+                    break;
+                }
             }
-        }
 
-        visFSI->SetTitle("Wheeled vehicle on CRM deformable terrain");
-        visFSI->SetSize(1280, 720);
-        visFSI->SetCameraVertical(CameraVerticalDir::Z);
-        visFSI->SetImageOutput(true);
-        visFSI->SetImageOutputDirectory("./demo");
-        visFSI->SetCameraMoveScale(0.2f);
-        visFSI->EnableFluidMarkers(visualization_sph);
-        visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
-        visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
-                                                                                           aabb.min.z(), aabb.max.z()));
-        auto vis_vsg = std::dynamic_pointer_cast<ChFsiVisualizationVSG>(visFSI);
-        if (vis_vsg) {
-            vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
+            visFSI->SetTitle("Wheeled vehicle on CRM deformable terrain");
+            visFSI->SetSize(1280, 720);
+            visFSI->SetCameraVertical(CameraVerticalDir::Z);
+            visFSI->SetImageOutput(true);
+            visFSI->SetImageOutputDirectory("./demo");
+            visFSI->SetCameraMoveScale(0.2f);
+            visFSI->EnableFluidMarkers(visualization_sph);
+            visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
+            visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
+            visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
+            visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
+            visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
+                                                                                            aabb.min.z(), aabb.max.z()));
+            auto vis_vsg = std::dynamic_pointer_cast<ChFsiVisualizationVSG>(visFSI);
+            if (vis_vsg) {
+                vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
+            }
+            visFSI->AttachSystem(sysMBS);
+            visFSI->AddCamera(ChVector3d(0, -2, 2.5), ChVector3d(0, 0, 0));
+            visFSI->Initialize();
         }
-        visFSI->AttachSystem(sysMBS);
-        visFSI->AddCamera(ChVector3d(0, -2, 2.5), ChVector3d(0, 0, 0));
-        visFSI->Initialize();
-    }
+#endif
 
     // ---------------
     // Simulation loop
@@ -339,6 +388,30 @@ int main(int argc, char* argv[]) {
     bool saveframes = true;
     cout << "Start simulation..." << endl;
     
+    // Create CSV file for logging vehicle data with parameter text
+    const std::string out_dir = GetChronoOutputPath() + "soil_leveling_blade_yaw_" + std::to_string(blade_yaw) + "_blade_pitch_" + std::to_string(blade_pitch) + "_blade_vertical_" + std::to_string(blade_vertical) + "_throttle_ctrl_" + std::to_string(throttle_ctrl) + "_pile_max_height_" + std::to_string(pile_max_height);
+    // Create directory with proper error checking and recursive flag
+    if (!std::filesystem::exists(out_dir)) {
+        try {
+            std::filesystem::create_directories(out_dir);
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cout << "Error creating directory: " << e.what() << std::endl;
+            // Create a fallback directory in the current working directory
+            const std::string fallback_dir = "./soil_leveling_output";
+            std::cout << "Attempting to use fallback directory: " << fallback_dir << std::endl;
+            std::filesystem::create_directories(fallback_dir);
+            // Use the fallback directory instead
+            const_cast<std::string&>(out_dir) = fallback_dir;
+        }
+    }
+
+    std::ofstream csv_file(out_dir + "/vehicle_data.csv");
+    if (!csv_file.is_open()) {
+        std::cerr << "Error: Could not create CSV file"  << std::endl;
+        return 1;
+    }
+    csv_file << "time,x,y,z,steering,throttle,front_load,roll,pitch,yaw\n";
+
     ChTimer timer;
     bool saved_particle = false;
     while (time < tend) {
@@ -356,6 +429,7 @@ int main(int argc, char* argv[]) {
         auto driver_inputs = driver.GetInputs();
 
         // Run-time visualization
+#if defined(CHRONO_OPENGL) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
                 ChVector3d cam_loc = veh_loc + ChVector3d(6, 0, 2.5);
@@ -364,11 +438,10 @@ int main(int argc, char* argv[]) {
              }
             if (!visFSI->Render())
                 break;
-            // echo vehicle state 
-            // TODO: Write it into CSV instead of printing to console, maybe add also the engine power consumption. @Ganesh
-            std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " <<driver_inputs.m_steering<< "  " <<driver_inputs.m_throttle<< "  " << front_load.Length() <<  "  " << veh_rot.x()<<  "  " << veh_rot.y()<<  "  " << veh_rot.z() << std::endl;
+            
             render_frame++;
         }
+#endif
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
@@ -401,14 +474,35 @@ int main(int argc, char* argv[]) {
         double rtf = timer() / step_size;
         sysFSI.SetRtf(rtf);
 
-        // TODO: conditional saving for ouput the particle csv file, need to change file name @Ganesh
+        // Log data to both console
+        std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " 
+                  << driver_inputs.m_steering << "  " << driver_inputs.m_throttle << "  " 
+                  << front_load.Length() << "  " << veh_rot.x() << "  " << veh_rot.y() << "  " 
+                  << veh_rot.z() << std::endl;
+
+        // Log data to CSV file
+        csv_file << time << "," << veh_loc.x() << "," << veh_loc.y() << "," << veh_loc.z() << "," 
+                  << driver_inputs.m_steering << "," << driver_inputs.m_throttle << "," 
+                  << front_load.Length() << "," << veh_rot.x() << "," << veh_rot.y() << "," 
+                  << veh_rot.z() << "\n";
+        // Ensure data is written to file immediately
+        csv_file.flush();
+
+        // Only save particle data on the last time step
+        // if (time + step_size >= tend) {
         if (veh_loc.x() > 2.5 && saved_particle == false) {
-            sysFSI.GetFluidSystemSPH().SaveParticleData("./testparticle");
+            sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir);
+            cout << "Particle data saved to " << out_dir << endl;
             saved_particle = true;
         }
         time += step_size;
         sim_frame++;
     }
+    
+    // Close the CSV file
+    csv_file.close();
+    cout << "Simulation completed"<< endl;
+    
     return 0;
 }
 
@@ -477,7 +571,7 @@ void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain)
                 }
                 terrain.AddFeaMesh(mesh, false);
             } else {
-                terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
+            terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
             }
         }
     }
