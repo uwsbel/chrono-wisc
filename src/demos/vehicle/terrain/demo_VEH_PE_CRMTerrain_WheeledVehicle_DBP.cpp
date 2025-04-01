@@ -241,6 +241,11 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> spindle2 = vehicle->GetWheel(0, VehicleSide::RIGHT)->GetSpindle();
     std::shared_ptr<ChBody> spindle3 = vehicle->GetWheel(1, VehicleSide::LEFT)->GetSpindle();
     std::shared_ptr<ChBody> spindle4 = vehicle->GetWheel(1, VehicleSide::RIGHT)->GetSpindle();
+        // Setup accumulators for spindle
+    unsigned int sp1_acccu = spindle1->AddAccumulator();
+    unsigned int sp2_acccu = spindle2->AddAccumulator();
+    unsigned int sp3_acccu = spindle3->AddAccumulator();
+    unsigned int sp4_acccu = spindle4->AddAccumulator();
 
     auto hm1 = std::make_shared<HubMotor>(spindle1);
     auto hm2 = std::make_shared<HubMotor>(spindle2);
@@ -627,25 +632,24 @@ int main(int argc, char* argv[]) {
         hm3->Advance(step_size);
         hm4->Advance(step_size);
 
-        spindle1->EmptyAccumulators();
-        spindle2->EmptyAccumulators();
-        spindle3->EmptyAccumulators();
-        spindle4->EmptyAccumulators();
+        spindle1->EmptyAccumulator(sp1_acccu);
+        spindle2->EmptyAccumulator(sp2_acccu);
+        spindle3->EmptyAccumulator(sp3_acccu);
+        spindle4->EmptyAccumulator(sp4_acccu);
 
-
-        spindle1->AccumulateTorque(ChVector3d(0,hm1->GetOutputMotorshaftTorque()*149.,0),true); 
-        spindle2->AccumulateTorque(ChVector3d(0,hm2->GetOutputMotorshaftTorque()*149.,0),true);
-        spindle3->AccumulateTorque(ChVector3d(0,hm3->GetOutputMotorshaftTorque()*149.,0),true);
-        spindle4->AccumulateTorque(ChVector3d(0,hm4->GetOutputMotorshaftTorque()*149.,0),true);
+        spindle1->AccumulateTorque(sp1_acccu,ChVector3d(0,hm1->GetOutputMotorshaftTorque()*149.,0),true); 
+        spindle2->AccumulateTorque(sp2_acccu,ChVector3d(0,hm2->GetOutputMotorshaftTorque()*149.,0),true);
+        spindle3->AccumulateTorque(sp3_acccu,ChVector3d(0,hm3->GetOutputMotorshaftTorque()*149.,0),true);
+        spindle4->AccumulateTorque(sp4_acccu,ChVector3d(0,hm4->GetOutputMotorshaftTorque()*149.,0),true);
 
         // Output spindle torques
-        cout << "hm1: " << hm1->GetOutputMotorshaftTorque() << " " << spindle1->GetAccumulatedTorque() << endl;
-        cout << "hm2: " << hm2->GetOutputMotorshaftTorque() << " " << spindle2->GetAccumulatedTorque() << endl;
-        cout << "hm3: " << hm3->GetOutputMotorshaftTorque() << " " << spindle3->GetAccumulatedTorque() << endl;
-        cout << "hm4: " << hm4->GetOutputMotorshaftTorque() << " " << spindle4->GetAccumulatedTorque() << endl;
+        cout << "hm1: " << hm1->GetOutputMotorshaftTorque() << " " << spindle1->GetAccumulatedTorque(sp1_acccu) << endl;
+        cout << "hm2: " << hm2->GetOutputMotorshaftTorque() << " " << spindle2->GetAccumulatedTorque(sp2_acccu) << endl;
+        cout << "hm3: " << hm3->GetOutputMotorshaftTorque() << " " << spindle3->GetAccumulatedTorque(sp3_acccu) << endl;
+        cout << "hm4: " << hm4->GetOutputMotorshaftTorque() << " " << spindle4->GetAccumulatedTorque(sp4_acccu) << endl;
 
         // Advance system state
-        vehicle->Advance(step_size);
+        // vehicle->Advance(step_size);
         driver.Advance(step_size);
         vis->Advance(step_size);
 

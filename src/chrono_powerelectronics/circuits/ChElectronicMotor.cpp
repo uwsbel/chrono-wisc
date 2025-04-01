@@ -20,6 +20,7 @@ namespace powerelectronics {
 ChElectronicMotor::ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step)
     : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step) {
     this->spindle = spindle;
+    this->spindle_acccu = spindle->AddAccumulator();
 }
 
 ChElectronicMotor::ChElectronicMotor(double t_step)
@@ -106,8 +107,8 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
     this->VbackemfCVAR = ke_motor * ang_vel ;
 
     if (this->spindle != nullptr) {
-        spindle->EmptyAccumulators(); // Clear previous forces/torques
-        spindle->AccumulateTorque(spindle_torque, false); // Apply torque to the spindle body
+        spindle->EmptyAccumulator(spindle_acccu); // Clear previous forces/torques
+        spindle->AccumulateTorque(spindle_acccu, spindle_torque, false); // Apply torque to the spindle body
     }
 
 
