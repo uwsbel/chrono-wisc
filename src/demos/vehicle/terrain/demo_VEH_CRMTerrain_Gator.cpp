@@ -30,6 +30,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChLinkMotorLinearPosition.h"
+#include "chrono/core/ChRotation.h"
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/ChDriver.h"
@@ -474,11 +475,11 @@ int main(int argc, char* argv[]) {
         double rtf = timer() / step_size;
         sysFSI.SetRtf(rtf);
 
-        // Log data to both console
-        std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " 
-                  << driver_inputs.m_steering << "  " << driver_inputs.m_throttle << "  " 
-                  << front_load.Length() << "  " << veh_rot.x() << "  " << veh_rot.y() << "  " 
-                  << veh_rot.z() << std::endl;
+        // Log data to console
+        // std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " 
+        //           << driver_inputs.m_steering << "  " << driver_inputs.m_throttle << "  " 
+        //           << front_load.Length() << "  " << veh_rot.x() << "  " << veh_rot.y() << "  " 
+        //           << veh_rot.z() << std::endl;
 
         // Log data to CSV file
         csv_file << time << "," << veh_loc.x() << "," << veh_loc.y() << "," << veh_loc.z() << "," 
@@ -582,10 +583,16 @@ void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain) {
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     
-    // Use the same mesh file that was used to create the blade
-    std::string mesh_filename = vehicle::GetDataFile("gator/gator_frontblade.obj");
-    geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
-    
+    // // Use the same mesh file that was used to create the blade
+    // std::string mesh_filename = vehicle::GetDataFile("gator/gator_frontblade.obj");
+    // geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
+
+    // Define a box instead of loading a mesh
+    ChVector3d box_size(1.5, 0.5, 0.05);  // half-dimensions
+    ChVector3d box_pos(0, -0.1, 0);
+    ChQuaternion<> rot = QuatFromAngleY(CH_PI / 2);  // 90 degrees
+    geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box_pos, rot, box_size));
+
     // Add the blade as a rigid body to the FSI system
     size_t num_blade_BCE = terrain.AddRigidBody(blade, geometry, false);
     cout << "Added " << num_blade_BCE << " BCE markers on blade" << endl;
