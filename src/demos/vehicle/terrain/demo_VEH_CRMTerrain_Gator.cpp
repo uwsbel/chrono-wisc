@@ -135,7 +135,7 @@ int main(int argc, char* argv[]) {
     // ----------------
 
     double target_speed = 1.0;
-    double tend = 4;
+    double tend = 10;
     bool verbose = true;
 
     // Visualization settings
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
     double spacing = 0.02;
 
     // Parameters for the run - default values
-    double blade_yaw = 0.26;
+    double blade_yaw = 0.0;
     double blade_pitch = 0.0;
     double blade_vertical = 0.0;
     double throttle_ctrl = 0.5;
@@ -415,12 +415,17 @@ int main(int argc, char* argv[]) {
 
     ChTimer timer;
     bool saved_particle = false;
+    int end_output_frame = (tend-0.5)/step_size;
+    cout << "End output frame: " << end_output_frame << endl;
     while (time < tend) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
         auto veh_speed = vehicle->GetVehicle().GetSpeed();
         const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
         auto front_load = blade->GetAppliedForce();
         const auto& blade_loc = blade->GetPos();
+        auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
+        auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
+        //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
 
         // Set current driver inputs
         // auto steering = veh_loc.y()*0.1;
@@ -491,7 +496,7 @@ int main(int argc, char* argv[]) {
 
         // Only save particle data on the last time step
         // if (time + step_size >= tend) {
-        if (veh_loc.x() > 2.5 && saved_particle == false) {
+        if ((veh_loc.x() > 2.5 || sim_frame > end_output_frame) && saved_particle == false) {
             sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir);
             cout << "Particle data saved to " << out_dir << endl;
             saved_particle = true;
