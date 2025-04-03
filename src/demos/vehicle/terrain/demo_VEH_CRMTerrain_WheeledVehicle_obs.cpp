@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
     double poisson_ratio = 0.3;
 
     // CRM (moving) active box dimension
-    double active_box_hdim = 0.4;
+    //double active_box_hdim = 0.4;
 
     // Set SPH spacing
     double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.04;
@@ -256,7 +256,7 @@ int main(int argc, char* argv[]) {
 
     // Add vehicle wheels as FSI solids
     CreateFSIWheels(vehicle, trailer, terrain);
-    terrain.SetActiveDomain(ChVector3d(active_box_hdim));
+    //terrain.SetActiveDomain(ChVector3d(active_box_hdim));
 
     // Construct the terrain and associated path
     cout << "Create terrain..." << endl;
@@ -419,7 +419,8 @@ int main(int argc, char* argv[]) {
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
-
+    ChVector3d camera_loc = ChVector3d(6, 8, 1.5);
+    ChVector3d camera_point = ChVector3d(0, -1, 0);
 #ifndef CHRONO_OPENGL
     if (vis_type == ChVisualSystem::Type::OpenGL)
         vis_type = ChVisualSystem::Type::VSG;
@@ -450,7 +451,7 @@ int main(int argc, char* argv[]) {
 
         visFSI->SetTitle("Wheeled vehicle on CRM deformable terrain");
         visFSI->SetSize(1280, 720);
-        visFSI->AddCamera(ChVector3d(0, 8, 1.5), ChVector3d(0, -1, 0));
+        visFSI->AddCamera(camera_loc, camera_point);
         visFSI->SetCameraMoveScale(0.2f);
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
@@ -497,8 +498,8 @@ int main(int argc, char* argv[]) {
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
-                ChVector3d cam_loc = veh_loc + ChVector3d(-6, 6, 1.5);
-                ChVector3d cam_point = veh_loc;
+                ChVector3d cam_loc = veh_loc + camera_loc;
+                ChVector3d cam_point = veh_loc + camera_point;
                 visFSI->UpdateCamera(cam_loc, cam_point);
             }
             if (!visFSI->Render())
