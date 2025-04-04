@@ -31,7 +31,7 @@
 //#define RUN_TIME_VISUALIZATION
 
 #ifdef RUN_TIME_VISUALIZATION
-    #include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
+    #include "chrono_fsi/sph/visualization/ChFsiVisualizationSPH.h"
     #ifdef CHRONO_VSG
         #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
     #endif
@@ -39,6 +39,7 @@
 
 using namespace chrono;
 using namespace chrono::fsi;
+using namespace chrono::fsi::sph;
 
 //------------------------------------------------------------------
 
@@ -66,7 +67,7 @@ typedef std::valarray<double> DataVector;
 //------------------------------------------------------------------
 
 // Analytical solution for the unsteady plane Poiseuille flow (flow between two parallel plates).
-double PoiseuilleAnalytical(double Z, double H, double time, const ChFluidSystemSPH& sysSPH) {
+double PoiseuilleAnalytical(double Z, double H, double time, const ChFsiFluidSystemSPH& sysSPH) {
     double nu = sysSPH.GetViscosity() / sysSPH.GetDensity();
     double F = sysSPH.GetBodyForce().x();
 
@@ -93,10 +94,9 @@ double PoiseuilleAnalytical(double Z, double H, double time, const ChFluidSystem
 class InitialVelocityCallback : public ChFsiProblemSPH::ParticlePropertiesCallback {
   public:
     InitialVelocityCallback(double fluid_height, double time)
-        : ParticlePropertiesCallback(), height(fluid_height), time(time) {
-    }
+        : ParticlePropertiesCallback(), height(fluid_height), time(time) {}
 
-    virtual void set(const ChFluidSystemSPH& sysSPH, const ChVector3d& pos) override {
+    virtual void set(const ChFsiFluidSystemSPH& sysSPH, const ChVector3d& pos) override {
         double v_x = PoiseuilleAnalytical(pos.z(), height, time, sysSPH);
         p0 = 0;
         rho0 = sysSPH.GetDensity();
@@ -112,12 +112,12 @@ class InitialVelocityCallback : public ChFsiProblemSPH::ParticlePropertiesCallba
 
 // Create run-time visualization system
 #ifdef RUN_TIME_VISUALIZATION
-std::shared_ptr<ChFsiVisualization> CreateVisSys(ChFsiSystemSPH& sysFSI) {
+std::shared_ptr<ChFsiVisualizationSPH> CreateVisSys(ChFsiSystemSPH& sysFSI) {
     #if !defined(CHRONO_VSG)
     render = false;
     #endif
 
-    std::shared_ptr<ChFsiVisualization> visFSI;
+    std::shared_ptr<ChFsiVisualizationSPH> visFSI;
 
     if (render) {
         // Estimate max particle velocity over entire simulation
@@ -132,7 +132,7 @@ std::shared_ptr<ChFsiVisualization> CreateVisSys(ChFsiSystemSPH& sysFSI) {
         visFSI->SetCameraMoveScale(1.0f);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(true);
-        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
+        visFSI->SetRenderMode(ChFsiVisualizationSPH::RenderMode::SOLID);
         visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleVelocityColorCallback>(0, v_max));
         visFSI->Initialize();
     }
@@ -149,14 +149,14 @@ int main(int argc, char* argv[]) {
     ChFsiProblemCartesian fsi(sysMBS, initial_spacing);
     fsi.SetVerbose(verbose);
     ChFsiSystemSPH& sysFSI = fsi.GetSystemFSI();
-    ChFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
+    ChFsiFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
 
     // Set gravitational acceleration
     const ChVector3d gravity(0, 0, 0);
     fsi.SetGravitationalAcceleration(gravity);
 
     // Set CFD fluid properties
-    ChFluidSystemSPH::FluidProperties fluid_props;
+    ChFsiFluidSystemSPH::FluidProperties fluid_props;
     fluid_props.density = 1000;
     fluid_props.viscosity = 1;
     fsi.SetCfdSPH(fluid_props);
@@ -165,14 +165,13 @@ int main(int argc, char* argv[]) {
     sysSPH.SetBodyForce(ChVector3d(force, 0, 0));
 
     // Set SPH solution parameters
-    ChFluidSystemSPH::SPHParameters sph_params;
+    ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.num_bce_layers = 3;
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = 1;
     sph_params.max_velocity = 0.1;
-    sph_params.xsph_coefficient = 0.0;
-    sph_params.shifting_coefficient = 0.0;
+    sph_params.shifting_method = ShiftingMethod::NONE;
     sph_params.density_reinit_steps = 10000;
     sph_params.viscosity_type = ViscosityType::LAMINAR;
     sph_params.use_delta_sph = false;
@@ -194,8 +193,9 @@ int main(int argc, char* argv[]) {
 
     // Explicitly set computational domain
     ChVector3d c_min(-bxDim / 2 - initial_spacing / 2, -byDim / 2 - initial_spacing / 2, -10.0 * initial_spacing);
-    ChVector3d c_max(+bxDim / 2 + initial_spacing / 2, +byDim / 2 + initial_spacing / 2, bzDim + 10.0 * initial_spacing);
-    fsi.SetComputationalDomainSize(ChAABB(c_min, c_max));
+    ChVector3d c_max(+bxDim / 2 + initial_spacing / 2, +byDim / 2 + initial_spacing / 2,
+                     bzDim + 10.0 * initial_spacing);
+    fsi.SetComputationalDomain(ChAABB(c_min, c_max), PeriodicSide::ALL);
 
     // Set particle initial velocity
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<InitialVelocityCallback>(bzDim, t_start));
@@ -237,10 +237,10 @@ int main(int argc, char* argv[]) {
 
         // Extract information in arrays
         for (size_t i = 0; i < num_particles; i++) {
-            v[i] = vel[i].x();                                                  // velocity in flow direction
-            va[i] = PoiseuilleAnalytical(pos[i].z(), bzDim, time, sysSPH);      // analytical velocity
-            d[i] = dpv[i].x();                                                  // density at particle location
-            p[i] = dpv[i].y();                                                  // pressure at particle location
+            v[i] = vel[i].x();                                              // velocity in flow direction
+            va[i] = PoiseuilleAnalytical(pos[i].z(), bzDim, time, sysSPH);  // analytical velocity
+            d[i] = dpv[i].x();                                              // density at particle location
+            p[i] = dpv[i].y();                                              // pressure at particle location
         }
 
         auto v_max = v.max();

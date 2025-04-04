@@ -297,7 +297,7 @@ void ChTimestepperRungeKuttaExpl::Advance(const double dt) {
     y_new = Y + Dydt3 * dt;  // integrable.StateIncrement(y_new, Y, Dydt3*dt);
     GetIntegrable()->StateSolve(Dydt4, L, y_new, T + dt, dt, true, true, lumping_parameters);
 
-    Y = Y + (Dydt1 + Dydt2 * 2.0 + Dydt3 * 2.0 + Dydt4) * (1. / 6.) * dt;  // integrable.StateIncrement(...);
+    Y = Y + (Dydt1 + Dydt2 * 2.0 + Dydt3 * 2.0 + Dydt4) * CH_1_6 * dt;  // integrable.StateIncrement(...);
     dYdt = Dydt4;                                                          // to check
     T += dt;
 
@@ -590,7 +590,7 @@ void ChTimestepperEulerImplicitLinearized::Advance(const double dt) {
     mintegrable->LoadResidual_Mv(R, V, 1.0);  // R += M*(v_old)
     mintegrable->LoadConstraint_C(Qc, 1.0 / dt, Qc_do_clamp,
                                   Qc_clamping);  // Qc = C/dt  (sign will be flipped later in StateSolveCorrection)
-    mintegrable->LoadConstraint_Ct(Qc, 1.0);     // // Qc += Ct  (sign will be flipped later in StateSolveCorrection)
+    mintegrable->LoadConstraint_Ct(Qc, 1.0);     // Qc += Ct  (sign will be flipped later in StateSolveCorrection)
 
     mintegrable->StateSolveCorrection(  //
         V, L, R, Qc,                    //

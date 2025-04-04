@@ -20,9 +20,10 @@
 // =============================================================================
 
 #include <type_traits>
+#include <fstream>
 
 #include "chrono_fsi/sph/physics/BceManager.cuh"
-#include "chrono_fsi/sph/physics/ChSphGeneral.cuh"
+#include "chrono_fsi/sph/physics/SphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -310,6 +311,7 @@ __global__ void CalcRigidBceAccelerationD(Real3* bceAcc,
 
     uint rigidMarkerIndex = bceIndex + countersD.startRigidMarkers;
     uint sortedIndex = mapOriginalToSorted[rigidMarkerIndex];
+    // printf("rigidMarkerIndex: %d, sortedIndex: %d\n", rigidMarkerIndex, sortedIndex);
 
     int rigidBodyIndex = rigid_BCEsolids_D[bceIndex];
 
@@ -411,6 +413,9 @@ __global__ void UpdateBodyMarkerState_D(Real4* posRadD,
 
     uint rigidMarkerIndex = index + countersD.startRigidMarkers;
     uint sortedIndex = mapOriginalToSorted[rigidMarkerIndex];
+    // if (rigidMarkerIndex == 1158564) {
+    //     printf("rigidMarkerIndex: %d, sortedIndex: %d\n", rigidMarkerIndex, sortedIndex);
+    // }
     int rigidBodyIndex = rigid_BCEsolids_D[index];
 
     Real4 q4 = qD[rigidBodyIndex];
@@ -459,7 +464,7 @@ __global__ void UpdateMeshMarker1DState_D(
     Real3 V0 = vel_fsi_fea_D[seg_nodes.x];       // (absolute) velocity of node 0
     Real3 V1 = vel_fsi_fea_D[seg_nodes.y];       // (absolute) velocity of node 1
 
-    Real3 x_dir = normalize(P1 - P0);
+    Real3 x_dir = get_normalized(P1 - P0);
     Real3 y_dir = mR3(-x_dir.y - x_dir.z, x_dir.x - x_dir.z, x_dir.x + x_dir.y);
     y_dir = y_dir / length(y_dir);
     Real3 z_dir = cross(x_dir, y_dir);
@@ -505,7 +510,7 @@ __global__ void UpdateMeshMarker2DState_D(
     Real3 V1 = vel_fsi_fea_D[tri_nodes.y];      // (absolute) velocity of node 1
     Real3 V2 = vel_fsi_fea_D[tri_nodes.z];      // (absolute) velocity of node 2
 
-    Real3 normal = normalize(cross(P1 - P0, P2 - P1));
+    Real3 normal = get_normalized(cross(P1 - P0, P2 - P1));
 
     Real lambda0 = flex2D_BCEcoords_D[index].x;  // barycentric coordinate
     Real lambda1 = flex2D_BCEcoords_D[index].y;  // barycentric coordinate
@@ -580,7 +585,7 @@ __global__ void UpdateMeshMarker1DStateUnsorted_D(
     Real3 V0 = vel_fsi_fea_D[seg_nodes.x];       // (absolute) velocity of node 0
     Real3 V1 = vel_fsi_fea_D[seg_nodes.y];       // (absolute) velocity of node 1
 
-    Real3 x_dir = normalize(P1 - P0);
+    Real3 x_dir = get_normalized(P1 - P0);
     Real3 y_dir = mR3(-x_dir.y - x_dir.z, x_dir.x - x_dir.z, x_dir.x + x_dir.y);
     y_dir = y_dir / length(y_dir);
     Real3 z_dir = cross(x_dir, y_dir);
@@ -625,7 +630,7 @@ __global__ void UpdateMeshMarker2DStateUnsorted_D(
     Real3 V1 = vel_fsi_fea_D[tri_nodes.y];      // (absolute) velocity of node 1
     Real3 V2 = vel_fsi_fea_D[tri_nodes.z];      // (absolute) velocity of node 2
 
-    Real3 normal = normalize(cross(P1 - P0, P2 - P1));
+    Real3 normal = get_normalized(cross(P1 - P0, P2 - P1));
 
     Real lambda0 = flex2D_BCEcoords_D[index].x;  // barycentric coordinate
     Real lambda1 = flex2D_BCEcoords_D[index].y;  // barycentric coordinate
@@ -654,7 +659,7 @@ BceManager::~BceManager() {}
 // -----------------------------------------------------------------------------
 
 void BceManager::Initialize(std::vector<int> fsiBodyBceNum) {
-    cudaMemcpyToSymbolAsync(paramsD, m_data_mgr.paramsH.get(), sizeof(SimParams));
+    cudaMemcpyToSymbolAsync(paramsD, m_data_mgr.paramsH.get(), sizeof(ChFsiParamsSPH));
     cudaMemcpyToSymbolAsync(countersD, m_data_mgr.countersH.get(), sizeof(Counters));
 
     // Resizing the arrays used to modify the BCE velocity and pressure according to Adami
@@ -768,7 +773,7 @@ void BceManager::CalcFlex1DBceAcceleration() {
 
     CalcFlex1DBceAcceleration_D<<<nBlocks, nThreads>>>(             //
         mR3CAST(m_data_mgr.bceAcc),                                 //
-        mR3CAST(m_data_mgr.fsiMesh1DState_D->acc_fsi_fea_D),        //
+        mR3CAST(m_data_mgr.fsiMesh1DState_D->acc),                  //
         U2CAST(m_data_mgr.flex1D_Nodes_D),                          //
         U3CAST(m_data_mgr.flex1D_BCEsolids_D),                      //
         mR3CAST(m_data_mgr.flex1D_BCEcoords_D),                     //
@@ -788,7 +793,7 @@ void BceManager::CalcFlex2DBceAcceleration() {
 
     CalcFlex2DBceAcceleration_D<<<nBlocks, nThreads>>>(             //
         mR3CAST(m_data_mgr.bceAcc),                                 //
-        mR3CAST(m_data_mgr.fsiMesh2DState_D->acc_fsi_fea_D),        //
+        mR3CAST(m_data_mgr.fsiMesh2DState_D->acc),                  //
         U3CAST(m_data_mgr.flex2D_Nodes_D),                          //
         U3CAST(m_data_mgr.flex2D_BCEsolids_D),                      //
         mR3CAST(m_data_mgr.flex2D_BCEcoords_D),                     //
@@ -966,7 +971,7 @@ void BceManager::UpdateMeshMarker1DState() {
 
     UpdateMeshMarker1DState_D<<<nBlocks, nThreads>>>(                                                              //
         mR4CAST(m_data_mgr.sortedSphMarkers2_D->posRadD), mR3CAST(m_data_mgr.sortedSphMarkers2_D->velMasD),        //
-        mR3CAST(m_data_mgr.fsiMesh1DState_D->pos_fsi_fea_D), mR3CAST(m_data_mgr.fsiMesh1DState_D->vel_fsi_fea_D),  //
+        mR3CAST(m_data_mgr.fsiMesh1DState_D->pos), mR3CAST(m_data_mgr.fsiMesh1DState_D->vel),  //
         U2CAST(m_data_mgr.flex1D_Nodes_D),                                                                         //
         U3CAST(m_data_mgr.flex1D_BCEsolids_D),                                                                     //
         mR3CAST(m_data_mgr.flex1D_BCEcoords_D),                                                                    //
@@ -986,7 +991,7 @@ void BceManager::UpdateMeshMarker1DStateInitial() {
 
     UpdateMeshMarker1DStateUnsorted_D<<<nBlocks, nThreads>>>(                                                      //
         mR4CAST(m_data_mgr.sphMarkers_D->posRadD), mR3CAST(m_data_mgr.sphMarkers_D->velMasD),                      //
-        mR3CAST(m_data_mgr.fsiMesh1DState_D->pos_fsi_fea_D), mR3CAST(m_data_mgr.fsiMesh1DState_D->vel_fsi_fea_D),  //
+        mR3CAST(m_data_mgr.fsiMesh1DState_D->pos), mR3CAST(m_data_mgr.fsiMesh1DState_D->vel),  //
         U2CAST(m_data_mgr.flex1D_Nodes_D),                                                                         //
         U3CAST(m_data_mgr.flex1D_BCEsolids_D),                                                                     //
         mR3CAST(m_data_mgr.flex1D_BCEcoords_D)                                                                     //
@@ -1005,7 +1010,7 @@ void BceManager::UpdateMeshMarker2DState() {
 
     UpdateMeshMarker2DState_D<<<nBlocks, nThreads>>>(                                                              //
         mR4CAST(m_data_mgr.sortedSphMarkers2_D->posRadD), mR3CAST(m_data_mgr.sortedSphMarkers2_D->velMasD),        //
-        mR3CAST(m_data_mgr.fsiMesh2DState_D->pos_fsi_fea_D), mR3CAST(m_data_mgr.fsiMesh2DState_D->vel_fsi_fea_D),  //
+        mR3CAST(m_data_mgr.fsiMesh2DState_D->pos), mR3CAST(m_data_mgr.fsiMesh2DState_D->vel),  //
         U3CAST(m_data_mgr.flex2D_Nodes_D),                                                                         //
         U3CAST(m_data_mgr.flex2D_BCEsolids_D),                                                                     //
         mR3CAST(m_data_mgr.flex2D_BCEcoords_D),                                                                    //
@@ -1025,7 +1030,7 @@ void BceManager::UpdateMeshMarker2DStateInitial() {
 
     UpdateMeshMarker2DStateUnsorted_D<<<nBlocks, nThreads>>>(                                                      //
         mR4CAST(m_data_mgr.sphMarkers_D->posRadD), mR3CAST(m_data_mgr.sphMarkers_D->velMasD),                      //
-        mR3CAST(m_data_mgr.fsiMesh2DState_D->pos_fsi_fea_D), mR3CAST(m_data_mgr.fsiMesh2DState_D->vel_fsi_fea_D),  //
+        mR3CAST(m_data_mgr.fsiMesh2DState_D->pos), mR3CAST(m_data_mgr.fsiMesh2DState_D->vel),  //
         U3CAST(m_data_mgr.flex2D_Nodes_D),                                                                         //
         U3CAST(m_data_mgr.flex2D_BCEsolids_D),                                                                     //
         mR3CAST(m_data_mgr.flex2D_BCEcoords_D)                                                                     //

@@ -28,13 +28,13 @@
 namespace chrono {
 namespace fsi {
 
-/// @addtogroup fsi_physics
+/// @addtogroup fsi_base
 /// @{
 
 /// Definition of a body state.
 struct FsiBodyState {
     ChVector3d pos;      ///< global position
-    ChQuaternion<> rot;  ///< orientation with respect to global frame
+    ChQuaterniond rot;   ///< orientation with respect to global frame
     ChVector3d lin_vel;  ///< linear velocity, expressed in the global frame
     ChVector3d ang_vel;  ///< angular velocity, expressed in the global frame
     ChVector3d lin_acc;  ///< linear acceleration, expressed in the global frame
@@ -52,6 +52,9 @@ struct FsiMeshState {
     std::vector<ChVector3d> pos;  ///< global positions
     std::vector<ChVector3d> vel;  ///< velocities, expressed in the global frame
     std::vector<ChVector3d> acc;  ///< accelerations, expressed in the global frame
+    std::vector<ChVector3d> dir;  ///< node directions (unit vectors)
+
+    bool has_node_directions;
 };
 
 /// Definition of a node forces for a mesh.
@@ -66,6 +69,7 @@ struct FsiBody {
     std::shared_ptr<ChBody> body;  ///< rigid body exposed to FSI system
     ChVector3d fsi_force;          ///< fluid force at body COM (expressed in absolute frame)
     ChVector3d fsi_torque;         ///< induced torque (expressed in absolute frame)
+    unsigned int fsi_accumulator;  ///< index of the body force accumulator for fluid forces
 };
 
 /// Description of an FEA mesh with 1-D segments exposed to the FSI system.
@@ -88,7 +92,7 @@ struct FsiMesh2D {
     std::map<int, std::shared_ptr<fea::ChNodeFEAxyz>> ind2ptr_map;  ///< index-based to pointer-based mapping
 };
 
-/// @} fsi_physics
+/// @} fsi_base
 
 }  // namespace fsi
 }  // namespace chrono

@@ -17,6 +17,8 @@
 //
 // =============================================================================
 
+#include <algorithm>
+
 #include <thrust/copy.h>
 #include <thrust/fill.h>
 #include <thrust/gather.h>
@@ -27,6 +29,7 @@
 #include <thrust/transform.h>
 
 #include "chrono_fsi/sph/physics/FsiDataManager.cuh"
+#include "chrono_fsi/sph/math/CustomMath.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -62,12 +65,12 @@ void SphMarkerDataH::resize(size_t s) {
 
 //---------------------------------------------------------------------------------------
 
-zipIterRigidD FsiBodyStateD::iterator() {
+zipIterRigidH FsiBodyStateH::iterator() {
     return thrust::make_zip_iterator(thrust::make_tuple(pos.begin(), lin_vel.begin(), lin_acc.begin(),  //
                                                         rot.begin(), ang_vel.begin(), ang_acc.begin()));
 }
 
-void FsiBodyStateD::resize(size_t s) {
+void FsiBodyStateH::Resize(size_t s) {
     pos.resize(s);
     lin_vel.resize(s);
     lin_acc.resize(s);
@@ -76,16 +79,18 @@ void FsiBodyStateD::resize(size_t s) {
     ang_acc.resize(s);
 }
 
-void FsiMeshStateH::resize(size_t s) {
-    pos_fsi_fea_H.resize(s);
-    vel_fsi_fea_H.resize(s);
-    acc_fsi_fea_H.resize(s);
+zipIterRigidD FsiBodyStateD::iterator() {
+    return thrust::make_zip_iterator(thrust::make_tuple(pos.begin(), lin_vel.begin(), lin_acc.begin(),  //
+                                                        rot.begin(), ang_vel.begin(), ang_acc.begin()));
 }
 
-void FsiMeshStateD::resize(size_t s) {
-    pos_fsi_fea_D.resize(s);
-    vel_fsi_fea_D.resize(s);
-    acc_fsi_fea_D.resize(s);
+void FsiBodyStateD::Resize(size_t s) {
+    pos.resize(s);
+    lin_vel.resize(s);
+    lin_acc.resize(s);
+    rot.resize(s);
+    ang_vel.resize(s);
+    ang_acc.resize(s);
 }
 
 void FsiBodyStateD::CopyFromH(const FsiBodyStateH& bodyStateH) {
@@ -95,12 +100,6 @@ void FsiBodyStateD::CopyFromH(const FsiBodyStateH& bodyStateH) {
     thrust::copy(bodyStateH.rot.begin(), bodyStateH.rot.end(), rot.begin());
     thrust::copy(bodyStateH.ang_vel.begin(), bodyStateH.ang_vel.end(), ang_vel.begin());
     thrust::copy(bodyStateH.ang_acc.begin(), bodyStateH.ang_acc.end(), ang_acc.begin());
-}
-
-void FsiMeshStateD::CopyFromH(const FsiMeshStateH& meshStateH) {
-    thrust::copy(meshStateH.pos_fsi_fea_H.begin(), meshStateH.pos_fsi_fea_H.end(), pos_fsi_fea_D.begin());
-    thrust::copy(meshStateH.vel_fsi_fea_H.begin(), meshStateH.vel_fsi_fea_H.end(), vel_fsi_fea_D.begin());
-    thrust::copy(meshStateH.acc_fsi_fea_H.begin(), meshStateH.acc_fsi_fea_H.end(), acc_fsi_fea_D.begin());
 }
 
 FsiBodyStateD& FsiBodyStateD::operator=(const FsiBodyStateD& other) {
@@ -116,42 +115,58 @@ FsiBodyStateD& FsiBodyStateD::operator=(const FsiBodyStateD& other) {
     return *this;
 }
 
+//---------------------------------------------------------------------------------------
+
+void FsiMeshStateH::Resize(size_t s, bool use_node_directions) {
+    pos.resize(s);
+    vel.resize(s);
+    acc.resize(s);
+    if (use_node_directions)
+        dir.resize(s);
+    has_node_directions = use_node_directions;
+}
+
+void FsiMeshStateD::Resize(size_t s, bool use_node_directions) {
+    pos.resize(s);
+    vel.resize(s);
+    acc.resize(s);
+    if (use_node_directions)
+        dir.resize(s);
+    has_node_directions = use_node_directions;
+}
+
+void FsiMeshStateD::CopyFromH(const FsiMeshStateH& meshStateH) {
+    thrust::copy(meshStateH.pos.begin(), meshStateH.pos.end(), pos.begin());
+    thrust::copy(meshStateH.vel.begin(), meshStateH.vel.end(), vel.begin());
+    thrust::copy(meshStateH.acc.begin(), meshStateH.acc.end(), acc.begin());
+}
+
+void FsiMeshStateD::CopyDirectionsFromH(const FsiMeshStateH& meshStateH) {
+    if (meshStateH.has_node_directions)
+        thrust::copy(meshStateH.dir.begin(), meshStateH.dir.end(), dir.begin());
+}
+
 FsiMeshStateD& FsiMeshStateD::operator=(const FsiMeshStateD& other) {
     if (this == &other) {
         return *this;
     }
-    thrust::copy(other.pos_fsi_fea_D.begin(), other.pos_fsi_fea_D.end(), pos_fsi_fea_D.begin());
-    thrust::copy(other.vel_fsi_fea_D.begin(), other.vel_fsi_fea_D.end(), vel_fsi_fea_D.begin());
-    thrust::copy(other.acc_fsi_fea_D.begin(), other.acc_fsi_fea_D.end(), acc_fsi_fea_D.begin());
+    thrust::copy(other.pos.begin(), other.pos.end(), pos.begin());
+    thrust::copy(other.vel.begin(), other.vel.end(), vel.begin());
+    thrust::copy(other.acc.begin(), other.acc.end(), acc.begin());
+    if (other.has_node_directions)
+        thrust::copy(other.dir.begin(), other.dir.end(), dir.begin());
     return *this;
-}
-
-//---------------------------------------------------------------------------------------
-zipIterRigidH FsiBodyStateH::iterator() {
-    return thrust::make_zip_iterator(thrust::make_tuple(pos.begin(), lin_vel.begin(), lin_acc.begin(),  //
-                                                        rot.begin(), ang_vel.begin(), ang_acc.begin()));
-}
-
-void FsiBodyStateH::resize(size_t s) {
-    pos.resize(s);
-    lin_vel.resize(s);
-    lin_acc.resize(s);
-    rot.resize(s);
-    ang_vel.resize(s);
-    ang_acc.resize(s);
 }
 
 //---------------------------------------------------------------------------------------
 
 void ProximityDataD::resize(size_t s) {
-    gridMarkerHashD.resize(s);
-    gridMarkerIndexD.resize(s);
     mapOriginalToSorted.resize(s);
 }
 
 //---------------------------------------------------------------------------------------
 
-FsiDataManager::FsiDataManager(std::shared_ptr<SimParams> params) : paramsH(params) {
+FsiDataManager::FsiDataManager(std::shared_ptr<ChFsiParamsSPH> params) : paramsH(params) {
     countersH = chrono_types::make_shared<Counters>();
 
     sphMarkers_D = chrono_types::make_shared<SphMarkerDataD>();
@@ -170,6 +185,13 @@ FsiDataManager::FsiDataManager(std::shared_ptr<SimParams> params) : paramsH(para
     markersProximity_D = chrono_types::make_shared<ProximityDataD>();
 
     cudaDeviceInfo = chrono_types::make_shared<CudaDeviceInfo>();
+
+    // Resizing parameters
+    m_max_extended_particles = 0;
+    m_resize_counter = 0;
+    GROWTH_FACTOR = 1.2f;
+    SHRINK_THRESHOLD = 0.75f;
+    SHRINK_INTERVAL = 50;
 }
 
 FsiDataManager::~FsiDataManager() {}
@@ -353,7 +375,6 @@ void FsiDataManager::ResetData() {
     thrust::fill(sr_tau_I_mu_i.begin(), sr_tau_I_mu_i.end(), zero4);
     thrust::fill(freeSurfaceIdD.begin(), freeSurfaceIdD.end(), 0);
 
-    //// TODO: WCSPH only
     thrust::fill(vel_XSPH_D.begin(), vel_XSPH_D.end(), zero3);
 
     //// TODO: ISPH only
@@ -364,13 +385,129 @@ void FsiDataManager::ResetData() {
     thrust::fill(derivTauXyXzYzD.begin(), derivTauXyXzYzD.end(), zero3);
 }
 
+// ------------------------------------------------------------------------------
+
+void FsiDataManager::ResizeArrays(uint numExtended) {
+    bool should_shrink = false;
+    m_resize_counter++;
+
+    // On first allocation or if we exceed current capacity, grow with buffer
+    if (numExtended > m_max_extended_particles) {
+        // Add buffer for future growth
+        uint new_capacity = static_cast<uint>(numExtended * GROWTH_FACTOR);
+
+        // Reserve space in all arrays
+        markersProximity_D->gridMarkerHashD.reserve(new_capacity);
+        markersProximity_D->gridMarkerIndexD.reserve(new_capacity);
+        sortedSphMarkers2_D->posRadD.reserve(new_capacity);
+        sortedSphMarkers2_D->velMasD.reserve(new_capacity);
+        sortedSphMarkers2_D->rhoPresMuD.reserve(new_capacity);
+        sortedSphMarkers2_D->tauXxYyZzD.reserve(new_capacity);
+        sortedSphMarkers2_D->tauXyXzYzD.reserve(new_capacity);
+        sortedSphMarkers1_D->posRadD.reserve(new_capacity);
+        sortedSphMarkers1_D->velMasD.reserve(new_capacity);
+        sortedSphMarkers1_D->rhoPresMuD.reserve(new_capacity);
+        sortedSphMarkers1_D->tauXxYyZzD.reserve(new_capacity);
+        sortedSphMarkers1_D->tauXyXzYzD.reserve(new_capacity);
+        freeSurfaceIdD.reserve(new_capacity);
+        vel_XSPH_D.reserve(new_capacity);
+
+        m_max_extended_particles = new_capacity;
+    }
+
+    // Check if we should shrink based on counter and memory usage
+    if (m_resize_counter >= SHRINK_INTERVAL) {
+        float usage_ratio = float(numExtended) / markersProximity_D->gridMarkerHashD.capacity();
+        should_shrink = (usage_ratio < SHRINK_THRESHOLD);
+        m_resize_counter = 0;
+    }
+
+    // Always resize to actual size needed
+    markersProximity_D->gridMarkerHashD.resize(numExtended);
+    markersProximity_D->gridMarkerIndexD.resize(numExtended);
+    sortedSphMarkers2_D->posRadD.resize(numExtended);
+    sortedSphMarkers2_D->velMasD.resize(numExtended);
+    sortedSphMarkers2_D->rhoPresMuD.resize(numExtended);
+    sortedSphMarkers2_D->tauXxYyZzD.resize(numExtended);
+    sortedSphMarkers2_D->tauXyXzYzD.resize(numExtended);
+    sortedSphMarkers1_D->posRadD.resize(numExtended);
+    sortedSphMarkers1_D->velMasD.resize(numExtended);
+    sortedSphMarkers1_D->rhoPresMuD.resize(numExtended);
+    sortedSphMarkers1_D->tauXxYyZzD.resize(numExtended);
+    sortedSphMarkers1_D->tauXyXzYzD.resize(numExtended);
+    derivVelRhoD.resize(numExtended);
+    derivTauXxYyZzD.resize(numExtended);
+    derivTauXyXzYzD.resize(numExtended);
+    freeSurfaceIdD.resize(numExtended);
+    vel_XSPH_D.resize(numExtended);
+
+    // Only shrink periodically if needed
+    if (should_shrink) {
+        markersProximity_D->gridMarkerHashD.shrink_to_fit();
+        markersProximity_D->gridMarkerIndexD.shrink_to_fit();
+        sortedSphMarkers2_D->posRadD.shrink_to_fit();
+        sortedSphMarkers2_D->velMasD.shrink_to_fit();
+        sortedSphMarkers2_D->rhoPresMuD.shrink_to_fit();
+        sortedSphMarkers2_D->tauXxYyZzD.shrink_to_fit();
+        sortedSphMarkers2_D->tauXyXzYzD.shrink_to_fit();
+        sortedSphMarkers1_D->posRadD.shrink_to_fit();
+        sortedSphMarkers1_D->velMasD.shrink_to_fit();
+        sortedSphMarkers1_D->rhoPresMuD.shrink_to_fit();
+        sortedSphMarkers1_D->tauXxYyZzD.shrink_to_fit();
+        sortedSphMarkers1_D->tauXyXzYzD.shrink_to_fit();
+        derivVelRhoD.shrink_to_fit();
+        derivTauXxYyZzD.shrink_to_fit();
+        derivTauXyXzYzD.shrink_to_fit();
+        freeSurfaceIdD.shrink_to_fit();
+        vel_XSPH_D.shrink_to_fit();
+
+        // Update max particles to match new capacity
+        m_max_extended_particles = markersProximity_D->gridMarkerHashD.capacity();
+    }
+}
+// Resize data based on the active particles
+// Custom functor for exclusive scan that treats -1 (zombie particles) the same as 0 (sleep particles)
+struct ActivityScanOp {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        // Treat -1 the same as 0 (only add positive values)
+        int b_value = (b <= 0) ? 0 : b;
+        return a + b_value;
+    }
+};
+void FsiDataManager::ResizeData(bool first_step) {
+    // Exclusive scan for extended activity identifier using custom functor to handle -1 values
+    thrust::exclusive_scan(thrust::device, extendedActivityIdentifierOriginalD.begin(),
+                           extendedActivityIdentifierOriginalD.end(), prefixSumExtendedActivityIdD.begin(),
+                           0,  // Initial value
+                           ActivityScanOp());
+
+    // copy the last element of prefixSumD to host and since we used exclusive scan, need to add the last flag
+    uint lastPrefixVal = prefixSumExtendedActivityIdD[countersH->numAllMarkers - 1];
+    int32_t lastFlagInt32;
+    cudaMemcpy(&lastFlagInt32,
+               thrust::raw_pointer_cast(&extendedActivityIdentifierOriginalD[countersH->numAllMarkers - 1]),
+               sizeof(int32_t), cudaMemcpyDeviceToHost);
+    uint lastFlag = (lastFlagInt32 > 0) ? 1 : 0;  // Only count positive values
+
+    uint numExtended = lastPrefixVal + lastFlag;
+
+    countersH->numExtendedParticles = numExtended;
+
+    // Resize arrays based on number of active particles
+    // Also don't overallocate memory in the case of no active domains
+    if (numExtended < countersH->numAllMarkers || first_step) {
+        ResizeArrays(numExtended);
+    }
+}
+
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void FsiDataManager::Initialize(unsigned int num_fsi_bodies,
                                 unsigned int num_fsi_nodes1D,
                                 unsigned int num_fsi_elements1D,
                                 unsigned int num_fsi_nodes2D,
-                                unsigned int num_fsi_elements2D) {
+                                unsigned int num_fsi_elements2D,
+                                bool use_node_directions) {
     ConstructReferenceArray();
     SetCounters(num_fsi_bodies, num_fsi_nodes1D, num_fsi_elements1D, num_fsi_nodes2D, num_fsi_elements2D);
 
@@ -380,35 +517,28 @@ void FsiDataManager::Initialize(unsigned int num_fsi_bodies,
     }
 
     sphMarkers_D->resize(countersH->numAllMarkers);
-    sortedSphMarkers1_D->resize(countersH->numAllMarkers);
-    sortedSphMarkers2_D->resize(countersH->numAllMarkers);
     sphMarkers_H->resize(countersH->numAllMarkers);
     markersProximity_D->resize(countersH->numAllMarkers);
 
-    derivVelRhoD.resize(countersH->numAllMarkers);          // sorted
     derivVelRhoOriginalD.resize(countersH->numAllMarkers);  // unsorted
 
-    //// TODO: why are these sized for both CFD and CRM?!?
-    derivTauXxYyZzD.resize(countersH->numAllMarkers);
-    derivTauXyXzYzD.resize(countersH->numAllMarkers);
-
-    //// TODO: why is this sized for both WCSPH and ISPH?!?
-    vel_XSPH_D.resize(countersH->numAllMarkers);  // TODO (Huzaifa): Check if this is always sorted or not
-
-    Real tiny = Real(1e-20);
-    vis_vel_SPH_D.resize(countersH->numAllMarkers, mR3(tiny));
-    sr_tau_I_mu_i.resize(countersH->numAllMarkers, mR4(tiny));           // sorted
-    sr_tau_I_mu_i_Original.resize(countersH->numAllMarkers, mR4(tiny));  // unsorted
+    if (paramsH->sph_method == SPHMethod::I2SPH) {
+        Real tiny = Real(1e-20);
+        vis_vel_SPH_D.resize(countersH->numAllMarkers, mR3(tiny));
+        sr_tau_I_mu_i.resize(countersH->numAllMarkers, mR4(tiny));           // sorted
+        sr_tau_I_mu_i_Original.resize(countersH->numAllMarkers, mR4(tiny));  // unsorted
+    }
 
     //// TODO: why is this sized for both WCSPH and ISPH?!?
     bceAcc.resize(countersH->numAllMarkers, mR3(0));  // Rigid/flex body accelerations from motion
 
-    activityIdentifierD.resize(countersH->numAllMarkers, 1);
-    extendedActivityIdD.resize(countersH->numAllMarkers, 1);
-
+    activityIdentifierOriginalD.resize(countersH->numAllMarkers, 1);
+    activityIdentifierSortedD.resize(countersH->numAllMarkers, 1);
+    extendedActivityIdentifierOriginalD.resize(countersH->numAllMarkers, 1);
+    prefixSumExtendedActivityIdD.resize(countersH->numAllMarkers, 1);
+    activeListD.resize(countersH->numAllMarkers, 1);
     // Number of neighbors for the particle of given index
     numNeighborsPerPart.resize(countersH->numAllMarkers + 1, 0);
-    freeSurfaceIdD.resize(countersH->numAllMarkers, 0);
 
     thrust::copy(sphMarkers_H->posRadH.begin(), sphMarkers_H->posRadH.end(), sphMarkers_D->posRadD.begin());
     thrust::copy(sphMarkers_H->velMasH.begin(), sphMarkers_H->velMasH.end(), sphMarkers_D->velMasD.begin());
@@ -416,8 +546,8 @@ void FsiDataManager::Initialize(unsigned int num_fsi_bodies,
     thrust::copy(sphMarkers_H->tauXxYyZzH.begin(), sphMarkers_H->tauXxYyZzH.end(), sphMarkers_D->tauXxYyZzD.begin());
     thrust::copy(sphMarkers_H->tauXyXzYzH.begin(), sphMarkers_H->tauXyXzYzH.end(), sphMarkers_D->tauXyXzYzD.begin());
 
-    fsiBodyState_D->resize(countersH->numFsiBodies);
-    fsiBodyState_H->resize(countersH->numFsiBodies);
+    fsiBodyState_D->Resize(countersH->numFsiBodies);
+    fsiBodyState_H->Resize(countersH->numFsiBodies);
 
     rigid_FSI_ForcesD.resize(countersH->numFsiBodies);
     rigid_FSI_TorquesD.resize(countersH->numFsiBodies);
@@ -425,10 +555,10 @@ void FsiDataManager::Initialize(unsigned int num_fsi_bodies,
     rigid_BCEsolids_D.resize(countersH->numRigidMarkers);
     rigid_BCEcoords_D.resize(countersH->numRigidMarkers);
 
-    fsiMesh1DState_D->resize(countersH->numFsiNodes1D);
-    fsiMesh1DState_H->resize(countersH->numFsiNodes1D);
-    fsiMesh2DState_D->resize(countersH->numFsiNodes2D);
-    fsiMesh2DState_H->resize(countersH->numFsiNodes2D);
+    fsiMesh1DState_D->Resize(countersH->numFsiNodes1D, use_node_directions);
+    fsiMesh1DState_H->Resize(countersH->numFsiNodes1D, use_node_directions);
+    fsiMesh2DState_D->Resize(countersH->numFsiNodes2D, use_node_directions);
+    fsiMesh2DState_H->Resize(countersH->numFsiNodes2D, use_node_directions);
 
     flex1D_FSIforces_D.resize(countersH->numFsiNodes1D);
     flex2D_FSIforces_D.resize(countersH->numFsiNodes2D);
@@ -447,130 +577,183 @@ struct scale_functor {
     const Real m_a;
 };
 
-thrust::device_vector<Real3> FsiDataManager::GetPositions() {
-    auto& pos4 = sphMarkers_D->posRadD;
+std::vector<Real3> FsiDataManager::GetPositions() {
+    auto& pos4_D = sphMarkers_D->posRadD;
 
     // Extract positions only (drop radius)
-    thrust::device_vector<Real3> pos3(pos4.size());
-    thrust::transform(pos4.begin(), pos4.end(), pos3.begin(), extract_functor());
+    thrust::device_vector<Real3> pos_D(pos4_D.size());
+    thrust::transform(pos4_D.begin(), pos4_D.end(), pos_D.begin(), extract_functor());
 
-    return pos3;
+    // Copy to output
+    std::vector<Real3> pos_H(pos_D.size());
+    thrust::copy(pos_D.begin(), pos_D.end(), pos_H.begin());
+    return pos_H;
 }
 
-thrust::device_vector<Real3> FsiDataManager::GetVelocities() {
-    return sphMarkers_D->velMasD;
+std::vector<Real3> FsiDataManager::GetVelocities() {
+    const auto& vel_D = sphMarkers_D->velMasD;
+
+    // Copy to output
+    std::vector<Real3> vel_H(vel_D.size());
+    thrust::copy(vel_D.begin(), vel_D.end(), vel_H.begin());
+    return vel_H;
 }
 
-thrust::device_vector<Real3> FsiDataManager::GetAccelerations() {
-    const auto n = countersH->numFluidMarkers;
-
+std::vector<Real3> FsiDataManager::GetAccelerations() {
     // Copy data for SPH particles only
-    thrust::device_vector<Real4> acc4(n);
-    thrust::copy_n(derivVelRhoD.begin(), n, acc4.begin());
+    const auto n = countersH->numFluidMarkers;
+    thrust::device_vector<Real4> acc4_D(n);
+    thrust::copy_n(derivVelRhoD.begin(), n, acc4_D.begin());
 
     // Extract acceleration (drop density)
-    thrust::device_vector<Real3> acc3(n);
-    thrust::transform(acc4.begin(), acc4.end(), acc3.begin(), extract_functor());
+    thrust::device_vector<Real3> acc_D(n);
+    thrust::transform(acc4_D.begin(), acc4_D.end(), acc_D.begin(), extract_functor());
 
-    return acc3;
+    // Copy to output
+    std::vector<Real3> acc_H(acc_D.size());
+    thrust::copy(acc_D.begin(), acc_D.end(), acc_H.begin());
+    return acc_H;
 }
 
-thrust::device_vector<Real3> FsiDataManager::GetForces() {
-    thrust::device_vector<Real3> frcD = GetAccelerations();
-    thrust::transform(frcD.begin(), frcD.end(), frcD.begin(), scale_functor(paramsH->markerMass));
-
-    return frcD;
+std::vector<Real3> FsiDataManager::GetForces() {
+    std::vector<Real3> frc_H = GetAccelerations();
+    std::transform(frc_H.begin(), frc_H.end(), frc_H.begin(), scale_functor(paramsH->markerMass));
+    return frc_H;
 }
 
-thrust::device_vector<Real3> FsiDataManager::GetProperties() {
-    thrust::device_vector<Real4> prop4 = sphMarkers_D->rhoPresMuD;
+std::vector<Real3> FsiDataManager::GetProperties() {
+    auto& prop4_D = sphMarkers_D->rhoPresMuD;
 
     // Extract fluid properties only (drop particle type)
-    thrust::device_vector<Real3> prop3(prop4.size());
-    thrust::transform(prop4.begin(), prop4.end(), prop3.begin(), extract_functor());
+    thrust::device_vector<Real3> prop_D(prop4_D.size());
+    thrust::transform(prop4_D.begin(), prop4_D.end(), prop_D.begin(), extract_functor());
 
-    return prop3;
+    // Copy to output
+    std::vector<Real3> prop_H(prop_D.size());
+    thrust::copy(prop_D.begin(), prop_D.end(), prop_H.begin());
+    return prop_H;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-// Gather positions from particles with specified indices
-thrust::device_vector<Real3> FsiDataManager::GetPositions(const thrust::device_vector<int>& indices) {
-    const auto& allpos = GetPositions();
+std::vector<Real3> FsiDataManager::GetPositions(const std::vector<int>& indices) {
+    thrust::device_vector<int> indices_D(indices.size());
+    thrust::copy(indices.begin(), indices.end(), indices_D.begin());
 
-    thrust::device_vector<Real3> pos(allpos.size());
+    // Get all extended positions
+    auto& allpos4_D = sphMarkers_D->posRadD;
 
-    auto end = thrust::gather(thrust::device,                  // execution policy
-                              indices.begin(), indices.end(),  // range of gather locations
-                              allpos.begin(),                  // beginning of source
-                              pos.begin()                      // beginning of destination
+    // Gather only those for specified indices
+    thrust::device_vector<Real4> pos4_D(allpos4_D.size());
+    auto end = thrust::gather(thrust::device,                      // execution policy
+                              indices_D.begin(), indices_D.end(),  // range of gather locations
+                              allpos4_D.begin(),                   // beginning of source
+                              pos4_D.begin()                       // beginning of destination
     );
 
-    // Trim the output vector of particle positions
-    size_t num_active = (size_t)(end - pos.begin());
-    assert(num_active == indices.size());
-    pos.resize(num_active);
+    // Extract positions only (drop radius)
+    thrust::device_vector<Real3> pos_D(pos4_D.size());
+    thrust::transform(pos4_D.begin(), pos4_D.end(), pos_D.begin(), extract_functor());
 
-    return pos;
+    // Trim the output vector of particle positions
+    size_t num_active = (size_t)(end - pos4_D.begin());
+    assert(num_active == indices_D.size());
+    pos_D.resize(num_active);
+
+    // Copy to output
+    std::vector<Real3> pos_H(pos_D.size());
+    thrust::copy(pos_D.begin(), pos_D.end(), pos_H.begin());
+    return pos_H;
 }
 
-// Gather velocities from particles with specified indices
-thrust::device_vector<Real3> FsiDataManager::GetVelocities(const thrust::device_vector<int>& indices) {
-    auto allvel = GetVelocities();
+std::vector<Real3> FsiDataManager::GetVelocities(const std::vector<int>& indices) {
+    thrust::device_vector<int> indices_D(indices.size());
+    thrust::copy(indices.begin(), indices.end(), indices_D.begin());
 
-    thrust::device_vector<Real3> vel(allvel.size());
+    // Get all velocities
+    auto allvel_D = sphMarkers_D->velMasD;
 
-    auto end = thrust::gather(thrust::device,                  // execution policy
-                              indices.begin(), indices.end(),  // range of gather locations
-                              allvel.begin(),                  // beginning of source
-                              vel.begin()                      // beginning of destination
+    // Gather only those for specified indices
+    thrust::device_vector<Real3> vel_D(allvel_D.size());
+    auto end = thrust::gather(thrust::device,                      // execution policy
+                              indices_D.begin(), indices_D.end(),  // range of gather locations
+                              allvel_D.begin(),                    // beginning of source
+                              vel_D.begin()                        // beginning of destination
     );
 
     // Trim the output vector of particle positions
-    size_t num_active = (size_t)(end - vel.begin());
-    assert(num_active == indices.size());
-    vel.resize(num_active);
+    size_t num_active = (size_t)(end - vel_D.begin());
+    assert(num_active == indices_D.size());
+    vel_D.resize(num_active);
 
-    return vel;
+    // Copy to output
+    std::vector<Real3> vel_H(vel_D.size());
+    thrust::copy(vel_D.begin(), vel_D.end(), vel_H.begin());
+    return vel_H;
 }
 
-// Gather accelerations from particles with specified indices
-thrust::device_vector<Real3> FsiDataManager::GetAccelerations(const thrust::device_vector<int>& indices) {
-    auto allacc = GetAccelerations();
+std::vector<Real3> FsiDataManager::GetAccelerations(const std::vector<int>& indices) {
+    thrust::device_vector<int> indices_D(indices.size());
+    thrust::copy(indices.begin(), indices.end(), indices_D.begin());
 
-    thrust::device_vector<Real3> acc(allacc.size());
+    // Get all extended accelerations
+    const auto n = countersH->numFluidMarkers;
+    thrust::device_vector<Real4> allacc4_D(n);
+    thrust::copy_n(derivVelRhoD.begin(), n, allacc4_D.begin());
 
-    auto end = thrust::gather(thrust::device,                  // execution policy
-                              indices.begin(), indices.end(),  // range of gather locations
-                              allacc.begin(),                  // beginning of source
-                              acc.begin()                      // beginning of destination
+    // Gather only those for specified indices
+    thrust::device_vector<Real4> acc4_D(allacc4_D.size());
+    auto end = thrust::gather(thrust::device,                      // execution policy
+                              indices_D.begin(), indices_D.end(),  // range of gather locations
+                              allacc4_D.begin(),                   // beginning of source
+                              acc4_D.begin()                       // beginning of destination
     );
 
-    // Trim the output vector of particle positions
-    size_t num_active = (size_t)(end - acc.begin());
-    assert(num_active == indices.size());
-    acc.resize(num_active);
+    // Extract acceleration (drop density)
+    thrust::device_vector<Real3> acc_D(n);
+    thrust::transform(acc4_D.begin(), acc4_D.end(), acc_D.begin(), extract_functor());
 
-    return acc;
+    // Trim the output vector of particle positions
+    size_t num_active = (size_t)(end - acc4_D.begin());
+    assert(num_active == indices_D.size());
+    acc_D.resize(num_active);
+
+    // Copy to output
+    std::vector<Real3> acc_H(acc_D.size());
+    thrust::copy(acc_D.begin(), acc_D.end(), acc_H.begin());
+    return acc_H;
 }
 
-thrust::device_vector<Real3> FsiDataManager::GetForces(const thrust::device_vector<int>& indices) {
-    auto allforces = GetForces();
+std::vector<Real3> FsiDataManager::GetForces(const std::vector<int>& indices) {
+    std::vector<Real3> frc_H = GetAccelerations(indices);
+    std::transform(frc_H.begin(), frc_H.end(), frc_H.begin(), scale_functor(paramsH->markerMass));
+    return frc_H;
+}
 
-    thrust::device_vector<Real3> forces(allforces.size());
+//--------------------------------------------------------------------------------------------------------------------------------
 
-    auto end = thrust::gather(thrust::device,                  // execution policy
-                              indices.begin(), indices.end(),  // range of gather locations
-                              allforces.begin(),               // beginning of source
-                              forces.begin()                   // beginning of destination
-    );
+std::vector<Real3> FsiDataManager::GetRigidForces() {
+    std::vector<Real3> out_H(rigid_FSI_ForcesD.size());
+    thrust::copy(rigid_FSI_ForcesD.begin(), rigid_FSI_ForcesD.end(), out_H.begin());
+    return out_H;
+}
 
-    // Trim the output vector of particle positions
-    size_t num_active = (size_t)(end - forces.begin());
-    assert(num_active == indices.size());
-    forces.resize(num_active);
+std::vector<Real3> FsiDataManager::GetRigidTorques() {
+    std::vector<Real3> out_H(rigid_FSI_TorquesD.size());
+    thrust::copy(rigid_FSI_TorquesD.begin(), rigid_FSI_TorquesD.end(), out_H.begin());
+    return out_H;
+}
 
-    return forces;
+std::vector<Real3> FsiDataManager::GetFlex1dForces() {
+    std::vector<Real3> out_H(flex1D_FSIforces_D.size());
+    thrust::copy(flex1D_FSIforces_D.begin(), flex1D_FSIforces_D.end(), out_H.begin());
+    return out_H;
+}
+
+std::vector<Real3> FsiDataManager::GetFlex2dForces() {
+    std::vector<Real3> out_H(flex2D_FSIforces_D.size());
+    thrust::copy(flex2D_FSIforces_D.begin(), flex2D_FSIforces_D.end(), out_H.begin());
+    return out_H;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -598,11 +781,11 @@ struct in_box {
     Real3 az;
 };
 
-thrust::device_vector<int> FsiDataManager::FindParticlesInBox(const Real3& hsize,
-                                                              const Real3& pos,
-                                                              const Real3& ax,
-                                                              const Real3& ay,
-                                                              const Real3& az) {
+std::vector<int> FsiDataManager::FindParticlesInBox(const Real3& hsize,
+                                                    const Real3& pos,
+                                                    const Real3& ax,
+                                                    const Real3& ay,
+                                                    const Real3& az) {
     // Extract indices of SPH particles contained in the OBB
     auto& ref = referenceArray;
     auto& pos_D = sphMarkers_D->posRadD;
@@ -637,7 +820,99 @@ thrust::device_vector<int> FsiDataManager::FindParticlesInBox(const Real3& hsize
     size_t num_active = (size_t)(end - indices_D.begin());
     indices_D.resize(num_active);
 
-    return indices_D;
+    // Copy to output
+    std::vector<int> indices_H;
+    thrust::copy(indices_D.begin(), indices_D.end(), indices_H.begin());
+    return indices_H;
+}
+
+size_t FsiDataManager::GetCurrentGPUMemoryUsage() const {
+    size_t total_bytes = 0;
+
+    // SPH marker data
+    total_bytes += sphMarkers_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sphMarkers_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sphMarkers_D->rhoPresMuD.capacity() * sizeof(Real4);
+    total_bytes += sphMarkers_D->tauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += sphMarkers_D->tauXyXzYzD.capacity() * sizeof(Real3);
+
+    // Sorted SPH marker data (state 1)
+    total_bytes += sortedSphMarkers1_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers1_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers1_D->rhoPresMuD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers1_D->tauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers1_D->tauXyXzYzD.capacity() * sizeof(Real3);
+
+    // Sorted SPH marker data (state 2)
+    total_bytes += sortedSphMarkers2_D->posRadD.capacity() * sizeof(Real4);
+    total_bytes += sortedSphMarkers2_D->velMasD.capacity() * sizeof(Real3);
+    total_bytes += sortedSphMarkers2_D->rhoPresMuD.capacity() * sizeof(Real4);
+
+    // Proximity data
+    total_bytes += markersProximity_D->gridMarkerHashD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->gridMarkerIndexD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->cellStartD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->cellEndD.capacity() * sizeof(uint);
+    total_bytes += markersProximity_D->mapOriginalToSorted.capacity() * sizeof(uint);
+
+    // FSI body state data
+    total_bytes += fsiBodyState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->lin_vel.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->lin_acc.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->rot.capacity() * sizeof(Real4);
+    total_bytes += fsiBodyState_D->ang_vel.capacity() * sizeof(Real3);
+    total_bytes += fsiBodyState_D->ang_acc.capacity() * sizeof(Real3);
+
+    // FSI mesh state data (1D)
+    total_bytes += fsiMesh1DState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh1DState_D->vel.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh1DState_D->acc.capacity() * sizeof(Real3);
+
+    // FSI mesh state data (2D)
+    total_bytes += fsiMesh2DState_D->pos.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh2DState_D->vel.capacity() * sizeof(Real3);
+    total_bytes += fsiMesh2DState_D->acc.capacity() * sizeof(Real3);
+
+    // Fluid data
+    total_bytes += derivVelRhoD.capacity() * sizeof(Real4);
+    total_bytes += derivVelRhoOriginalD.capacity() * sizeof(Real4);
+    total_bytes += derivTauXxYyZzD.capacity() * sizeof(Real3);
+    total_bytes += derivTauXyXzYzD.capacity() * sizeof(Real3);
+    total_bytes += vel_XSPH_D.capacity() * sizeof(Real3);
+    total_bytes += vis_vel_SPH_D.capacity() * sizeof(Real3);
+    total_bytes += sr_tau_I_mu_i.capacity() * sizeof(Real4);
+    total_bytes += sr_tau_I_mu_i_Original.capacity() * sizeof(Real4);
+    total_bytes += bceAcc.capacity() * sizeof(Real3);
+
+    // Activity and neighbor data
+    total_bytes += activityIdentifierOriginalD.capacity() * sizeof(int32_t);
+    total_bytes += activityIdentifierSortedD.capacity() * sizeof(int32_t);
+    total_bytes += extendedActivityIdentifierOriginalD.capacity() * sizeof(int32_t);
+    total_bytes += prefixSumExtendedActivityIdD.capacity() * sizeof(uint);
+    total_bytes += activeListD.capacity() * sizeof(uint);
+    total_bytes += numNeighborsPerPart.capacity() * sizeof(uint);
+    total_bytes += neighborList.capacity() * sizeof(uint);
+    total_bytes += freeSurfaceIdD.capacity() * sizeof(uint);
+
+    // BCE data
+    total_bytes += rigid_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += flex1D_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += flex2D_BCEcoords_D.capacity() * sizeof(Real3);
+    total_bytes += rigid_BCEsolids_D.capacity() * sizeof(uint);
+    total_bytes += flex1D_BCEsolids_D.capacity() * sizeof(uint3);
+    total_bytes += flex2D_BCEsolids_D.capacity() * sizeof(uint3);
+
+    // FSI forces
+    total_bytes += rigid_FSI_ForcesD.capacity() * sizeof(Real3);
+    total_bytes += rigid_FSI_TorquesD.capacity() * sizeof(Real3);
+    total_bytes += flex1D_FSIforces_D.capacity() * sizeof(Real3);
+    total_bytes += flex2D_FSIforces_D.capacity() * sizeof(Real3);
+
+    // FSI nodes
+    total_bytes += flex1D_Nodes_D.capacity() * sizeof(int2);
+    total_bytes += flex2D_Nodes_D.capacity() * sizeof(int3);
+
+    return total_bytes;
 }
 
 }  // namespace sph

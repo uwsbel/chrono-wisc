@@ -18,6 +18,7 @@ set(DEMOS
   demo_MBS_friction
   demo_MBS_motors
   demo_MBS_spring  
+  demo_MBS_inverted_pendulum
   demo_MBS_external_ODE
   demo_MBS_external_DAE  
   demo_MBS_hydraulic_actuator
@@ -79,8 +80,6 @@ endif()
 
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-set(COMPILER_FLAGS "")
-set(LINKER_FLAGS "")
 list(APPEND LIBS Chrono_core)
 
 if(CH_ENABLE_MODULE_IRRLICHT)

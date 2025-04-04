@@ -22,6 +22,7 @@ set(DEMOS ${DEMOS}
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
    set(DEMOS ${DEMOS}
+      demo_FSI_FEAdirections
       demo_FSI_Flexible_Plate
       demo_FSI_Flexible_Cable
       demo_FSI_Flexible_Toroidal_Tire
@@ -35,10 +36,6 @@ list(APPEND LIBS "Chrono_fsisph")
 
 if(CH_ENABLE_MODULE_VSG)
     list(APPEND LIBS "Chrono_fsisph_vsg")
-endif()
-
-if(CH_ENABLE_MODULE_OPENGL)
-    list(APPEND LIBS "Chrono_fsisph_opengl")
 endif()
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)

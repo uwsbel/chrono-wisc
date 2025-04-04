@@ -32,18 +32,17 @@ if(HAVE_OPENCRG)
    endif()
 endif()
 
-if(CH_ENABLE_MODULE_MULTICORE AND CH_ENABLE_MODULE_OPENGL)
+if(CH_ENABLE_MODULE_MULTICORE AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_VEH_GranularTerrain_RigidTire
         demo_VEH_GranularTerrain_MovingPatch
     )
 endif()
 
-if(CH_ENABLE_MODULE_FSI AND (CH_ENABLE_MODULE_OPENGL OR CH_ENABLE_MODULE_VSG))
+if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_VEH_CRMTerrain_WheeledVehicle
         demo_VEH_CRMTerrain_TrackedVehicle
-        demo_VEH_CRMTerrain_Viper
     )
 endif()
 
@@ -93,13 +92,6 @@ if(CH_ENABLE_MODULE_VSG)
     list(APPEND LIBS "Chrono_vehicle_vsg")
     if(CH_ENABLE_MODULE_FSI)
       list(APPEND LIBS "Chrono_fsisph_vsg")
-    endif()
-endif()
-
-if(CH_ENABLE_MODULE_OPENGL)
-    list(APPEND LIBS "Chrono_opengl")
-    if(CH_ENABLE_MODULE_FSI)
-      list(APPEND LIBS "Chrono_fsisph_opengl")
     endif()
 endif()
 
