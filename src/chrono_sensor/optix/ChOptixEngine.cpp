@@ -676,8 +676,8 @@ void ChOptixEngine::ConstructScene(std::shared_ptr<ChScene> scene) {
     for (auto sprite : scene->GetSprites()) {
         if (sprite->GetVisualModel()) {
             for (auto& shape_instance : sprite->GetVisualModel()->GetShapeInstances()) {
-                const auto& shape = shape_instance.first;
-                const auto& shape_frame = shape_instance.second;
+                const auto& shape = shape_instance.shape;
+                const auto& shape_frame = shape_instance.frame;
                 // check if the asset is a ChVisualShape
 
                 // if (std::shared_ptr<ChVisualShape> visual_asset = std::dynamic_pointer_cast<ChVisualShape>(asset)) {

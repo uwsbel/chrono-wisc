@@ -72,11 +72,11 @@ set(Chrono_sensor_CUDA_SOURCES
     cuda/lidar_noise.cu
     cuda/curand_utils.cu
     cuda/image_ops.cu
-    cuda/phys_cam_ops.cu
     cuda/nn_prep.cu
     cuda/lidar_clip.cu
     cuda/radarprocess.cu
     cuda/cuda_utils.cu
+    cuda/phys_cam_ops.cu
 )
 
 set(Chrono_sensor_CUDA_HEADERS
@@ -87,11 +87,11 @@ set(Chrono_sensor_CUDA_HEADERS
     cuda/lidar_noise.cuh
     cuda/curand_utils.cuh
     cuda/image_ops.cuh
-    cuda/phys_cam_ops.cuh
     cuda/nn_prep.cuh
     cuda/lidar_clip.cuh
     cuda/radarprocess.cuh
     cuda/cuda_utils.cuh
+    cuda/phys_cam_ops.cuh
 )
 
 source_group("Cuda" FILES
@@ -129,14 +129,12 @@ set(Chrono_sensor_SENSORS_SOURCES
     sensors/ChPhysCameraSensor.cpp
     sensors/ChSegmentationCamera.cpp
     sensors/ChDepthCamera.cpp
-    sensors/ChNormalCamera.cpp
     sensors/ChLidarSensor.cpp
     sensors/ChRadarSensor.cpp
     sensors/ChIMUSensor.cpp
     sensors/ChGPSSensor.cpp
     sensors/ChTachometerSensor.cpp
     sensors/Sensor.cpp
-    sensors/ChTransientSensor.cpp
 )
 
 set(Chrono_sensor_SENSORS_HEADERS
@@ -147,7 +145,6 @@ set(Chrono_sensor_SENSORS_HEADERS
     sensors/ChPhysCameraSensor.h
     sensors/ChSegmentationCamera.h
     sensors/ChDepthCamera.h
-    sensors/ChNormalCamera.h
     sensors/ChLidarSensor.h
     sensors/ChRadarSensor.h
     sensors/ChIMUSensor.h
@@ -155,7 +152,6 @@ set(Chrono_sensor_SENSORS_HEADERS
     sensors/ChTachometerSensor.h
   	sensors/ChSensorBuffer.h
     sensors/Sensor.h
-    sensors/ChTransientSensor.h
 )
 
 source_group("Source" FILES
@@ -238,8 +234,6 @@ set(Chrono_sensor_FILTERS_SOURCES
     filters/ChFilterPhysCameraDefocusBlur.cpp
     filters/ChFilterPhysCameraVignetting.cpp
     filters/ChFilterPhysCameraAggregator.cpp
-    filters/ChFilterPhysCameraNoise.cpp
-    filters/ChFilterPhysCameraExpsrToDV.cpp
 )
 
 set(Chrono_sensor_FILTERS_HEADERS
@@ -264,12 +258,13 @@ set(Chrono_sensor_FILTERS_HEADERS
     filters/ChFilterRadarXYZVisualize.h
     filters/ChFilterRadarVisualizeCluster.h
     filters/ChFilterTachometerUpdate.h
-    filters/ChFilterCameraExposure.h
     filters/ChFilterPhysCameraDefocusBlur.h
     filters/ChFilterPhysCameraVignetting.h
     filters/ChFilterPhysCameraAggregator.h
     filters/ChFilterPhysCameraNoise.h
     filters/ChFilterPhysCameraExpsrToDV.h
+    filters/ChFilterPhysCameraNoise.cpp
+    filters/ChFilterPhysCameraExpsrToDV.cpp
 )
 
 source_group("Filters" FILES
