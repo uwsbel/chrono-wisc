@@ -18,7 +18,7 @@
 #include <iomanip>
 
 #include "chrono/physics/ChSystemSMC.h"
-
+#include "chrono/assets/ChVisualSystem.h"
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
@@ -35,10 +35,6 @@
 
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
-#include "chrono_fsi/sph/visualization/ChFsiVisualization.h"
-#ifdef CHRONO_OPENGL
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationGL.h"
-#endif
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
 #endif
@@ -53,6 +49,7 @@
 using namespace chrono;
 using namespace chrono::fea;
 using namespace chrono::fsi;
+using namespace chrono::fsi::sph;
 
 using std::cout;
 using std::cerr;
@@ -62,9 +59,6 @@ using std::endl;
 
 // Physics problem type
 PhysicsProblem problem_type = PhysicsProblem::CFD;
-
-// Run-time visualization system (OpenGL or VSG)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 
 // Dimensions of the boundary and fluid domains
 double cxDim = 3;
@@ -142,7 +136,7 @@ int main(int argc, char* argv[]) {
     // Set fluid phase properties
     switch (problem_type) {
         case PhysicsProblem::CFD: {
-            ChFluidSystemSPH::FluidProperties fluid_props;
+            ChFsiFluidSystemSPH::FluidProperties fluid_props;
             fluid_props.density = 1000;
             fluid_props.viscosity = 5.0;
 
@@ -151,7 +145,7 @@ int main(int argc, char* argv[]) {
             break;
         }
         case PhysicsProblem::CRM: {
-            ChFluidSystemSPH::ElasticMaterialProperties mat_props;
+            ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
             mat_props.density = 1700;
             mat_props.Young_modulus = 1e6;
             mat_props.Poisson_ratio = 0.3;
@@ -168,7 +162,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Set SPH solution parameters
-    ChFluidSystemSPH::SPHParameters sph_params;
+    ChFsiFluidSystemSPH::SPHParameters sph_params;
 
     switch (problem_type) {
         case PhysicsProblem::CFD:
@@ -177,8 +171,8 @@ int main(int argc, char* argv[]) {
             sph_params.d0_multiplier = 1.2;
             sph_params.max_velocity = 10;
             sph_params.kernel_threshold = 0.8;
-            sph_params.xsph_coefficient = 0.5;
-            sph_params.shifting_coefficient = 0.0;
+            sph_params.shifting_method = ShiftingMethod::XSPH;
+            sph_params.shifting_xsph_eps = 0.5;
             sph_params.artificial_viscosity = 0.2;
             sph_params.use_delta_sph = true;
             sph_params.delta_sph_coefficient = 0.1;
@@ -190,8 +184,10 @@ int main(int argc, char* argv[]) {
             sph_params.sph_method = SPHMethod::WCSPH;
             sph_params.initial_spacing = initial_spacing;
             sph_params.d0_multiplier = 1.2;
-            sph_params.xsph_coefficient = 0.5;
-            sph_params.shifting_coefficient = 1.0;
+            sph_params.shifting_xsph_eps = 0.5;
+            sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
+            sph_params.shifting_ppst_pull = 1.0;
+            sph_params.shifting_ppst_push = 3.0;
             sph_params.kernel_threshold = 0.8;
             sph_params.artificial_viscosity = 0.5;
             sph_params.num_proximity_search_steps = ps_freq;
@@ -236,9 +232,10 @@ int main(int argc, char* argv[]) {
                         BoxSide::Z_NEG | BoxSide::X_NEG | BoxSide::X_POS  // bottom and left/right walls
     );
 
-    ChVector3d cMin = ChVector3d(-5 * cxDim, -cyDim / 2 - initial_spacing / 2, -5 * czDim);
-    ChVector3d cMax = ChVector3d(+5 * cxDim, +cyDim / 2 + initial_spacing / 2, +5 * czDim);
-    fsi.SetComputationalDomainSize(ChAABB(cMin, cMax));
+    ChVector3d cMin =
+        ChVector3d(-cxDim - 3 * initial_spacing, -cyDim / 2 - initial_spacing / 2, -czDim - 3 * initial_spacing);
+    ChVector3d cMax = ChVector3d(cxDim + 3 * initial_spacing, +cyDim / 2 + initial_spacing / 2, czDim);
+    fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::Y);
 
     // Initialize FSI problem
     fsi.Initialize();
@@ -284,54 +281,36 @@ int main(int argc, char* argv[]) {
     }
 
     // Create a run-tme visualizer
-#ifndef CHRONO_OPENGL
-    if (vis_type == ChVisualSystem::Type::OpenGL)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::OpenGL;
-#endif
-#if !defined(CHRONO_OPENGL) && !defined(CHRONO_VSG)
-    render = false;
-#endif
+    std::shared_ptr<ChVisualSystem> vis;
 
-    std::shared_ptr<ChFsiVisualization> visFSI;
-    if (render) {
-        switch (vis_type) {
-            case ChVisualSystem::Type::OpenGL:
-#ifdef CHRONO_OPENGL
-                visFSI = chrono_types::make_shared<ChFsiVisualizationGL>(&sysFSI);
-                visFSI->AddCamera(ChVector3d(0, -2, 0.75), ChVector3d(0, 0, 0.75));
-#endif
-                break;
-            case ChVisualSystem::Type::VSG: {
 #ifdef CHRONO_VSG
-                visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
-                visFSI->AddCamera(ChVector3d(0.75, -3, 0.75), ChVector3d(0, 0, 0.75));
-#endif
-                break;
-            }
-        }
-
+    if (render) {
+        // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2.5);
 
-        visFSI->SetTitle("Chrono::FSI flexible plate");
-        visFSI->SetSize(1280, 720);
-        visFSI->SetCameraMoveScale(1.0f);
-        visFSI->SetLightIntensity(0.9);
-        visFSI->SetLightDirection(-CH_PI_2, CH_PI / 6);
+        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(show_particles_sph);
         visFSI->EnableBoundaryMarkers(show_boundary_bce);
-        visFSI->EnableFlexBodyMarkers(show_mesh_bce);
         visFSI->EnableRigidBodyMarkers(show_rigid_bce);
-        visFSI->SetColorFlexBodyMarkers(ChColor(1, 1, 1));
-        visFSI->SetRenderMode(ChFsiVisualization::RenderMode::SOLID);
-        visFSI->SetParticleRenderMode(ChFsiVisualization::RenderMode::SOLID);
         visFSI->SetSPHColorCallback(col_callback);
-        visFSI->AttachSystem(&sysMBS);
-        visFSI->Initialize();
+
+        // VSG visual system (attach visFSI as plugin)
+        auto visVSG = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
+        visVSG->AttachPlugin(visFSI);
+        visVSG->AttachSystem(&sysMBS);
+        visVSG->SetWindowTitle("Flexible Plate");
+        visVSG->SetWindowSize(1280, 800);
+        visVSG->SetWindowPosition(100, 100);
+        visVSG->AddCamera(ChVector3d(1.5, -1.5, 0.5), ChVector3d(0, 0, 0));
+        visVSG->SetLightIntensity(0.9f);
+        visVSG->SetLightDirection(-CH_PI_2, CH_PI / 6);
+
+        visVSG->Initialize();
+        vis = visVSG;
     }
+#else
+    render = false;
+#endif
 
 // Set MBS solver
 #ifdef CHRONO_PARDISO_MKL
@@ -383,8 +362,9 @@ int main(int argc, char* argv[]) {
         }
         // Render FSI system
         if (render && time >= render_frame / render_fps) {
-            if (!visFSI->Render())
+            if (!vis->Run())
                 break;
+            vis->Render();
 
             if (snapshots) {
                 if (verbose)
@@ -392,7 +372,7 @@ int main(int argc, char* argv[]) {
                 std::ostringstream filename;
                 filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
                          << ".bmp";
-                visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
+                vis->WriteImageToFile(filename.str());
             }
 
             render_frame++;

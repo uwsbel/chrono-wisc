@@ -70,11 +70,11 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
 
     /// Enable/disable full-screen mode (default false).
     /// Must be called before Initialize().
-    void SetFullscreen(bool val);
+    void EnableFullscreen(bool val);
 
     /// Enable/disable shadows (default false).
     /// Must be called before Initialize().
-    void SetShadows(bool val);
+    void EnableShadows(bool val);
 
     /// Set the device driver type (default irr::video::EDT_DIRECT3D9).
     /// Must be called before Initialize().
@@ -112,7 +112,7 @@ class ChApiIrr ChVisualSystemIrrlicht : virtual public ChVisualSystem {
 
     /// Add a logo in a 3D scene.
     /// Has no effect, unles called after Initialize().
-    void AddLogo(const std::string& logo_filename = GetChronoDataFile("logo_chronoengine_alpha.png"));
+    void AddLogo(const std::string& logo_filename = GetChronoDataFile("logo_chrono_alpha.png"));
 
     /// Add a camera in an Irrlicht 3D scene.
     /// The camera rotation/pan is controlled by mouse left and right buttons, the zoom is controlled by mouse wheel or

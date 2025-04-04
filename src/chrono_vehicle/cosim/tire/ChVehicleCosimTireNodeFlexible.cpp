@@ -30,9 +30,9 @@
     #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
 #endif
 
-#ifdef CHRONO_MUMPS
-    #include "chrono_mumps/ChSolverMumps.h"
-#endif
+////#ifdef CHRONO_MUMPS
+////    #include "chrono_mumps/ChSolverMumps.h"
+////#endif
 
 #ifdef CHRONO_IRRLICHT
     #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
@@ -58,17 +58,17 @@ ChVehicleCosimTireNodeFlexible::ChVehicleCosimTireNodeFlexible(int index, const 
     auto solver = chrono_types::make_shared<ChSolverPardisoMKL>();
     solver->LockSparsityPattern(true);
     m_system->SetSolver(solver);
-#elif defined(CHRONO_MUMPS)
-    auto solver = chrono_types::make_shared<ChSolverMumps>();
-    solver->LockSparsityPattern(true);
-    m_system->SetSolver(solver);
+////#elif defined(CHRONO_MUMPS)
+////    auto solver = chrono_types::make_shared<ChSolverMumps>();
+////    solver->LockSparsityPattern(true);
+////    m_system->SetSolver(solver);
 #else
     auto solver = chrono_types::make_shared<ChSolverSparseQR>();
     solver->LockSparsityPattern(true);
     m_system->SetSolver(solver);
 #endif
 
-    auto integrator = chrono_types::make_shared<ChTimestepperHHT>();
+    auto integrator = chrono_types::make_shared<ChTimestepperHHT>(m_system);
     integrator->SetAlpha(-0.2);
     integrator->SetMaxIters(50);
     integrator->SetAbsTolerances(1e-04, 1e2);
@@ -187,7 +187,6 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
         vsys_vsg->SetWindowTitle(title);
         vsys_vsg->SetWindowSize(ChVector2i(1280, 720));
         vsys_vsg->SetWindowPosition(ChVector2i(100, 100));
-        vsys_vsg->SetUseSkyBox(false);
         vsys_vsg->SetClearColor(ChColor(0.455f, 0.525f, 0.640f));
         vsys_vsg->AddCamera(m_cam_pos, ChVector3d(0, 0, 0));
         vsys_vsg->SetCameraAngleDeg(40);
@@ -197,7 +196,7 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
         vsys_vsg->SetImageOutput(m_writeRT);
         vsys_vsg->Initialize();
 
-        vsys_vsg->ToggleCOGFrameVisibility();
+        vsys_vsg->ToggleCOMFrameVisibility();
 
         m_vsys = vsys_vsg;
 #elif defined(CHRONO_IRRLICHT)

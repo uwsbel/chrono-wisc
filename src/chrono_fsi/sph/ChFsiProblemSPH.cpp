@@ -21,6 +21,8 @@
 #include <sstream>
 #include <queue>
 
+#include "chrono/assets/ChVisualShapeBox.h"
+
 #include "chrono/physics/ChLinkMotorLinearPosition.h"
 #include "chrono/physics/ChLinkMotorRotationAngle.h"
 
@@ -35,6 +37,7 @@ using std::endl;
 
 namespace chrono {
 namespace fsi {
+namespace sph {
 
 // ----------------------------------------------------------------------------
 
@@ -66,15 +69,15 @@ void ChFsiProblemSPH::SetVerbose(bool verbose) {
     m_verbose = verbose;
 }
 
-void ChFsiProblemSPH::SetCfdSPH(const ChFluidSystemSPH::FluidProperties& fluid_props) {
+void ChFsiProblemSPH::SetCfdSPH(const ChFsiFluidSystemSPH::FluidProperties& fluid_props) {
     m_sysSPH.SetCfdSPH(fluid_props);
 }
 
-void ChFsiProblemSPH::SetElasticSPH(const ChFluidSystemSPH::ElasticMaterialProperties& mat_props) {
+void ChFsiProblemSPH::SetElasticSPH(const ChFsiFluidSystemSPH::ElasticMaterialProperties& mat_props) {
     m_sysSPH.SetElasticSPH(mat_props);
 }
 
-void ChFsiProblemSPH::SetSPHParameters(const ChFluidSystemSPH::SPHParameters& sph_params) {
+void ChFsiProblemSPH::SetSPHParameters(const ChFsiFluidSystemSPH::SPHParameters& sph_params) {
     m_sysSPH.SetSPHParameters(sph_params);
 }
 
@@ -172,6 +175,10 @@ size_t ChFsiProblemSPH::AddRigidBodyMesh(std::shared_ptr<ChBody> body,
 }
 
 // ----------------------------------------------------------------------------
+
+void ChFsiProblemSPH::EnableNodeDirections(bool val) {
+    m_sysFSI.EnableNodeDirections(val);
+}
 
 void ChFsiProblemSPH::SetBcePattern1D(BcePatternMesh1D pattern, bool remove_center) {
     m_sysSPH.SetBcePattern1D(pattern, remove_center);
@@ -281,7 +288,6 @@ void ChFsiProblemSPH::Initialize() {
     // (ATTENTION: BCE markers for moving objects must be created after the fixed BCE markers!)
     for (const auto& m : m_meshes) {
         m_sysFSI.AddFsiMesh(m.mesh);
-        assert(m.mesh->GetNumContactSurfaces() > 0);
         for (const auto& surf : m.mesh->GetContactSurfaces()) {
             aabb += surf->GetAABB();
         }
@@ -299,12 +305,12 @@ void ChFsiProblemSPH::Initialize() {
     // Set computational domain
     if (!m_domain_aabb.IsInverted()) {
         // Use provided computational domain
-        m_sysSPH.SetBoundaries(m_domain_aabb.min, m_domain_aabb.max);
+        m_sysSPH.SetComputationalBoundaries(m_domain_aabb.min, m_domain_aabb.max, m_periodic_sides);
     } else {
         // Set computational domain based on actual AABB of all markers
         int bce_layers = m_sysSPH.GetNumBCELayers();
         m_domain_aabb = ChAABB(aabb.min - bce_layers * m_spacing, aabb.max + bce_layers * m_spacing);
-        m_sysSPH.SetBoundaries(m_domain_aabb.min, m_domain_aabb.max);
+        m_sysSPH.SetComputationalBoundaries(m_domain_aabb.min, m_domain_aabb.max, static_cast<int>(PeriodicSide::NONE));
     }
 
     // Initialize the underlying FSI system
@@ -911,7 +917,7 @@ std::shared_ptr<ChBody> ChFsiProblemCartesian::ConstructWaveTank(
     bool end_wall                              // include end wall
 ) {
     if (m_verbose) {
-        cout << "Construct piston wavemaker" << endl;
+        cout << "Construct piston wave tank" << endl;
     }
 
     // Number of BCE layers
@@ -935,13 +941,14 @@ std::shared_ptr<ChBody> ChFsiProblemCartesian::ConstructWaveTank(
     bce.reserve(num_bce);
 
     // Generate SPH, bottom BCE, and side BCE points
+    int Iz0 = 0;  // fluid start index at bottom
     for (int Ix = 0; Ix < Nx; Ix++) {
         double x = Ix * m_spacing;               // current downstream location
         double z = profile ? (*profile)(x) : 0;  // bottom height
 
         ////std::cout << x << "  " << z << std::endl;
 
-        int Iz0 = std::round(z / m_spacing);  // fluid start index at bottom
+        Iz0 = std::round(z / m_spacing);  // fluid start index at bottom
 
         for (int Iy = 0; Iy < Ny; Iy++) {
             for (int Iz = Iz0; Iz < Nzf; Iz++) {
@@ -982,7 +989,7 @@ std::shared_ptr<ChBody> ChFsiProblemCartesian::ConstructWaveTank(
     if (end_wall) {
         for (int Ix = Nx; Ix < Nx + bce_layers; Ix++) {
             for (int Iy = -bce_layers; Iy < Ny + bce_layers; Iy++) {
-                for (int Iz = -bce_layers; Iz < Nzc + bce_layers; Iz++) {
+                for (int Iz = Iz0 - bce_layers; Iz < Nzc + bce_layers; Iz++) {
                     bce.push_back(ChVector3i(Ix, Iy, Iz));
                 }
             }
@@ -1006,10 +1013,43 @@ std::shared_ptr<ChBody> ChFsiProblemCartesian::ConstructWaveTank(
     m_offset_sph = pos - ChVector3d(box_size.x() / 2, box_size.y() / 2, 0);
     m_offset_bce = pos - ChVector3d(box_size.x() / 2, box_size.y() / 2, 0);
 
+    // Visualization assets for wavetank container
+    double thickness = (bce_layers - 1) * m_spacing;
+    /*
+    double length = box_size.x() + 2 * thickness;
+    double width = box_size.y() + 2 * thickness;
+    double height = box_size.z() + 2 * thickness;
+
+    ChColor color(0.3f, 0.3f, 0.3f);
+
+    {
+        ChVector3d size(length, thickness, height);
+        ChVector3d loc(0, -box_size.y() / 2 - m_spacing, box_size.z() / 2 + m_spacing);
+        auto shape = chrono_types::make_shared<ChVisualShapeBox>(size);
+        shape->SetColor(color);
+        m_ground->AddVisualShape(shape, ChFramed(pos + loc, QUNIT));
+    }
+
+    {
+        ChVector3d size(length, thickness, height);
+        ChVector3d loc(0, box_size.y() / 2 + m_spacing, box_size.z() / 2 + m_spacing);
+        auto shape = chrono_types::make_shared<ChVisualShapeBox>(size);
+        shape->SetColor(color);
+        m_ground->AddVisualShape(shape, ChFramed(pos + loc, QUNIT));
+    }
+
+    if (end_wall) {
+        ChVector3d size(thickness, width, height - Iz0 * m_spacing);
+        ChVector3d loc(box_size.x() / 2 + thickness / 2 + m_spacing, 0, Iz0 * m_spacing / 2 + box_size.z() / 2 +
+    m_spacing); auto shape = chrono_types::make_shared<ChVisualShapeBox>(size); shape->SetColor(color);
+        m_ground->AddVisualShape(shape, ChFramed(pos + loc, QUNIT));
+    }
+    */
+
+    // Create wavemaker body
     std::shared_ptr<ChBody> body;
-    double body_thickness = (bce_layers - 1) * m_spacing;
-    ChVector3d body_size(body_thickness, box_size.y(), box_size.z());
-    ChVector3d body_pos(-box_size.x() / 2 - body_thickness / 2 - m_spacing, 0, box_size.z() / 2);
+    ChVector3d body_size(thickness, box_size.y(), box_size.z());
+    ChVector3d body_pos(-box_size.x() / 2 - thickness / 2 - m_spacing, 0, box_size.z() / 2);
 
     ChSystem& sysMBS = m_sysFSI.GetMultibodySystem();
 
@@ -1034,8 +1074,8 @@ std::shared_ptr<ChBody> ChFsiProblemCartesian::ConstructWaveTank(
             // Create the flap body and a rotational motor
             auto rev_pos = pos + body_pos - ChVector3d(0, 0, box_size.z() / 2);
 
-            body_pos.z() -= body_thickness / 2;
-            body_size.z() += body_thickness;
+            body_pos.z() -= thickness / 2;
+            body_size.z() += thickness;
 
             body = chrono_types::make_shared<ChBody>();
             body->SetPos(pos + body_pos);
@@ -1259,5 +1299,6 @@ ChVector3d ChFsiProblemCylindrical::Grid2Point(const ChVector3i& p) {
     return ChVector3d(x, y, z);
 }
 
+}  // end namespace sph
 }  // end namespace fsi
 }  // end namespace chrono

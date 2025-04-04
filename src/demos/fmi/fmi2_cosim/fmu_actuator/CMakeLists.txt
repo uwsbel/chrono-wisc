@@ -1,7 +1,7 @@
 set(COMPONENT_NAME "FMU2_actuator")
 set(COMPONENT_MAIN_DIR "${DEMO_FMU_MAIN_DIR}")
 set(COMPONENT_SOURCES actuatorFMU.h actuatorFMU.cpp)
-set(COMPONENT_CHRONO_DEPENDENCIES ChronoEngine)
+set(COMPONENT_CHRONO_DEPENDENCIES Chrono_core)
 set(COMPONENT_RESOURCES_DIR "")
 set(COMPONENT_DLL_DEPENDENCIES "")
 
@@ -10,10 +10,7 @@ set(FMU_CS ON)
 #--------------------------------------------------------------
 
 # Set include paths, compiler & linker flags, and libraries
-include_directories(${CH_INCLUDES})
-set(COMPILER_FLAGS "${CH_CXX_FLAGS}")
-set(LINKER_FLAGS "${CH_LINKERFLAG_EXE}")
-list(APPEND LIBS "ChronoEngine")
+list(APPEND LIBS Chrono_core)
 
 include_directories(${FMU_TOOLS_DIR})
 
@@ -51,8 +48,11 @@ add_dependencies(${FMU_MODEL_IDENTIFIER} ${COMPONENT_CHRONO_DEPENDENCIES})
 # add FMU target
 target_sources(${FMU_MODEL_IDENTIFIER} PRIVATE ${COMPONENT_SOURCES})
 
-set_target_properties(${FMU_MODEL_IDENTIFIER} PROPERTIES FOLDER demos COMPILE_FLAGS "${COMPILER_FLAGS}" LINK_FLAGS "${LINKER_FLAGS}")
-target_link_libraries(${FMU_MODEL_IDENTIFIER} ${LIBS})  
+target_link_libraries(${FMU_MODEL_IDENTIFIER} ${LIBS})
+
+if(MSVC)
+  set_target_properties(${FMU_MODEL_IDENTIFIER} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
+endif()
 
 #---------------------------------------------------------------
 
