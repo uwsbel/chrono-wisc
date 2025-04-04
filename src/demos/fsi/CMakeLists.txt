@@ -18,6 +18,9 @@ set(DEMOS ${DEMOS}
    demo_FSI_Flap
    demo_FSI_AngleRepose
    demo_FSI_Cratering
+   benchmark_RTF_FSI_BaffleFlow
+   benchmark_RTF_FSI_RASSOR_SingleDrum
+   
 )
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
@@ -26,6 +29,7 @@ if(CH_ENABLE_MODULE_PARDISO_MKL)
       demo_FSI_Flexible_Plate
       demo_FSI_Flexible_Cable
       demo_FSI_Flexible_Toroidal_Tire
+      benchmark_RTF_FSI_Flexible_Cable
    )
 endif()
 

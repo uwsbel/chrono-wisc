@@ -927,6 +927,17 @@ std::string ChFsiFluidSystemSPH::GetSphMethodTypeString() const {
     return method;
 }
 
+const double ChFsiFluidSystemSPH::GetNumActiveParticles() const {
+    return m_data_mgr->countersH->numExtendedParticles;
+}
+
+const Counters& ChFsiFluidSystemSPH::GetCounters() const {
+    return *m_data_mgr->countersH;
+}
+
+const CudaDeviceInfo& ChFsiFluidSystemSPH::GetCudaDeviceInfo() const {
+    return *m_data_mgr->cudaDeviceInfo;
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 
 // Convert host data from the provided SOA to the data manager's AOS and copy to device.

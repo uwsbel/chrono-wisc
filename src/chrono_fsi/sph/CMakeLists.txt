@@ -86,9 +86,11 @@ set(FSISPH_UTILS_FILES
     utils/UtilsPrintSph.cuh
     utils/UtilsDevice.cuh
     utils/UtilsTypeConvert.cuh
+    utils/UtilsTimingOutput.h
 
     utils/UtilsPrintSph.cu
     utils/UtilsDevice.cu
+    utils/UtilsTimingOutput.cpp
 )
 source_group("utils" FILES ${FSISPH_UTILS_FILES})
 

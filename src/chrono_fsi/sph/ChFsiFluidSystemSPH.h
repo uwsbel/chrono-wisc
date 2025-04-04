@@ -33,7 +33,8 @@ class ChFsiInterfaceSPH;
 class FluidDynamics;
 class BceManager;
 struct FsiDataManager;
-
+struct Counters;
+struct CudaDeviceInfo;
 /// @addtogroup fsisph
 /// @{
 
@@ -251,6 +252,12 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
 
     /// Set the fluid container dimension
     ChVector3d GetContainerDim() const;
+
+    /// Return counters (debugging only).
+    const Counters& GetCounters() const;
+
+    /// Return the cuda device information (debugging only).
+    const CudaDeviceInfo& GetCudaDeviceInfo() const;
 
     /// Return density.
     double GetDensity() const;
@@ -548,6 +555,7 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     PhysicsProblem GetPhysicsProblem() const;
     std::string GetPhysicsProblemString() const;
     std::string GetSphMethodTypeString() const;
+    const double GetNumActiveParticles() const;
 
   private:
     /// Initialize simulation parameters with default values.

@@ -61,6 +61,13 @@ set(CRM_COPTERS_FILES
 source_group("copters" FILES ${CRM_COPTERS_FILES})
 
 #-----------------------------------------------------------------------------
+set(CRM_RASSOR_FILES
+    rassor/Rassor.h
+    rassor/Rassor.cpp
+)
+source_group("rassor" FILES ${CRM_RASSOR_FILES})
+
+#-----------------------------------------------------------------------------
 
 set(CRM_INDUSTRIAL_FILES
     industrial/IndustrialRobot.h industrial/IndustrialRobot.cpp
@@ -87,6 +94,7 @@ add_library(ChronoModels_robot
             ${CRM_TURTLEBOT_FILES}
             ${CRM_COPTERS_FILES}
             ${CRM_INDUSTRIAL_FILES}
+            ${CRM_RASSOR_FILES}
             )
 add_library(Chrono::models_robot ALIAS ChronoModels_robot)
 
