@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) {
                 SaveParaViewFiles(time, sysFSI);
             }
         }
-
+#ifdef CHRONO_VSG
         // Render system
         if (render && current_step % render_steps == 0) {
             if (!vis->Run())
@@ -321,7 +321,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
-
+#endif
         sysFSI.DoStepDynamics(dT);
         timer_step += sysFSI.GetTimerStep();
         timer_CFD += sysFSI.GetTimerCFD();

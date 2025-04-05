@@ -376,6 +376,7 @@ int main(int argc, char* argv[]) {
             out_frame++;
         }
 
+#ifdef CHRONO_VSG
         // Render SPH particles
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
@@ -392,7 +393,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
-
+#endif
         // Call the FSI solver
         fsi.DoStepDynamics(step_size);
 

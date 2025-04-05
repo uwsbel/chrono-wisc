@@ -317,6 +317,7 @@ int main(int argc, char* argv[]) {
             ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, (time - 0.5) / 0.5);
         }
 
+#ifdef CHRONO_VSG
         // Run-time visualization
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
@@ -337,6 +338,7 @@ int main(int argc, char* argv[]) {
             }
             render_frame++;
         }
+#endif
         timer.reset();
         timer.start();
         // Synchronize systems

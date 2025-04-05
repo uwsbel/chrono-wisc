@@ -37,9 +37,7 @@
 
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
-#ifdef CHRONO_OPENGL
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationGL.h"
-#endif
+
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
 #endif
@@ -364,6 +362,8 @@ int main(int argc, char* argv[]) {
 
             out_frame++;
         }
+
+#ifdef CHRONO_VSG
         // Render FSI system
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
@@ -381,6 +381,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
+#endif
         fsi.DoStepDynamics(step_size);
 
         time += step_size;
