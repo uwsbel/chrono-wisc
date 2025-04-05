@@ -46,7 +46,6 @@ CH_SENSOR_API void ChFilterImageHalf4ToRGBA8::Initialize(std::shared_ptr<ChSenso
         m_buffer_out->Buffer = std::move(b);
         m_buffer_out->Width = m_buffer_in->Width;
         m_buffer_out->Height = m_buffer_in->Height;
-        std::cout << "imageopes buffer in width: " << m_buffer_in->Width << " height: " << m_buffer_in->Height << std::endl;
         bufferInOut = m_buffer_out;
     } else {
         InvalidFilterGraphBufferTypeMismatch(pSensor);
@@ -83,8 +82,6 @@ CH_SENSOR_API void ChFilterImageFloat4ToRGBA8::Initialize(std::shared_ptr<ChSens
         m_buffer_out->Buffer = std::move(b);
         m_buffer_out->Width = m_buffer_in->Width;
         m_buffer_out->Height = m_buffer_in->Height;
-        std::cout << "imageopes buffer in width: " << m_buffer_in->Width << " height: " << m_buffer_in->Height
-                  << std::endl;
         bufferInOut = m_buffer_out;
     } else {
         InvalidFilterGraphBufferTypeMismatch(pSensor);

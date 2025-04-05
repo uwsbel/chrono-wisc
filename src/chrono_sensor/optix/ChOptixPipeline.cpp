@@ -306,7 +306,7 @@ void ChOptixPipeline::CompileBaseShaders() {
     auto end_compile = std::chrono::high_resolution_clock::now();
 
     auto wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(end_compile - start_compile);
-    std::cout << "Shader compile time: " << wall_time.count() << std::endl;
+    // std::cout << "Shader compile time: " << wall_time.count() << std::endl;
 }
 
 void ChOptixPipeline::CreateOptixProgramGroup(OptixProgramGroup& group,
@@ -761,7 +761,6 @@ CUdeviceptr ChOptixPipeline::GetShapeList() {
     assert(m_shapes.size() == m_shape_areas.size());
     assert(m_shape_areas.size() == m_shape_areas_cdf.size());
 
-    std::cout << "Getting List of Shapes..." << std::endl;
     if (md_shapes) {
         CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(md_shapes)));
         md_shapes = {};

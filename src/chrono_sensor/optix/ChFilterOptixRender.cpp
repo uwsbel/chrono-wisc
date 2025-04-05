@@ -69,7 +69,7 @@ CH_SENSOR_API void ChFilterOptixRender::Apply() {
      //                                       // processing, or by filters that require synchronization
      std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
      std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-     std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
+    //  std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
 }
 
 CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSensor,
