@@ -16,7 +16,7 @@ set(DEMOS
     demo_VEH_TrackTestRig
 )
 
-if(CH_ENABLE_MODULE_FSI)
+if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS} demo_VEH_TireTestRig_CRM)
 endif()
 

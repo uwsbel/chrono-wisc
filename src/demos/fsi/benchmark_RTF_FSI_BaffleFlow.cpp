@@ -39,8 +39,7 @@ using std::endl;
 
 // -----------------------------------------------------------------
 
-// Run-time visualization system (VSG, OpenGL, or NONE)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+
 
 // Container dimensions (base scale)
 ChVector3d csize(1.6, 1.4, 0.5);

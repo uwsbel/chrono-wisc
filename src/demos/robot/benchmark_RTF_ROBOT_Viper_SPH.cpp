@@ -38,8 +38,7 @@ using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
 using namespace chrono::viper;
 
-// Run-time visualization system (OpenGL or VSG)
-ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+
 
 // Output directories and settings
 const std::string out_dir = GetChronoOutputPath() + "FSI_Viper/";
