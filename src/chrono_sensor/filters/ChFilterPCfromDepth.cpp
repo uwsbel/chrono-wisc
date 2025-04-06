@@ -74,10 +74,10 @@ CH_SENSOR_API void ChFilterPCfromDepth::Apply() {
                     m_cuda_stream);
     cudaStreamSynchronize(m_cuda_stream);
     for (unsigned int i = 0; i < buf.size(); i++) {
-        if (buf[i].intensity > 0) {
+        // if (buf[i].intensity > 0) {
             processed_buffer[m_buffer_out->Beam_return_count] = buf[i];
             m_buffer_out->Beam_return_count++;
-        }
+        // }
     }
     cudaMemcpyAsync(m_buffer_out->Buffer.get(), processed_buffer.data(),
                     m_buffer_out->Beam_return_count * sizeof(PixelXYZI), cudaMemcpyHostToDevice, m_cuda_stream);

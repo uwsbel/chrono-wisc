@@ -177,7 +177,7 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
         if (auto trans_sensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
               // allocate memory for transient samples
             size_t size = trans_sensor->GetWidth() * trans_sensor->GetHeight()* m_params.max_depth * sizeof(TransientSample); // Possible numerical error here
-            std::cout << "Allocating " << size << " bytes for transient buffer\n";
+            // std::cout << "Allocating " << size << " bytes for transient buffer\n";
             cudaMalloc(reinterpret_cast<void**>(&m_params.transient_buffer),size);
             cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
 
