@@ -96,7 +96,7 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
     this->spindle_torque = spindle_torque;
 
 
-    double ang_vel = this->shaft_angvel*0.10472; // RPM to Rad/S
+    double ang_vel = this->shaft_angvel; // RPM to Rad/S
 
     // if (this->spindle != nullptr) {
     //     ang_vel = spindle->GetAngVelLocal()[2];
@@ -106,10 +106,10 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
 
     this->VbackemfCVAR = ke_motor * ang_vel ;
 
-    if (this->spindle != nullptr) {
-        spindle->EmptyAccumulator(spindle_acccu); // Clear previous forces/torques
-        spindle->AccumulateTorque(spindle_acccu, spindle_torque, false); // Apply torque to the spindle body
-    }
+    // if (this->spindle != nullptr) {
+    //     spindle->EmptyAccumulator(spindle_acccu); // Clear previous forces/torques
+    //     spindle->AccumulateTorque(spindle_acccu, spindle_torque, false); // Apply torque to the spindle body
+    // }
 
 
 }

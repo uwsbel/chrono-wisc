@@ -69,18 +69,19 @@ using std::endl;
 
 // ===================================================================================================================
 
+double RAD_S_TO_RPM = 60.0 / (2.0 * 3.14159265358979323846);
 // CRM terrain patch type
 enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 20;
+double terrain_length = 24;
 double terrain_width = 3;
 
 // Vehicle specification files
 std::string vehicle_json = "LRV/Polaris.json";
-std::string engine_json = "LRV/Polaris_EngineSimpleMap.json";
-std::string transmission_json = "LRV/Polaris_AutomaticTransmissionSimpleMap.json";
+// std::string engine_json = "LRV/Polaris_EngineSimpleMap.json";
+// std::string transmission_json = "LRV/Polaris_AutomaticTransmissionSimpleMap.json";
 std::string driveline_json = "LRV/Polaris_simple_driveline.json";
 std::string tire_json = "LRV/Polaris_RigidMeshTire.json";
 // Also change the mesh in CreateFSIWheels()
@@ -108,6 +109,7 @@ private:
     double PWM = 0.0;
     
     double last_torque = 0.0;
+    double shaft_speed = 0.0;
 
     double step_ctr = 0.0;
 
@@ -147,8 +149,13 @@ public:
         }
     }
 
-    void Synchronize(double time, const DriverInputs &driver_inputs, double motorshaft_speed) {
+    /// Return the current motorshaft speed
+    double GetMotorshaftSpeed() const {
+        return shaft_speed;
+    }
 
+    void Synchronize(double time, const DriverInputs &driver_inputs, double motorshaft_speed) {
+        this->shaft_speed = motorshaft_speed;
         // Set the PWM frequency (in Hz)
         const double PWM_FREQUENCY = 1000.0;  // 1 kHz, can be adjusted depending on system requirements
         const double PWM_PERIOD = 1.0 / PWM_FREQUENCY;  // Period in seconds
@@ -231,7 +238,7 @@ int main(int argc, char* argv[]) {
     bool visualization_rigid_bce = true;   // render wheel BCE markers
 
     // Enable saving snapshots
-    bool snapshots = true;                // save snapshots during simulation
+    bool snapshots = false;                // save snapshots during simulation
 
     // CRM material properties
     double density = 1800;
@@ -252,9 +259,9 @@ int main(int argc, char* argv[]) {
     // --------------
 
     cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.5;
+    double vehicle_init_height = 0.4;
     bool fea_tires;
-    auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
+    auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(2.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
     auto sysMBS = vehicle->GetSystem();
 
@@ -264,7 +271,7 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> spindle3 = vehicle->GetWheel(1, VehicleSide::LEFT)->GetSpindle();
     std::shared_ptr<ChBody> spindle4 = vehicle->GetWheel(1, VehicleSide::RIGHT)->GetSpindle();
 
-        // Setup accumulators for spindle
+    // Setup accumulators for spindle
     unsigned int sp1_acccu = spindle1->AddAccumulator();
     unsigned int sp2_acccu = spindle2->AddAccumulator();
     unsigned int sp3_acccu = spindle3->AddAccumulator();
@@ -365,11 +372,11 @@ int main(int argc, char* argv[]) {
                                     ChVector3d(terrain_length, 0, vehicle_init_height), 1);
             break;
         case PatchType::HEIGHT_MAP: {
-            double max_slope_distance = terrain_length / 2;  // This was how the bmp file was mad
+            double max_slope_distance = 2*terrain_length/3;  // This was how the bmp file was made
             double angle = slope_angle;                      // Use the command line argument value
             double max_height = max_slope_distance * tan(angle * 3.14 / 180);
             std::string height_map_file =
-                "terrain/height_maps/slope_" + std::to_string(static_cast<int>(angle)) + ".bmp";
+                "terrain/height_maps/slope_new.bmp";
             std::cout << "Height map file: " << height_map_file << std::endl;
             std::cout << "Using slope angle: " << angle << " degrees" << std::endl;
             // Create a patch from a heigh field map image
@@ -404,7 +411,7 @@ int main(int argc, char* argv[]) {
     cout << "  SPH AABB:          " << aabb.min << "   " << aabb.max << endl;
 
     // Set maximum vehicle X location (based on CRM patch size)
-    double x_max = aabb.max.x() - 4.5;
+    double x_max = aabb.max.x() - 5;
 
     // --------------------------------
     // Create the path-following driver
@@ -421,7 +428,7 @@ int main(int argc, char* argv[]) {
     // Set up output
     // -----------------------------
 
-    std::string out_dir = GetChronoOutputPath() + "CRM_Wheeled_Vehicle/";
+    std::string out_dir = GetChronoOutputPath() + "CRM_Wheeled_Vehicle_Incline/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -436,8 +443,8 @@ int main(int argc, char* argv[]) {
 
     std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
-    std::ofstream csv_file(out_dir+"/simulation_data.csv");
-    csv_file << "time,sr1,sr2,sr3,sr4,sa1,sa2,sa3,sa4,engine_torque1,engine_torque2,engine_torque3,engine_torque4,x,y,z,roll,pitch,yaw,vx,vy,vz\n";
+    std::ofstream csv_file(out_dir+"/simulation_data_slope_" + std::to_string(slope_angle) + ".csv");
+    csv_file << "time,motor_torque1,motor_torque2,motor_torque3,motor_torque4,vehicle_pos_x,vehicle_pos_y,vehicle_pos_z,roll,pitch,yaw,vehicle_vel_x,vehicle_vel_y,vehicle_vel_z,throttle,braking,wheel_torque1,wheel_torque2,wheel_torque3,wheel_torque4,wheel_speed1,wheel_speed2,wheel_speed3,wheel_speed4,motor_shaft_speed1,motor_shaft_speed2,motor_shaft_speed3,motor_shaft_speed4\n";
 
     // -----------------------------
     // Create run-time visualization
@@ -488,6 +495,9 @@ int main(int argc, char* argv[]) {
     cout << "Start simulation..." << endl;
 
     while (time < tend) {
+        // Set current driver inputs
+        auto driver_inputs = driver.GetInputs();
+
         // ===============================================
         // Write parameters to file
         // ===============================================
@@ -507,11 +517,23 @@ int main(int argc, char* argv[]) {
         double sa3 = vehicle->GetAxle(1)->GetWheel(VehicleSide::LEFT)->GetTire()->GetSlipAngle();
         double sa4 = vehicle->GetAxle(1)->GetWheel(VehicleSide::RIGHT)->GetTire()->GetSlipAngle();
 
-        // Engine torque
+        // Motor torque
         double motor_torque1 = hm1->GetOutputMotorshaftTorque();
         double motor_torque2 = hm2->GetOutputMotorshaftTorque();
         double motor_torque3 = hm3->GetOutputMotorshaftTorque();
         double motor_torque4 = hm4->GetOutputMotorshaftTorque();
+
+        // Wheel torque
+        double wheel_torque1 = spindle1->GetAccumulatedTorque(sp1_acccu).y();
+        double wheel_torque2 = spindle2->GetAccumulatedTorque(sp2_acccu).y();
+        double wheel_torque3 = spindle3->GetAccumulatedTorque(sp3_acccu).y();
+        double wheel_torque4 = spindle4->GetAccumulatedTorque(sp4_acccu).y();
+
+        // Wheel rpm
+        double wheel_speed1 = spindle1->GetAngVelLocal()[2];
+        double wheel_speed2 = spindle2->GetAngVelLocal()[2];
+        double wheel_speed3 = spindle3->GetAngVelLocal()[2];
+        double wheel_speed4 = spindle4->GetAngVelLocal()[2];
 
         // Vehicle orientation in Euler angles (roll, pitch, yaw)
         ChVector3d euler_angles = vehicle_rot.GetRotVec();
@@ -519,16 +541,17 @@ int main(int argc, char* argv[]) {
         double pitch = euler_angles.y();
         double yaw = euler_angles.z();
 
+
         csv_file << std::fixed << std::setprecision(6)
                 << time << ","
-                << sr1 << ","
-                << sr2 << ","
-                << sr3 << ","
-                << sr4 << ","
-                << sa1 << ","
-                << sa2 << ","
-                << sa3 << ","
-                << sa4 << ","
+                // << sr1 << ","
+                // << sr2 << ","
+                // << sr3 << ","
+                // << sr4 << ","
+                // << sa1 << ","
+                // << sa2 << ","
+                // << sa3 << ","
+                // << sa4 << ","
                 << motor_torque1 << ","
                 << motor_torque2 << ","
                 << motor_torque3 << ","
@@ -538,29 +561,43 @@ int main(int argc, char* argv[]) {
                 << vehicle_pos.z() << ","
                 << roll << ","
                 << pitch << ","
-                << yaw << ","
+                << yaw << ","   
                 << vehicle_vel.x() << ","
                 << vehicle_vel.y() << ","
                 << vehicle_vel.z() << ","
-                << "\n";
+                << driver_inputs.m_throttle << ","
+                << driver_inputs.m_braking << ","
+                << wheel_torque1 << ","
+                << wheel_torque2 << ","
+                << wheel_torque3 << ","
+                << wheel_torque4 << ","
+                << wheel_speed1 << ","
+                << wheel_speed2 << ","
+                << wheel_speed3 << ","
+                << wheel_speed4 << ","
+                << hm1->GetMotorshaftSpeed() << ","
+                << hm2->GetMotorshaftSpeed() << ","
+                << hm3->GetMotorshaftSpeed() << ","
+                << hm4->GetMotorshaftSpeed() << "\n";
+
+        cout << vehicle_pos.x() << " " << vehicle_pos.y() << " " << vehicle_pos.z() << endl;
         // ===============================================
         const auto& veh_loc = vehicle->GetPos();
 
-        // Set current driver inputs
-        auto driver_inputs = driver.GetInputs();
 
         // Ramp up throttle to value requested by the cruise controller
-        if (time < 0.5) {
+        if (time < 5) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         } else {
-            ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, (time - 0.5) / 0.5);
+            ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, 0.25*(time - 5) / 10);
+            driver_inputs.m_throttle = std::min(driver_inputs.m_throttle, 0.25);
         }
 
         // Stop vehicle before reaching end of terrain patch, then end simulation after 2 more second2
         if (veh_loc.x() > x_max) {
             driver_inputs.m_throttle = 0;
-            driver_inputs.m_braking = 1;
+            driver_inputs.m_braking = 0.75;
             if (!braking) {
                 cout << "Start braking..." << endl;
                 tend = time + 2;
@@ -597,10 +634,10 @@ int main(int argc, char* argv[]) {
         // TODO: Check if anything special needs to be done here?
         DriverInputs driver_inputs_hm = driver_inputs;
 
-        hm1->Synchronize(time, driver_inputs_hm,spindle1->GetAngVelLocal()[2]*149.);
-        hm2->Synchronize(time, driver_inputs_hm,spindle2->GetAngVelLocal()[2]*149.);
-        hm3->Synchronize(time, driver_inputs_hm,spindle3->GetAngVelLocal()[2]*149.);
-        hm4->Synchronize(time, driver_inputs_hm,spindle4->GetAngVelLocal()[2]*149.);
+        hm1->Synchronize(time, driver_inputs_hm,spindle1->GetAngVelLocal()[1]*80.);
+        hm2->Synchronize(time, driver_inputs_hm,spindle2->GetAngVelLocal()[1]*80.);
+        hm3->Synchronize(time, driver_inputs_hm,spindle3->GetAngVelLocal()[1]*80.);
+        hm4->Synchronize(time, driver_inputs_hm,spindle4->GetAngVelLocal()[1]*80.);
         
         // Advance simulation
         terrain.Advance(step_size);
@@ -616,16 +653,16 @@ int main(int argc, char* argv[]) {
         spindle3->EmptyAccumulator(sp3_acccu);
         spindle4->EmptyAccumulator(sp4_acccu);
 
-        spindle1->AccumulateTorque(sp1_acccu,ChVector3d(0,hm1->GetOutputMotorshaftTorque()*149.,0),true); 
-        spindle2->AccumulateTorque(sp2_acccu,ChVector3d(0,hm2->GetOutputMotorshaftTorque()*149.,0),true);
-        spindle3->AccumulateTorque(sp3_acccu,ChVector3d(0,hm3->GetOutputMotorshaftTorque()*149.,0),true);
-        spindle4->AccumulateTorque(sp4_acccu,ChVector3d(0,hm4->GetOutputMotorshaftTorque()*149.,0),true);
+        spindle1->AccumulateTorque(sp1_acccu,ChVector3d(0,hm1->GetOutputMotorshaftTorque()*80.,0),true); 
+        spindle2->AccumulateTorque(sp2_acccu,ChVector3d(0,hm2->GetOutputMotorshaftTorque()*80.,0),true);
+        spindle3->AccumulateTorque(sp3_acccu,ChVector3d(0,hm3->GetOutputMotorshaftTorque()*80.,0),true);
+        spindle4->AccumulateTorque(sp4_acccu,ChVector3d(0,hm4->GetOutputMotorshaftTorque()*80.,0),true);
 
         // Output spindle torques
-        cout << "hm1: " << hm1->GetOutputMotorshaftTorque() << " " << spindle1->GetAccumulatedTorque(sp1_acccu) << endl;
-        cout << "hm2: " << hm2->GetOutputMotorshaftTorque() << " " << spindle2->GetAccumulatedTorque(sp2_acccu) << endl;
-        cout << "hm3: " << hm3->GetOutputMotorshaftTorque() << " " << spindle3->GetAccumulatedTorque(sp3_acccu) << endl;
-        cout << "hm4: " << hm4->GetOutputMotorshaftTorque() << " " << spindle4->GetAccumulatedTorque(sp4_acccu) << endl;
+        // cout << "hm1: " << hm1->GetOutputMotorshaftTorque() << " " << spindle1->GetAccumulatedTorque(sp1_acccu) << endl;
+        // cout << "hm2: " << hm2->GetOutputMotorshaftTorque() << " " << spindle2->GetAccumulatedTorque(sp2_acccu) << endl;
+        // cout << "hm3: " << hm3->GetOutputMotorshaftTorque() << " " << spindle3->GetAccumulatedTorque(sp3_acccu) << endl;
+        // cout << "hm4: " << hm4->GetOutputMotorshaftTorque() << " " << spindle4->GetAccumulatedTorque(sp4_acccu) << endl;
 
         // Advance system state
         // vehicle->Advance(step_size);
