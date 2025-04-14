@@ -82,7 +82,7 @@ bool fix_chassis = false;
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
+std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
     cout << "Create vehicle..." << endl;
     double vehicle_init_height = 0.25;
     bool fea_tires;
-    auto [vehicle, motor, lock] = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
+    auto [vehicle, motor_1, motor_2, lock] = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
     auto sysMBS = vehicle->GetSystem();
 
@@ -346,7 +346,12 @@ int main(int argc, char* argv[]) {
             driver_inputs.m_braking = 0;
         } 
         else if (time > 5.0 && time < 6.5) {
-            motor->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(1.57f));
+            motor_1->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(1.57f));
+            driver_inputs.m_throttle = 0;
+            driver_inputs.m_braking = 1;
+        }
+        else if (time > 6.5 && time < 7.5) {
+            motor_2->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(0.78f));
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         }
@@ -405,7 +410,7 @@ int main(int argc, char* argv[]) {
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
+std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
     fea_tires = false;
 
     // Create and initialize the vehicle
@@ -435,38 +440,49 @@ std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationA
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialSMC>();
 
-    // set the offset position of where to put the rod
+    // Set the offset position of where to put the rod
     auto offset_spot = vehicle->GetChassisBody()->GetPos() + ChVector3d(-1.0, 0, 0.3);
-    // initialize the first rod
+
+    // Initialize the first rod
     double rod_length = 1.5;
-    double rod_angle = 0.78;
+    double rod_angle = 1.04f;  // 60 degrees
     auto rod_1 = chrono_types::make_shared<ChBodyEasyBox>(rod_length, 0.1, 0.1, 1000, true, false, contact_mat);
-    rod_1->SetPos(offset_spot+ChVector3d(-rod_length/2*std::cos(rod_angle),0,rod_length/2*std::sin(rod_angle)));
+    rod_1->SetPos(offset_spot + ChVector3d(-rod_length / 2 * std::cos(rod_angle), 0, rod_length / 2 * std::sin(rod_angle)));
     rod_1->SetRot(QuatFromAngleY(rod_angle));
     rod_1->SetFixed(false);
     vehicle->GetSystem()->Add(rod_1);
-    // initialize the second body
-    auto hanging_box = chrono_types::make_shared<ChBodyEasyBox>(0.2, 0.2, 0.4, 4000, true, false, contact_mat);
-    auto hanging_box_pos = offset_spot + ChVector3d(-rod_length*std::cos(rod_angle),0,rod_length*std::sin(rod_angle)-0.25);
+
+    // Initialize the second rod
+    auto jointpos_rod12 = offset_spot + ChVector3d(-rod_length * std::cos(rod_angle), 0, rod_length * std::sin(rod_angle));
+    auto rod_2 = chrono_types::make_shared<ChBodyEasyBox>(rod_length, 0.1, 0.1, 1000, true, false, contact_mat);
+    rod_2->SetPos(offset_spot + ChVector3d(-3.0 * rod_length / 2 * std::cos(rod_angle), 0, rod_length / 2 * std::sin(rod_angle)));
+    rod_2->SetRot(QuatFromAngleY(-rod_angle));
+    rod_2->SetFixed(false);
+    vehicle->GetSystem()->Add(rod_2);
+
+    // Initialize the second body
+    auto hanging_box = chrono_types::make_shared<ChBodyEasyBox>(0.2, 0.2, 0.2, 1000, true, false, contact_mat);
+    auto hanging_box_pos = offset_spot + ChVector3d(-2.0 * rod_length * std::cos(rod_angle), 0, -0.1);
     hanging_box->SetPos(hanging_box_pos);
     vehicle->GetSystem()->Add(hanging_box);
-    // // set virtual body to represent the offsetspot
-    // auto vir_offset = chrono_types::make_shared<ChBodyEasyBox>(0.2, 0.2, 0.2, 1000, true, false, contact_mat);
-    // vir_offset->SetPos(offset_spot);
-    // vir_offset->SetFixed(false);
-    // vehicle->GetSystem()->Add(vir_offset);
 
-    // create links 
-    auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
-    motor->Initialize(vehicle->GetChassisBody(), rod_1, ChFrame<>(offset_spot));
-    vehicle->GetSystem()->Add(motor);
+    // Create link between vehicle and rod1
+    auto motor_1 = chrono_types::make_shared<ChLinkMotorRotationAngle>();
+    motor_1->Initialize(vehicle->GetChassisBody(), rod_1, ChFrame<>(offset_spot));
+    vehicle->GetSystem()->Add(motor_1);
 
+    // Create link between rod1 and rod2
+    auto motor_2 = chrono_types::make_shared<ChLinkMotorRotationAngle>();
+    motor_2->Initialize(rod_1, rod_2, ChFrame<>(jointpos_rod12,Q_ROTATE_Y_TO_Z));
+    vehicle->GetSystem()->Add(motor_2);
+
+    // Create lock link
     auto lock = chrono_types::make_shared<ChLinkLockLock>();
     lock->SetName("lock");
-    lock->Initialize(rod_1, hanging_box, ChFrame<>(hanging_box_pos));
+    lock->Initialize(rod_2, hanging_box, ChFrame<>(hanging_box_pos));
     vehicle->GetSystem()->Add(lock);
 
-    return std::make_tuple(vehicle, motor, lock);
+    return std::make_tuple(vehicle, motor_1, motor_2, lock);
 }
 
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
