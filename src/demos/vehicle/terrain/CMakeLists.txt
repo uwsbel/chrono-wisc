@@ -8,6 +8,10 @@
 
 set(DEMOS "")
 
+set(DEMOS ${DEMOS}
+    benchmark_RTF_VEH_SCMTerrain_WheeledVehicleScaling
+)
+
 if(CH_ENABLE_MODULE_IRRLICHT OR CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_VEH_RigidTerrain_WheeledVehicle
@@ -15,6 +19,7 @@ if(CH_ENABLE_MODULE_IRRLICHT OR CH_ENABLE_MODULE_VSG)
         demo_VEH_SCMTerrain_WheeledVehicle
         demo_VEH_SCMTerrain_RigidTire
         demo_VEH_SCMTerrain_TrackedVehicle
+        benchmark_RTF_VEH_SCMTerrain_TrackedVehicle
     )
 endif()
 
@@ -49,6 +54,7 @@ endif()
 if(CH_ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS}
         benchmark_RTF_VEH_CRMTerrain_TrackedVehicle
+        benchmark_RTF_VEH_CRMTerrain_WheeledVehicleScaling
     )
 endif()
 

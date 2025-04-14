@@ -20,6 +20,7 @@ if(CH_ENABLE_MODULE_VEHICLE)
         demo_ROBOT_Turtlebot_Rigid
         demo_ROBOT_Viper_Rigid
         demo_ROBOT_Viper_SCM
+        benchmark_RTF_ROBOT_Viper_SCM
     )
 
     if(CH_ENABLE_MODULE_SENSOR)
