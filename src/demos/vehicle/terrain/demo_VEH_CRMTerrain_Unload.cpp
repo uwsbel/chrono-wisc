@@ -48,6 +48,7 @@
 #endif
 
 #include "demos/SetChronoSolver.h"
+#include "demos/vehicle/WheeledVehicleJSON.h"
 
 using namespace chrono;
 using namespace chrono::fsi;
@@ -82,8 +83,8 @@ bool fix_chassis = false;
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
-void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain);
+std::tuple<std::shared_ptr<WheeledVehicle>,std::shared_ptr<WheeledTrailer>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
+void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, std::shared_ptr<WheeledTrailer> trailer, CRMTerrain& terrain);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 // ===================================================================================================================
@@ -130,7 +131,7 @@ int main(int argc, char* argv[]) {
     cout << "Create vehicle..." << endl;
     double vehicle_init_height = 0.25;
     bool fea_tires;
-    auto [vehicle, motor_1, motor_2, lock] = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
+    auto [vehicle,trailer, motor_1, motor_2, lock] = CreateVehicle(ChCoordsys<>(ChVector3d(4.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
     auto sysMBS = vehicle->GetSystem();
 
@@ -205,7 +206,7 @@ int main(int argc, char* argv[]) {
     terrain.SetOutputLevel(OutputLevel::STATE);
 
     // Add vehicle wheels as FSI solids
-    CreateFSIWheels(vehicle, terrain);
+    CreateFSIWheels(vehicle,trailer, terrain);
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
 
     // Construct the terrain and associated path
@@ -337,21 +338,21 @@ int main(int argc, char* argv[]) {
         auto driver_inputs = driver.GetInputs();
 
         // Ramp up throttle to value requested by the cruise controller
-        if (time < 0.5) {
+        if (time < 0.1) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         } 
-        else if (time < 5.0 && time >= 0.5) {  
+        else if (time < 5.0 && time >= 0.1) {  
             driver_inputs.m_throttle = 1;
             driver_inputs.m_braking = 0;
         } 
-        else if (time > 5.0 && time < 6.5) {
-            motor_1->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(1.57f));
+        else if (time > 5.0 && time < 6) {
+            motor_2->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(0.78f));
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         }
-        else if (time > 6.5 && time < 7.5) {
-            motor_2->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(0.78f));
+        else if (time > 6 && time < 7.5) {
+            motor_1->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(1.57f));            
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         }
@@ -360,7 +361,7 @@ int main(int argc, char* argv[]) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         }
-        // Run-time visualization
+        // Run-time visualization TODO: Fix the render frame calculation.
         if (render && time >= render_frame / render_fps) {
             if (chase_cam) {
                 ChVector3d cam_loc = veh_loc + ChVector3d(-6, 6, 1.5);
@@ -369,6 +370,11 @@ int main(int argc, char* argv[]) {
             }
             if (!visFSI->Render())
                 break;
+            // Write image to file
+            std::ostringstream filename;
+            filename << "./snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".png";
+            visFSI->GetVisualSystem()->WriteImageToFile(filename.str());
+
             render_frame++;
         }
         if (!render) {
@@ -379,9 +385,11 @@ int main(int argc, char* argv[]) {
         driver.Synchronize(time);
         terrain.Synchronize(time);
         vehicle->Synchronize(time, driver_inputs, terrain);
+        trailer->Synchronize(time, driver_inputs, terrain);
 
         // Advance system state
         driver.Advance(step_size);
+
         timer.reset();
         timer.start();
         // (a) Sequential integration of terrain and vehicle systems
@@ -410,7 +418,7 @@ int main(int argc, char* argv[]) {
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
+std::tuple<std::shared_ptr<WheeledVehicle>,std::shared_ptr<WheeledTrailer>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkLockLock>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
     fea_tires = false;
 
     // Create and initialize the vehicle
@@ -438,13 +446,28 @@ std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationA
         }
     }
 
+    std::string trailer_file = vehicle::GetDataFile("LRV_Wagon/Polaris.json");
+    auto trailer = chrono_types::make_shared<WheeledTrailer>(vehicle->GetSystem(), trailer_file);
+    trailer->Initialize(vehicle->GetChassis());
+    trailer->GetChassis()->SetFixed(false);
+    trailer->SetChassisVisualizationType(VisualizationType::MESH);
+    trailer->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
+    trailer->SetWheelVisualizationType(VisualizationType::MESH);
+    for (auto& axle : trailer->GetAxles()) {
+        for (auto& wheel : axle->GetWheels()) {
+            auto tire = ReadTireJSON(vehicle::GetDataFile(tire_json));
+            trailer->InitializeTire(tire, wheel, VisualizationType::MESH);
+        }
+    }
+
+
     auto contact_mat = chrono_types::make_shared<ChContactMaterialSMC>();
 
     // Set the offset position of where to put the rod
     auto offset_spot = vehicle->GetChassisBody()->GetPos() + ChVector3d(-1.0, 0, 0.3);
 
     // Initialize the first rod
-    double rod_length = 1.5;
+    double rod_length = 1.2;
     double rod_angle = 1.04f;  // 60 degrees
     auto rod_1 = chrono_types::make_shared<ChBodyEasyBox>(rod_length, 0.1, 0.1, 1000, true, false, contact_mat);
     rod_1->SetPos(offset_spot + ChVector3d(-rod_length / 2 * std::cos(rod_angle), 0, rod_length / 2 * std::sin(rod_angle)));
@@ -461,7 +484,7 @@ std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationA
     vehicle->GetSystem()->Add(rod_2);
 
     // Initialize the second body
-    auto hanging_box = chrono_types::make_shared<ChBodyEasyBox>(0.2, 0.2, 0.2, 1000, true, false, contact_mat);
+    auto hanging_box = chrono_types::make_shared<ChBodyEasyBox>(0.4, 0.4, 0.3, 800, true, false, contact_mat);
     auto hanging_box_pos = offset_spot + ChVector3d(-2.0 * rod_length * std::cos(rod_angle), 0, -0.1);
     hanging_box->SetPos(hanging_box_pos);
     vehicle->GetSystem()->Add(hanging_box);
@@ -482,16 +505,39 @@ std::tuple<std::shared_ptr<WheeledVehicle>, std::shared_ptr<ChLinkMotorRotationA
     lock->Initialize(rod_2, hanging_box, ChFrame<>(hanging_box_pos));
     vehicle->GetSystem()->Add(lock);
 
-    return std::make_tuple(vehicle, motor_1, motor_2, lock);
+    return std::make_tuple(vehicle, trailer, motor_1, motor_2, lock);
 }
 
-void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
+void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle,std::shared_ptr<WheeledTrailer> trailer, CRMTerrain& terrain) {
     std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
 
     for (auto& axle : vehicle->GetAxles()) {
+        for (auto& wheel : axle->GetWheels()) {
+            auto tire_fea = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire());
+            if (tire_fea) {
+                auto mesh = tire_fea->GetMesh();
+                if (mesh->GetNumContactSurfaces() > 0) {
+                    auto surf = mesh->GetContactSurface(0);
+                    cout << "FEA tire HAS contact surface: ";
+                    if (std::dynamic_pointer_cast<fea::ChContactSurfaceNodeCloud>(surf))
+                        cout << " NODE_CLOUD" << endl;
+                    else
+                        cout << " TRI_MESH" << endl;
+                } else {
+                    cout << "FEA tire DOES NOT HAVE contact surface!" << endl;
+                }
+                terrain.AddFeaMesh(mesh, false);
+            } else {
+                terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
+            }
+        }
+    }
+
+    // add trailer wheels
+    for (auto& axle : trailer->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
             auto tire_fea = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire());
             if (tire_fea) {

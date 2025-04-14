@@ -1,0 +1,46 @@
+{
+  "Name":     "Trailer chassis",
+  "Type":     "ChassisRear",
+  "Template": "RigidChassisRear",
+
+  "Components":
+  [
+   {
+     "Centroidal Frame":    {
+                              "Location":    [0, 0, 0],
+                              "Orientation": [1, 0, 0, 0]
+                            },
+     "Mass":                25,
+     "Moments of Inertia":  [2, 3, 10],
+     "Products of Inertia": [0, 0, 0],
+     "Void":                false
+   }
+  ],
+
+  "Front Connector Location": [3.7, 0, -0.6],
+
+  "Visualization":
+  {
+    //"Mesh":  "ultra_tow/UT_chassis_vis.obj",
+    "Primitives": [
+        {
+            "Type": "BOX",
+            "Location": [ 0, 0, -0.1 ],
+            "Orientation": [ 1, 0, 0, 0 ],
+            "Dimensions": [ 1.2, 1.2, 0.1 ]
+        },
+        {
+            "Type": "BOX",
+            "Location": [ 1.07, 0, -0.05 ],
+            "Orientation": [ 1, 0, 0, 0 ],
+            "Dimensions": [ 1.12, 0.05, 0.05 ]
+        },
+        {
+            "Type": "SPHERE",
+            "Location": [ 1.66, 0, -0.05 ],
+            "Radius":  0.03
+
+        }
+    ]
+  }
+}
