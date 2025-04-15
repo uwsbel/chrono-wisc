@@ -27,6 +27,8 @@
 #include "chrono/physics/ChLinkMotorRotationAngle.h"
 
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
+#include "chrono_fsi/sph/utils/FsiProblemRelocate.cuh"
+#include "chrono_fsi/sph/utils/UtilsTypeConvert.cuh"
 
 #include "chrono_thirdparty/stb/stb.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -47,6 +49,7 @@ ChFsiProblemSPH::ChFsiProblemSPH(ChSystem& sys, double spacing)
       m_initialized(false),
       m_offset_sph(VNULL),
       m_offset_bce(VNULL),
+      m_periodic_sides(PeriodicSide::NONE),
       m_verbose(false) {
     // Create ground body
     m_ground = chrono_types::make_shared<ChBody>();
@@ -276,7 +279,7 @@ void ChFsiProblemSPH::Initialize() {
     // Create the body BCE markers and update AABB
     // (ATTENTION: BCE markers for moving objects must be created after the fixed BCE markers!)
     for (const auto& b : m_bodies) {
-        auto body_index = m_sysFSI.AddFsiBody(b.body);
+        auto body_index = m_sysFSI.AddFsiBody(b.body, nullptr);
         m_sysSPH.AddPointsBCE(b.body, b.bce, ChFrame<>(), true);
         m_fsi_bodies[b.body] = body_index;
         for (const auto& p : b.bce) {
@@ -305,12 +308,12 @@ void ChFsiProblemSPH::Initialize() {
     // Set computational domain
     if (!m_domain_aabb.IsInverted()) {
         // Use provided computational domain
-        m_sysSPH.SetComputationalBoundaries(m_domain_aabb.min, m_domain_aabb.max, m_periodic_sides);
+        m_sysSPH.SetComputationalDomain(m_domain_aabb, m_periodic_sides);
     } else {
-        // Set computational domain based on actual AABB of all markers
+        // Calculate computational domain based on actual AABB of all markers
         int bce_layers = m_sysSPH.GetNumBCELayers();
         m_domain_aabb = ChAABB(aabb.min - bce_layers * m_spacing, aabb.max + bce_layers * m_spacing);
-        m_sysSPH.SetComputationalBoundaries(m_domain_aabb.min, m_domain_aabb.max, static_cast<int>(PeriodicSide::NONE));
+        m_sysSPH.SetComputationalDomain(m_domain_aabb, PeriodicSide::NONE);
     }
 
     // Initialize the underlying FSI system
@@ -535,6 +538,46 @@ const ChVector3d& ChFsiProblemSPH::GetFsiBodyTorque(std::shared_ptr<ChBody> body
     return m_sysFSI.GetFsiBodyTorque(index);
 }
 
+// ----------------------------------------------------------------------------
+
+void ChFsiProblemSPH::BCEShift(const ChVector3d& shift_dist) {
+    FsiDataManager::DefaultProperties props;
+    props.rho0 = m_sysSPH.GetDensity();
+    props.mu0 = m_sysSPH.GetViscosity();
+
+    shift_BCE(ToReal3(shift_dist), props, *m_sysSPH.m_data_mgr);
+}
+
+void ChFsiProblemSPH::SPHShift(const ChVector3d& shift_dist) {
+    FsiDataManager::DefaultProperties props;
+    props.rho0 = m_sysSPH.GetDensity();
+    props.mu0 = m_sysSPH.GetViscosity();
+
+    shift_SPH(ToReal3(shift_dist), props, *m_sysSPH.m_data_mgr);
+}
+
+void ChFsiProblemSPH::SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChAABB& aabb_dest) {
+    FsiDataManager::DefaultProperties props;
+    props.rho0 = m_sysSPH.GetDensity();
+    props.mu0 = m_sysSPH.GetViscosity();
+
+    moveAABB2AABB_SPH(ToRealAABB(aabb_src), ToRealAABB(aabb_dest), Real(m_spacing), props, *m_sysSPH.m_data_mgr);
+}
+
+void ChFsiProblemSPH::SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChIntAABB& aabb_dest) {
+    FsiDataManager::DefaultProperties props;
+    props.rho0 = m_sysSPH.GetDensity();
+    props.mu0 = m_sysSPH.GetViscosity();
+
+    moveAABB2AABB_SPH(ToRealAABB(aabb_src), ToIntAABB(aabb_dest), Real(m_spacing), props, *m_sysSPH.m_data_mgr);
+}
+
+// ----------------------------------------------------------------------------
+
+void ChFsiProblemSPH::ForceProximitySearch() {
+    m_sysSPH.m_force_proximity_search = true;
+}
+
 // ============================================================================
 
 void ChFsiProblemCartesian::Construct(const std::string& sph_file, const std::string& bce_file, const ChVector3d& pos) {
@@ -584,7 +627,7 @@ void ChFsiProblemCartesian::Construct(const ChVector3d& box_size, const ChVector
     std::vector<ChVector3i> sph;
     sph.reserve(num_sph);
 
-    // Generate SPH and bottom BCE points
+    // Generate SPH points
     for (int Ix = 0; Ix < Nx; Ix++) {
         for (int Iy = 0; Iy < Ny; Iy++) {
             for (int Iz = 0; Iz < Nz; Iz++) {

@@ -125,16 +125,24 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     void SetShiftingMethod(ShiftingMethod shifting_method);
 
     /// Set the fluid container dimension
-    void SetContainerDim(const ChVector3d& boxDim);
+    void SetContainerDim(const ChVector3d& box_dim);
 
-    /// Set periodic boundary condition for fluid.
-    void SetComputationalBoundaries(const ChVector3d& cMin, const ChVector3d& cMax, int sides);
+    /// Set computational domain and periodic boundary conditions on its sides.
+    /// `periodic_sides` indicates the directions of the computational domain (axis-aligned) for which periodic boundary
+    /// conditions are enforced. This is an integer which can be one of the `PeriodicSide` values or a combination using
+    /// bit-wise or & and. Default is periodic_sides = NONE.
+    void SetComputationalDomain(const ChAABB& computational_AABB, int periodic_sides);
 
-    /// Set half-dimensions of the active domain.
+    /// Set computational domain.
+    /// Note that this version leaves the setting for periodic BC sides unchanged.
+    void SetComputationalDomain(const ChAABB& computational_AABB);
+
+    /// Set dimensions of the active domain AABB.
     /// This value activates only those SPH particles that are within an AABB of the specified size from an object
-    /// interacting with the "fluid" phase. Note that this setting should *not* be used for actual (CFD) simulations,
-    /// but rather oinly when Chrono::FSI is used for continuum representation of granular dynamics (in terramechanics).
-    void SetActiveDomain(const ChVector3d& boxHalfDim);
+    /// interacting with the "fluid" phase.
+    /// Note that this setting should *not* be used for CFD simulations, but rather only when solving problems using the
+    /// CRM (continuum representation of granular dynamics) for terramechanics simulations.
+    void SetActiveDomain(const ChVector3d& box_dim);
 
     /// Disable use of the active domain for the given duration at the beginning of the simulation (default: 0).
     /// This parameter is used for settling operations where all particles must be active through the settling process.
@@ -221,25 +229,7 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
 
     /// Set kernel type.
     void SetKernelType(KernelType kernel_type);
-
-    /// Initialize the SPH fluid system with FSI support.
-    virtual void Initialize(unsigned int num_fsi_bodies,
-                            unsigned int num_fsi_nodes1D,
-                            unsigned int num_fsi_elements1D,
-                            unsigned int num_fsi_nodes2D,
-                            unsigned int num_fsi_elements2D,
-                            const std::vector<FsiBodyState>& body_states,
-                            const std::vector<FsiMeshState>& mesh1D_states,
-                            const std::vector<FsiMeshState>& mesh2D_states,
-                            bool use_node_directions) override;
-
-    /// Initialize the SPH fluid system with no FSI support.
-    virtual void Initialize() override;
-
-    /// Set up Active domains and array resizing before doing dynamics
-    /// Must be called before DoStepDynamics
-    virtual void OnSetupStepDynamics() override;
-
+    
     /// Return the SPH kernel length of kernel function.
     double GetKernelLength() const;
 
@@ -249,8 +239,11 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     /// Return the number of BCE layers.
     int GetNumBCELayers() const;
 
-    /// Set the fluid container dimension
+    /// Get the fluid container dimensions.
     ChVector3d GetContainerDim() const;
+
+    /// Get the computational domain.
+    ChAABB GetComputationalDomain() const;
 
     /// Return density.
     double GetDensity() const;
@@ -553,10 +546,19 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     /// Initialize simulation parameters with default values.
     void InitParams();
 
+    /// Initialize the SPH fluid system with FSI support.
+    virtual void Initialize(const std::vector<FsiBody>& fsi_bodies,
+                            const std::vector<FsiMesh1D>& fsi_meshes1D,
+                            const std::vector<FsiMesh2D>& fsi_meshes2D,
+                            const std::vector<FsiBodyState>& body_states,
+                            const std::vector<FsiMeshState>& mesh1D_states,
+                            const std::vector<FsiMeshState>& mesh2D_states,
+                            bool use_node_directions) override;
+
     /// Load the given body and mesh node states in the SPH data manager structures.
     /// This function converts FEA mesh states from the provided AOS records to the SOA layout used by the SPH data
     /// manager. LoadSolidStates is always called once during initialization. If the SPH fluid solver is paired with the
-    /// generic FSI interface, LoadSolidStates is called from ChFsiInterfaceGeneric::ExchangeSolidStates at each
+    /// generic FSI interface, LoadSolidStates is also called from ChFsiInterfaceGeneric::ExchangeSolidStates at each
     /// co-simulation data exchange. If using the custom SPH FSI interface, MBS states are copied directly to the
     /// device memory in ChFsiInterfaceSPH::ExchangeSolidStates.
     virtual void LoadSolidStates(const std::vector<FsiBodyState>& body_states,
@@ -564,21 +566,18 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
                                  const std::vector<FsiMeshState>& mesh2D_states) override;
 
     /// Store the body and mesh node forces from the SPH data manager to the given vectors.
-    /// If the SPH fluid solver is paired with the generic FSI interface, StoreSolidForces is called from
+    /// If the SPH fluid solver is paired with the generic FSI interface, StoreSolidForces is also called from
     /// ChFsiInterfaceGeneric::ExchangeSolidForces at each co-simulation data exchange. If using the custom SPH FSI
     /// interface, MBS forces are copied directly from the device memory in ChFsiInterfaceSPH::ExchangeSolidForces.
     virtual void StoreSolidForces(std::vector<FsiBodyForce> body_forces,
                                   std::vector<FsiMeshForce> mesh1D_forces,
                                   std::vector<FsiMeshForce> mesh2D_forces) override;
 
-    /// Additional actions taken after adding a rigid body to the FSI system.
-    virtual void OnAddFsiBody(unsigned int index, FsiBody& fsi_body) override;
-
     /// Add a flexible solid with segment set contact to the FSI system.
-    virtual void OnAddFsiMesh1D(unsigned int index, FsiMesh1D& fsi_mesh) override;
+    void AddFsiMesh1D(unsigned int index, const FsiMesh1D& fsi_mesh);
 
     /// Add a flexible solid with surface mesh contact to the FSI system.
-    virtual void OnAddFsiMesh2D(unsigned int index, FsiMesh2D& fsi_mesh) override;
+    void AddFsiMesh2D(unsigned int index, const FsiMesh2D& fsi_mesh);
 
     /// Create and add BCE markers associated with the given set of contact segments.
     /// The BCE markers are created in the absolute coordinate frame.
@@ -588,9 +587,8 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     /// The BCE markers are created in the absolute coordinate frame.
     unsigned int AddBCE_mesh2D(unsigned int meshID, const FsiMesh2D& fsi_mesh);
 
-    /// Function to integrate the fluid system in time.
-    /// It uses a Runge-Kutta 2nd order algorithm to update the fluid dynamics.
-    virtual void OnDoStepDynamics(double step) override;
+    /// Function to integrate the fluid system from `time` to `time + step`.
+    virtual void OnDoStepDynamics(double time, double step) override;
 
     /// Additional actions taken before applying fluid forces to the solid phase.
     virtual void OnExchangeSolidForces() override;
@@ -599,6 +597,7 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     virtual void OnExchangeSolidStates() override;
 
     std::shared_ptr<ChFsiParamsSPH> m_paramsH;  ///< simulation parameters
+    bool m_force_proximity_search;
 
     std::unique_ptr<FsiDataManager> m_data_mgr;       ///< FSI data manager
     std::unique_ptr<FluidDynamics> m_fluid_dynamics;  ///< fluid system
@@ -619,11 +618,9 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     bool m_remove_center1D;
     bool m_remove_center2D;
 
-    /// Needed by resize data to check if it is the first step
-    bool m_first_step;
-
     friend class ChFsiSystemSPH;
     friend class ChFsiInterfaceSPH;
+    friend class ChFsiProblemSPH;
 };
 
 /// @} fsisph

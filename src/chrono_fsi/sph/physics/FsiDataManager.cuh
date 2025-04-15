@@ -83,7 +83,7 @@ struct SphMarkerDataD {
     thrust::device_vector<Real3> tauXxYyZzD;  ///< Vector of the total stress (diagonal) of particles
     thrust::device_vector<Real3> tauXyXzYzD;  ///< Vector of the total stress (off-diagonal) of particles
 
-    zipIterSphD iterator();
+    zipIterSphD iterator(int offset);
     void resize(size_t s);
 };
 
@@ -95,7 +95,7 @@ struct SphMarkerDataH {
     thrust::host_vector<Real3> tauXxYyZzH;  ///< Vector of the total stress (diagonal) of particles
     thrust::host_vector<Real3> tauXyXzYzH;  ///< Vector of the total stress (off-diagonal) of particles
 
-    zipIterSphH iterator();
+    zipIterSphH iterator(int offset);
     void resize(size_t s);
 };
 
@@ -108,7 +108,7 @@ struct FsiBodyStateH {
     thrust::host_vector<Real3> ang_vel;  ///< body angular velocities (local frame)
     thrust::host_vector<Real3> ang_acc;  ///< body angular accelerations (local frame)
 
-    zipIterRigidH iterator();
+    zipIterRigidH iterator(int offset);
     void Resize(size_t s);
 };
 
@@ -122,7 +122,8 @@ struct FsiBodyStateD {
     thrust::device_vector<Real3> ang_vel;  ///< body angular velocities (local frame)
     thrust::device_vector<Real3> ang_acc;  ///< body angular accelerations (local frame)
 
-    zipIterRigidD iterator();
+    zipIterRigidD iterator(int offset);
+
     void CopyFromH(const FsiBodyStateH& bodyStateH);
     FsiBodyStateD& operator=(const FsiBodyStateD& other);
     void Resize(size_t s);
@@ -214,6 +215,7 @@ struct Counters {
     size_t numBceMarkers;       ///< total number of BCE markers
     size_t numAllMarkers;       ///< total number of particles in the simulation
 
+    size_t startBoundaryMarkers;  ///< index of first BCE marker on boundaries
     size_t startRigidMarkers;     ///< index of first BCE marker on first rigid body
     size_t startFlexMarkers1D;    ///< index of first BCE marker on first flex segment
     size_t startFlexMarkers2D;    ///< index of first BCE marker on first flex face
@@ -314,9 +316,44 @@ struct FsiDataManager {
     /// Initializes device vectors to zero.
     void ResetData();
 
-    /// Resize data based on the active particles
-    /// At first step, the internal resizeArray is always called
-    void ResizeData(bool first_step);
+    /// Resize data arrays based on particle activity.
+    void ResizeArrays(uint numExtended);
+
+    // ------------------------
+
+    struct DefaultProperties {
+        Real rho0;
+        Real mu0;
+    };
+
+    /// Shift position of all markers of specified type by the given vector.
+    void Shift(MarkerType type, const Real3& shift, const DefaultProperties& props) const;
+
+    /// Move particles of specified type from the source AABB to the destination AABB.
+    void MoveAABB2AABB(MarkerType type,
+                       const RealAABB& aabb_src,
+                       const RealAABB& aabb_dest,
+                       Real spacing,
+                       const DefaultProperties& props) const;
+
+    /// Move particles of specified type from the source AABB to the destination (grid) AABB.
+    void MoveAABB2AABB(MarkerType type,
+                       const RealAABB& aabb_src,
+                       const IntAABB& aabb_dest,
+                       Real spacing,
+                       const DefaultProperties& props) const;
+
+    struct SelectorFunction {
+        __device__ virtual bool operator()(const Real3& x) const = 0;
+    };
+    struct RelocateFunction {
+        __device__ virtual void operator()(Real3& x) const = 0;
+    };
+    void Relocate(MarkerType type, const RelocateFunction& relocate_op, const DefaultProperties& props) const;
+    void Relocate(MarkerType type,
+                  const RelocateFunction& relocate_op,
+                  const SelectorFunction& selector_op,
+                  const DefaultProperties& props) const;
 
     // ------------------------
 
@@ -398,7 +435,6 @@ struct FsiDataManager {
     thrust::device_vector<uint> freeSurfaceIdD;  ///< identifiers for particles close to free surface
 
   private:
-    void ResizeArrays(uint numExtended);
     // Memory management parameters
     uint m_max_extended_particles;  ///< Maximum number of extended particles seen so far
     uint m_resize_counter;          ///< Counter for number of resizes since last shrink

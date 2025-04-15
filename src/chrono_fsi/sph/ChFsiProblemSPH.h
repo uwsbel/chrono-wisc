@@ -156,8 +156,8 @@ class CH_FSI_API ChFsiProblemSPH {
     void SetStepsizeMBD(double step) { m_sysFSI.SetStepsizeMBD(step); }
 
     /// Explicitly set the computational domain limits.
-    /// By default, this is set so that it encompasses all SPH particles and BCE markers.
-    void SetComputationalDomain(ChAABB aabb, int periodic_sides) {
+    /// By default, this is set so that it encompasses all SPH particles and BCE markers with no periodic sides.
+    void SetComputationalDomain(const ChAABB& aabb, int periodic_sides = PeriodicSide::NONE) {
         m_domain_aabb = aabb;
         m_periodic_sides = periodic_sides;
     }
@@ -270,6 +270,14 @@ class CH_FSI_API ChFsiProblemSPH {
     /// defined by the body BCEs. Note that this assumes the BCE markers form a watertight boundary.
     int ProcessBodyMesh(RigidBody& b, ChTriangleMeshConnected trimesh, const ChVector3d& interior_point);
 
+    // Only derived classes can use the following particle and marker relocation functions
+
+    void BCEShift(const ChVector3d& shift_dist);
+    void SPHShift(const ChVector3d& shift_dist);
+    void SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChAABB& aabb_dest);
+    void SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChIntAABB& aabb_dest);
+    void ForceProximitySearch();
+
     ChFsiFluidSystemSPH m_sysSPH;      ///< underlying Chrono SPH system
     ChFsiSystemSPH m_sysFSI;           ///< underlying Chrono FSI system
     double m_spacing;                  ///< particle and marker spacing
@@ -290,6 +298,8 @@ class CH_FSI_API ChFsiProblemSPH {
 
     bool m_verbose;      ///< if true, write information to standard output
     bool m_initialized;  ///< set to 'true' once terrain is initialized
+
+    friend class SelectorFunctionWrapper;
 };
 
 // ----------------------------------------------------------------------------
