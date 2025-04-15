@@ -167,7 +167,7 @@ ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiSystemSPH* sysFSI)
       m_flex_bce_color(ChColor(0.40f, 0.10f, 0.65f)),
       m_write_images(false),
       m_image_dir(".") {
-    m_sysMBS = new ChSystemSMC();
+    m_sysMBS = new ChSystemSMC("FSI_internal_system");
 }
 
 ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiFluidSystemSPH* sysSPH)
@@ -183,7 +183,7 @@ ChFsiVisualizationVSG::ChFsiVisualizationVSG(ChFsiFluidSystemSPH* sysSPH)
       m_flex_bce_color(ChColor(0.40f, 0.10f, 0.65f)),
       m_write_images(false),
       m_image_dir(".") {
-    m_sysMBS = new ChSystemSMC();
+    m_sysMBS = new ChSystemSMC("FSI_internal_system");
 }
 
 ChFsiVisualizationVSG::~ChFsiVisualizationVSG() {
@@ -193,14 +193,7 @@ ChFsiVisualizationVSG::~ChFsiVisualizationVSG() {
 void ChFsiVisualizationVSG::OnAttach() {
     m_vsys->AttachSystem(m_sysMBS);
 
-    //// TODO - maybe these should be removed altogether
-    m_vsys->SetWindowTitle("");
-    m_vsys->SetWindowSize(1280, 720);
-    m_vsys->SetWireFrameMode(false);
-    m_vsys->AddCamera(ChVector3d(0, -3, 0), ChVector3d(0, 0, 0));
     m_vsys->SetCameraVertical(CameraVerticalDir::Z);
-    m_vsys->SetUseSkyBox(false);
-    m_vsys->SetClearColor(ChColor(18.0f / 255, 26.0f / 255, 32.0f / 255));
 }
 
 void ChFsiVisualizationVSG::OnInitialize() {
@@ -278,6 +271,13 @@ void ChFsiVisualizationVSG::OnInitialize() {
 
     m_vsys->SetImageOutput(m_write_images);
     m_vsys->SetImageOutputDirectory(m_image_dir);
+
+    // Issue performance warning if shadows are enabled for the containing visualization system
+    if (m_vsys->AreShadowsEnabled()) {
+        std::cerr << "WARNING:  Shadow rendering is enabled for the associated VSG visualization system.\n";
+        std::cerr << "          This negatively affects rendering performance, especially for large particle systems."
+                  << std::endl;
+    }
 }
 
 void ChFsiVisualizationVSG::OnRender() {
