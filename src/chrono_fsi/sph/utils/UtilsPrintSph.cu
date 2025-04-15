@@ -64,7 +64,6 @@ void SaveFileCFD(const std::string& filename,
         Real3 v = vel[i];
         Real3 a = mR3(acc[i]);
         Real4 rp = rhoPresMu[i];
-        Real4 st = srTauMu[i];
 
         Real v_len = length(v);
         Real a_len = length(a);
@@ -78,6 +77,8 @@ void SaveFileCFD(const std::string& filename,
                         << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << std::endl;
                 break;
             case OutputLevel::CRM_FULL:
+                Real4 st = srTauMu[i];
+
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z
                         << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << ", " << rp.z << ", "
                         << st.x << ", " << st.y << ", " << st.z << ", " << st.w << ", " << rp.w << std::endl;
