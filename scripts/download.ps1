@@ -2,7 +2,7 @@
 $remoteHost  = "euler"  # The hostname or IP of the remote server
 $remoteBase  = "/srv/home/fang/wavemaker/build_wisc/bin/"
 $localBase   = "C:\Users\fang\Documents\NREL_WATER\post_processing\data_Drop\"  # Change this to wherever you want to store files locally.
-$run_tag = "various_d0"
+$run_tag = "new_mass"
 # variable for clean the script or not in the localBase directory
 $clean = $true
 
@@ -62,7 +62,10 @@ if ($clean) {
                 Rename-Item -Path $oldPath -NewName $newName
                 Write-Output "Renamed: $oldName -> $newName"
             } else {
-                Write-Output "Skipped (already exists): $newName"
+                # if alredy exists, remove the old one and rename the new one 
+                Remove-Item -Path $newPath
+                Rename-Item -Path $oldPath -NewName $newName
+                Write-Output "Renamed: $oldPath -> $newPath"
             }
         }
     }
