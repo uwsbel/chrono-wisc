@@ -18,6 +18,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_Flap
    demo_FSI_AngleRepose
    demo_FSI_Cratering
+   demo_FSI_pad
 )
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
