@@ -146,9 +146,9 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
 
 int main(int argc, char* argv[]) {
     SimParams params = {/*ps_freq*/ 1,
-        /*initial_spacing*/ 0.001,
+        /*initial_spacing*/ 0.002,
         /*d0_multiplier*/ 1.3,
-        /*time_step*/ 2e-5,
+        /*time_step*/ 4e-5,
         /*boundary_type*/ "adami",
         /*viscosity_type*/ "artificial_bilateral",
         /*kernel_type*/ "wendland",
@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
         /*plate_diameter*/ 0.19,     // 19 cm
         /*verbose*/ true,
         /*output*/ true,
-        /*output_fps*/ 100,
+        /*output_fps*/ 5,
         /*snapshots*/ true,
         /*render*/ false,
         /*render_fps*/ 400,
@@ -199,12 +199,12 @@ int main(int argc, char* argv[]) {
 }
 
 void SimulateMaterial(int i, const SimParams& params) {
-    double t_end = 3.5;
+    double t_end = 5;
     double max_pressure_time = 3;
     std::cout << "t_end: " << t_end << std::endl;
 
-    double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
-    double container_height = 0.010;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
+    double container_diameter = params.plate_diameter * 1.25;  // Plate is 20 cm in diameter
+    double container_height = 0.020;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
     double cyl_length = container_height;                     // To prevent effect of sand falling on top of the plate
 
     // Create a physics system
@@ -213,7 +213,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
 
     // Set gravitational acceleration
-    const ChVector3d gravity(0, 0, -9.81);
+    const ChVector3d gravity(0, 0, -1.62);
     sysFSI.SetGravitationalAcceleration(gravity);
     sysMBS.SetGravitationalAcceleration(gravity);
 
@@ -243,7 +243,14 @@ void SimulateMaterial(int i, const SimParams& params) {
     sph_params.shifting_xsph_eps = 0.0;
     sph_params.shifting_method = ShiftingMethod::PPST;
     // sph_params.shifting_coefficient = 0.0;
+
+    sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
+    sph_params.shifting_xsph_eps = 0;
+    sph_params.shifting_ppst_pull = 1.0;
+    sph_params.shifting_ppst_push = 3.0;
     sph_params.kernel_threshold = 0.8;
+
+
     sph_params.num_proximity_search_steps = params.ps_freq;
 
     if (params.kernel_type == "cubic") {
@@ -361,75 +368,13 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1/";
+        std::string base_dir = GetChronoOutputPath() + "moon_grav";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
         }
 
         out_dir = base_dir;
-
-        // Helper lambda to convert a value to a string using an ostringstream.
-        // auto toString = [](auto value) -> std::string {
-        //    std::ostringstream oss;
-        //    oss << value;
-        //    return oss.str();
-        //    };
-
-        //// Format the max pressure with fixed precision in kPa
-        // const std::string maxPressureStr = [&]() {
-        //     std::ostringstream oss;
-        //     oss << std::fixed << std::setprecision(2) << (params.max_pressure / 1000.0);  // Convert to kPa
-        //     return oss.str();
-        //     }();
-
-        //    // Format plate diameter in cm
-        //    const std::string plateDiameterStr = [&]() {
-        //        std::ostringstream oss;
-        //        oss << std::fixed << std::setprecision(2) << (params.plate_diameter * 100.0);  // Convert to cm
-        //        return oss.str();
-        //        }();
-
-        //        // Convert array values to strings.
-        //        const std::string youngsModulusStr = toString(params.y_modulus);
-        //        const std::string densityStr = toString(params.density);
-        //        const std::string muSStr = toString(params.mu_s);
-        //        const std::string mu2Str = toString(params.mu_2);
-        //        const std::string cohesionStr = toString(params.cohesion);
-
-        //        // Build the vector of subdirectory names.
-        //        std::vector<std::string> subdirs = { "maxPressure_" + maxPressureStr,
-        //                                            "plateDiameter_" + plateDiameterStr,
-        //                                            "youngsModulus_" + youngsModulusStr,
-        //                                            "density_" + densityStr,
-        //                                            "mu_s_" + muSStr,
-        //                                            "mu_2_" + mu2Str,
-        //                                            "cohesion_" + cohesionStr,
-        //                                            "boundaryType_" + params.boundary_type,
-        //                                            "viscosityType_" + params.viscosity_type,
-        //                                            "kernelType_" + params.kernel_type };
-
-        //        for (const auto& subdir : subdirs) {
-        //            base_dir += subdir + "/";
-        //            if (!filesystem::create_directory(filesystem::path(base_dir))) {
-        //                std::cerr << "Error creating directory " << base_dir << std::endl;
-        //                return;
-        //            }
-        //        }
-
-        //        // Add flat structure
-        //        std::stringstream ss;
-        //        ss << "ps_" << params.ps_freq;
-        //        ss << "_s_" << params.initial_spacing;
-        //        ss << "_d0_" << params.d0_multiplier;
-        //        ss << "_t_" << params.time_step;
-        //        ss << "_av_" << params.artificial_viscosity;
-        //        out_dir = base_dir + ss.str();
-
-        //        if (!filesystem::create_directory(filesystem::path(out_dir))) {
-        //            std::cerr << "Error creating directory " << out_dir << std::endl;
-        //            return;
-        //        }
 
         if (params.output) {
             if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
@@ -438,10 +383,6 @@ void SimulateMaterial(int i, const SimParams& params) {
             }
             if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
                 std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
-                return;
-            }
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
-                std::cerr << "Error creating directory " << out_dir + "/vtk" << std::endl;
                 return;
             }
         }
@@ -515,7 +456,9 @@ void SimulateMaterial(int i, const SimParams& params) {
             if (params.write_marker_files) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                std::cout << " -- Wrote SPH data to " << out_dir + "/particles" << std::endl;
+                std::cout << " -- Wrote "
+                          << "frame " << out_frame
+                          << " SPH data to " << out_dir << std::endl;
             }
             out_frame++;
         }
@@ -543,8 +486,12 @@ void SimulateMaterial(int i, const SimParams& params) {
                 << current_depth << "," << plate->GetPosDt().z() << "," << plate_NetPressure << ","
                 << plate_ExternalLoadPressure << std::endl;
             pres_out_frame++;
-            std::cout << "time: " << time << std::endl;
-            std::cout << "current_depth: " << current_depth << std::endl;
+            std::cout << "time, " << time 
+                      << ", plate_force, " << plate->GetAppliedForce().z()
+                      << ", plate_depth, " << current_depth 
+                      << ", motor force, " << motor->GetMotorForce() 
+                      << ", RTF, " << sysFSI.GetRtf()
+                      << std::endl;
         }
 
         // Advance simulation for one timestep for all systems
