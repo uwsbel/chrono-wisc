@@ -42,7 +42,8 @@ endif()
 if(CH_ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS}
         demo_VEH_CRMTerrain_Gator
-    )
+        demo_VEH_CRMTerrain_Gator_Blade
+        )
 endif()
 
 

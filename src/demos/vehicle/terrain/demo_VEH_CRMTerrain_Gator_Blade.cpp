@@ -82,27 +82,32 @@ double vehicle_init_z = 0.3;
 bool fix_chassis = false;
 
 // ===================================================================================================================
+struct ControlCommand {
+    double start_time;
+    double end_time;
+    double blade_yaw;
+    double blade_pitch;
+    double blade_vertical;
+    double throttle;
+};
+std::vector<ControlCommand> control_schedule;
 
-std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires, double yaw, double pitch, double vertical);
+std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorLinearPosition>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain);
 void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain);
+ControlCommand GetControlForTime(double time, const std::vector<ControlCommand>& schedule);
+bool LoadControlScheduleFromFile(const std::string& filename, std::vector<ControlCommand>& schedule);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 bool GetProblemSpecs(int argc,
                      char** argv,
-                     double& blade_yaw,
-                     double& blade_pitch,
-                     double& blade_vertical,
-                     double& throttle_ctrl,
-                     double& pile_max_height) {
+                     double& pile_max_height,
+                     int& exp_index) {
     ChCLI cli(argv[0], "Soil Leveling Gator Configuration");
 
     // Add options for all parameters with their default values
-    cli.AddOption<double>("Blade", "yaw", "Blade yaw angle in radians", std::to_string(blade_yaw));
-    cli.AddOption<double>("Blade", "pitch", "Blade pitch angle in radians", std::to_string(blade_pitch));
-    cli.AddOption<double>("Blade", "vertical", "Blade vertical offset", std::to_string(blade_vertical));
-    cli.AddOption<double>("Control", "throttle", "Throttle control value (0-1)", std::to_string(throttle_ctrl));
     cli.AddOption<double>("Terrain", "pile_height", "Maximum pile height", std::to_string(pile_max_height));
+    cli.AddOption<int>("Experiment", "exp_index", "experiment counter", std::to_string(exp_index));
 
     // Display help if no arguments
     if (argc == 1) {
@@ -118,11 +123,8 @@ bool GetProblemSpecs(int argc,
     }
 
     // Retrieve values from CLI
-    blade_yaw = cli.GetAsType<double>("yaw");
-    blade_pitch = cli.GetAsType<double>("pitch");
-    blade_vertical = cli.GetAsType<double>("vertical");
-    throttle_ctrl = cli.GetAsType<double>("throttle");
     pile_max_height = cli.GetAsType<double>("pile_height");
+    exp_index = cli.GetAsType<int>("exp_index");
 
     return true;
 }
@@ -161,16 +163,18 @@ int main(int argc, char* argv[]) {
     // Set SPH spacing
     double spacing = 0.02;
 
-    // Parameters for the run - default values
-    double blade_yaw = 0.0;
-    double blade_pitch = 0.0;
-    double blade_vertical = 0.0;
-    double throttle_ctrl = 0.5;
-    double pile_max_height = 0.5;
-
     // Process command-line parameters
-    if (!GetProblemSpecs(argc, argv, blade_yaw, blade_pitch, blade_vertical, throttle_ctrl, pile_max_height)) {
+    double pile_max_height = 0.3;
+    int exp_index = 0;
+
+    // Parameters for the run - default values
+    std::vector<ControlCommand> control_schedule;
+    if (!GetProblemSpecs(argc, argv, pile_max_height, exp_index)) {
         return 1;
+    }
+
+    if (!LoadControlScheduleFromFile("/home/harry/hmap/ctrl_cmds/cmd"+std::to_string(exp_index)+".txt", control_schedule)) {
+        return 1;  // Exit if loading failed
     }
 
     // --------------
@@ -182,7 +186,7 @@ int main(int argc, char* argv[]) {
 
     cout << "Create vehicle..." << endl;
     bool fea_tires;
-    auto [vehicle, blade] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires, blade_yaw, blade_pitch, blade_vertical);
+    auto [vehicle, blade, motor_yaw, motor_pitch, motor_vertical] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires);
     cout << "Finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
 
@@ -200,7 +204,7 @@ int main(int argc, char* argv[]) {
         solver_type = ChSolver::Type::PARDISO_MKL;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
-        step_size = 5e-4;
+        step_size = 5e-4; // 5e-4
         solver_type = ChSolver::Type::BARZILAIBORWEIN;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     }
@@ -280,7 +284,7 @@ int main(int argc, char* argv[]) {
             terrain.Construct(vehicle::GetDataFile("terrain/gator/terrain.bmp"),   // height map image file
                               terrain_length, terrain_width,                           // length (X) and width (Y)
                               {0, pile_max_height},                                                // height range
-                              0.45,                                                     // depth
+                              0.45,                                                     // depth 0.45
                               true,                                                    // uniform depth
                               ChVector3d(0, 0, 0),                                     // patch center
                               BoxSide::Z_NEG                                           // bottom wall
@@ -390,7 +394,7 @@ int main(int argc, char* argv[]) {
     cout << "Start simulation..." << endl;
     
     // Create CSV file for logging vehicle data with parameter text
-    const std::string out_dir = GetChronoOutputPath() + "soil_leveling_blade_yaw_" + std::to_string(blade_yaw) + "_blade_pitch_" + std::to_string(blade_pitch) + "_blade_vertical_" + std::to_string(blade_vertical) + "_throttle_ctrl_" + std::to_string(throttle_ctrl) + "_pile_max_height_" + std::to_string(pile_max_height);
+    const std::string out_dir = GetChronoOutputPath() + "soil_leveling_" + std::to_string(exp_index);
     // Create directory with proper error checking and recursive flag
     if (!std::filesystem::exists(out_dir)) {
         try {
@@ -426,14 +430,19 @@ int main(int argc, char* argv[]) {
         auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
         auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
         //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
-        cout << "blade angle: "<< blade->GetRot().GetCardanAnglesZYX()<<endl;
+        
         // Set current driver inputs
-        // auto steering = veh_loc.y()*0.1;
-        // auto throttle = (target_speed-veh_speed)*0.5;
-        driver.SetThrottle(throttle_ctrl);
-        driver.SetSteering(0.0);
-        auto driver_inputs = driver.GetInputs();
+        ControlCommand current_cmd = GetControlForTime(time, control_schedule);
+        driver.SetThrottle(current_cmd.throttle);
+        driver.SetSteering(0.0);  // or set based on current_cmd if desired
 
+        motor_yaw->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_yaw));
+        motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_pitch));
+        motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_vertical));
+
+
+        auto driver_inputs = driver.GetInputs();
+        //cout << "blade angle: "<< blade->GetRot().GetCardanAnglesZYX()<<endl;
         // Run-time visualization
 #if defined(CHRONO_OPENGL) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
@@ -451,10 +460,6 @@ int main(int argc, char* argv[]) {
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
-
-        // // test motor function working
-        // auto rot = chrono_types::make_shared<ChFunctionConst>(0.5);
-        // motor->SetAngleFunction(rot);
 
         // Synchronize systems
         driver.Synchronize(time);
@@ -514,7 +519,7 @@ int main(int argc, char* argv[]) {
 
 // ===================================================================================================================
 
-std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires, double yaw, double pitch, double vertical) {
+std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorLinearPosition>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires) {
     fea_tires = false;
 
     auto gator = chrono_types::make_shared<gator::Gator>();
@@ -537,21 +542,35 @@ std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>> CreateVehicle
 
     auto contact_mat = chrono_types::make_shared<ChContactMaterialNSC>();
     auto blade = chrono_types::make_shared<ChBodyEasyMesh>(vehicle::GetDataFile("gator/gator_frontblade.obj"), 1000, true, true, false);
-    auto offsetpos = ChVector3d(1.75, 0, -0.3 - vertical);
+    auto offsetpos = ChVector3d(1.75, 0, -0.3);
 
     blade->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
-    blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2+pitch) * QuatFromAngleY(yaw));
+    blade->SetRot(gator->GetChassisBody()->GetRot() * Q_ROTATE_Y_TO_X * QuatFromAngleX(-CH_PI_2));
     blade->SetMass(0.1);
     blade->SetFixed(false);
     gator->GetSystem()->AddBody(blade);
 
+    auto vir_yaw_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
+    vir_yaw_body->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
+    gator->GetSystem()->AddBody(vir_yaw_body);
+    auto vir_pitch_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
+    vir_pitch_body->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
+    gator->GetSystem()->AddBody(vir_pitch_body);
+    auto vir_vertical_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
 
-    // create motors and apply it to the blade
-    auto lock = chrono_types::make_shared<ChLinkLockLock>();
-    lock->Initialize(gator->GetChassisBody(), blade, ChFrame<>(blade->GetPos(), gator->GetChassisBody()->GetRot()));
-    gator->GetSystem()->Add(lock);
+    auto motor_yaw = chrono_types::make_shared<ChLinkMotorRotationAngle>();
+    auto motor_pitch = chrono_types::make_shared<ChLinkMotorRotationAngle>();
+    auto motor_vertical = chrono_types::make_shared<ChLinkMotorLinearPosition>();
 
-    return std::make_tuple(gator, blade);
+    motor_yaw->Initialize(vir_yaw_body, blade, ChFrame<>(vir_yaw_body->GetPos()));
+    motor_pitch->Initialize(vir_yaw_body, vir_pitch_body, ChFrame<>(vir_pitch_body->GetPos(), Q_ROTATE_Y_TO_Z));
+    motor_vertical->Initialize(gator->GetChassisBody(), vir_pitch_body, ChFrame<>(vir_vertical_body->GetPos()));
+
+    gator->GetSystem()->Add(motor_yaw);
+    gator->GetSystem()->Add(motor_pitch);
+    gator->GetSystem()->Add(motor_vertical);
+
+    return std::make_tuple(gator, blade, motor_yaw, motor_pitch, motor_vertical);
 }
 
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain) {
@@ -653,3 +672,49 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
     return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
 }
 
+ControlCommand GetControlForTime(double time, const std::vector<ControlCommand>& schedule) {
+    for (const auto& cmd : schedule) {
+        if (time >= cmd.start_time && time < cmd.end_time) {
+            // log the time period
+            std::cout << "Time: " << time << "  Start: " << cmd.start_time << "  End: " << cmd.end_time << std::endl;
+            return cmd;
+        }
+    }
+    // Default fallback
+    return schedule.back();
+}
+
+bool LoadControlScheduleFromFile(const std::string& filename, std::vector<ControlCommand>& schedule) {
+    std::ifstream infile(filename);
+    if (!infile.is_open()) {
+        std::cerr << "Failed to open control command file: " << filename << std::endl;
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::istringstream iss(line);
+        std::string token;
+        std::vector<double> values;
+
+        while (std::getline(iss, token, ',')) {
+            try {
+                values.push_back(std::stod(token));
+            } catch (...) {
+                std::cerr << "Error parsing value in line: " << line << std::endl;
+                return false;
+            }
+        }
+
+        if (values.size() != 6) {
+            std::cerr << "Each line must have 6 values. Found " << values.size() << " in: " << line << std::endl;
+            return false;
+        }
+
+        ControlCommand cmd = {values[0], values[1], values[2], values[3], values[4], values[5]};
+        schedule.push_back(cmd);
+    }
+
+    std::cout << "Loaded " << schedule.size() << " control commands from file." << std::endl;
+    return true;
+}
