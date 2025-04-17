@@ -45,16 +45,13 @@ using namespace chrono::fsi::sph;
 #ifdef CHRONO_VSG
 // Run-time visualization system (OpenGL or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
-#endif
-
-// -----------------------------------------------------------------------------
-
 class MarkerPositionVisibilityCallback : public ChFsiVisualizationVSG::MarkerVisibilityCallback {
   public:
     MarkerPositionVisibilityCallback() {}
 
     virtual bool get(unsigned int n) const override { return pos[n].y > 0; }
 };
+#endif
 
 double nu_poisson = 0.3;
 
