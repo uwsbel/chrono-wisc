@@ -99,7 +99,7 @@ struct SimParams {
     double density;
     double y_modulus;
 };
-void SimulateMaterial(int i, const SimParams& params);
+void SimulateMaterial(const SimParams& params);
 // Function to handle CLI arguments
 bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     ChCLI cli(argv[0], "FSI Normal Bevameter Validation Problem");
@@ -146,15 +146,15 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
 
 int main(int argc, char* argv[]) {
     SimParams params = {/*ps_freq*/ 1,
-        /*initial_spacing*/ 0.002,
+        /*initial_spacing*/ 0.01,
         /*d0_multiplier*/ 1.3,
-        /*time_step*/ 4e-5,
+        /*time_step*/ 2e-4,
         /*boundary_type*/ "adami",
         /*viscosity_type*/ "artificial_bilateral",
         /*kernel_type*/ "wendland",
-        /*artificial_viscosity*/ 0.2,
-        /*max_pressure*/ 30 * 1000,  // 30 kPa
-        /*plate_diameter*/ 0.19,     // 19 cm
+        /*artificial_viscosity*/ 0.5,
+        /*max_pressure*/ 20 * 1000,  // 30 kPa
+        /*plate_diameter*/ 0.60,     // 19 cm
         /*verbose*/ true,
         /*output*/ true,
         /*output_fps*/ 5,
@@ -182,8 +182,6 @@ int main(int argc, char* argv[]) {
     std::cout << "viscosity_type: " << params.viscosity_type << std::endl;
     std::cout << "kernel_type: " << params.kernel_type << std::endl;
     std::cout << "artificial_viscosity: " << params.artificial_viscosity << std::endl;
-    std::cout << "max_pressure: " << params.max_pressure << std::endl;
-    std::cout << "plate_diameter: " << params.plate_diameter << std::endl;
     std::cout << "mu_s: " << params.mu_s << std::endl;
     std::cout << "mu_2: " << params.mu_2 << std::endl;
     std::cout << "cohesion: " << params.cohesion << std::endl;
@@ -194,17 +192,17 @@ int main(int argc, char* argv[]) {
 
     int num_materials = 1;
     for (int i = 0; i < num_materials; i++) {
-        SimulateMaterial(i, params);
+        SimulateMaterial(params);
     }
 }
 
-void SimulateMaterial(int i, const SimParams& params) {
-    double t_end = 5;
-    double max_pressure_time = 3;
-    std::cout << "t_end: " << t_end << std::endl;
+void SimulateMaterial(const SimParams& params) {
+    double t_end = 30;
 
-    double container_diameter = params.plate_diameter * 1.25;  // Plate is 20 cm in diameter
-    double container_height = 0.020;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
+    double time_preload = 2; 
+
+    double container_diameter = params.plate_diameter * 1.1;  // Plate is 20 cm in diameter
+    double container_height = 0.120;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
     double cyl_length = container_height;                     // To prevent effect of sand falling on top of the plate
 
     // Create a physics system
@@ -331,6 +329,18 @@ void SimulateMaterial(int i, const SimParams& params) {
                               ChVector3d(bxDim, byDim, bzDim),                //
                               ChVector3i(2, 2, -1));
 
+    // Create the wheel -- always SECOND body in the system
+    auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
+    std::string pad_obj = "fsi/ndlg_foot_layup.obj";
+
+    trimesh->LoadWavefrontMesh(GetChronoDataFile(pad_obj), false, true);
+    trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
+
+    double plate_mass = 17.23; // 38 lb from cad file
+    ChVector3d plate_inertia = ChVector3d(1.0, 1.0, 1.5);
+
+
+
     // Create plate
     auto plate = chrono_types::make_shared<ChBody>();
     double plate_z_pos = fzDim + cyl_length / 2 + params.initial_spacing;
@@ -338,29 +348,47 @@ void SimulateMaterial(int i, const SimParams& params) {
     plate->SetRot(ChQuaternion<>(1, 0, 0, 0));
     plate->SetFixed(false);
 
-    double plate_area = CH_PI * params.plate_diameter * params.plate_diameter / 4;
-    double plate_mass = params.density * plate_area * cyl_length;
-    std::cout << "plate_mass: " << plate_mass << std::endl;
     plate->SetMass(plate_mass);
-    ChMatrix33<> plate_inertia = plate_mass * ChCylinder::GetGyration(params.plate_diameter / 2, cyl_length);
-    plate->SetInertia(plate_inertia);
+    plate->SetInertiaXX(plate_inertia);
     sysMBS.AddBody(plate);
-
+    std::vector<ChVector3d> BCE_pad;
+    sysSPH.CreatePoints_Mesh(*trimesh, params.initial_spacing, BCE_pad);
+    sysSPH.AddPointsBCE(plate, BCE_pad, ChFrame<>(), true);
     sysFSI.AddFsiBody(plate);
-    sysSPH.AddCylinderBCE(plate, ChFrame<>(VNULL, QUNIT), params.plate_diameter / 2, cyl_length, true, true);
+
+    //sysSPH.AddCylinderBCE(plate, ChFrame<>(VNULL, QUNIT), params.plate_diameter / 2, cyl_length, true, true);
     sysFSI.Initialize();
 
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
     auto motor = chrono_types::make_shared<ChLinkMotorLinearForce>();
-    double max_force = params.max_pressure * plate_area;
 
-    ChFunctionSequence seq;
-    auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, -max_force / max_pressure_time);
-    auto f_const = chrono_types::make_shared<ChFunctionConst>(-max_force);
-    seq.InsertFunct(f_ramp, max_pressure_time);
-    seq.InsertFunct(f_const, t_end - max_pressure_time);
-    seq.Setup();
-    motor->SetForceFunction(chrono_types::make_shared<ChFunctionSequence>(seq));
+    // read force data from a file
+     std::string force_file = GetChronoDataFile("fsi/loading.csv");
+     std::ifstream file(force_file);
+     std::vector<double> force_data; 
+
+     // skip the first line, populate force_data
+     std::string line;
+     std::getline(file, line);
+     while (std::getline(file, line)) {
+		 std::stringstream ss(line);
+		 double force;
+		 ss >> force;
+		 force_data.push_back(force);
+	 }
+     int num_force_points = force_data.size();
+     double force_time_step = (t_end - time_preload) / (num_force_points-1);
+     
+     std::shared_ptr<ChFunctionInterp> force_func = chrono_types::make_shared<ChFunctionInterp>();
+
+     force_func->AddPoint(0, 0);
+     for (int i = 0; i < num_force_points; i++) {
+		 double t = time_preload + i * force_time_step;
+         force_func->AddPoint(t, -force_data.at(i));
+	 }
+
+
+    motor->SetForceFunction(force_func);
     motor->Initialize(plate, box, ChFrame<>(ChVector3d(0, 0, 0), QUNIT));
     sysMBS.AddLink(motor);
 
@@ -368,7 +396,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "moon_grav";
+        std::string base_dir = GetChronoOutputPath() + "bowl_60cm_h_1cm_2e-4_dt";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -386,7 +414,7 @@ void SimulateMaterial(int i, const SimParams& params) {
                 return;
             }
         }
-
+        
         if (params.snapshots) {
             if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
                 std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
@@ -436,14 +464,13 @@ void SimulateMaterial(int i, const SimParams& params) {
     int pres_out_frame = 0;
     int render_frame = 0;
     double dT = sysFSI.GetStepSizeCFD();
-    double pres_out_fps = 100;
+    double pres_out_fps = 20;
 
     std::string out_file = out_dir + "/force_vs_time.txt";
     std::ofstream ofile(out_file, std::ios::trunc);
 
     // Add comma-separated header to the output file
-    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,plate-NetPressure,plate-"
-        "ExternalLoadPressure"
+    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,motor-load"
         << std::endl;
 
     ChTimer timer;
@@ -479,17 +506,15 @@ void SimulateMaterial(int i, const SimParams& params) {
         }
 #endif
         if (time >= pres_out_frame / pres_out_fps) {
-            double plate_NetPressure = abs(plate->GetAppliedForce().z() / plate_area);
-            double plate_ExternalLoadPressure = motor->GetMotorForce() / plate_area;
+            double motor_force = motor->GetMotorForce(); 
             ofile << time << "," << plate->GetAppliedForce().x() << "," << plate->GetAppliedForce().y() << ","
                 << plate->GetAppliedForce().z() << "," << plate->GetPos().x() << "," << plate->GetPos().y() << ","
-                << current_depth << "," << plate->GetPosDt().z() << "," << plate_NetPressure << ","
-                << plate_ExternalLoadPressure << std::endl;
+                << current_depth << "," << plate->GetPosDt().z() << "," << motor_force << std::endl;
             pres_out_frame++;
             std::cout << "time, " << time 
                       << ", plate_force, " << plate->GetAppliedForce().z()
                       << ", plate_depth, " << current_depth 
-                      << ", motor force, " << motor->GetMotorForce() 
+                      << ", motor_force, " << motor->GetMotorForce() 
                       << ", RTF, " << sysFSI.GetRtf()
                       << std::endl;
         }
