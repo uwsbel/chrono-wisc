@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (!LoadControlScheduleFromFile("/home/harry/hmap/ctrl_cmds/cmd"+std::to_string(exp_index)+".txt", control_schedule)) {
+    if (!LoadControlScheduleFromFile(vehicle::GetDataFile("/ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
         return 1;  // Exit if loading failed
     }
 
