@@ -172,8 +172,10 @@ int main(int argc, char* argv[]) {
     if (!GetProblemSpecs(argc, argv, pile_max_height, exp_index)) {
         return 1;
     }
+    cout << "pile_max_height: " << pile_max_height << endl;
 
-    if (!LoadControlScheduleFromFile(vehicle::GetDataFile("/ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
+    if (!LoadControlScheduleFromFile(vehicle::GetDataFile("ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
+    // if (!LoadControlScheduleFromFile("/home/harry/control_command.txt", control_schedule)) {
         return 1;  // Exit if loading failed
     }
 
@@ -376,7 +378,7 @@ int main(int argc, char* argv[]) {
                 vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
             }
             visFSI->AttachSystem(sysMBS);
-            visFSI->AddCamera(ChVector3d(0, -2, 2.5), ChVector3d(0, 0, 0));
+            visFSI->AddCamera(ChVector3d(2, -4, .5), ChVector3d(2, 4, 0));
             visFSI->Initialize();
         }
 #endif
@@ -394,7 +396,7 @@ int main(int argc, char* argv[]) {
     cout << "Start simulation..." << endl;
     
     // Create CSV file for logging vehicle data with parameter text
-    const std::string out_dir = GetChronoOutputPath() + "soil_leveling_" + std::to_string(exp_index);
+    const std::string out_dir = GetChronoOutputPath() +std::to_string(pile_max_height)+ "/soil_leveling_" + std::to_string(exp_index);
     // Create directory with proper error checking and recursive flag
     if (!std::filesystem::exists(out_dir)) {
         try {
@@ -415,7 +417,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: Could not create CSV file"  << std::endl;
         return 1;
     }
-    csv_file << "time,x,y,z,steering,throttle,front_load,roll,pitch,yaw\n";
+    csv_file << "time,x,y,z,steering,throttle,front_load,roll,pitch,yaw,bx,by,bz,bpitch,broll,byaw, veh_rpm, veh_tq\n";
 
     ChTimer timer;
     bool saved_particle = false;
@@ -426,7 +428,8 @@ int main(int argc, char* argv[]) {
         auto veh_speed = vehicle->GetVehicle().GetSpeed();
         const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
         auto front_load = blade->GetAppliedForce();
-        const auto& blade_loc = blade->GetPos();
+        const auto& blade_loc = vehicle->GetChassisBody()->TransformPointParentToLocal(blade->GetPos());
+        const auto& blade_rot = blade->GetRot().GetCardanAnglesZYX();
         auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
         auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
         //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
@@ -495,7 +498,8 @@ int main(int argc, char* argv[]) {
         csv_file << time << "," << veh_loc.x() << "," << veh_loc.y() << "," << veh_loc.z() << "," 
                   << driver_inputs.m_steering << "," << driver_inputs.m_throttle << "," 
                   << front_load.Length() << "," << veh_rot.x() << "," << veh_rot.y() << "," 
-                  << veh_rot.z() << "\n";
+                  << veh_rot.z() << "," << blade_loc.x() <<"," << blade_loc.y() <<"," << blade_loc.z()<< 
+                  "," << blade_rot.x() << "," << blade_rot.y() << "," << blade_rot.z() << "," << engine_rpm << "," << engine_torque << "\n";
         // Ensure data is written to file immediately
         csv_file.flush();
 
@@ -676,7 +680,7 @@ ControlCommand GetControlForTime(double time, const std::vector<ControlCommand>&
     for (const auto& cmd : schedule) {
         if (time >= cmd.start_time && time < cmd.end_time) {
             // log the time period
-            std::cout << "Time: " << time << "  Start: " << cmd.start_time << "  End: " << cmd.end_time << std::endl;
+            // std::cout << "Time: " << time << "  Start: " << cmd.start_time << "  End: " << cmd.end_time << std::endl;
             return cmd;
         }
     }
