@@ -10,22 +10,22 @@
 ##SBATCH --cpus-per-task=8
 ##SBATCH --mem=40G
 
-#SBATCH --array=1
+#SBATCH --array=1-6
 module load nvidia/cuda/12.0.0
 module load gcc/11.3.0
 
 nvidia-smi
 
 # Define arrays for parameters
-#d0_array=(1.1 1.3 1.5 1.7 1.9 2.0 )
-#density_array=(998.5 998.5 1000 1000 998.5 998.5 1000 1000)
+h_array=(0.008 0.008 0.006 0.006 0.005 0.005)
+dt_array=(5e-5 1e-4 5e-5 1e-4 5e-5 1e-4)
 
 # Get array index from SLURM
-#id=$SLURM_ARRAY_TASK_ID
+id=$SLURM_ARRAY_TASK_ID
 
 # Get parameters for this run
-#step_size=${step_size_array[${id}]}
-#d0=${d0_array[${id}]}
+step_size=${dt_array[${id}]}
+h=${h_array[${id}]}
 #density=${density_array[${id}]}
 
 #step_size=2e-5
@@ -37,4 +37,4 @@ cd /srv/home/fang/lander/build/bin/
 
 
 # Run the simulation with all parameters
-./demo_FSI_pad
+./demo_FSI_pad --initial_spacing ${h} --time_step ${step_size}
