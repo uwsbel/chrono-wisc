@@ -143,7 +143,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
 
 int main(int argc, char* argv[]) {
     SimParams params = {/*ps_freq*/ 1,
-        /*initial_spacing*/ 0.01,
+        /*initial_spacing*/ 0.005,
         /*d0_multiplier*/ 1.3,
         /*time_step*/ 2e-4,
         /*boundary_type*/ "adami",
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         /*plate_diameter*/ 0.60,     // 19 cm
         /*verbose*/ true,
         /*output*/ true,
-        /*output_fps*/ 5,
+        /*output_fps*/ 2,
         /*snapshots*/ true,
         /*render*/ false,
         /*render_fps*/ 400,
@@ -393,7 +393,8 @@ void SimulateMaterial(const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "bowl_60cm_h_1cm_2e-4_dt";
+        std::string base_dir = GetChronoOutputPath() + "h_" + std::to_string(params.initial_spacing) + "_dt_" +
+                               std::to_string(params.time_step);
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -461,7 +462,7 @@ void SimulateMaterial(const SimParams& params) {
     int pres_out_frame = 0;
     int render_frame = 0;
     double dT = sysFSI.GetStepSizeCFD();
-    double pres_out_fps = 20;
+    double pres_out_fps = 5;
 
     std::string out_file = out_dir + "/force_vs_time.txt";
     std::ofstream ofile(out_file, std::ios::trunc);
