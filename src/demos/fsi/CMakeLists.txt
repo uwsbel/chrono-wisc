@@ -21,6 +21,7 @@ set(DEMOS ${DEMOS}
    benchmark_Acc_FSI_Cratering
    benchmark_Acc_FSI_ConePenetration
    benchmark_Acc_FSI_ConePenetrometer_GRC1
+   benchmark_Acc_FSI_NormalBevameter_GRC1
 )
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
