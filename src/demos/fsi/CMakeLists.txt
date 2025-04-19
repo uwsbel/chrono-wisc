@@ -18,6 +18,9 @@ set(DEMOS ${DEMOS}
    demo_FSI_Flap
    demo_FSI_AngleRepose
    demo_FSI_Cratering
+   benchmark_Acc_FSI_Cratering
+   benchmark_Acc_FSI_ConePenetration
+   benchmark_Acc_FSI_ConePenetrometer_GRC1
 )
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
