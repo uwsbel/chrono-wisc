@@ -68,7 +68,7 @@ double pto_damping = 0;
 // double depth = 1.3;
 
 // this is for testing wec deivce
-double depth = 0.4;
+double depth = 0.5;
 
 // Output frequency
 bool output = true;
