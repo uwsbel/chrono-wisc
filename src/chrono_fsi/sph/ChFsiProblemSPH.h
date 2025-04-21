@@ -29,6 +29,8 @@
 
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/sph/ChFsiSplashsurfSPH.h"
+#include "chrono_fsi/sph/physics/FsiParticleRelocator.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -64,6 +66,9 @@ class CH_FSI_API ChFsiProblemSPH {
 
     /// Set SPH method parameters.
     void SetSPHParameters(const ChFsiFluidSystemSPH::SPHParameters& sph_params);
+    
+    /// Set surface reconstruction parameters (`with splashsurf`).
+    void SetSplashsurfParameters(const ChFsiFluidSystemSPH::SplashsurfParameters& params);
 
     /// Add a rigid body to the FSI problem.
     /// BCE markers are created for the provided geometry (which may or may not match the body collision geometry).
@@ -95,7 +100,7 @@ class CH_FSI_API ChFsiProblemSPH {
 
     /// Enable/disable use of node direction vectors for FSI flexible meshes.
     /// When enabled, node direction vectors (average of adjacent segment directions or average of face normals) are
-    /// calculated from the FSI mesh position states and communicated to the SPH fluid solver which uses these to 
+    /// calculated from the FSI mesh position states and communicated to the SPH fluid solver which uses these to
     /// generate BCE markers. By default, this option is enabled in the SPH fluid solver.
     void EnableNodeDirections(bool val);
 
@@ -220,9 +225,18 @@ class CH_FSI_API ChFsiProblemSPH {
     /// Save the set of initial SPH and BCE grid locations to files in the specified output directory.
     void SaveInitialMarkers(const std::string& out_dir) const;
 
+    /// Reconstruct surface from the current SPH particle data cloud.
+    /// This function invokes the external `splashsurf` tool to generate a Wavefront OBJ mesh reconstructed from the
+    /// current positions of the SPH pareticles. If splashsurf was not found during configuration, this function is a
+    /// no-op. The intermediate data file with SPH particle positions and the resulting mesh file are created in the
+    /// specified directory and are named [name].json and [name].obj, respectively. If quiet=true, splashsurf console
+    /// output is supressed. This is a blocking operation which can be computationally expensive for large problems.
+    /// See ChFsiSplashsurfSPH.
+    void WriteReconstructedSurface(const std::string& dir, const std::string& name, bool quiet = false);
+
     PhysicsProblem GetPhysicsProblem() const { return m_sysSPH.GetPhysicsProblem(); }
     std::string GetPhysicsProblemString() const { return m_sysSPH.GetPhysicsProblemString(); }
-    std::string GetSphMethodTypeString() const { return m_sysSPH.GetSphMethodTypeString(); }
+    std::string GetSphIntegrationSchemeString() const { return m_sysSPH.GetSphIntegrationSchemeString(); }
 
   protected:
     /// Create a ChFsiProblemSPH object.
@@ -272,14 +286,15 @@ class CH_FSI_API ChFsiProblemSPH {
 
     // Only derived classes can use the following particle and marker relocation functions
 
+    void CreateParticleRelocator();
     void BCEShift(const ChVector3d& shift_dist);
     void SPHShift(const ChVector3d& shift_dist);
-    void SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChAABB& aabb_dest);
     void SPHMoveAABB2AABB(const ChAABB& aabb_src, const ChIntAABB& aabb_dest);
     void ForceProximitySearch();
 
     ChFsiFluidSystemSPH m_sysSPH;      ///< underlying Chrono SPH system
     ChFsiSystemSPH m_sysFSI;           ///< underlying Chrono FSI system
+    ChFsiSplashsurfSPH m_splashsurf;   ///< surface reconstructor
     double m_spacing;                  ///< particle and marker spacing
     std::shared_ptr<ChBody> m_ground;  ///< ground body
     GridPoints m_sph;                  ///< SPH particle grid locations
@@ -295,6 +310,8 @@ class CH_FSI_API ChFsiProblemSPH {
     std::unordered_map<std::shared_ptr<ChBody>, size_t> m_fsi_bodies;
 
     std::shared_ptr<ParticlePropertiesCallback> m_props_cb;  ///< callback for particle properties
+
+    std::unique_ptr<FsiParticleRelocator> m_relocator;
 
     bool m_verbose;      ///< if true, write information to standard output
     bool m_initialized;  ///< set to 'true' once terrain is initialized

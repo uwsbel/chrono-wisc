@@ -36,6 +36,7 @@ namespace sph {
 // Worker function to output CFD information for markers in specified range.
 void SaveFileCFD(const std::string& filename,
                  OutputLevel level,
+                 bool implicit_scheme,
                  thrust::host_vector<Real4> pos,
                  thrust::host_vector<Real3> vel,
                  thrust::host_vector<Real4> acc,
@@ -70,20 +71,24 @@ void SaveFileCFD(const std::string& filename,
 
         switch (level) {
             case OutputLevel::STATE:
-                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v_len << ", " << a_len << std::endl;
+                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v_len << ", " << a_len;
                 break;
             case OutputLevel::STATE_PRESSURE:
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", "
-                        << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << std::endl;
+                        << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y;
                 break;
             case OutputLevel::CRM_FULL:
                 Real4 st = srTauMu[i];
 
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z
-                        << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << ", " << rp.z << ", "
-                        << st.x << ", " << st.y << ", " << st.z << ", " << st.w << ", " << rp.w << std::endl;
+                        << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << ", " << rp.z << ", ";
+                if (implicit_scheme) {
+                    Real4 st = srTauMu[i];
+                    sstream << st.x << ", " << st.y << ", " << st.z << ", " << st.w << ", " << rp.w;
+                }
                 break;
         }
+        sstream << std::endl;
     }
 
     file << sstream.str();
@@ -94,6 +99,7 @@ void SaveFileCFD(const std::string& filename,
 void SaveAllCFD(const std::string& dir,
                 int frame,
                 OutputLevel level,
+                bool implicit_scheme,
                 thrust::host_vector<Real4> pos,
                 thrust::host_vector<Real3> vel,
                 thrust::host_vector<Real4> acc,
@@ -107,7 +113,7 @@ void SaveAllCFD(const std::string& dir,
     // Save helper and ghost particles to files
     if (haveHelper || haveGhost) {
         std::string filename = dir + "/others" + std::to_string(frame) + ".csv";
-        SaveFileCFD(filename, level,                                                 //
+        SaveFileCFD(filename, level, implicit_scheme,                                //
                     pos, vel, acc, rhoPresMu, srTauMu,                               //
                     referenceArray[0].x, referenceArray[haveHelper + haveGhost].y);  //
     }
@@ -115,7 +121,7 @@ void SaveAllCFD(const std::string& dir,
     // Save fluid/granular SPH particles to files
     {
         std::string filename = dir + "/fluid" + std::to_string(frame) + ".csv";
-        SaveFileCFD(filename, level,                                                                    //
+        SaveFileCFD(filename, level, implicit_scheme,                                                   //
                     pos, vel, acc, rhoPresMu, srTauMu,                                                  //
                     referenceArray[haveHelper + haveGhost].x, referenceArray[haveHelper + haveGhost].y  //
         );
@@ -124,7 +130,7 @@ void SaveAllCFD(const std::string& dir,
     // Save boundary BCE particles to files
     if (frame == 0) {
         std::string filename = dir + "/boundary" + std::to_string(frame) + ".csv";
-        SaveFileCFD(filename, level,                                                                              //
+        SaveFileCFD(filename, level, implicit_scheme,                                                             //
                     pos, vel, acc, rhoPresMu, srTauMu,                                                            //
                     referenceArray[haveHelper + haveGhost + 1].x, referenceArray[haveHelper + haveGhost + 1].y);  //
     }
@@ -133,7 +139,7 @@ void SaveAllCFD(const std::string& dir,
     int refSize = (int)referenceArray.size();
     if (refSize > haveHelper + haveGhost + 2 && referenceArray[2].z == 1) {
         std::string filename = dir + "/rigidBCE" + std::to_string(frame) + ".csv";
-        SaveFileCFD(filename, level,                                                               //
+        SaveFileCFD(filename, level, implicit_scheme,                                              //
                     pos, vel, acc, rhoPresMu, srTauMu,                                             //
                     referenceArray[haveHelper + haveGhost + 2].x, referenceArray[refSize - 1].y);  //
     }
@@ -142,14 +148,15 @@ void SaveAllCFD(const std::string& dir,
     int refSize_Flex = (int)referenceArrayFEA.size();
     if (refSize_Flex > 0) {
         std::string filename = dir + "/flexBCE" + std::to_string(frame) + ".csv";
-        SaveFileCFD(filename, level,                                                 //
+        SaveFileCFD(filename, level, implicit_scheme,                                //
                     pos, vel, acc, rhoPresMu, srTauMu,                               //
                     referenceArrayFEA[0].x, referenceArrayFEA[refSize_Flex - 1].y);  //
     }
 }
 
 void saveParticleDataCFD(const std::string& dir, OutputLevel level, FsiDataManager& data_mgr) {
-    saveParticleDataCFD(dir, level,                                                        //
+    bool implicit_scheme = (data_mgr.paramsH->integration_scheme == IntegrationScheme::IMPLICIT_SPH);
+    saveParticleDataCFD(dir, level, implicit_scheme,                                       //
                         data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD,    //
                         data_mgr.derivVelRhoOriginalD, data_mgr.sphMarkers_D->rhoPresMuD,  //
                         data_mgr.sr_tau_I_mu_i_Original,                                   //
@@ -158,6 +165,7 @@ void saveParticleDataCFD(const std::string& dir, OutputLevel level, FsiDataManag
 
 void saveParticleDataCFD(const std::string& dir,
                          OutputLevel level,
+                         bool implicit_scheme,
                          const thrust::device_vector<Real4>& posRadD,
                          const thrust::device_vector<Real3>& velMasD,
                          const thrust::device_vector<Real4>& derivVelRhoD,
@@ -176,10 +184,10 @@ void saveParticleDataCFD(const std::string& dir,
     frame++;
 
     // Start printing in a separate thread and detach the thread to allow independent execution
-    std::thread th(SaveAllCFD,                         //
-                   dir, frame, level,                  //
-                   pos, vel, acc, rhoPresMu, srTauMu,  //
-                   referenceArray, referenceArrayFEA   //
+    std::thread th(SaveAllCFD,                          //
+                   dir, frame, level, implicit_scheme,  //
+                   pos, vel, acc, rhoPresMu, srTauMu,   //
+                   referenceArray, referenceArrayFEA    //
     );
     th.detach();
 }
@@ -511,10 +519,10 @@ void writeParticleFileCSV(const std::string& outfilename,
     bool haveHelper = (referenceArray[0].z == -3) ? true : false;
     bool haveGhost = (referenceArray[0].z == -2 || referenceArray[1].z == -2) ? true : false;
 
-    std::ofstream fileNameFluidParticles;
-    fileNameFluidParticles.open(outfilename);
-    std::stringstream ssFluidParticles;
-    ssFluidParticles << "x,y,z,v_x,v_y,v_z,|U|,rho,pressure\n";
+    std::ofstream ofile;
+    ofile.open(outfilename);
+    std::stringstream ss;
+    ss << "x,y,z,v_x,v_y,v_z,|U|,rho,pressure\n";
 
     for (size_t i = referenceArray[haveHelper + haveGhost].x; i < referenceArray[haveHelper + haveGhost].y; i++) {
         Real4 rP = rhoPresMuH[i];
@@ -524,12 +532,47 @@ void writeParticleFileCSV(const std::string& outfilename,
         Real3 vel = velMasH[i] + mR3(Real(1e-20));
 
         Real velMag = length(vel);
-        ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x + eps << ", " << vel.y + eps
-                         << ", " << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", " << rP.y + eps
-                         << std::endl;
+        ss << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x + eps << ", " << vel.y + eps << ", "
+           << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", " << rP.y + eps << std::endl;
     }
-    fileNameFluidParticles << ssFluidParticles.str();
-    fileNameFluidParticles.close();
+
+    ofile << ss.str();
+    ofile.close();
+}
+
+// -----------------------------------------------------------------------------
+
+void writeParticleFileJSON(const std::string& filename, FsiDataManager& data_mgr) {
+    writeParticleFileJSON(filename, data_mgr.sphMarkers_D->posRadD, data_mgr.referenceArray);
+}
+
+void writeParticleFileJSON(const std::string& outfilename,
+                          thrust::device_vector<Real4>& posRadD,
+                          thrust::host_vector<int4>& referenceArray) {
+    thrust::host_vector<Real4> posRadH = posRadD;
+
+    bool haveHelper = (referenceArray[0].z == -3) ? true : false;
+    bool haveGhost = (referenceArray[0].z == -2 || referenceArray[1].z == -2) ? true : false;
+
+    std::ofstream ofile;
+    ofile.open(outfilename);
+    std::stringstream ss;
+
+    ss << "[\n";
+    size_t i;
+    for (i = referenceArray[haveHelper + haveGhost].x; i < referenceArray[haveHelper + haveGhost].y - 1; i++) {
+        Real4 pos = posRadH[i];
+        ss << "[" << pos.x << ", " << pos.y << ", " << pos.z << "],\n";
+    }
+    {
+        i = referenceArray[haveHelper + haveGhost].y - 1;
+        Real4 pos = posRadH[i];
+        ss << "[" << pos.x << ", " << pos.y << ", " << pos.z << "]\n";
+    }
+    ss << "]\n";
+
+    ofile << ss.str();
+    ofile.close();
 }
 
 }  // end namespace sph

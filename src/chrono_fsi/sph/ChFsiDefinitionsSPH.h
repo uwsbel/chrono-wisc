@@ -32,17 +32,27 @@ enum class PhysicsProblem {
     CRM   ///< continuous granular problem
 };
 
-/// SPH method.
-enum class SPHMethod {
-    WCSPH,  ///< Weakly Compressible SPH (explicit)
-    I2SPH   ///< Implicit SPH
+//// TODO RADU: - fix the inconsistency related to solid force calculation between WCSPH and ISPH.
+////            - once that is done, we can move integration_scheme out of the ChFsiParamsSPH structure.
+
+/// Integration scheme.
+/// All explicit integratioon schemes use a Weakly-Compressible SPH (WCSPH) formulation in which the density is
+/// integrated and an equation of state is used to calculate the corresponding pressure. For the implicit SPH scheme,
+/// the pressure is instead updated.
+enum class IntegrationScheme {
+    EULER,        ///< Explicit Euler
+    RK2,          ///< Runge-Kutta 2
+    VERLET,       ///< Velocity Verlet
+    SYMPLECTIC,   ///< Symplectic Euler
+    IMPLICIT_SPH  ///< Implicit SPH
 };
 
-/// Shifting Methods
+/// Shifting Methods.
 enum class ShiftingMethod { NONE, PPST, XSPH, PPST_XSPH, DIFFUSION, DIFFUSION_XSPH };
 
 /// Equation of State type.
-/// see https://pysph.readthedocs.io/en/latest/reference/equations.html#basic-wcsph-equations
+/// See https://pysph.readthedocs.io/en/latest/reference/equations.html#basic-wcsph-equations.
+/// An equation of state is used only with an explicit WCSPH formulation.
 enum class EosType { TAIT, ISOTHERMAL };
 
 /// SPH kernel type.

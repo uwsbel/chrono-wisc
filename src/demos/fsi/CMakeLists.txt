@@ -9,7 +9,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_SingleWheelTest
    demo_FSI_BCE
    demo_FSI_Kernels
-   demo_FSI_ObjectDrop
+#   demo_FSI_ObjectDrop
    demo_FSI_CylindricalTank
    demo_FSI_WaveTank
    demo_FSI_EmbeddedObject

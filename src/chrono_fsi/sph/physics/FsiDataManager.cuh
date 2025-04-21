@@ -309,51 +309,12 @@ struct FsiDataManager {
                      unsigned int num_fsi_nodes2D,
                      unsigned int num_fsi_elements2D);
 
-    /// Initialize the midpoint device data of the fluid system by copying from the full step.
-    void CopyDeviceDataToHalfStep();
-
     /// Reset device data at beginning of a step.
     /// Initializes device vectors to zero.
     void ResetData();
 
     /// Resize data arrays based on particle activity.
     void ResizeArrays(uint numExtended);
-
-    // ------------------------
-
-    struct DefaultProperties {
-        Real rho0;
-        Real mu0;
-    };
-
-    /// Shift position of all markers of specified type by the given vector.
-    void Shift(MarkerType type, const Real3& shift, const DefaultProperties& props) const;
-
-    /// Move particles of specified type from the source AABB to the destination AABB.
-    void MoveAABB2AABB(MarkerType type,
-                       const RealAABB& aabb_src,
-                       const RealAABB& aabb_dest,
-                       Real spacing,
-                       const DefaultProperties& props) const;
-
-    /// Move particles of specified type from the source AABB to the destination (grid) AABB.
-    void MoveAABB2AABB(MarkerType type,
-                       const RealAABB& aabb_src,
-                       const IntAABB& aabb_dest,
-                       Real spacing,
-                       const DefaultProperties& props) const;
-
-    struct SelectorFunction {
-        __device__ virtual bool operator()(const Real3& x) const = 0;
-    };
-    struct RelocateFunction {
-        __device__ virtual void operator()(Real3& x) const = 0;
-    };
-    void Relocate(MarkerType type, const RelocateFunction& relocate_op, const DefaultProperties& props) const;
-    void Relocate(MarkerType type,
-                  const RelocateFunction& relocate_op,
-                  const SelectorFunction& selector_op,
-                  const DefaultProperties& props) const;
 
     // ------------------------
 

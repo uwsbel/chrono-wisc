@@ -45,6 +45,7 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 
+<<<<<<< HEAD
 // Container dimensions
 //ChVector3d csize(1.6, 1.6, 1.6);
 //// Dimensions of fluid domain
@@ -52,6 +53,8 @@ using std::endl;
 
 //Container dimensions
 ChVector3d csize(2.2, 2.2, 1.4);
+=======
+>>>>>>> feature/fsi_dev
 // Dimensions of fluid domain
 ChVector3d fsize(2.2, 2.2, 0.99);
 
@@ -69,7 +72,7 @@ ChVector3d fsize(2.2, 2.2, 0.99);
 enum class ObjectShape { SPHERE_PRIMITIVE, CYLINDER_PRIMITIVE, MESH };
 ObjectShape object_shape = ObjectShape::MESH;
 
-// Mesh specification (for object_shape = ObjectShape::MESH) 
+// Mesh specification (for object_shape = ObjectShape::MESH)
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
 double mesh_scale = 1;
 double mesh_bottom_offset = 0.14;  // is there a better way to determine this? 
@@ -200,7 +203,7 @@ int main(int argc, char* argv[]) {
     // Set SPH solution parameters
     int num_bce_layers = 5;   // this seems quite large... but let's see if it makes a difference. 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
-    sph_params.sph_method = SPHMethod::WCSPH;
+    sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.num_bce_layers = num_bce_layers;
 
     sph_params.initial_spacing = initial_spacing;
@@ -237,12 +240,22 @@ int main(int argc, char* argv[]) {
     sph_params.boundary_type = BoundaryType::ADAMI;
     fsi.SetSPHParameters(sph_params);
 
+<<<<<<< HEAD
     // create ground body
     auto ground = chrono_types::make_shared<ChBody>();
     ground->SetFixed(true);
     ground->SetMass(10.f);
     sysMBS.AddBody(ground);
    
+=======
+    // Set surface reconstruction parameters
+    ChFsiFluidSystemSPH::SplashsurfParameters splashsurf_params;
+    splashsurf_params.smoothing_length = 2.0;
+    splashsurf_params.cube_size = 0.3;
+    splashsurf_params.surface_threshold = 0.6;
+
+    fsi.SetSplashsurfParameters(splashsurf_params);
+>>>>>>> feature/fsi_dev
 
     // Create the rigid body
     double bottom_offset = 0;
@@ -375,6 +388,7 @@ int main(int argc, char* argv[]) {
                   BoxSide::Z_NEG  // all boundaries except top
     );
 
+<<<<<<< HEAD
     // Computational domain must always contain all BCE and Rigid markers - if these leave computational domain,
     // the simulation will crash
     ChVector3d cMin(-csize.x() / 2 - num_bce_layers * initial_spacing,
@@ -383,6 +397,8 @@ int main(int argc, char* argv[]) {
                     csize.z() + initial_height + bottom_offset);
     fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::NONE);
 
+=======
+>>>>>>> feature/fsi_dev
     // Initialize FSI problem
     fsi.Initialize();
 
@@ -402,6 +418,12 @@ int main(int argc, char* argv[]) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
+<<<<<<< HEAD
+=======
+
+    out_dir = out_dir + fsi.GetSphIntegrationSchemeString() + "_" + viscosity_type + "_" + boundary_type + "_ps" +
+              std::to_string(ps_freq);
+>>>>>>> feature/fsi_dev
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -420,6 +442,21 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+<<<<<<< HEAD
+=======
+
+    if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+        cerr << "Error creating directory " << out_dir + "/snapshots" << endl;
+        return 1;
+    }
+    if (!filesystem::create_directory(filesystem::path(out_dir + "/meshes"))) {
+        cerr << "Error creating directory " << out_dir + "/meshes" << endl;
+        return 1;
+    }
+
+    ////fsi.SaveInitialMarkers(out_dir);
+
+>>>>>>> feature/fsi_dev
     // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 
@@ -485,6 +522,25 @@ int main(int argc, char* argv[]) {
             if (!vis->Run())
                 break;
             vis->Render();
+<<<<<<< HEAD
+=======
+
+            if (snapshots) {
+                if (verbose)
+                    cout << " -- Snapshot frame " << render_frame << " at t = " << time << endl;
+                std::ostringstream filename;
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
+                         << ".bmp";
+                vis->WriteImageToFile(filename.str());
+            }
+
+            if (render_frame >= 70 && render_frame < 80) {
+                std::ostringstream meshname;
+                meshname << "mesh_" << std::setw(5) << std::setfill('0') << render_frame + 1;
+                fsi.WriteReconstructedSurface(out_dir + "/meshes", meshname.str(), true);
+            }
+
+>>>>>>> feature/fsi_dev
             render_frame++;
         }
 

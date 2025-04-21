@@ -71,7 +71,8 @@ ChFsiFluidSystemSPH::ChFsiFluidSystemSPH()
       m_num_flex1D_elements(0),
       m_num_flex2D_elements(0),
       m_output_level(OutputLevel::STATE_PRESSURE),
-      m_force_proximity_search(false) {
+      m_force_proximity_search(false),
+      m_check_errors (true) {
     m_paramsH = chrono_types::make_shared<ChFsiParamsSPH>();
     InitParams();
 
@@ -95,7 +96,7 @@ void ChFsiFluidSystemSPH::InitParams() {
     m_paramsH->L_Characteristic = Real(1.0);
 
     // SPH parameters
-    m_paramsH->sph_method = SPHMethod::WCSPH;
+    m_paramsH->integration_scheme = IntegrationScheme::RK2;
     m_paramsH->eos_type = EosType::ISOTHERMAL;
     m_paramsH->viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
     m_paramsH->boundary_type = BoundaryType::ADAMI;
@@ -227,19 +228,19 @@ void ChFsiFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
 
     if (doc.HasMember("SPH Parameters")) {
         if (doc["SPH Parameters"].HasMember("Method")) {
-            std::string SPH = doc["SPH Parameters"]["Method"].GetString();
+            std::string method = doc["SPH Parameters"]["Method"].GetString();
             if (m_verbose)
-                cout << "Modeling method is: " << SPH << endl;
-            if (SPH == "I2SPH") {
-                m_paramsH->sph_method = SPHMethod::I2SPH;
+                cout << "Modeling method is: " << method << endl;
+            if (method == "I2SPH") {
+                m_paramsH->integration_scheme = IntegrationScheme::IMPLICIT_SPH;
                 if (doc["SPH Parameters"].HasMember("Shifting Coefficient"))
                     m_paramsH->shifting_beta_implicit = doc["SPH Parameters"]["Shifting Coefficient"].GetDouble();
-            } else if (SPH == "WCSPH")
-                m_paramsH->sph_method = SPHMethod::WCSPH;
-            else {
-                cerr << "Incorrect SPH method in the JSON file: " << SPH << endl;
-                cerr << "Falling back to WCSPH " << endl;
-                m_paramsH->sph_method = SPHMethod::WCSPH;
+            } else if (method == "WCSPH") {
+                m_paramsH->integration_scheme = IntegrationScheme::RK2;
+            } else {
+                cerr << "Incorrect SPH method in the JSON file: " << method << endl;
+                cerr << "Falling back to RK2 WCSPH " << endl;
+                m_paramsH->integration_scheme = IntegrationScheme::RK2;
             }
         }
 
@@ -584,8 +585,8 @@ void ChFsiFluidSystemSPH::SetSPHLinearSolver(SolverType lin_solver) {
     m_paramsH->LinearSolver = lin_solver;
 }
 
-void ChFsiFluidSystemSPH::SetSPHMethod(SPHMethod SPH_method) {
-    m_paramsH->sph_method = SPH_method;
+void ChFsiFluidSystemSPH::SetIntegrationScheme(IntegrationScheme scheme) {
+    m_paramsH->integration_scheme = scheme;
 }
 
 void ChFsiFluidSystemSPH::SetContainerDim(const ChVector3d& box_dim) {
@@ -695,7 +696,7 @@ void ChFsiFluidSystemSPH::SetNumProximitySearchSteps(int steps) {
 void ChFsiFluidSystemSPH::CheckSPHParameters() {
     // Check parameter compatibility with physics problem
     if (m_paramsH->elastic_SPH) {
-        if (m_paramsH->sph_method != SPHMethod::WCSPH) {
+        if (m_paramsH->integration_scheme == IntegrationScheme::IMPLICIT_SPH) {
             cerr << "ERROR: Only WCSPH can be used for granular CRM problems." << endl;
             throw std::runtime_error("ISPH not supported for granular CRM problems.");
         }
@@ -828,7 +829,7 @@ void ChFsiFluidSystemSPH::SetElasticSPH(const ElasticMaterialProperties& mat_pro
 }
 
 ChFsiFluidSystemSPH::SPHParameters::SPHParameters()
-    : sph_method(SPHMethod::WCSPH),
+    : integration_scheme(IntegrationScheme::RK2),
       initial_spacing(0.01),
       d0_multiplier(1.2),
       max_velocity(1.0),
@@ -855,7 +856,7 @@ ChFsiFluidSystemSPH::SPHParameters::SPHParameters()
       eos_type(EosType::ISOTHERMAL) {}
 
 void ChFsiFluidSystemSPH::SetSPHParameters(const SPHParameters& sph_params) {
-    m_paramsH->sph_method = sph_params.sph_method;
+    m_paramsH->integration_scheme = sph_params.integration_scheme;
 
     m_paramsH->eos_type = sph_params.eos_type;
     m_paramsH->viscosity_type = sph_params.viscosity_type;
@@ -908,6 +909,9 @@ void ChFsiFluidSystemSPH::SetLinSolverParameters(const LinSolverParameters& lins
     m_paramsH->LinearSolver_Max_Iter = linsolv_params.max_num_iters;
 }
 
+ChFsiFluidSystemSPH::SplashsurfParameters::SplashsurfParameters()
+    : smoothing_length(1.5), cube_size(0.5), surface_threshold(0.6) {}
+
 //--------------------------------------------------------------------------------------------------------------------------------
 
 PhysicsProblem ChFsiFluidSystemSPH::GetPhysicsProblem() const {
@@ -918,19 +922,29 @@ std::string ChFsiFluidSystemSPH::GetPhysicsProblemString() const {
     return (m_paramsH->elastic_SPH ? "CRM" : "CFD");
 }
 
-std::string ChFsiFluidSystemSPH::GetSphMethodTypeString() const {
+std::string ChFsiFluidSystemSPH::GetSphIntegrationSchemeString() const {
     std::string method = "";
-    switch (m_paramsH->sph_method) {
-        case SPHMethod::WCSPH:
-            method = "WCSPH";
+    switch (m_paramsH->integration_scheme) {
+        case IntegrationScheme::EULER:
+            method = "WCSPH_EULER";
             break;
-        case SPHMethod::I2SPH:
-            method = "I2SPH";
+        case IntegrationScheme::RK2:
+            method = "WCSPH_RK2";
+            break;
+        case IntegrationScheme::VERLET:
+            method = "WC_SPH_VERLET";
+            break;
+        case IntegrationScheme::SYMPLECTIC:
+            method = "WCSPH_SYMPLECTIC";
+            break;
+        case IntegrationScheme::IMPLICIT_SPH:
+            method = "ISPH";
             break;
     }
 
     return method;
 }
+
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -1268,17 +1282,18 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBody>& fsi_bodies,
     uint num_fsi_nodes1D = 0;
     uint num_fsi_elements1D = 0;
     for (const auto& m : fsi_meshes1D) {
-        AddFsiMesh1D(num_fsi_meshes1D, m);
+        AddFsiMesh1D(num_fsi_meshes1D, m, use_node_directions);
         num_fsi_meshes1D++;
         num_fsi_nodes1D += m.GetNumNodes();
         num_fsi_elements1D += m.GetNumElements();
     }
 
+    // Process FSI 2D meshes: create BCE markers
     uint num_fsi_meshes2D = 0;
     uint num_fsi_nodes2D = 0;
     uint num_fsi_elements2D = 0;
     for (const auto& m : fsi_meshes2D) {
-        AddFsiMesh2D(num_fsi_meshes2D, m);
+        AddFsiMesh2D(num_fsi_meshes2D, m, use_node_directions);
         num_fsi_meshes2D++;
         num_fsi_nodes1D += m.GetNumNodes();
         num_fsi_elements1D += m.GetNumElements();
@@ -1401,8 +1416,8 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBody>& fsi_bodies,
     LoadSolidStates(body_states, mesh1D_states, mesh2D_states);
 
     // Create BCE and SPH worker objects
-    m_bce_mgr = chrono_types::make_unique<BceManager>(*m_data_mgr, m_verbose);
-    m_fluid_dynamics = chrono_types::make_unique<FluidDynamics>(*m_data_mgr, *m_bce_mgr, m_verbose);
+    m_bce_mgr = chrono_types::make_unique<BceManager>(*m_data_mgr, use_node_directions, m_verbose, m_check_errors);
+    m_fluid_dynamics = chrono_types::make_unique<FluidDynamics>(*m_data_mgr, *m_bce_mgr, m_verbose, m_check_errors);
 
     // Initialize worker objects
     m_bce_mgr->Initialize(m_fsi_bodies_bce_num);
@@ -1432,7 +1447,7 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBody>& fsi_bodies,
     CheckSPHParameters();
 }
 
-void ChFsiFluidSystemSPH::AddFsiMesh1D(unsigned int index, const FsiMesh1D& fsi_mesh) {
+void ChFsiFluidSystemSPH::AddFsiMesh1D(unsigned int index, const FsiMesh1D& fsi_mesh, bool use_node_directions) {
     // Load index-based mesh connectivity (append to global list of 1-D flex segments)
     for (const auto& seg : fsi_mesh.contact_surface->GetSegmentsXYZ()) {
         auto node0_index = m_num_flex1D_nodes + fsi_mesh.ptr2ind_map.at(seg->GetNode(0));
@@ -1441,7 +1456,7 @@ void ChFsiFluidSystemSPH::AddFsiMesh1D(unsigned int index, const FsiMesh1D& fsi_
     }
 
     // Create the BCE markers based on the mesh contact segments
-    auto num_bce = AddBCE_mesh1D(index, fsi_mesh);
+    auto num_bce = AddBCE_mesh1D(index, fsi_mesh, use_node_directions);
 
     // Update total number of flex 1-D nodes and segments
     auto num_nodes = fsi_mesh.GetNumNodes();
@@ -1457,7 +1472,7 @@ void ChFsiFluidSystemSPH::AddFsiMesh1D(unsigned int index, const FsiMesh1D& fsi_
     }
 }
 
-void ChFsiFluidSystemSPH::AddFsiMesh2D(unsigned int index, const FsiMesh2D& fsi_mesh) {
+void ChFsiFluidSystemSPH::AddFsiMesh2D(unsigned int index, const FsiMesh2D& fsi_mesh, bool use_node_directions) {
     // Load index-based mesh connectivity (append to global list of 1-D flex segments)
     for (const auto& tri : fsi_mesh.contact_surface->GetTrianglesXYZ()) {
         auto node0_index = m_num_flex2D_nodes + fsi_mesh.ptr2ind_map.at(tri->GetNode(0));
@@ -1467,7 +1482,7 @@ void ChFsiFluidSystemSPH::AddFsiMesh2D(unsigned int index, const FsiMesh2D& fsi_
     }
 
     // Create the BCE markers based on the mesh contact surface
-    auto num_bce = AddBCE_mesh2D(index, fsi_mesh);
+    auto num_bce = AddBCE_mesh2D(index, fsi_mesh, use_node_directions);
 
     // Update total number of flex 2-D nodes and faces
     auto num_nodes = fsi_mesh.GetNumNodes();
@@ -1506,25 +1521,8 @@ void ChFsiFluidSystemSPH::OnDoStepDynamics(double time, double step) {
     // Zero-out step data (derivatives and intermediate vectors)
     m_data_mgr->ResetData();
 
-    // Advance fluid particle and marker states from `time` to `time+step`
-    switch (m_paramsH->sph_method) {
-        case SPHMethod::WCSPH: {
-            m_data_mgr->CopyDeviceDataToHalfStep();  //// 2 -> 1
-            m_fluid_dynamics->IntegrateSPH(m_data_mgr->sortedSphMarkers2_D, m_data_mgr->sortedSphMarkers1_D,  //
-                                           time, step / 2);
-            m_fluid_dynamics->IntegrateSPH(m_data_mgr->sortedSphMarkers1_D, m_data_mgr->sortedSphMarkers2_D,  //
-                                           time + step / 2, step);
-            //// TODO Radu: why is step (and not step/2) passed here?!?
-            break;
-        }
-
-        case SPHMethod::I2SPH: {
-            m_bce_mgr->updateBCEAcc();
-            m_fluid_dynamics->IntegrateSPH(m_data_mgr->sortedSphMarkers2_D, m_data_mgr->sortedSphMarkers2_D,  //
-                                           time, step);
-            break;
-        }
-    }
+    // Advance fluid particle states from `time` to `time+step`
+    m_fluid_dynamics->DoStepDynamics(m_data_mgr->sortedSphMarkers2_D, time, step, m_paramsH->integration_scheme);
 
     m_fluid_dynamics->CopySortedToOriginal(MarkerGroup::NON_SOLID, m_data_mgr->sortedSphMarkers2_D,
                                            m_data_mgr->sphMarkers_D);
@@ -2320,8 +2318,31 @@ void ChFsiFluidSystemSPH::CreateBCE_ConeExterior(double rad, double height, bool
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID, const FsiMesh1D& fsi_mesh) {
+//// TODO RADU: consider using monotone cubic Hermite interpolation instead of cubic Bezier
+//// TODO RADU: do we really need to calculate exact locatrions of BCE markers here or just get the right count?
+
+unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID,
+                                                const FsiMesh1D& fsi_mesh,
+                                                bool use_node_directions) {
     const auto& surface = fsi_mesh.contact_surface;
+
+    // Calculate nodal directions if requested
+    std::vector<ChVector3d> dir;
+    if (use_node_directions) {
+        dir.resize(fsi_mesh.GetNumNodes());
+        std::fill(dir.begin(), dir.end(), VNULL);
+        for (const auto& seg : surface->GetSegmentsXYZ()) {
+            const auto& node0 = seg->GetNode(0);
+            const auto& node1 = seg->GetNode(1);
+            auto i0 = fsi_mesh.ptr2ind_map.at(node0);
+            auto i1 = fsi_mesh.ptr2ind_map.at(node1);
+            auto d = (node1->GetPos() - node0->GetPos()).GetNormalized();
+            dir[i0] += d;
+            dir[i1] += d;
+        }
+        for (auto& d : dir)
+            d.Normalize();
+    }
 
     Real spacing = m_paramsH->d0;
     int num_layers = m_paramsH->num_bce_layers;
@@ -2336,22 +2357,17 @@ unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID, const FsiMe
     for (unsigned int segID = 0; segID < num_seg; segID++) {
         const auto& seg = surface->GetSegmentsXYZ()[segID];
 
+        auto i0 = fsi_mesh.ptr2ind_map.at(seg->GetNode(0));
+        auto i1 = fsi_mesh.ptr2ind_map.at(seg->GetNode(1));
+
         const auto& P0 = seg->GetNode(0)->GetPos();  // vertex 0 position (absolute coordinates)
         const auto& P1 = seg->GetNode(1)->GetPos();  // vertex 1 position (absolute coordinates)
 
         const auto& V0 = seg->GetNode(0)->GetPosDt();  // vertex 0 velocity (absolute coordinates)
         const auto& V1 = seg->GetNode(1)->GetPosDt();  // vertex 1 velocity (absolute coordinates)
 
-        auto x_dir = P1 - P0;       // segment direction
-        auto len = x_dir.Length();  // segment direction
-        x_dir /= len;               // normalized direction
-
+        auto len = (P1 - P0).Length();          // segment length
         int n = (int)std::ceil(len / spacing);  // required divisions on segment
-
-        // Create two directions orthogonal to 'x_dir'
-        ChVector3<> y_dir(-x_dir.y() - x_dir.z(), x_dir.x() - x_dir.z(), x_dir.x() + x_dir.y());
-        y_dir.Normalize();
-        ChVector3<> z_dir = Vcross(x_dir, y_dir);
 
         unsigned int n_bce = 0;  // number of BCE markers on segment
         for (int i = 0; i <= n; i++) {
@@ -2360,10 +2376,36 @@ unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID, const FsiMe
             if (i == n && !seg->OwnsNode(1))  // segment does not own vertex 1
                 continue;
 
-            auto lambda = ChVector2<>(n - i, i) / n;
+            auto t = double(i) / n;
 
-            auto P = P0 * lambda[0] + P1 * lambda[1];
-            auto V = V0 * lambda[0] + V1 * lambda[1];
+            ChVector3d P;
+            ChVector3d D;
+            if (use_node_directions) {
+                auto t2 = t * t;
+                auto t3 = t2 * t;
+
+                auto a0 = 2 * t3 - 3 * t2 + 1;
+                auto a1 = -2 * t3 + 3 * t2;
+                auto b0 = t3 - 2 * t2 + t;
+                auto b1 = t3 - t2;
+                P = P0 * a0 + P1 * a1 + dir[i0] * b0 + dir[i1] * b1;
+
+                auto a0d = 6 * t2 - 6 * t;
+                auto a1d = -6 * t2 + 6 * t;
+                auto b0d = 3 * t2 - 4 * t + 1;
+                auto b1d = 3 * t2 - 2 * t;
+                D = P0 * a0d + P1 * a1d + dir[i0] * b0d + dir[i1] * b1d;
+            } else {
+                P = P0 * (1 - t) + P1 * t;
+                D = P1 - P0;
+            }
+            ChVector3d V = V0 * (1 - t) + V1 * t;
+
+            // Create local frame
+            ChVector3d x_dir = D.GetNormalized();
+            ChVector3<> y_dir(-x_dir.y() - x_dir.z(), x_dir.x() - x_dir.z(), x_dir.x() + x_dir.y());
+            y_dir.Normalize();
+            ChVector3<> z_dir = Vcross(x_dir, y_dir);
 
             for (int j = -num_layers + 1; j <= num_layers - 1; j += 2) {
                 for (int k = -num_layers + 1; k <= num_layers - 1; k += 2) {
@@ -2377,7 +2419,7 @@ unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID, const FsiMe
 
                     m_data_mgr->AddBceMarker(MarkerType::BCE_FLEX1D, ToReal3(Q), ToReal3(V));
 
-                    m_data_mgr->flex1D_BCEcoords_H.push_back(ToReal3({lambda[0], y_val, z_val}));
+                    m_data_mgr->flex1D_BCEcoords_H.push_back(ToReal3({t, y_val, z_val}));
                     m_data_mgr->flex1D_BCEsolids_H.push_back(mU3(meshID, segID, m_num_flex1D_elements + segID));
                     n_bce++;
                 }
@@ -2391,8 +2433,31 @@ unsigned int ChFsiFluidSystemSPH::AddBCE_mesh1D(unsigned int meshID, const FsiMe
     return num_bce;
 }
 
-unsigned int ChFsiFluidSystemSPH::AddBCE_mesh2D(unsigned int meshID, const FsiMesh2D& fsi_mesh) {
+unsigned int ChFsiFluidSystemSPH::AddBCE_mesh2D(unsigned int meshID,
+                                                const FsiMesh2D& fsi_mesh,
+                                                bool use_node_directions) {
     const auto& surface = fsi_mesh.contact_surface;
+
+    // Calculate nodal directions if requested
+    std::vector<ChVector3d> dir;
+    if (use_node_directions) {
+        dir.resize(fsi_mesh.GetNumNodes());
+        std::fill(dir.begin(), dir.end(), VNULL);
+        for (const auto& tri : surface->GetTrianglesXYZ()) {
+            const auto& node0 = tri->GetNode(0);
+            const auto& node1 = tri->GetNode(1);
+            const auto& node2 = tri->GetNode(2);
+            auto i0 = fsi_mesh.ptr2ind_map.at(node0);
+            auto i1 = fsi_mesh.ptr2ind_map.at(node1);
+            auto i2 = fsi_mesh.ptr2ind_map.at(node2);
+            auto d = ChTriangle::CalcNormal(node0->GetPos(), node1->GetPos(), node2->GetPos());
+            dir[i0] += d;
+            dir[i1] += d;
+            dir[i2] += d;
+        }
+        for (auto& d : dir)
+            d.Normalize();
+    }
 
     Real spacing = m_paramsH->d0;
     int num_layers = m_paramsH->num_bce_layers;
@@ -2483,6 +2548,8 @@ unsigned int ChFsiFluidSystemSPH::AddBCE_mesh2D(unsigned int meshID, const FsiMe
                     continue;
                 if (k == 0 && !tri->OwnsEdge(0))  // triangle does not own edge v0-v1 = e0
                     continue;
+
+                //// TODO RADU - add cubic interpolation (position and normal) if using nodal directions
 
                 auto P = lambda[0] * P0 + lambda[1] * P1 + lambda[2] * P2;  // absolute coordinates of BCE marker
                 auto V = lambda[0] * V0 + lambda[1] * V1 + lambda[2] * V2;  // absolute velocity of BCE marker
