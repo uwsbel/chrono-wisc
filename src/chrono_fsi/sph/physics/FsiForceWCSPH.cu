@@ -2029,7 +2029,7 @@ __device__ inline Real4 cfdDvDt(Real3 dist3,
 
             // float nu0 = paramsD.mu0 / paramsD.rho0;
             // derivV = -paramsD.markerMass *
-            //               (rhoPresMuA.y + rhoPresMuB.y) / (rhoPresMuA.x * rhoPresMuA.x) * gradW +
+            //               (rhoPresMuA.y + rhoPresMuB.y) / (rhoPresMuA.x * rhoPresMuB.x) * gradW +
             //           paramsD.markerMass * 4.0f * nu0 * rAB_Dot_GradWh_OverDist * (velMasA - velMasB) /
             //               (rhoPresMuA.x + rhoPresMuB.x);
 

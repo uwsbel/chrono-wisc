@@ -51,18 +51,18 @@ using std::endl;
 //ChVector3d fsize(1.6, 1.6, 1.2);
 
 //Container dimensions
-//ChVector3d csize(2.2, 2.2, 1.4);
-//// Dimensions of fluid domain
-//ChVector3d fsize(2.2, 2.2, 0.99);
+ChVector3d csize(2.2, 2.2, 1.4);
+// Dimensions of fluid domain
+ChVector3d fsize(2.2, 2.2, 0.99);
 
  //Container dimensions
  //ChVector3d csize(1.1, 1.1, 1.4);
-ChVector3d csize(0.8, 0.8, 1.4);
+//ChVector3d csize(0.8, 0.8, 1.4);
 
  // Dimensions of fluid domain
  //ChVector3d fsize(1.1, 1.1, 0.99);
 
-ChVector3d fsize(0.8, 0.8, 1.19);
+//ChVector3d fsize(0.8, 0.8, 1.19);
 
 
 // Object type
@@ -74,7 +74,7 @@ std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
 double mesh_scale = 1;
 double mesh_bottom_offset = 0.14;  // is there a better way to determine this? 
 
-double initial_height = 0.5;
+double initial_height = 1.0;
 double density = 600;
 // Visibility flags
 bool show_rigid = true;
@@ -148,25 +148,25 @@ bool GetProblemSpecs(int argc,
 int main(int argc, char* argv[]) {
     double t_end = 5.0;             // simulation duration
     bool output = true;
-    double output_fps = 50;
+    double output_fps = 20;
     const ChVector3d gravity(0, 0, -9.8);
 
     // given initial height, compute impact velocity
 
     double impact_velocity = -sqrt(2 * std::abs(gravity.z()) * (initial_height - mesh_bottom_offset));
-    bool use_impact_velocity = true;
-    impact_velocity = 0;  // starts the object above water surface, but set impact velocity to 0
+    bool use_impact_velocity = false;
+    //impact_velocity = 0;  // starts the object above water surface, but set impact velocity to 0
 
 
     // Default parameter values
     double initial_spacing = 0.015;  // initial spacing between SPH particles
     double step_size = 2e-5;      // integration step size
-    double d0 = 1.75;
+    double d0 = 1.5;
     std::string viscosity_type = "laminar_dual";
     double fluid_density = 998.5;
     double v_max = 8.0;
     std::string kernel_type = "wendland";
-    std::string run_tag = "lowerH";
+    std::string run_tag = "arman";
 
      //Parse command line arguments
     if (!GetProblemSpecs(argc, argv, viscosity_type, kernel_type, initial_spacing, d0, step_size, fluid_density, v_max, run_tag)) {
@@ -351,18 +351,18 @@ int main(int argc, char* argv[]) {
         ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing, wall_thickness), 0));
 
     // last wall ... 
-    //geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
-    //    ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
-    //    ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing,
-    //               wall_thickness),
-    //    0));
+    geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
+        ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing,
+                   wall_thickness),
+        0));
 
-     geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
-         ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing, csize.z() / 2),
-         -Q_ROTATE_Z_TO_Y, ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing - 0.005, csize.z() + 2 * num_bce_layers
-         * initial_spacing,
-                    wall_thickness),
-         0));
+     //geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
+     //    ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing, csize.z() / 2),
+     //    -Q_ROTATE_Z_TO_Y, ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing - 0.005, csize.z() + 2 * num_bce_layers
+     //    * initial_spacing,
+     //               wall_thickness),
+     //    0));
 
 
     // attach geometry to side walls
@@ -396,7 +396,7 @@ int main(int argc, char* argv[]) {
     //                                            viscosity_type,
     //                                            run_tag) + "/";
 
-    std::string out_dir = "ObjectDrop_" + run_tag + "_deep/";
+    std::string out_dir = "ObjectDrop_" + run_tag + "_original_laminar/";
 
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
