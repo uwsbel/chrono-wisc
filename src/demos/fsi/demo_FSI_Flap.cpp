@@ -46,8 +46,8 @@ using std::endl;
 
 // Final simulation time
 double t_end = 10.0;
-//double initial_spacing = 0.01;
-double initial_spacing = 0.005;
+double initial_spacing = 0.01;
+//double initial_spacing = 0.005;
 
 // Position and dimensions of WEC device
 // ChVector3d wec_pos(-2.9875, 0, -0.1);
@@ -360,7 +360,7 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 2e-5;  // used to be 5e-5!
+    double step_size = 2.5e-5;  // used to be 5e-5!
     bool verbose = true;
 
     if (argc != 4) {
@@ -398,12 +398,16 @@ int main(int argc, char* argv[]) {
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
     sph_params.num_bce_layers = 5;
-    sph_params.kernel_type = KernelType::WENDLAND;
-    sph_params.d0_multiplier = 1.2;
+    sph_params.kernel_type = KernelType::CUBIC_SPLINE;
+    sph_params.d0_multiplier = 1;
     sph_params.max_velocity = 4;
-    //sph_params.shifting_method = ShiftingMethod::XSPH;
-    //sph_params.shifting_xsph_eps = 0.5;
-    sph_params.shifting_method = ShiftingMethod::NONE;
+    sph_params.shifting_method = ShiftingMethod::DIFFUSION;
+    sph_params.shifting_diffusion_A = 0.1;
+    sph_params.shifting_diffusion_AFST = 2.0;
+    sph_params.shifting_diffusion_AFSM = 3.0;
+
+
+
 
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
