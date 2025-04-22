@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
     double fluid_density = 998.5;
     double v_max = 8.0;
     std::string kernel_type = "wendland";
-    std::string run_tag = "arman";
+    std::string run_tag = "dualSPH";
 
      //Parse command line arguments
     if (!GetProblemSpecs(argc, argv, viscosity_type, kernel_type, initial_spacing, d0, step_size, fluid_density, v_max, run_tag)) {
@@ -243,7 +243,8 @@ int main(int argc, char* argv[]) {
     geometry.materials.push_back(ChContactMaterialData());
     switch (object_shape) {
         case ObjectShape::SPHERE_PRIMITIVE: {
-            double radius = 0.12;
+            double radius = 0.15;
+            density = 500;
             bottom_offset = radius;
             ChSphere sphere(radius);
             mass = density * sphere.GetVolume();
@@ -266,8 +267,7 @@ int main(int argc, char* argv[]) {
             auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(mesh_obj_filename, true, true);
             ChVector3d com;
             trimesh->ComputeMassProperties(true, mass, com, inertia, mesh_scale);
-            mass *= density;
-            std::cout << "mesh mass " << mass << std::endl;
+            mass = 9.75;
             inertia *= density;
             bottom_offset = mesh_bottom_offset;
             geometry.coll_meshes.push_back(
@@ -292,7 +292,6 @@ int main(int argc, char* argv[]) {
 
     std::cout << "capsule height " << body->GetPos().z() << std::endl;
     body->SetRot(QUNIT);
-    mass = 9.57;
     body->SetMass(mass);
     body->SetInertia(inertia);
     body->SetFixed(false);
