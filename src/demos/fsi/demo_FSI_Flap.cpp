@@ -402,7 +402,7 @@ int main(int argc, char* argv[]) {
     sph_params.d0_multiplier = 1;
     sph_params.max_velocity = 4;
     sph_params.shifting_method = ShiftingMethod::DIFFUSION;
-    sph_params.shifting_diffusion_A = 0.1;
+    sph_params.shifting_diffusion_A = 1.0;
     sph_params.shifting_diffusion_AFST = 2.0;
     sph_params.shifting_diffusion_AFSM = 3.0;
 
