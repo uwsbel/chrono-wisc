@@ -386,9 +386,9 @@ void SimulateMaterial(const SimParams& params) {
 	 //}
 
 
-    double max_loading = 8584; 
+    double max_loading = -8584; 
     double max_loading_duration = 0.125;
-    double settled_loading = 5688;
+    double settled_loading = -5688;
 
     force_func->AddPoint(0, 0);
     force_func->AddPoint(time_preload, max_loading);
