@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {
 void SimulateMaterial(const SimParams& params) {
     double t_end = 30;
 
-    double time_preload = 2; 
+    double time_preload = 5; 
 
     double container_diameter = params.plate_diameter * 1.1;  // Plate is 20 cm in diameter
     double container_height = 0.120;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
@@ -359,30 +359,43 @@ void SimulateMaterial(const SimParams& params) {
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
     auto motor = chrono_types::make_shared<ChLinkMotorLinearForce>();
 
-    // read force data from a file
-     std::string force_file = GetChronoDataFile("fsi/loading.csv");
-     std::ifstream file(force_file);
-     std::vector<double> force_data; 
-
-     // skip the first line, populate force_data
-     std::string line;
-     std::getline(file, line);
-     while (std::getline(file, line)) {
-		 std::stringstream ss(line);
-		 double force;
-		 ss >> force;
-		 force_data.push_back(force);
-	 }
-     int num_force_points = force_data.size();
-     double force_time_step = (t_end - time_preload) / (num_force_points-1);
-     
      std::shared_ptr<ChFunctionInterp> force_func = chrono_types::make_shared<ChFunctionInterp>();
 
-     force_func->AddPoint(0, 0);
-     for (int i = 0; i < num_force_points; i++) {
-		 double t = time_preload + i * force_time_step;
-         force_func->AddPoint(t, -force_data.at(i));
-	 }
+    // read force data from a file
+  //   std::string force_file = GetChronoDataFile("fsi/loading.csv");
+  //   std::ifstream file(force_file);
+  //   std::vector<double> force_data; 
+
+  //   // skip the first line, populate force_data
+  //   std::string line;
+  //   std::getline(file, line);
+  //   while (std::getline(file, line)) {
+		// std::stringstream ss(line);
+		// double force;
+		// ss >> force;
+		// force_data.push_back(force);
+	 //}
+  //   int num_force_points = force_data.size();
+  //   double force_time_step = (t_end - time_preload) / (num_force_points-1);
+  //   
+
+  //   force_func->AddPoint(0, 0);
+  //   for (int i = 0; i < num_force_points; i++) {
+		// double t = time_preload + i * force_time_step;
+  //       force_func->AddPoint(t, -force_data.at(i));
+	 //}
+
+
+    double max_loading = 8584; 
+    double max_loading_duration = 0.125;
+    double settled_loading = 5688;
+
+    force_func->AddPoint(0, 0);
+    force_func->AddPoint(time_preload, max_loading);
+    force_func->AddPoint(time_preload + max_loading_duration, max_loading);
+    force_func->AddPoint(t_end-5, settled_loading);  // stay constant for the last 5 sec? 
+    force_func->AddPoint(t_end, settled_loading);
+
 
 
     motor->SetForceFunction(force_func);
@@ -394,7 +407,7 @@ void SimulateMaterial(const SimParams& params) {
     if (params.output || params.snapshots) {
         // Base output directory
         std::string base_dir = GetChronoOutputPath() + "h_" + std::to_string(params.initial_spacing) + "_dt_" +
-                               std::to_string(params.time_step);
+                               std::to_string(params.time_step) + "_newload";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
