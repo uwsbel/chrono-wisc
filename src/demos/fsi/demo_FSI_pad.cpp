@@ -55,6 +55,12 @@ class MarkerPositionVisibilityCallback : public ChFsiVisualizationVSG::MarkerVis
 
 double nu_poisson = 0.3;
 
+enum ForceCases {
+    GRADUAL = 0,
+    IMPACT = 1
+};
+
+
 // Plate material - Steel
 struct solid_material {
     double youngs_modulus = 193e9;
@@ -141,11 +147,15 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     return true;
 }
 
+// helper function to write decimal to scientific notation without period, because paraview hates it ... 
+std::string format_scientific(double value);
+
+
 int main(int argc, char* argv[]) {
     SimParams params = {/*ps_freq*/ 1,
-        /*initial_spacing*/ 0.005,
+        /*initial_spacing*/ 0.008,
         /*d0_multiplier*/ 1.3,
-        /*time_step*/ 2e-4,
+        /*time_step*/ 1e-4,
         /*boundary_type*/ "adami",
         /*viscosity_type*/ "artificial_bilateral",
         /*kernel_type*/ "wendland",
@@ -154,13 +164,15 @@ int main(int argc, char* argv[]) {
         /*plate_diameter*/ 0.60,     // 19 cm
         /*verbose*/ true,
         /*output*/ true,
-        /*output_fps*/ 2,
+        /*output_fps*/ 20,
         /*snapshots*/ true,
         /*render*/ false,
         /*render_fps*/ 400,
         /*write_marker_files*/ true,
-        /*mu_s*/ 0.6593,
-        /*mu_2*/ 0.6593,
+        ///*mu_s*/ 0.6593,
+        ///*mu_2*/ 0.6593,
+        /*mu_s*/ 0.8,
+        /*mu_2*/ 0.8,
         /*cohesions*/ 0,
         /*densities*/ 1670,
         /*y_modulus*/ 1e6 };
@@ -194,13 +206,21 @@ int main(int argc, char* argv[]) {
 }
 
 void SimulateMaterial(const SimParams& params) {
+
+    ForceCases loading_type = ForceCases::IMPACT;  // Change to IMPACT for impact loading
     double t_end = 30;
+    double time_preload = 5;  // Time to preload the plate
+    if (loading_type == ForceCases::GRADUAL) {
+        std::cout << "Gradual loading" << std::endl;
+    } else if (loading_type == ForceCases::IMPACT) {
+        std::cout << "Impact loading" << std::endl;
+        t_end = 1.0;
+    }
 
-    double time_preload = 5; 
 
-    double container_diameter = params.plate_diameter * 1.1;  // Plate is 20 cm in diameter
-    double container_height = 0.120;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
-    double cyl_length = container_height;                     // To prevent effect of sand falling on top of the plate
+    double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
+    double cyl_length = 0.120;                     // To prevent effect of sand falling on top of the plate
+    double container_height = 0.20;
 
     // Create a physics system
     ChSystemSMC sysMBS;
@@ -244,6 +264,7 @@ void SimulateMaterial(const SimParams& params) {
     sph_params.shifting_ppst_pull = 1.0;
     sph_params.shifting_ppst_push = 3.0;
     sph_params.kernel_threshold = 0.8;
+
 
 
     sph_params.num_proximity_search_steps = params.ps_freq;
@@ -359,42 +380,48 @@ void SimulateMaterial(const SimParams& params) {
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
     auto motor = chrono_types::make_shared<ChLinkMotorLinearForce>();
 
-     std::shared_ptr<ChFunctionInterp> force_func = chrono_types::make_shared<ChFunctionInterp>();
+    std::shared_ptr<ChFunctionInterp> force_func = chrono_types::make_shared<ChFunctionInterp>();
+    
+    if (loading_type == ForceCases::GRADUAL) {
+        std::string force_file = GetChronoDataFile("fsi/loading.csv");
+         std::ifstream file(force_file);
+         std::vector<double> force_data;
 
-    // read force data from a file
-  //   std::string force_file = GetChronoDataFile("fsi/loading.csv");
-  //   std::ifstream file(force_file);
-  //   std::vector<double> force_data; 
+         // skip the first line, populate force_data
+         std::string line;
+         std::getline(file, line);
+         while (std::getline(file, line)) {
+             std::stringstream ss(line);
+             double force;
+             ss >> force;
+             force_data.push_back(force);
+         }
+            int num_force_points = force_data.size();
+            double force_time_step = (t_end - time_preload) / (num_force_points-1);
 
-  //   // skip the first line, populate force_data
-  //   std::string line;
-  //   std::getline(file, line);
-  //   while (std::getline(file, line)) {
-		// std::stringstream ss(line);
-		// double force;
-		// ss >> force;
-		// force_data.push_back(force);
-	 //}
-  //   int num_force_points = force_data.size();
-  //   double force_time_step = (t_end - time_preload) / (num_force_points-1);
-  //   
+            force_func->AddPoint(0, 0);
+            for (int i = 0; i < num_force_points; i++) {
+                double t = time_preload + i * force_time_step;
+                force_func->AddPoint(t, -force_data.at(i));
+         }     
+     }
 
-  //   force_func->AddPoint(0, 0);
-  //   for (int i = 0; i < num_force_points; i++) {
-		// double t = time_preload + i * force_time_step;
-  //       force_func->AddPoint(t, -force_data.at(i));
-	 //}
+    if (loading_type == ForceCases::IMPACT) {
+     
+        double max_loading = -8584;
+        time_preload = 0.04;
+        double time_plateau_1 = 0.125;
+        double time_drop = 0.04;
+        double settled_loading = -1422;
+        double time_plateau_2 = 0.795;
 
-
-    double max_loading = -8584; 
-    double max_loading_duration = 0.125;
-    double settled_loading = -5688;
-
-    force_func->AddPoint(0, 0);
-    force_func->AddPoint(time_preload, max_loading);
-    force_func->AddPoint(time_preload + max_loading_duration, max_loading);
-    force_func->AddPoint(t_end-5, settled_loading);  // stay constant for the last 5 sec? 
-    force_func->AddPoint(t_end, settled_loading);
+        force_func->AddPoint(0, 0);
+        force_func->AddPoint(time_preload, max_loading);
+        force_func->AddPoint(time_preload + time_plateau_1, max_loading);
+        force_func->AddPoint(time_preload + time_plateau_1 + time_drop, settled_loading);  // stay constant for the last 5 sec?
+        force_func->AddPoint(t_end, settled_loading);    
+    }
+     
 
 
 
@@ -406,8 +433,12 @@ void SimulateMaterial(const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "h_" + std::to_string(params.initial_spacing) + "_dt_" +
-                               std::to_string(params.time_step) + "_newload";
+
+
+        std::string base_dir = GetChronoOutputPath() + "h_" + format_scientific(params.initial_spacing) + "_dt_" +
+                               format_scientific(params.time_step) + "_soil_" +
+                               std::to_string(int(container_height * 100)) + "cm_binsize_" +
+                               std::to_string(int(std::round(container_diameter * 100))) + "cm_mu_8e-1";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -475,13 +506,13 @@ void SimulateMaterial(const SimParams& params) {
     int pres_out_frame = 0;
     int render_frame = 0;
     double dT = sysFSI.GetStepSizeCFD();
-    double pres_out_fps = 5;
+    double pres_out_fps = 100;
 
     std::string out_file = out_dir + "/force_vs_time.txt";
     std::ofstream ofile(out_file, std::ios::trunc);
 
     // Add comma-separated header to the output file
-    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,motor-load"
+    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,motor-load,RTF"
         << std::endl;
 
     ChTimer timer;
@@ -520,7 +551,7 @@ void SimulateMaterial(const SimParams& params) {
             double motor_force = motor->GetMotorForce(); 
             ofile << time << "," << plate->GetAppliedForce().x() << "," << plate->GetAppliedForce().y() << ","
                 << plate->GetAppliedForce().z() << "," << plate->GetPos().x() << "," << plate->GetPos().y() << ","
-                << current_depth << "," << plate->GetPosDt().z() << "," << motor_force << std::endl;
+                << current_depth << "," << plate->GetPosDt().z() << "," << motor_force << "," << sysFSI.GetRtf() << std::endl;
             pres_out_frame++;
             std::cout << "time, " << time 
                       << ", plate_force, " << plate->GetAppliedForce().z()
@@ -538,4 +569,41 @@ void SimulateMaterial(const SimParams& params) {
     }
     timer.stop();
     std::cout << "\nSimulation time: " << timer() << " seconds\n" << std::endl;
+}
+
+
+std::string format_scientific(double value) {
+    std::stringstream ss;
+    ss << std::scientific << std::setprecision(3) << value;
+    std::string formatted = ss.str();
+
+    size_t decimalPos = formatted.find('.');
+    size_t ePos = formatted.find('e');
+
+    if (decimalPos != std::string::npos && ePos != std::string::npos) {
+        std::string mantissa_integer_part = formatted.substr(0, decimalPos);
+        std::string mantissa_fractional_part = formatted.substr(decimalPos + 1, ePos - decimalPos - 1);
+        int exponent = std::stoi(formatted.substr(ePos + 1));
+
+        if (std::all_of(mantissa_fractional_part.begin(), mantissa_fractional_part.end(),
+                        [](char c) { return c == '0'; })) {
+            formatted = mantissa_integer_part + "e" + std::to_string(exponent);
+        } else {
+            size_t lastNonZero = mantissa_fractional_part.find_last_not_of('0');
+            if (lastNonZero != std::string::npos) {
+                std::string significantFraction = mantissa_fractional_part.substr(0, lastNonZero + 1);
+                std::string newMantissa = mantissa_integer_part + significantFraction;
+                exponent -= (mantissa_fractional_part.length() -
+                             significantFraction.length());  // Adjust for removed trailing zeros
+                exponent += (significantFraction.length());  // Adjust for moving the decimal point
+                formatted = newMantissa + "e" + std::to_string(exponent);
+            } else {
+                formatted = mantissa_integer_part + "e" + std::to_string(exponent);
+            }
+        }
+    } else if (ePos != std::string::npos) {
+        formatted = formatted.substr(0, ePos) + "e" + formatted.substr(ePos + 1);
+    }
+
+    return formatted;
 }
