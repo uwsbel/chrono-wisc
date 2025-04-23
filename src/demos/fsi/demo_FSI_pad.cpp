@@ -152,7 +152,7 @@ std::string format_scientific(double value);
 
 
 int main(int argc, char* argv[]) {
-    SimParams params = {/*ps_freq*/ 1,
+    SimParams params = {/*ps_freq*/ 10,
         /*initial_spacing*/ 0.008,
         /*d0_multiplier*/ 1.3,
         /*time_step*/ 1e-4,
