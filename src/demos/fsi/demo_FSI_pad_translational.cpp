@@ -165,9 +165,9 @@ int main(int argc, char* argv[]) {
                         /*write_marker_files*/ true,
                         ///*mu_s*/ 0.6593,
                         ///*mu_2*/ 0.6593,
-                        /*mu_s*/ 0.8,
-                        /*mu_2*/ 0.8,
-                        /*cohesions*/ 3e3,
+                        /*mu_s*/ 0.6593,
+                        /*mu_2*/ 0.6593,
+                        /*cohesions*/ 100,
                         /*densities*/ 1670,
                         /*y_modulus*/ 1e6};
 
@@ -286,7 +286,7 @@ void SimulateMaterial(const SimParams& params) {
     // Create a container
     // sand clearance
     double clearance = 0.2 * container_height;
-    double bxDim = container_diameter;
+    double bxDim = container_diameter * 2;
     double byDim = container_diameter;
     double fzDim = container_height;
     double bzDim = fzDim + clearance;
@@ -350,7 +350,8 @@ void SimulateMaterial(const SimParams& params) {
     // Create plate
     auto plate = chrono_types::make_shared<ChBody>();
     double plate_z_pos = fzDim + cyl_length / 2 + params.initial_spacing;
-    plate->SetPos(ChVector3d(0, 0, plate_z_pos));
+    plate->SetPos(ChVector3d(-container_diameter/2.0, 0, plate_z_pos));
+    plate->SetPosDt(ChVector3d(0.2, 0, 0));
     plate->SetRot(ChQuaternion<>(1, 0, 0, 0));
     plate->SetFixed(false);
 
@@ -364,6 +365,19 @@ void SimulateMaterial(const SimParams& params) {
 
     // sysSPH.AddCylinderBCE(plate, ChFrame<>(VNULL, QUNIT), params.plate_diameter / 2, cyl_length, true, true);
     sysFSI.Initialize();
+
+    auto axle = chrono_types::make_shared<ChBody>();
+    axle->SetMass(plate_mass * 0.5);
+    axle->SetPos(plate->GetPos());
+    axle->EnableCollision(false);
+    axle->SetFixed(false);
+    sysMBS.AddBody(axle);
+
+    auto prismatic1 = chrono_types::make_shared<ChLinkLockPrismatic>();
+    prismatic1->Initialize(box, axle, ChFrame<>(axle->GetPos(), QuatFromAngleY(CH_PI_2)));
+    prismatic1->SetName("prismatic_box_axle");
+    sysMBS.AddLink(prismatic1);
+
 
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
     auto motor = chrono_types::make_shared<ChLinkMotorLinearForce>();
@@ -411,7 +425,7 @@ void SimulateMaterial(const SimParams& params) {
     }
 
     motor->SetForceFunction(force_func);
-    motor->Initialize(plate, box, ChFrame<>(ChVector3d(0, 0, 0), QUNIT));
+    motor->Initialize(plate, axle, ChFrame<>(ChVector3d(0, 0, 0), QUNIT));
     sysMBS.AddLink(motor);
 
     // Output directories
@@ -419,10 +433,10 @@ void SimulateMaterial(const SimParams& params) {
     if (params.output || params.snapshots) {
         // Base output directory
 
-        std::string base_dir = GetChronoOutputPath() + "h_" + format_scientific(params.initial_spacing) + "_dt_" +
+        std::string base_dir = GetChronoOutputPath() + "Case2_h_" + format_scientific(params.initial_spacing) + "_dt_" +
                                format_scientific(params.time_step) + "_soil_" +
                                std::to_string(int(container_height * 100)) + "cm_binsize_" +
-                               std::to_string(int(std::round(container_diameter * 100))) + "cm_mu_8e-1";
+                               std::to_string(int(std::round(container_diameter * 100)));
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -496,7 +510,7 @@ void SimulateMaterial(const SimParams& params) {
     std::ofstream ofile(out_file, std::ios::trunc);
 
     // Add comma-separated header to the output file
-    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-z,motor-load,RTF"
+    ofile << "Time,Force-x,Force-y,Force-z,position-x,position-y,penetration-depth,plate-vel-x,motor-load,RTF"
           << std::endl;
 
     ChTimer timer;
@@ -508,38 +522,33 @@ void SimulateMaterial(const SimParams& params) {
         if (params.output && time >= out_frame / params.output_fps) {
             if (params.write_marker_files) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
-                sysSPH.SaveSolidData(out_dir + "/fsi", time);
                 std::cout << " -- Wrote "
                           << "frame " << out_frame << " SPH data to " << out_dir << std::endl;
             }
             out_frame++;
         }
-#ifdef CHRONO_VSG
-        if (params.render && time >= render_frame / params.render_fps) {
-            if (!vis->Run())
-                break;
-
-            vis->Render();
-            if (params.snapshots) {
-                std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
-                std::ostringstream filename;
-                filename << out_dir << "/snapshots/" << std::setw(5) << std::setfill('0') << render_frame << ".jpg";
-                vis->WriteImageToFile(filename.str());
-            }
-
-            render_frame++;
-        }
-#endif
         if (time >= pres_out_frame / pres_out_fps) {
+            sysSPH.SaveSolidData(out_dir + "/fsi", time);
+
             double motor_force = motor->GetMotorForce();
+            ChVector3d jt_force = motor->GetReaction2().force;
+            ChVector3d jt_torque = motor->GetReaction2().torque;
             ofile << time << "," << plate->GetAppliedForce().x() << "," << plate->GetAppliedForce().y() << ","
                   << plate->GetAppliedForce().z() << "," << plate->GetPos().x() << "," << plate->GetPos().y() << ","
-                  << current_depth << "," << plate->GetPosDt().z() << "," << motor_force << "," << sysFSI.GetRtf()
+                  << current_depth << "," << plate->GetPosDt().x() << "," << motor_force << "," << sysFSI.GetRtf()
                   << std::endl;
             pres_out_frame++;
             std::cout << "time, " << time << ", plate_force, " << plate->GetAppliedForce().z() << ", plate_depth, "
                       << current_depth << ", motor_force, " << motor->GetMotorForce() << ", RTF, " << sysFSI.GetRtf()
+                      << ", velo, " << plate->GetPosDt().x()
                       << std::endl;
+            std::cout << "motor_force: " << jt_force.x() << ", " << jt_force.y() << ", " << jt_force.z()
+                      << std::endl;
+            std::cout << "motor_force: " << jt_torque.x() << ", " << jt_torque.y() << ", " << jt_torque.z()
+                      << std::endl;
+
+
+
         }
 
         // Advance simulation for one timestep for all systems
