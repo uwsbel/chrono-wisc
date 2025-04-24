@@ -96,6 +96,8 @@ struct SimParams {
     double cohesion;
     double density;
     double y_modulus;
+
+    bool tilt_grav;
 };
 void SimulateMaterial(const SimParams& params);
 // Function to handle CLI arguments
@@ -121,6 +123,11 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     cli.AddOption<double>("Physics", "cohesion", "Cohesion", std::to_string(params.cohesion));
     cli.AddOption<double>("Physics", "density", "Density", std::to_string(params.density));
     cli.AddOption<double>("Physics", "y_modulus", "Young's modulus", std::to_string(params.y_modulus));
+
+    // add option for tilt_grav as cli addoption
+    cli.AddOption<int>("Simulation", "tilt_grav", "Tilt gravity", std::to_string(params.tilt_grav));
+
+
     if (!cli.Parse(argc, argv))
         return false;
 
@@ -139,6 +146,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     params.cohesion = cli.GetAsType<double>("cohesion");
     params.density = cli.GetAsType<double>("density");
     params.y_modulus = cli.GetAsType<double>("y_modulus");
+    params.tilt_grav = cli.GetAsType<int>("tilt_grav");
     return true;
 }
 
@@ -165,11 +173,12 @@ int main(int argc, char* argv[]) {
                         /*write_marker_files*/ true,
                         ///*mu_s*/ 0.6593,
                         ///*mu_2*/ 0.6593,
-                        /*mu_s*/ 0.6593,
-                        /*mu_2*/ 0.6593,
+                        /*mu_s*/ 0.66,
+                        /*mu_2*/ 0.66,
                         /*cohesions*/ 100,
                         /*densities*/ 1670,
-                        /*y_modulus*/ 1e6};
+                        /*y_modulus*/ 1e6,
+                        /*tilt_grav*/ 0};
 
     if (!GetProblemSpecs(argc, argv, params)) {
         return 1;
@@ -192,6 +201,7 @@ int main(int argc, char* argv[]) {
     std::cout << "y_modulus: " << params.y_modulus << std::endl;
     std::cout << "write output: " << params.output << std::endl;
     std::cout << "write marker files: " << params.write_marker_files << std::endl;
+    std::cout << "tilt graivty: " << params.tilt_grav << std::endl;
 
     int num_materials = 1;
     for (int i = 0; i < num_materials; i++) {
@@ -219,10 +229,29 @@ void SimulateMaterial(const SimParams& params) {
     ChFsiFluidSystemSPH sysSPH;
     ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
 
-    // Set gravitational acceleration
-    const ChVector3d gravity(0, 0, -1.62);
-    sysFSI.SetGravitationalAcceleration(gravity);
-    sysMBS.SetGravitationalAcceleration(gravity);
+    double tilt_angle = 10;
+    double tilt_angle_rad = CH_PI * tilt_angle / 180.0;
+    double moon_grav = 1.62;
+    ChVector3d gravity(0, 0, -moon_grav);
+
+    if (params.tilt_grav) {
+		// Set the gravity vector to tilt the system
+        gravity.x() = -moon_grav * sin(tilt_angle_rad);
+        gravity.z() = -moon_grav * cos(tilt_angle_rad);
+		sysFSI.SetGravitationalAcceleration(gravity);
+    }
+    else {
+		// Set the gravity vector to point downwards
+		sysFSI.SetGravitationalAcceleration(gravity);
+	}
+
+    std::cout << "Gravity: " << gravity.x() << ", " << gravity.y() << ", " << gravity.z() << std::endl;
+
+
+    //// Set gravitational acceleration
+    //const ChVector3d gravity(0, 0, -1.62);
+    //sysFSI.SetGravitationalAcceleration(gravity);
+    //sysMBS.SetGravitationalAcceleration(gravity);
 
     sysFSI.SetStepSizeCFD(params.time_step);
     sysFSI.SetStepsizeMBD(params.time_step);
@@ -237,7 +266,7 @@ void SimulateMaterial(const SimParams& params) {
     mat_props.Poisson_ratio = nu_poisson;
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = params.mu_s;
-    mat_props.mu_fric_2 = params.mu_2;
+    mat_props.mu_fric_2 = params.mu_s;
     mat_props.average_diam = 0.002;
     mat_props.cohesion_coeff = params.cohesion;
 
@@ -350,7 +379,7 @@ void SimulateMaterial(const SimParams& params) {
     // Create plate
     auto plate = chrono_types::make_shared<ChBody>();
     double plate_z_pos = fzDim + cyl_length / 2 + params.initial_spacing;
-    plate->SetPos(ChVector3d(-container_diameter/2.0, 0, plate_z_pos));
+    plate->SetPos(ChVector3d(0.0, 0, plate_z_pos));
     plate->SetPosDt(ChVector3d(0.2, 0, 0));
     plate->SetRot(ChQuaternion<>(1, 0, 0, 0));
     plate->SetFixed(false);
@@ -432,11 +461,18 @@ void SimulateMaterial(const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
+        std::string base_dir;
+        if (params.tilt_grav) {
+            base_dir = GetChronoOutputPath() + "Case3_rho_";
+        }
+        else {
+            base_dir = GetChronoOutputPath() + "Case2_rho_";
+        }
 
-        std::string base_dir = GetChronoOutputPath() + "Case2_h_" + format_scientific(params.initial_spacing) + "_dt_" +
-                               format_scientific(params.time_step) + "_soil_" +
-                               std::to_string(int(container_height * 100)) + "cm_binsize_" +
-                               std::to_string(int(std::round(container_diameter * 100)));
+        base_dir += std::to_string(int(params.density)) 
+            + "_mu_" + format_scientific(params.mu_s) 
+            + "_cohesion_" + format_scientific(params.cohesion);
+
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -531,8 +567,6 @@ void SimulateMaterial(const SimParams& params) {
             sysSPH.SaveSolidData(out_dir + "/fsi", time);
 
             double motor_force = motor->GetMotorForce();
-            ChVector3d jt_force = motor->GetReaction2().force;
-            ChVector3d jt_torque = motor->GetReaction2().torque;
             ofile << time << "," << plate->GetAppliedForce().x() << "," << plate->GetAppliedForce().y() << ","
                   << plate->GetAppliedForce().z() << "," << plate->GetPos().x() << "," << plate->GetPos().y() << ","
                   << current_depth << "," << plate->GetPosDt().x() << "," << motor_force << "," << sysFSI.GetRtf()
@@ -542,13 +576,6 @@ void SimulateMaterial(const SimParams& params) {
                       << current_depth << ", motor_force, " << motor->GetMotorForce() << ", RTF, " << sysFSI.GetRtf()
                       << ", velo, " << plate->GetPosDt().x()
                       << std::endl;
-            std::cout << "motor_force: " << jt_force.x() << ", " << jt_force.y() << ", " << jt_force.z()
-                      << std::endl;
-            std::cout << "motor_force: " << jt_torque.x() << ", " << jt_torque.y() << ", " << jt_torque.z()
-                      << std::endl;
-
-
-
         }
 
         // Advance simulation for one timestep for all systems

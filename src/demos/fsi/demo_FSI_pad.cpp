@@ -158,15 +158,15 @@ int main(int argc, char* argv[]) {
                         /*plate_diameter*/ 0.60,     // 19 cm
                         /*verbose*/ true,
                         /*output*/ true,
-                        /*output_fps*/ 20,
+                        /*output_fps*/ 10,
                         /*snapshots*/ true,
                         /*render*/ false,
                         /*render_fps*/ 400,
                         /*write_marker_files*/ true,
                         ///*mu_s*/ 0.6593,
                         ///*mu_2*/ 0.6593,
-                        /*mu_s*/ 0.8,
-                        /*mu_2*/ 0.8,
+                        /*mu_s*/ 0.66,
+                        /*mu_2*/ 0.6593,
                         /*cohesions*/ 3e3,
                         /*densities*/ 1670,
                         /*y_modulus*/ 1e6};
@@ -237,7 +237,7 @@ void SimulateMaterial(const SimParams& params) {
     mat_props.Poisson_ratio = nu_poisson;
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = params.mu_s;
-    mat_props.mu_fric_2 = params.mu_2;
+    mat_props.mu_fric_2 = params.mu_s;
     mat_props.average_diam = 0.002;
     mat_props.cohesion_coeff = params.cohesion;
 
@@ -419,10 +419,8 @@ void SimulateMaterial(const SimParams& params) {
     if (params.output || params.snapshots) {
         // Base output directory
 
-        std::string base_dir = GetChronoOutputPath() + "h_" + format_scientific(params.initial_spacing) + "_dt_" +
-                               format_scientific(params.time_step) + "_soil_" +
-                               std::to_string(int(container_height * 100)) + "cm_binsize_" +
-                               std::to_string(int(std::round(container_diameter * 100))) + "cm_mu_8e-1";
+        std::string base_dir = GetChronoOutputPath() + "Case1_rho_" + std::to_string(int(params.density)) + "_mu_" +
+                               format_scientific(params.mu_s) + "_cohesion_" + format_scientific(params.cohesion);
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
