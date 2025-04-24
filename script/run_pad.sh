@@ -1,40 +1,44 @@
-#!/usr/bin/env zsh
-#SBATCH --gres=gpu:a100:1
-#SBATCH --time=10-0:0:0
-#SBATCH --partition=sbel
-#SBATCH -o pad_%A_%a.out
-#SBATCH -e pad_%A_%a.err
-#SBATCH --account=sbel
-#SBATCH --qos=priority
-##SBATCH --mem-per-cpu=20000
-##SBATCH --cpus-per-task=8
-##SBATCH --mem=40G
+#!/bin/bash
+#SBATCH --job-name=sph_validation
+#SBATCH --gres=gpu:1
+#SBATCH --time=40:00:00
+#SBATCH -o drop_output_%A_%a.out
+#SBATCH -e drop_output_%A_%a.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --account=bdgx-delta-gpu
+#SBATCH --array=0-314
 
-#SBATCH --array=1-6
-module load nvidia/cuda/12.0.0
-module load gcc/11.3.0
+# Navigate to the program directory
+cd /projects/bdgx/lbakke/pad/chrono-wisc/bin
 
-nvidia-smi
+# Define parameter sets
+mu_s_vals=($(seq 0.65 0.01 0.85))              # 21 values
+density_vals=($(seq 1600 20 1880))             # 15 values
+cohesion_vals=(0 10 50 100 250 500 750 1000 1500 2000)  # 10 values
+programs=(demo_FSI_pad_translational:0 demo_FSI_pad_translational:1 demo_FSI_pad)
 
-# Define arrays for parameters
-h_array=(0.008 0.008 0.006 0.006 0.005 0.005)
-dt_array=(5e-5 1e-4 5e-5 1e-4 5e-5 1e-4)
+# Resolve SLURM array task index
+task_id=${SLURM_ARRAY_TASK_ID}
+let mu_index=task_id/15
+let density_index=task_id%15
 
-# Get array index from SLURM
-id=$SLURM_ARRAY_TASK_ID
+mu_s=${mu_s_vals[$mu_index]}
+density=${density_vals[$density_index]}
 
-# Get parameters for this run
-step_size=${dt_array[${id}]}
-h=${h_array[${id}]}
-#density=${density_array[${id}]}
+echo ">>> Running job ID: $task_id"
+echo "    mu_s: $mu_s"
+echo "    density: $density"
 
-#step_size=2e-5
-#density=998.5
-
-# Fixed parameters
-
-cd /srv/home/fang/lander/build/bin/
-
-
-# Run the simulation with all parameters
-./demo_FSI_pad --initial_spacing ${h} --time_step ${step_size}
+# Loop through cohesion and run all 3 program variations
+for cohesion in "${cohesion_vals[@]}"; do
+    for entry in "${programs[@]}"; do
+        IFS=":" read program tilt_grav <<< "$entry"
+        cmd="./$program --mu_s $mu_s --cohesion $cohesion --density $density"
+        if [[ -n "$tilt_grav" ]]; then
+            cmd="$cmd --tilt_grav $tilt_grav"
+        fi
+        echo "Running: $cmd"
+        $cmd
+    done
+done
