@@ -158,17 +158,17 @@ int main(int argc, char* argv[]) {
                         /*plate_diameter*/ 0.60,     // 19 cm
                         /*verbose*/ true,
                         /*output*/ true,
-                        /*output_fps*/ 10,
+                        /*output_fps*/ 100,
                         /*snapshots*/ true,
                         /*render*/ false,
                         /*render_fps*/ 400,
                         /*write_marker_files*/ true,
                         ///*mu_s*/ 0.6593,
                         ///*mu_2*/ 0.6593,
-                        /*mu_s*/ 0.66,
-                        /*mu_2*/ 0.6593,
-                        /*cohesions*/ 3e3,
-                        /*densities*/ 1670,
+                        /*mu_s*/ 0.75,
+                        /*mu_2*/ 0.75,
+                        /*cohesions*/ 50,
+                        /*densities*/ 1710,
                         /*y_modulus*/ 1e6};
 
     if (!GetProblemSpecs(argc, argv, params)) {
