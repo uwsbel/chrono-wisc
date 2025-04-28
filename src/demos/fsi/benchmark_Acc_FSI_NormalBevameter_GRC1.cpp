@@ -297,7 +297,7 @@ void SimulateMaterial(int i, const SimParams& params) {
 
     // double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
     double container_diameter = 0.584 / 3;  // Plate is 20 cm in diameter
-    double container_height = 0.024;        // 2.4 cm since experimentally the plate reaches 0.6 cm
+    double container_height = 0.058;        // 2.4 cm since experimentally the plate reaches 0.6 cm
     double cyl_length = 0.018;              // To prevent effect of sand falling on top of the plate
 
     // Create a physics system
@@ -326,7 +326,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = params.mu_s;
     mat_props.mu_fric_2 = params.mu_2;
-    mat_props.average_diam = 0.002;
+    mat_props.average_diam = 0.0002;
     mat_props.cohesion_coeff = params.cohesion;
 
     sysSPH.SetElasticSPH(mat_props);
@@ -458,7 +458,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1_2.4cm/";
+        std::string base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1_5.8cm/";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;

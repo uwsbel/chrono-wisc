@@ -663,6 +663,18 @@ __device__ inline Real4 DifVelocityRho_ElasticSPH(Real W_ini_inv,
     if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
         return mR4(0);
 
+
+    // Density update
+    Real derivRho = paramsD.markerMass * dot(velMasA_in - velMasB_in, gradW);
+    if (paramsD.USE_Delta_SPH) {
+        // diffusion term in continuity equation, this helps smoothing out the large oscillation in pressure
+        // field see S. Marrone et al., "delta-SPH model for simulating violent impact flows", Computer Methods in
+        // Applied Mechanics and Engineering, 200(2011), pp 1526 --1542.
+        Real Psi = paramsD.density_delta * paramsD.h * paramsD.Cs * paramsD.markerMass / rhoPresMuB.x * 2. *
+                   (rhoPresMuA.x - rhoPresMuB.x) / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h);
+        derivRho += Psi * dot(dist3, gradW);
+    }
+
     Real3 velMasA = velMasA_in;
     Real3 velMasB = velMasB_in;
     Real3 tauXxYyZz_A = tauXxYyZz_A_in;
@@ -682,15 +694,17 @@ __device__ inline Real4 DifVelocityRho_ElasticSPH(Real W_ini_inv,
     }*/
 
     Real Mass = paramsD.markerMass;
-    Real MassOverRho = Mass * paramsD.invrho0 * paramsD.invrho0;
-    Real3 MA_gradW = gradW * MassOverRho;
+    Real invRhoASq = 1/(rhoPresMuA.x*rhoPresMuA.x);
+    Real invRhoBSq = 1/(rhoPresMuB.x*rhoPresMuB.x);
+    // Real MassOverRho = Mass * invRhoA * invRhoB;
+    Real3 MA_gradW = gradW * Mass;
 
-    Real derivVx = (tauXxYyZz_A.x + tauXxYyZz_B.x) * MA_gradW.x + (tauXyXzYz_A.x + tauXyXzYz_B.x) * MA_gradW.y +
-                   (tauXyXzYz_A.y + tauXyXzYz_B.y) * MA_gradW.z;
-    Real derivVy = (tauXyXzYz_A.x + tauXyXzYz_B.x) * MA_gradW.x + (tauXxYyZz_A.y + tauXxYyZz_B.y) * MA_gradW.y +
-                   (tauXyXzYz_A.z + tauXyXzYz_B.z) * MA_gradW.z;
-    Real derivVz = (tauXyXzYz_A.y + tauXyXzYz_B.y) * MA_gradW.x + (tauXyXzYz_A.z + tauXyXzYz_B.z) * MA_gradW.y +
-                   (tauXxYyZz_A.z + tauXxYyZz_B.z) * MA_gradW.z;
+    Real derivVx = (tauXxYyZz_A.x*invRhoASq + tauXxYyZz_B.x*invRhoBSq) * MA_gradW.x + (tauXyXzYz_A.x*invRhoASq + tauXyXzYz_B.x*invRhoBSq) * MA_gradW.y +
+                   (tauXyXzYz_A.y*invRhoASq + tauXyXzYz_B.y*invRhoBSq) * MA_gradW.z;
+    Real derivVy = (tauXyXzYz_A.x*invRhoASq + tauXyXzYz_B.x*invRhoBSq) * MA_gradW.x + (tauXxYyZz_A.y*invRhoASq + tauXxYyZz_B.y*invRhoBSq) * MA_gradW.y +
+                   (tauXyXzYz_A.z*invRhoASq + tauXyXzYz_B.z*invRhoBSq) * MA_gradW.z;
+    Real derivVz = (tauXyXzYz_A.y*invRhoASq + tauXyXzYz_B.y*invRhoBSq) * MA_gradW.x + (tauXyXzYz_A.z*invRhoASq + tauXyXzYz_B.z*invRhoBSq) * MA_gradW.y +
+                   (tauXxYyZz_A.z*invRhoASq + tauXxYyZz_B.z*invRhoBSq) * MA_gradW.z;
 
     // TODO: Visco-plastic model
     // Real vel = length(velMasA);
@@ -712,7 +726,7 @@ __device__ inline Real4 DifVelocityRho_ElasticSPH(Real W_ini_inv,
             // Artificial Viscosity from Monaghan 1997
             // This has no viscous forces in the seperation phase - used in SPH codes simulating fluids
             if (vAB_rAB < 0) {
-                Real nu = -paramsD.Ar_vis_alpha * paramsD.h * paramsD.Cs * paramsD.invrho0;
+                Real nu = -paramsD.Ar_vis_alpha * paramsD.h * paramsD.Cs * 2. / (rhoPresMuA.x + rhoPresMuB.x);
                 derivM1 = -Mass * (nu * vAB_rAB / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h));
             }
 
@@ -721,7 +735,7 @@ __device__ inline Real4 DifVelocityRho_ElasticSPH(Real W_ini_inv,
         case ViscosityType::ARTIFICIAL_BILATERAL: {
             // Artificial viscosity treatment from J J Monaghan (2005) "Smoothed particle hydrodynamics"
             // Here there is viscous force added even during the seperation phase - makes the simulation more stable
-            Real nu = -paramsD.Ar_vis_alpha * paramsD.h * paramsD.Cs * paramsD.invrho0;
+            Real nu = -paramsD.Ar_vis_alpha * paramsD.h * paramsD.Cs * 2. / (rhoPresMuA.x + rhoPresMuB.x);
             derivM1 = -Mass * (nu * vAB_rAB / (d * d + paramsD.epsMinMarkersDis * paramsD.h * paramsD.h));
             break;
         }
@@ -761,7 +775,7 @@ __device__ inline Real4 DifVelocityRho_ElasticSPH(Real W_ini_inv,
     // }
 
     // Real derivRho = Mass * dot(vel_XSPH_A - vel_XSPH_B, gradW);
-    return mR4(derivVx, derivVy, derivVz, 0);
+    return mR4(derivVx, derivVy, derivVz, derivRho);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1341,7 +1355,7 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
     Real G_i3 = 0, G_i4 = 1, G_i5 = 0;
     Real G_i6 = 0, G_i7 = 0, G_i8 = 1;
     // Cache constant parameters in registers
-    const Real volume0 = paramsD.volume0;
+    // const Real volume0 = paramsD.volume0;
     const KernelType kernelType = paramsD.kernel_type;
     const Real ooh = paramsD.ooh;
     const Real d0 = paramsD.d0;
@@ -1356,6 +1370,7 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
         // Loop over all neighbors
         for (uint n = NLStart + 1; n < NLEnd; n++) {
             uint j = neighborList[n];
+            Real volumej = paramsD.markerMass / sortedRhoPreMu[j].x;
 
             // Load neighbor position and compute the distance vector
             Real3 posRadB = mR3(sortedPosRad[j]);
@@ -1366,9 +1381,9 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
 
             // Multiply by the neighbor's volume
             Real3 grw_vj;
-            grw_vj.x = grad_i_wij.x * volume0;
-            grw_vj.y = grad_i_wij.y * volume0;
-            grw_vj.z = grad_i_wij.z * volume0;
+            grw_vj.x = grad_i_wij.x * volumej;
+            grw_vj.y = grad_i_wij.y * volumej;
+            grw_vj.z = grad_i_wij.z * volumej;
 
             // Accumulate the nine terms (using the fact that we subtract the product)
             mGi0 -= rij.x * grw_vj.x;
@@ -1407,7 +1422,10 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
 
     Real G_i[9] = {G_i0, G_i1, G_i2, G_i3, G_i4, G_i5, G_i6, G_i7, G_i8};
 
-    Real sum_w_i = W3h(kernelType, 0, ooh) * volume0;
+    // This is just for free surface detection
+    // TODO: Is volume0 appropriate here or should it be volumei?
+    Real sum_w_i = W3h(kernelType, 0, ooh) * paramsD.volume0;
+    // Real sum_w_i = W3h(kernelType, 0, ooh) * paramsD.markerMass / rhoPresMuA.x;
     Real w_ini_inv = 1 / W3h(kernelType, d0, ooh);
 
     // Get the interaction from neighbor particles
@@ -1415,6 +1433,7 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
     for (int n = NLStart + 1; n < NLEnd; n++) {
         uint j = neighborList[n];
         Real4 rhoPresMuB = sortedRhoPreMu[j];
+        Real volumej = paramsD.markerMass / rhoPresMuB.x;
         if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
             continue;  // No BCE-BCE interaction
 
@@ -1450,7 +1469,7 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
         if (IsFluidParticle(sortedRhoPreMu[index].w)) {
             // start to calculate the stress rate
             Real3 vAB = velMasA - velMasB;
-            Real3 vAB_h = 0.5f * vAB * volume0;
+            Real3 vAB_h = 0.5f * vAB * volumej;
             // entries of strain rate tensor
             Real exx = -2.0f * vAB_h.x * gradW.x;
             Real eyy = -2.0f * vAB_h.y * gradW.y;
@@ -1477,7 +1496,8 @@ __global__ void NS_SSR(const Real4* sortedPosRad,
         if (d > paramsD.h * 1.0e-9f) {
             Real Wab = W3h(kernelType, d, ooh);
             // Integration of the kernel function
-            sum_w_i += Wab * volume0;
+            sum_w_i += Wab * paramsD.volume0;
+            // sum_w_i += Wab * volumej;
         }
     }
 

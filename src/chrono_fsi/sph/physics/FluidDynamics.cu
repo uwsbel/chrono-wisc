@@ -349,7 +349,8 @@ __global__ void UpdateFluidD(Real4* posRadD,
     //-------------
     if (paramsD.elastic_SPH) {  // This is only implemented for granular material
         rhoPresMu.y = p_tr;
-        rhoPresMu.x = paramsD.rho0;
+        // rhoPresMu.x = paramsD.rho0;
+        rhoPresMu.x = rhoPresMu.x + derivVelRho.w * dT;
     } else {
         Real rho2 = rhoPresMu.x + derivVelRho.w * dT;
         rhoPresMu.y = Eos(rho2, paramsD.eos_type);
