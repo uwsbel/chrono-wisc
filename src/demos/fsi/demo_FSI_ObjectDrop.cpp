@@ -276,7 +276,7 @@ int main(int argc, char* argv[]) {
     body->SetName("object");
 
     if (use_impact_velocity) {
-        body->SetPos(ChVector3d(0, 0, fsize.z() + 2 * initial_spacing + mesh_bottom_offset));
+        body->SetPos(ChVector3d(0, 0, fsize.z() + initial_spacing + mesh_bottom_offset));
          //body->SetPos(ChVector3d(0, 0, fsize.z() + mesh_bottom_offset));
 
         body->SetPosDt(ChVector3d(0, 0, impact_velocity));
