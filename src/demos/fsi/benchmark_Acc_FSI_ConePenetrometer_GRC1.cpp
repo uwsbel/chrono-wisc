@@ -490,11 +490,11 @@ int main(int argc, char* argv[]) {
                         /*penetration_depth*/ 0.18,  // 18 cm is the max depth
                         /*verbose*/ true,
                         /*output*/ true,
-                        /*output_fps*/ 100,
-                        /*snapshots*/ true,
+                        /*output_fps*/ 60,
+                        /*snapshots*/ false,
                         /*render*/ true,
-                        /*render_fps*/ 400,
-                        /*write_marker_files*/ false,
+                        /*render_fps*/ 60,
+                        /*write_marker_files*/ true,
                         /*mu_s*/ 0.67,
                         /*mu_2*/ 0.67,
                         /*cohesions*/ 100,
@@ -563,7 +563,7 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     mat_props.mu_I0 = 0.04;
     mat_props.mu_fric_s = params.mu_s;
     mat_props.mu_fric_2 = params.mu_2;
-    mat_props.average_diam = 0.002;
+    mat_props.average_diam = 0.0002;
     mat_props.cohesion_coeff = params.cohesion;
 
     sysSPH.SetElasticSPH(mat_props);
@@ -615,7 +615,6 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     ChVector3d cMin(-bxDim / 2 * 1.2, -byDim / 2 * 1.2, -bzDim * 1.2);
     ChVector3d cMax(bxDim / 2 * 1.2, byDim / 2 * 1.2, (bzDim + std::max(bzDim * 1.2, cyl_length)));
     sysSPH.SetComputationalBoundaries(cMin, cMax, PeriodicSide::NONE);
-    ;
 
     auto box = chrono_types::make_shared<ChBody>();
     box->SetPos(ChVector3d(0.0, 0.0, 0.0));
@@ -717,7 +716,7 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     auto constraint = chrono_types::make_shared<ChLinkLockLock>();
     constraint->Initialize(cone, cyl, ChFrame<>(ChVector3d(0, 0, 0), QUNIT));
     sysMBS.AddLink(constraint);
-
+    sysSPH.SetOutputLevel(OutputLevel::CRM_FULL);
     sysFSI.Initialize();
 
     // Output directories
@@ -810,8 +809,6 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
         std::cout << "Writing initial VTK files for visualization..." << std::endl;
         WriteConeVTK(out_dir + "/vtk/cone_initial.vtk", cone, coneProp.diameter / 2, coneProp.length);
         WriteCylinderVTK(out_dir + "/vtk/cylinder_initial.vtk", cyl, cyl_radius, cyl_length);
-        WriteConePenetrometerVTK(out_dir + "/vtk/penetrometer_initial.vtk", cone, coneProp.diameter / 2,
-                                 coneProp.length, cyl, cyl_radius, cyl_length);
     }
 
     // Create a run-time visualizer
@@ -880,22 +877,17 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
                 // Write VTK files for cone and cylinder
                 std::stringstream cone_vtk_filename;
-                cone_vtk_filename << out_dir << "/vtk/cone_" << std::setw(5) << std::setfill('0') << render_frame
+                cone_vtk_filename << out_dir << "/vtk/cone_" << std::setw(5) << std::setfill('0') << out_frame
                                   << ".vtk";
                 WriteConeVTK(cone_vtk_filename.str(), cone, coneProp.diameter / 2, coneProp.length);
 
                 std::stringstream cyl_vtk_filename;
-                cyl_vtk_filename << out_dir << "/vtk/cylinder_" << std::setw(5) << std::setfill('0') << render_frame
+                cyl_vtk_filename << out_dir << "/vtk/cylinder_" << std::setw(5) << std::setfill('0') << out_frame
                                  << ".vtk";
                 WriteCylinderVTK(cyl_vtk_filename.str(), cyl, cyl_radius, cyl_length);
-
-                // Write combined VTK file
-                std::stringstream combined_vtk_filename;
-                combined_vtk_filename << out_dir << "/vtk/penetrometer_" << std::setw(5) << std::setfill('0')
-                                      << render_frame << ".vtk";
-                WriteConePenetrometerVTK(combined_vtk_filename.str(), cone, coneProp.diameter / 2, coneProp.length, cyl,
-                                         cyl_radius, cyl_length);
             }
+            std::cout << "Time: " << time << std::endl;
+            std::cout << "Current Depth: " << current_depth << std::endl;
             out_frame++;
         }
 #ifdef CHRONO_VSG

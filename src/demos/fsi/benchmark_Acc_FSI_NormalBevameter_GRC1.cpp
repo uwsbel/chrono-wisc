@@ -55,36 +55,36 @@ class MarkerPositionVisibilityCallback : public ChFsiVisualizationVSG::MarkerVis
 //------------------------------------------------------------------
 // Function to generate a cylinder mesh and save to VTK file
 //------------------------------------------------------------------
-void WriteCylinderVTK(const std::string& filename, 
-                     std::shared_ptr<ChBody> body, 
-                     double radius, 
-                     double height, 
-                     int resolution = 32) {
+void WriteCylinderVTK(const std::string& filename,
+                      std::shared_ptr<ChBody> body,
+                      double radius,
+                      double height,
+                      int resolution = 32) {
     // Generate a cylinder mesh
     ChTriangleMeshConnected mesh;
     std::vector<ChVector3d>& vertices = mesh.GetCoordsVertices();
     std::vector<ChVector3i>& indices = mesh.GetIndicesVertexes();
 
     // Create vertices for top and bottom circular caps
-    ChVector3d top_center(0, 0, height/2);
-    ChVector3d bottom_center(0, 0, -height/2);
-    vertices.push_back(top_center);    // Vertex 0 (top center)
-    vertices.push_back(bottom_center); // Vertex 1 (bottom center)
-    
+    ChVector3d top_center(0, 0, height / 2);
+    ChVector3d bottom_center(0, 0, -height / 2);
+    vertices.push_back(top_center);     // Vertex 0 (top center)
+    vertices.push_back(bottom_center);  // Vertex 1 (bottom center)
+
     int top_center_idx = 0;
     int bottom_center_idx = 1;
-    
+
     // Create vertices for top and bottom circles and side walls
     for (int i = 0; i < resolution; i++) {
         double theta = 2 * CH_PI * i / resolution;
         double x = radius * cos(theta);
         double y = radius * sin(theta);
-        
+
         // Top circle vertex
-        vertices.push_back(ChVector3d(x, y, height/2));
-        
+        vertices.push_back(ChVector3d(x, y, height / 2));
+
         // Bottom circle vertex
-        vertices.push_back(ChVector3d(x, y, -height/2));
+        vertices.push_back(ChVector3d(x, y, -height / 2));
     }
 
     // Create triangular faces for top cap
@@ -92,21 +92,21 @@ void WriteCylinderVTK(const std::string& filename,
         int next_i = (i + 1) % resolution;
         int top_idx = 2 + i * 2;
         int next_top_idx = 2 + next_i * 2;
-        
+
         // Top cap triangle
         indices.push_back(ChVector3i(top_center_idx, top_idx, next_top_idx));
     }
-    
+
     // Create triangular faces for bottom cap
     for (int i = 0; i < resolution; i++) {
         int next_i = (i + 1) % resolution;
         int bottom_idx = 3 + i * 2;
         int next_bottom_idx = 3 + next_i * 2;
-        
+
         // Bottom cap triangle (note reverse winding order for outward normal)
         indices.push_back(ChVector3i(bottom_center_idx, next_bottom_idx, bottom_idx));
     }
-    
+
     // Create triangular faces for side walls
     for (int i = 0; i < resolution; i++) {
         int next_i = (i + 1) % resolution;
@@ -114,7 +114,7 @@ void WriteCylinderVTK(const std::string& filename,
         int bottom_idx = 3 + i * 2;
         int next_top_idx = 2 + next_i * 2;
         int next_bottom_idx = 3 + next_i * 2;
-        
+
         // Each rectangular face split into two triangles
         indices.push_back(ChVector3i(top_idx, bottom_idx, next_bottom_idx));
         indices.push_back(ChVector3i(top_idx, next_bottom_idx, next_top_idx));
@@ -251,11 +251,11 @@ int main(int argc, char* argv[]) {
                         /*plate_diameter*/ 0.19,     // 19 cm
                         /*verbose*/ true,
                         /*output*/ true,
-                        /*output_fps*/ 100,
-                        /*snapshots*/ true,
+                        /*output_fps*/ 50,
+                        /*snapshots*/ false,
                         /*render*/ true,
-                        /*render_fps*/ 400,
-                        /*write_marker_files*/ false,
+                        /*render_fps*/ 50,
+                        /*write_marker_files*/ true,
                         /*mu_s*/ 0.6593,
                         /*mu_2*/ 0.6593,
                         /*cohesions*/ 0,
@@ -295,9 +295,10 @@ void SimulateMaterial(int i, const SimParams& params) {
     double max_pressure_time = 3;
     std::cout << "t_end: " << t_end << std::endl;
 
-    double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
-    double container_height = 0.010;                          // 2.4 cm since experimentally the plate reaches 0.6 cm
-    double cyl_length = container_height;                     // To prevent effect of sand falling on top of the plate
+    // double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
+    double container_diameter = 0.584 / 3;  // Plate is 20 cm in diameter
+    double container_height = 0.024;        // 2.4 cm since experimentally the plate reaches 0.6 cm
+    double cyl_length = 0.018;              // To prevent effect of sand falling on top of the plate
 
     // Create a physics system
     ChSystemSMC sysMBS;
@@ -333,6 +334,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = params.initial_spacing;
     sph_params.d0_multiplier = params.d0_multiplier;
+    sph_params.artificial_viscosity = params.artificial_viscosity;
     sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
     sph_params.shifting_xsph_eps = 0.25;
     sph_params.shifting_ppst_pull = 1.0;
@@ -435,6 +437,7 @@ void SimulateMaterial(int i, const SimParams& params) {
 
     sysFSI.AddFsiBody(plate);
     sysSPH.AddCylinderBCE(plate, ChFrame<>(VNULL, QUNIT), params.plate_diameter / 2, cyl_length, true, true);
+    sysSPH.SetOutputLevel(OutputLevel::CRM_FULL);
     sysFSI.Initialize();
 
     // Add motor to push the plate at a force that increases the pressure to max pressure in t_end
@@ -455,7 +458,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::string out_dir;
     if (params.output || params.snapshots) {
         // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1/";
+        std::string base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1_2.4cm/";
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
@@ -549,7 +552,7 @@ void SimulateMaterial(int i, const SimParams& params) {
     std::shared_ptr<ChVisualSystem> vis;
     // Create a run-time visualizer
 #ifdef CHRONO_VSG
-   auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2);
+    auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2);
     if (params.render) {
         auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(true);
@@ -601,7 +604,7 @@ void SimulateMaterial(int i, const SimParams& params) {
             if (params.write_marker_files) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                
+
                 // Write VTK file for the plate
                 std::ostringstream vtk_filename;
                 vtk_filename << out_dir << "/vtk/plate_" << std::setw(5) << std::setfill('0') << out_frame << ".vtk";

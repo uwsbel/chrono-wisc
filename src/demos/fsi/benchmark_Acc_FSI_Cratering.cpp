@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
     double t_end = 2.0;
     bool verbose = true;
     bool output = true;
-    bool write_marker_files = false;
+    bool write_marker_files = true;
     double output_fps = 400;
     bool snapshots = false;
     int ps_freq = 1;
@@ -439,6 +439,9 @@ int main(int argc, char* argv[]) {
             if (write_marker_files) {
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
+                std::stringstream vtk_filename;
+                vtk_filename << out_dir << "/vtk/sphere_" << std::setw(5) << std::setfill('0') << out_frame << ".vtk";
+                WriteSphereVTK(vtk_filename.str(), sphere, sphere_radius);
             }
             out_frame++;
         }
@@ -453,9 +456,6 @@ int main(int argc, char* argv[]) {
                 std::ostringstream filename;
                 filename << out_dir << "/snapshots/" << std::setw(5) << std::setfill('0') << render_frame << ".jpg";
                 vis->WriteImageToFile(filename.str());
-                std::stringstream vtk_filename;
-                vtk_filename << out_dir << "/vtk/sphere_" << std::setw(5) << std::setfill('0') << out_frame << ".vtk";
-                WriteSphereVTK(vtk_filename.str(), sphere, sphere_radius);
             }
 
             render_frame++;

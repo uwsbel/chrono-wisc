@@ -280,7 +280,7 @@ int main(int argc, char* argv[]) {
 
     bool verbose = true;
     bool output = true;
-    double output_fps = 100;
+    double output_fps = 400;
     bool snapshots = true;
     bool render = false;
     double render_fps = 400;
@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bool write_marker_files = false;
+    bool write_marker_files = true;
     // Print all problem specs
     std::cout << "Problem Specs:" << std::endl;
     std::cout << "t_end: " << t_end << std::endl;
