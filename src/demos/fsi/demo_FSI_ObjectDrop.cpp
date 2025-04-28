@@ -45,13 +45,13 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 //Container dimensions
-ChVector3d csize(2.2, 2.2, 1.4);
-ChVector3d fsize(2.2, 2.2, 0.99);
+ChVector3d csize(2.5, 2.5, 1.2);
+ChVector3d fsize(2.5, 2.5, 0.8);
 
 
 // Object type
 enum class ObjectShape { SPHERE_PRIMITIVE, CYLINDER_PRIMITIVE, MESH };
-ObjectShape object_shape = ObjectShape::MESH;
+ObjectShape object_shape = ObjectShape::SPHERE_PRIMITIVE;
 
 // Mesh specification (for object_shape = ObjectShape::MESH)
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
@@ -138,8 +138,8 @@ int main(int argc, char* argv[]) {
     // given initial height, compute impact velocity
 
     double impact_velocity = -sqrt(2 * std::abs(gravity.z()) * (initial_height - mesh_bottom_offset));
-    bool use_impact_velocity = false;
-    //impact_velocity = 0;  // starts the object above water surface, but set impact velocity to 0
+    bool use_impact_velocity = true;
+    impact_velocity = 0;  // starts the object above water surface, but set impact velocity to 0
 
 
     // Default parameter values
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
     double fluid_density = 998.5;
     double v_max = 8.0;
     std::string kernel_type = "wendland";
-    std::string run_tag = "dualSPH";
+    std::string run_tag = "sphere";
 
      //Parse command line arguments
     if (!GetProblemSpecs(argc, argv, viscosity_type, kernel_type, initial_spacing, d0, step_size, fluid_density, v_max, run_tag)) {
@@ -198,12 +198,7 @@ int main(int argc, char* argv[]) {
         sph_params.kernel_type = KernelType::CUBIC_SPLINE;
     }
     
-    if (viscosity_type == "laminar_arman") {
-        sph_params.viscosity_type = ViscosityType::LAMINAR;
-    } else if (viscosity_type == "laminar_dual") {
-        sph_params.viscosity_type = ViscosityType::LAMINAR;
-    } 
-
+    sph_params.viscosity_type = ViscosityType::LAMINAR;
     sph_params.shifting_method = ShiftingMethod::DIFFUSION;
     sph_params.shifting_diffusion_A = 1.;
     sph_params.shifting_diffusion_AFSM = 3.;
@@ -243,13 +238,14 @@ int main(int argc, char* argv[]) {
     geometry.materials.push_back(ChContactMaterialData());
     switch (object_shape) {
         case ObjectShape::SPHERE_PRIMITIVE: {
-            double radius = 0.15;
+            double radius = 0.15 - initial_spacing;
             density = 500;
             bottom_offset = radius;
             ChSphere sphere(radius);
             mass = density * sphere.GetVolume();
             inertia = mass * sphere.GetGyration();
             geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
+            mesh_bottom_offset = radius;
             break;
         }
         case ObjectShape::CYLINDER_PRIMITIVE: {
@@ -281,6 +277,8 @@ int main(int argc, char* argv[]) {
 
     if (use_impact_velocity) {
         body->SetPos(ChVector3d(0, 0, fsize.z() + 2 * initial_spacing + mesh_bottom_offset));
+         //body->SetPos(ChVector3d(0, 0, fsize.z() + mesh_bottom_offset));
+
         body->SetPosDt(ChVector3d(0, 0, impact_velocity));
 
     } else {
@@ -288,7 +286,6 @@ int main(int argc, char* argv[]) {
         body->SetPosDt(ChVector3d(0, 0, 0));
     }
 
-    // body->SetPos(ChVector3d(0, 0, initial_height + fsize.z()));
 
     std::cout << "capsule height " << body->GetPos().z() << std::endl;
     body->SetRot(QUNIT);
