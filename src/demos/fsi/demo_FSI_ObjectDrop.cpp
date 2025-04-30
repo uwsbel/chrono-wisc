@@ -45,8 +45,8 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 //Container dimensions
-ChVector3d csize(2.2, 2.2, 1.2);
-ChVector3d fsize(2.2, 2.2, 0.8);
+ChVector3d csize(1.0, 1.0, 1.2);
+ChVector3d fsize(1.0, 1.0, 0.8);
 
 
 // Object type
@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
     std::string viscosity_type = "laminar_dual";
     double fluid_density = 998.2;
     double v_max = 4.0;
-    std::string kernel_type = "wendland";
+    std::string kernel_type = "cubic_spline";
     std::string run_tag = "sphere";
 
      //Parse command line arguments
@@ -388,7 +388,7 @@ int main(int argc, char* argv[]) {
     //                                            viscosity_type,
     //                                            run_tag) + "/";
 
-    std::string out_dir = "ObjectDrop_" + run_tag + "_spacing_1e-2_vmax4/";
+    std::string out_dir = "ObjectDrop_" + run_tag + "_cubic_spline/";
 
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
