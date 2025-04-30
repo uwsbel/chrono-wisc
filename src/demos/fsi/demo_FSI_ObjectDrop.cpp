@@ -45,8 +45,8 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 //Container dimensions
-ChVector3d csize(2.5, 2.5, 1.2);
-ChVector3d fsize(2.5, 2.5, 0.8);
+ChVector3d csize(2.2, 2.2, 1.2);
+ChVector3d fsize(2.2, 2.2, 0.8);
 
 
 // Object type
@@ -130,10 +130,10 @@ bool GetProblemSpecs(int argc,
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double t_end = 5.0;             // simulation duration
+    double t_end = 2;             // simulation duration
     bool output = true;
-    double output_fps = 20;
-    const ChVector3d gravity(0, 0, -9.8);
+    double output_fps = 5;
+    const ChVector3d gravity(0, 0, -9.82);
 
     // given initial height, compute impact velocity
 
@@ -143,12 +143,12 @@ int main(int argc, char* argv[]) {
 
 
     // Default parameter values
-    double initial_spacing = 0.015;  // initial spacing between SPH particles
-    double step_size = 2e-5;      // integration step size
+    double initial_spacing = 0.01;  // initial spacing between SPH particles
+    double step_size = 4e-5;      // integration step size
     double d0 = 1.5;
     std::string viscosity_type = "laminar_dual";
-    double fluid_density = 998.5;
-    double v_max = 8.0;
+    double fluid_density = 998.2;
+    double v_max = 4.0;
     std::string kernel_type = "wendland";
     std::string run_tag = "sphere";
 
@@ -238,12 +238,16 @@ int main(int argc, char* argv[]) {
     geometry.materials.push_back(ChContactMaterialData());
     switch (object_shape) {
         case ObjectShape::SPHERE_PRIMITIVE: {
-            double radius = 0.15 - initial_spacing;
+            double radius = 0.15;
             density = 500;
             bottom_offset = radius;
             ChSphere sphere(radius);
+            mass = 7.056;
+            std::cout << "density " << density << std::endl;
+            std::cout << "volume " << sphere.GetVolume() << std::endl;
             mass = density * sphere.GetVolume();
             inertia = mass * sphere.GetGyration();
+
             geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
             mesh_bottom_offset = radius;
             break;
@@ -287,7 +291,8 @@ int main(int argc, char* argv[]) {
     }
 
 
-    std::cout << "capsule height " << body->GetPos().z() << std::endl;
+    std::cout << "object height " << body->GetPos().z() << std::endl;
+    std::cout << "object mass " << mass << std::endl;   
     body->SetRot(QUNIT);
     body->SetMass(mass);
     body->SetInertia(inertia);
@@ -339,7 +344,7 @@ int main(int argc, char* argv[]) {
 
     // last wall ... 
     geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
-        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
+        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
         ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing,
                    wall_thickness),
         0));
@@ -383,7 +388,7 @@ int main(int argc, char* argv[]) {
     //                                            viscosity_type,
     //                                            run_tag) + "/";
 
-    std::string out_dir = "ObjectDrop_" + run_tag + "_newcode/";
+    std::string out_dir = "ObjectDrop_" + run_tag + "_spacing_1e-2_vmax4/";
 
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
