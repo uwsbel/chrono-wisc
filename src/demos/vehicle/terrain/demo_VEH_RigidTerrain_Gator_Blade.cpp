@@ -69,12 +69,18 @@ double terrain_length = 10*5;
 double terrain_width = 4*5;
 
 // Vehicle initial position
-double vehicle_init_x = -2.0;
+double vehicle_init_x = 0;
 double vehicle_init_y = 0;
 double vehicle_init_z = 0.5;
 
 // Suspend vehicle
 bool fix_chassis = false;
+
+// Target positions
+double target_forward_x = 5.0;  // Forward target
+double target_backward_x = -5.0;  // Backward target
+double target_y = 0;
+double target_z = 0.5;
 
 // Control command structure
 struct ControlCommand {
@@ -84,6 +90,16 @@ struct ControlCommand {
     double blade_pitch;
     double blade_vertical;
     double throttle;
+};
+
+// Vehicle movement state
+enum class VehicleState {
+    FORWARD_TO_POSITIVE,
+    WAIT_AT_POSITIVE,
+    BACKWARD_TO_NEGATIVE,
+    WAIT_AT_NEGATIVE,
+    FORWARD_TO_POSITIVE_AGAIN,
+    REACHED_DESTINATION
 };
 
 // ===================================================================================================================
@@ -101,8 +117,8 @@ int main(int argc, char* argv[]) {
     // Problem settings
     // ----------------
 
-    double target_speed = 1.0;
-    double tend = 10;
+    double target_speed = 0.5;  // Will be negated for reverse movement
+    double tend = 100;          // Simulation time
     bool verbose = true;
 
     // Visualization settings
@@ -120,6 +136,9 @@ int main(int argc, char* argv[]) {
     if (!LoadControlScheduleFromFile(vehicle::GetDataFile("ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
         return 1;  // Exit if loading failed
     }
+
+    // Initialize vehicle state - start directly in reverse mode
+    VehicleState vehicle_state = VehicleState::FORWARD_TO_POSITIVE;
 
     // --------------
     // Create vehicle
@@ -172,18 +191,23 @@ int main(int argc, char* argv[]) {
                                  true);                              // Visualization enabled
     
     // Create a texture for the terrain
-    patch->SetColor(ChColor(0.8f, 0.8f, 0.5f));
-    patch->SetTexture(GetChronoDataFile("textures/dirt.jpg"), 200, 200);
+    patch->SetColor(ChColor(0.5f, 0.5f, 0.5f));
+    // patch->SetTexture(GetChronoDataFile("textures/dirt.jpg"), 200, 200);
 
     // Initialize the terrain
     terrain.Initialize();
     
-    // Create the driver
+    // ------------------------------------
+    // Create path and path following driver
+    // ------------------------------------
+    
     ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    cout << "Create driver..." << endl;
-    ChDriver driver(vehicle->GetVehicle());
-    driver.Initialize();
-
+    
+    cout << "Using manual driving controls..." << endl;
+    
+    // Set forward gear initially
+    vehicle->GetVehicle().GetTransmission()->SetGear(1);
+    
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
@@ -223,7 +247,7 @@ int main(int argc, char* argv[]) {
                 auto vis_vsg = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
                 vis_vsg->SetWindowTitle("Gator Rigid Terrain Demo");
                 vis_vsg->AttachVehicle(&vehicle_ptr);
-                vis_vsg->SetChaseCamera(ChVector3d(0.0, 0.0, 1.75), 6.0, 0.5);
+                vis_vsg->SetChaseCamera(ChVector3d(0.0, 0.0, 1.75), 10.0, 0.5);
                 vis_vsg->SetWindowSize(ChVector2i(1200, 800));
                 vis_vsg->SetWindowPosition(ChVector2i(100, 300));
                 vis_vsg->SetUseSkyBox(true);
@@ -252,22 +276,125 @@ int main(int argc, char* argv[]) {
     // Enable realtime mode
     vehicle->GetVehicle().EnableRealtime(true);
     
-    while (time < tend) {
-        // Set current driver inputs
-        ControlCommand current_cmd = GetControlForTime(time, control_schedule);
-        driver.SetThrottle(current_cmd.throttle);
-        driver.SetSteering(0.0);  // or set based on current_cmd if desired
+    // Set initial vehicle state and time trackers
+    double state_change_time = 0;
 
-        // Update blade controls
-        motor_yaw->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_yaw));
-        motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_pitch));
-        motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_vertical));
-
-        auto driver_inputs = driver.GetInputs();
+    // Display initial state
+    cout << "Moving vehicle FORWARD to position X = " << target_forward_x << endl;
+    
+    while (time < 100) {
+        // Get current vehicle position
+        ChVector3d vehicle_pos = vehicle->GetChassisBody()->GetPos();
+        
+        // State machine to control vehicle movement
+        DriverInputs driver_inputs;
+        
+        switch (vehicle_state) {
+            case VehicleState::FORWARD_TO_POSITIVE: {
+                // Moving forward to positive X position
+                double dist_to_target = (vehicle_pos - ChVector3d(target_forward_x, target_y, target_z)).Length();
+                
+                if (dist_to_target < 0.5) {
+                    // Target reached
+                    cout << "Reached forward target at X = " << target_forward_x << " at time " << time << endl;
+                    vehicle_state = VehicleState::WAIT_AT_POSITIVE;
+                    state_change_time = time;
+                    
+                    // Apply brakes
+                    driver_inputs.m_braking = 1.0;
+                    driver_inputs.m_throttle = 0.0;
+                } else {
+                    // Manual driving inputs - forward movement
+                    driver_inputs.m_throttle = 0.3;
+                    driver_inputs.m_steering = 0.0;
+                    driver_inputs.m_braking = 0.0;
+                }
+                break;
+            }
+                
+            case VehicleState::WAIT_AT_POSITIVE: {
+                // Waiting at positive X
+                driver_inputs.m_braking = 1.0;
+                driver_inputs.m_throttle = 0.0;
+                
+                if (time - state_change_time >= 2.5) {
+                    cout << "Wait complete at X = " << target_forward_x << ", now moving BACKWARD to X = " << target_backward_x << endl;
+                    vehicle_state = VehicleState::BACKWARD_TO_NEGATIVE;
+                    
+                    // Switch to reverse gear
+                    vehicle->GetVehicle().GetTransmission()->SetGear(-1);
+                }
+                break;
+            }
+                
+            case VehicleState::BACKWARD_TO_NEGATIVE: {
+                // Moving backward to negative X position
+                double dist_to_target = (vehicle_pos - ChVector3d(target_backward_x, target_y, target_z)).Length();
+                
+                if (dist_to_target < 0.5) {
+                    // Target reached
+                    cout << "Reached backward target at X = " << target_backward_x << " at time " << time << endl;
+                    vehicle_state = VehicleState::WAIT_AT_NEGATIVE;
+                    state_change_time = time;
+                    
+                    // Apply brakes
+                    driver_inputs.m_braking = 1.0;
+                    driver_inputs.m_throttle = 0.0;
+                } else {
+                    // Manual driving inputs - backward movement
+                    driver_inputs.m_throttle = 0.1;
+                    driver_inputs.m_steering = 0.0;
+                    driver_inputs.m_braking = 0.0;
+                }
+                break;
+            }
+                
+            case VehicleState::WAIT_AT_NEGATIVE: {
+                // Waiting at negative X
+                driver_inputs.m_braking = 1.0;
+                driver_inputs.m_throttle = 0.0;
+                
+                if (time - state_change_time >= 2.5) {
+                    cout << "Wait complete at X = " << target_backward_x << ", now moving FORWARD to X = " << target_forward_x << endl;
+                    vehicle_state = VehicleState::FORWARD_TO_POSITIVE_AGAIN;
+                    
+                    // Switch to forward gear
+                    vehicle->GetVehicle().GetTransmission()->SetGear(1);
+                }
+                break;
+            }
+                
+            case VehicleState::FORWARD_TO_POSITIVE_AGAIN: {
+                // Moving forward to positive X position again
+                double dist_to_target = (vehicle_pos - ChVector3d(target_forward_x, target_y, target_z)).Length();
+                
+                if (dist_to_target < 0.5) {
+                    // Target reached
+                    cout << "Reached final target at X = " << target_forward_x << " at time " << time << endl;
+                    vehicle_state = VehicleState::REACHED_DESTINATION;
+                    
+                    // Apply brakes
+                    driver_inputs.m_braking = 1.0;
+                    driver_inputs.m_throttle = 0.0;
+                } else {
+                    // Manual driving inputs - forward movement
+                    driver_inputs.m_throttle = 0.3;
+                    driver_inputs.m_steering = 0.0;
+                    driver_inputs.m_braking = 0.0;
+                }
+                break;
+            }
+                
+            case VehicleState::REACHED_DESTINATION: {
+                // Final destination reached - keep brakes applied
+                driver_inputs.m_braking = 1.0;
+                driver_inputs.m_throttle = 0.0;
+                break;
+            }
+        }
 
         // Run-time visualization
         if (render && vis && time >= render_frame / render_fps) {
-            
             vis->BeginScene();
             vis->Render();
             vis->EndScene();
@@ -276,14 +403,12 @@ int main(int argc, char* argv[]) {
         }
 
         // Synchronize systems
-        driver.Synchronize(time);
         terrain.Synchronize(time);
         vehicle->Synchronize(time, driver_inputs, terrain);
         if (vis)
             vis->Synchronize(time, driver_inputs);
 
         // Advance system states
-        driver.Advance(step_size);
         vehicle->Advance(step_size);
         terrain.Advance(step_size);
         if (vis)
