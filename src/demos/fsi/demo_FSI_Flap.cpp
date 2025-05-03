@@ -75,7 +75,7 @@ bool output = true;
 double output_fps = 10;
 
 // write info frequency
-double csv_fps = 200;
+double csv_fps = 100;
 
 // Enable/disable run-time visualization
 bool render = false;
@@ -430,9 +430,8 @@ int main(int argc, char* argv[]) {
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
 
     // Create a wave tank
-    // double stroke = 0.1;  //
     // double stroke = 0.1;
-    double stroke = 0.06;
+    double stroke = 0.2;
     double frequency = 1 / period;
     auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, frequency);
 
@@ -450,7 +449,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "FSI_Flap_wendland_spacing_5e-3_dt_2e-5_pto_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
+        GetChronoOutputPath() + "FSI_Flap_stroke_20cm_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -550,13 +549,13 @@ int main(int argc, char* argv[]) {
     ofile << "time,Fx,Fy,Fz,angle,angle_dt,pto_power" << std::endl;
 
     while (time < t_end) {
-        if (output && time >= out_frame / output_fps) {
-            if (verbose)
-                cout << " -- Output frame " << out_frame << " at t = " << time << endl;
-            fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
-            printf("write file: %s\n", (out_dir + "/fsi").c_str());
-            out_frame++;
-        }
+        //if (output && time >= out_frame / output_fps) {
+        //    if (verbose)
+        //        cout << " -- Output frame " << out_frame << " at t = " << time << endl;
+        //    fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
+        //    printf("write file: %s\n", (out_dir + "/fsi").c_str());
+        //    out_frame++;
+        //}
 
         if (output && time >= csv_frame / csv_fps) {
             // get the reaction force

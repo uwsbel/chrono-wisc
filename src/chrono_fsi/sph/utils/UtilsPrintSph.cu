@@ -342,11 +342,16 @@ void saveParticleDataCRM(const std::string& dir,
     frame++;
 
     // Start printing in a separate thread and detach the thread to allow independent execution
-    std::thread th(SaveAllCRM,                                       //
-                   dir, frame, level,                                //
-                   pos, vel, acc, rhoPresMu, tau_normal, tau_shear,  //
-                   referenceArray, referenceArrayFEA);               //
-    th.detach();
+    //std::thread th(SaveAllCRM,                                       //
+    //               dir, frame, level,                                //
+    //               pos, vel, acc, rhoPresMu, tau_normal, tau_shear,  //
+    //               referenceArray, referenceArrayFEA);               //
+    //th.detach();
+
+
+     SaveAllCRM(dir, frame, level,                                //
+                pos, vel, acc, rhoPresMu, tau_normal, tau_shear,  //
+                referenceArray, referenceArrayFEA);               //
 }
 
 // -----------------------------------------------------------------------------
