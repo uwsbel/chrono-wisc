@@ -44,6 +44,7 @@ if(CH_ENABLE_MODULE_FSI)
         demo_VEH_CRMTerrain_Gator
         demo_VEH_CRMTerrain_Gator_Blade
         demo_VEH_RigidTerrain_Gator_Blade
+        demo_VEH_CRMTerrain_Gator_LevelTwice
         )
 endif()
 
