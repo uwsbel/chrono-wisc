@@ -280,12 +280,13 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
     ChVector3d bottom_panel_size(bottom_panel_thickness, window_width - initial_spacing * 2, bottom_panel_height);
     ChVector3d mini_window_size;
     // mini window size all the same! 0 angle is when the windows are closed
-    //if (mini_window_angle > 0 && mini_window_angle < CH_PI_2)
-        mini_window_size = ChVector3d(mini_window_rb * 2, window_width - 2 * initial_spacing,
-                                      mini_window_height - 4 * initial_spacing);
-    //else
-    //    mini_window_size =
-    //        ChVector3d(mini_window_rb * 2, window_width - 2 * initial_spacing, mini_window_height - initial_spacing);
+    if (mini_window_angle < 1e-4) {
+		mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
+            									  mini_window_height - initial_spacing);
+	} else {
+		mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
+            									  mini_window_height - 4 * initial_spacing);
+	}
 
     ChVector3d mini_window_pos(0, 0, bottom_panel_height + mini_window_height / 2);
 
