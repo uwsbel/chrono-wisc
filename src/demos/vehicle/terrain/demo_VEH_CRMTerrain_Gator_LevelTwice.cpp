@@ -430,6 +430,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Create a second directory for saving data at the negative position
+    const std::string intermediate_data_dir = out_dir + "/intermediate_data";
+    try {
+        std::filesystem::create_directories(intermediate_data_dir);
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cout << "Error creating directory for intermediate position data: " << e.what() << std::endl;
+    }
+
     std::ofstream csv_file(out_dir + "/vehicle_data.csv");
     if (!csv_file.is_open()) {
         std::cerr << "Error: Could not create CSV file"  << std::endl;
@@ -536,6 +544,14 @@ int main(int argc, char* argv[]) {
                 driver_inputs.m_throttle = 0.0;
                 driver_inputs.m_braking = 1.0; // Brakes on
                 motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(0.0));
+
+                // Save SPH data at the beginning of WAIT_AT_NEGATIVE state
+                static bool saved_at_negative = false;
+                if (!saved_at_negative) {
+                    sysFSI.GetFluidSystemSPH().SaveParticleData(intermediate_data_dir);
+                    cout << "Particle data saved at intermediate position to " << intermediate_data_dir << endl;
+                    saved_at_negative = true;
+                }
 
                 if (time >= t_back + 1.0) {
                     if (verbose) cout << "Transition: WAIT_AT_NEGATIVE -> FORWARD_TO_POSITIVE_AGAIN" << endl;

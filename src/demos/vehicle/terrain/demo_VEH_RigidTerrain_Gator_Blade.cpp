@@ -221,6 +221,12 @@ int main(int argc, char* argv[]) {
         vis_type = ChVisualSystem::Type::VSG;
 #endif
 
+    // If neither visualization system is available, disable rendering
+    #if !defined(CHRONO_VSG) && !defined(CHRONO_IRRLICHT)
+        render = false;
+        std::cout << "Neither VSG nor Irrlicht visualization available. Rendering disabled." << std::endl;
+    #endif
+
     std::shared_ptr<ChVehicleVisualSystem> vis;
     
     if (render) {
