@@ -42,12 +42,7 @@
 
 #ifdef CHRONO_VSG
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
-using namespace chrono::vsg3d;
-#endif
-
-#ifdef CHRONO_IRRLICHT
-    #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
-using namespace chrono::irrlicht;
+    using namespace chrono::vsg3d;
 #endif
 
 #include "demos/SetChronoSolver.h"
@@ -61,8 +56,10 @@ using std::endl;
 
 // ===================================================================================================================
 
+#ifdef CHRONO_VSG
 // Run-time visualization system (OpenGL or VSG)
 ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
+#endif
 
 // Terrain dimensions
 double terrain_length = 10*5;
@@ -211,44 +208,16 @@ int main(int argc, char* argv[]) {
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
-    
-#ifndef CHRONO_VSG
-    if (vis_type == ChVisualSystem::Type::VSG)
-        vis_type = ChVisualSystem::Type::IRRLICHT;
-#endif
-#ifndef CHRONO_IRRLICHT
-    if (vis_type == ChVisualSystem::Type::IRRLICHT)
-        vis_type = ChVisualSystem::Type::VSG;
-#endif
 
-    // If neither visualization system is available, disable rendering
-    #if !defined(CHRONO_VSG) && !defined(CHRONO_IRRLICHT)
-        render = false;
-        std::cout << "Neither VSG nor Irrlicht visualization available. Rendering disabled." << std::endl;
-    #endif
-
+#ifdef CHRONO_VSG
     std::shared_ptr<ChVehicleVisualSystem> vis;
     
     if (render) {
+        // Simplified to only handle VSG or default to it
+        // The switch statement might seem redundant now but kept for structure
         switch (vis_type) {
-            case ChVisualSystem::Type::IRRLICHT: {
-#ifdef CHRONO_IRRLICHT
-                // Create the vehicle Irrlicht interface
-                auto vis_irr = chrono_types::make_shared<ChWheeledVehicleVisualSystemIrrlicht>();
-                vis_irr->SetWindowTitle("Gator Rigid Terrain Demo");
-                vis_irr->SetChaseCamera(ChVector3d(0.0, 0.0, 1.75), 6.0, 0.5);
-                vis_irr->Initialize();
-                vis_irr->AddLightDirectional();
-                vis_irr->AddSkyBox();
-                vis_irr->AddLogo();
-                vis_irr->AttachVehicle(&vehicle_ptr);
-                vis = vis_irr;
-#endif
-                break;
-            }
-            default:
+            default: // Defaulting to VSG
             case ChVisualSystem::Type::VSG: {
-#ifdef CHRONO_VSG
                 // Create the vehicle VSG interface
                 auto vis_vsg = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
                 vis_vsg->SetWindowTitle("Gator Rigid Terrain Demo");
@@ -263,11 +232,15 @@ int main(int argc, char* argv[]) {
                 vis_vsg->SetShadows(true);
                 vis_vsg->Initialize();
                 vis = vis_vsg;
-#endif
                 break;
             }
         }
     }
+#else
+    // If VSG is not available, disable rendering
+    render = false;
+    std::cout << "VSG visualization not available. Rendering disabled." << std::endl;
+#endif
 
     // ---------------
     // Simulation loop
@@ -399,6 +372,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+#ifdef CHRONO_VSG
         // Run-time visualization
         if (render && vis && time >= render_frame / render_fps) {
             vis->BeginScene();
@@ -407,18 +381,23 @@ int main(int argc, char* argv[]) {
             
             render_frame++;
         }
+#endif
 
         // Synchronize systems
         terrain.Synchronize(time);
         vehicle->Synchronize(time, driver_inputs, terrain);
+#ifdef CHRONO_VSG
         if (vis)
             vis->Synchronize(time, driver_inputs);
+#endif
 
         // Advance system states
         vehicle->Advance(step_size);
         terrain.Advance(step_size);
+#ifdef CHRONO_VSG
         if (vis)
             vis->Advance(step_size);
+#endif
 
         time += step_size;
         sim_frame++;
