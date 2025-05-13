@@ -186,8 +186,8 @@ int main(int argc, char* argv[]) {
     cout << "pile_max_height: " << pile_max_height << endl;
 
     std::vector<std::array<double, 2>> blade_pv_setpoints;
-    // std::string blade_pv_filename = vehicle::GetDataFile("ctrl_cmds_leveltwice/cmd" + std::to_string(exp_index) + ".txt");
-    std::string blade_pv_filename = "/home/harry/control_command.txt";
+    std::string blade_pv_filename = vehicle::GetDataFile("seq_cmd/cmd" + std::to_string(exp_index) + ".txt");
+    // std::string blade_pv_filename = "/home/harry/control_command.txt";
     if (!LoadBladePvControlData(blade_pv_filename, blade_pv_setpoints)) {
         std::cerr << "Warning: Could not load blade P,V control data. Blade pitch/vertical will rely solely on the original schedule." << std::endl;
         // Program can continue, blade_pv_setpoints will be empty, and overrides won't happen.
