@@ -28,7 +28,6 @@
 #include <sstream> // For std::istringstream
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
-
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/physics/ChBodyEasy.h"
@@ -73,26 +72,15 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::HEIGHT_MAP;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 11;
-double terrain_width = 5;
+double terrain_length = 10;
+double terrain_width = 4;
 
 // Vehicle initial position
 double vehicle_init_x = -2.0;
 double vehicle_init_y = 0;
 double vehicle_init_z = 0.3;
 double vehicle_back_x = -2.0; 
-// Suspend vehicle
-bool fix_chassis = false;
 
-// ===================================================================================================================
-struct ControlCommand {
-    double start_time;
-    double end_time;
-    double blade_yaw;
-    double blade_pitch;
-    double blade_vertical;
-    double throttle;
-};
 // Vehicle movement state
 enum class VehicleState {
     FORWARD_TO_POSITIVE,
@@ -100,11 +88,9 @@ enum class VehicleState {
     BACKWARD_TO_NEGATIVE,
     WAIT_AT_NEGATIVE,
     FORWARD_TO_POSITIVE_AGAIN,
-    REACHED_DESTINATION
 };
 
-std::vector<ControlCommand> control_schedule;
-
+// Forward declarations for helper functions
 std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorRotationAngle>, std::shared_ptr<ChLinkMotorLinearPosition>> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain);
 void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain);
@@ -113,12 +99,14 @@ bool LoadBladePvControlData(const std::string& filename, std::vector<std::array<
 bool GetProblemSpecs(int argc,
                      char** argv,
                      double& pile_max_height,
-                     int& exp_index) {
-    ChCLI cli(argv[0], "Soil Leveling Gator Configuration");
+                     std::string& push_seq,
+                     std::vector<double>& veh_init_state) {
+    ChCLI cli(argv[0], "Soil Leveling Validation Configuration");
 
     // Add options for all parameters with their default values
     cli.AddOption<double>("Terrain", "pile_height", "Maximum pile height", std::to_string(pile_max_height));
-    cli.AddOption<int>("Experiment", "exp_index", "experiment counter", std::to_string(exp_index));
+    cli.AddOption<std::string>("Vehicle", "push_seq", "Push sequence (firstpush/secondpush)", "firstpush");
+    cli.AddOption<std::vector<double>>("Vehicle", "veh_init_state", "Vehicle initial state [x,y,z,qw,qx,qy,qz]", "{-2.0,0.0,0.3,1.0,0.0,0.0,0.0}");
 
     // Display help if no arguments
     if (argc == 1) {
@@ -135,7 +123,20 @@ bool GetProblemSpecs(int argc,
 
     // Retrieve values from CLI
     pile_max_height = cli.GetAsType<double>("pile_height");
-    exp_index = cli.GetAsType<int>("exp_index");
+    push_seq = cli.GetAsType<std::string>("push_seq");
+    veh_init_state = cli.GetAsType<std::vector<double>>("veh_init_state");
+
+    // Validate push sequence
+    if (push_seq != "firstpush" && push_seq != "secondpush") {
+        std::cerr << "Error: push_seq must be either 'firstpush' or 'secondpush'" << std::endl;
+        return false;
+    }
+
+    // Validate vehicle initial state vector
+    if (veh_init_state.size() != 7) {
+        std::cerr << "Error: veh_init_state must be a 7-element vector [x,y,z,qw,qx,qy,qz]" << std::endl;
+        return false;
+    }
 
     return true;
 }
@@ -176,21 +177,20 @@ int main(int argc, char* argv[]) {
 
     // Process command-line parameters
     double pile_max_height = 0.3;
-    int exp_index = 0;
+    std::string push_seq;
+    std::vector<double> veh_init_state;
 
-    // Parameters for the run - default values
-    std::vector<ControlCommand> control_schedule;
-    if (!GetProblemSpecs(argc, argv, pile_max_height, exp_index)) {
+    if (!GetProblemSpecs(argc, argv, pile_max_height, push_seq, veh_init_state)) {
         return 1;
     }
     cout << "pile_max_height: " << pile_max_height << endl;
+    cout << "push_seq: " << push_seq << endl;
 
     std::vector<std::array<double, 2>> blade_pv_setpoints;
-    std::string blade_pv_filename = vehicle::GetDataFile("seq_cmd/cmd" + std::to_string(exp_index) + ".txt");
-    // std::string blade_pv_filename = "/home/harry/control_command.txt";
+    std::string blade_pv_filename = "/home/harry/AutoGrading/data/control_commands/" + std::to_string(pile_max_height) + "_" + push_seq + ".txt";
     if (!LoadBladePvControlData(blade_pv_filename, blade_pv_setpoints)) {
         std::cerr << "Warning: Could not load blade P,V control data. Blade pitch/vertical will rely solely on the original schedule." << std::endl;
-        // Program can continue, blade_pv_setpoints will be empty, and overrides won't happen.
+        return 1;
     }
 
     VehicleState vehicle_state = VehicleState::FORWARD_TO_POSITIVE;
@@ -201,16 +201,21 @@ int main(int argc, char* argv[]) {
     // Create vehicle
     // --------------
 
-    // TODO: add heading angle to the vehicle initialization
-    auto init_heading = QuatFromAngleZ(0.0f);
+    ChCoordsys<> init_pos;
+    if (push_seq == "firstpush") {
+        init_pos = ChCoordsys<>(ChVector3d(-2.0, 0.0, 0.3), QuatFromAngleZ(0.0f));
+    } else { // secondpush
+        ChVector3d pos(veh_init_state[0], veh_init_state[1], veh_init_state[2]);
+        ChQuaternion<> rot(veh_init_state[3], veh_init_state[4], veh_init_state[5], veh_init_state[6]);
+        init_pos = ChCoordsys<>(pos, rot);
+    }
 
     cout << "Create vehicle..." << endl;
     bool fea_tires;
-    auto [vehicle, blade, motor_yaw, motor_pitch, motor_vertical] = CreateVehicle(ChCoordsys<>(ChVector3d(vehicle_init_x, vehicle_init_y, vehicle_init_z), init_heading), fea_tires);
+    auto [vehicle, blade, motor_yaw, motor_pitch, motor_vertical] = CreateVehicle(init_pos, fea_tires);
     cout << "Finished creating vehicle"<< endl;
     auto sysMBS = vehicle->GetSystem();
 
-    //motor_vertmove->SetMotionFunction(consfun);
     // ---------------------------------
     // Set solver and integrator for MBD
     // ---------------------------------
@@ -224,7 +229,7 @@ int main(int argc, char* argv[]) {
         solver_type = ChSolver::Type::PARDISO_MKL;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
-        step_size = 5e-4; // 5e-4
+        step_size = 5e-4;
         solver_type = ChSolver::Type::BARZILAIBORWEIN;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     }
@@ -289,35 +294,32 @@ int main(int argc, char* argv[]) {
     
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
     terrain.SetActiveDomainDelay(settling_time);
+
     // Construct the terrain and associated path
     cout << "Create terrain..." << endl;
     switch (patch_type) {
         case PatchType::RECTANGULAR:
-            // Create a rectangular terrain patch
-            terrain.Construct({terrain_length, terrain_width, 0.25},  // length X width X height
-                              ChVector3d(0, 0, 0),   // patch center
-                              BoxSide::ALL & ~BoxSide::Z_POS          // all boundaries, except top
+            terrain.Construct({terrain_length, terrain_width, 0.25},
+                              ChVector3d(0, 0, 0),
+                              BoxSide::ALL & ~BoxSide::Z_POS
             );
             break;
         case PatchType::HEIGHT_MAP:
-            // Create a patch from a heigh field map image
-            terrain.Construct(vehicle::GetDataFile("terrain/gator/wide_terrain.bmp"),   // height map image file
-                              terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, pile_max_height},                                                // height range
-                              0.45,                                                     // depth 0.45
-                              true,                                                    // uniform depth
-                              ChVector3d(0.5, 0, 0),                                     // patch center
-                              BoxSide::Z_NEG                                           // bottom wall
+            terrain.Construct(vehicle::GetDataFile("terrain/gator/terrain.bmp"),
+                              terrain_length, terrain_width,
+                              {0, pile_max_height},
+                              0.45,
+                              true,
+                              ChVector3d(0, 0, 0),
+                              BoxSide::Z_NEG
             );
             break;
         case PatchType::MARKER_DATA:
-            // Create a patch using SPH particles and BCE markers from files
-            terrain.Construct(vehicle::GetDataFile("terrain/sph/S-lane_RMS/sph_particles.txt"),  // SPH marker locations
-                              vehicle::GetDataFile("terrain/sph/S-lane_RMS/bce_markers.txt"),    // BCE marker locations
+            terrain.Construct(vehicle::GetDataFile("terrain/sph/S-lane_RMS/sph_particles.txt"),
+                              vehicle::GetDataFile("terrain/sph/S-lane_RMS/bce_markers.txt"),
                               VNULL);
             break;
     }
-
 
     // Initialize the terrain system
     terrain.Initialize();
@@ -330,29 +332,16 @@ int main(int argc, char* argv[]) {
     // Set maximum vehicle X location (based on CRM patch size)
     double x_max = aabb.max.x() - 4.5;
 
-
-
     // --------------------------------
-    // Create the driver (Path follower)
+    // Create the driver
     // --------------------------------
-
-    // ChDriver driver(vehicle->GetVehicle());
-    ChWheeledVehicle& vehicle_ptr = vehicle->GetVehicle();
-    // std::shared_ptr<ChBezierCurve> path = CreatePath("terrain/gator/wpts_data/wpts.txt");
-    cout << "Path created (main)" << endl;
     cout << "Create driver..." << endl;
-    // ChPathFollowerDriver driver(vehicle_ptr, path, "my_path", target_speed);
-    // driver.GetSteeringController().SetLookAheadDistance(2.0);
-    // driver.GetSteeringController().SetGains(0.1, 0.5, 0);
-    // driver.GetSpeedController().SetGains(0.6, 0.0, 0);
     ChDriver driver(vehicle->GetVehicle());
     driver.Initialize();
 
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
-
-
 #if defined(CHRONO_OPENGL) || defined(CHRONO_VSG)
     #ifndef CHRONO_OPENGL
         if (vis_type == ChVisualSystem::Type::OpenGL)
@@ -393,7 +382,7 @@ int main(int argc, char* argv[]) {
                                                                                             aabb.min.z(), aabb.max.z()));
             auto vis_vsg = std::dynamic_pointer_cast<ChFsiVisualizationVSG>(visFSI);
             if (vis_vsg) {
-                vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
+                vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
             }
             visFSI->AttachSystem(sysMBS);
             visFSI->AddCamera(ChVector3d(2, -4, .5), ChVector3d(2, 4, 0));
@@ -408,24 +397,19 @@ int main(int argc, char* argv[]) {
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
-    int control_steps = 100;
-    int control_step = 0;
     bool saveframes = true;
     cout << "Start simulation..." << endl;
     
-    // Create CSV file for logging vehicle data with parameter text
-    const std::string out_dir = GetChronoOutputPath() +std::to_string(pile_max_height)+ "/soil_leveling_" + std::to_string(exp_index);
-    // Create directory with proper error checking and recursive flag
+    // Create CSV file for logging vehicle data
+    const std::string out_dir = GetChronoOutputPath() + std::to_string(pile_max_height) + "/soil_leveling_" + push_seq;
     if (!std::filesystem::exists(out_dir)) {
         try {
             std::filesystem::create_directories(out_dir);
         } catch (const std::filesystem::filesystem_error& e) {
             std::cout << "Error creating directory: " << e.what() << std::endl;
-            // Create a fallback directory in the current working directory
             const std::string fallback_dir = "./soil_leveling_output";
             std::cout << "Attempting to use fallback directory: " << fallback_dir << std::endl;
             std::filesystem::create_directories(fallback_dir);
-            // Use the fallback directory instead
             const_cast<std::string&>(out_dir) = fallback_dir;
         }
     }
@@ -435,167 +419,129 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: Could not create CSV file"  << std::endl;
         return 1;
     }
-    csv_file << "time,x,y,z,steering,throttle,front_load,roll,pitch,yaw,bx,by,bz,bpitch,broll,byaw, veh_rpm, veh_tq\n";
+    csv_file << "time,x,y,z,rot_x,rot_y,rot_z,rot_w,steering,throttle,bx,by,bz,bpitch,broll,byaw\n";
 
     ChTimer timer;
     bool saved_particle = false;
-    int end_output_frame = (tend-0.5)/step_size;
-    cout << "End output frame: " << end_output_frame << endl;
-    while (time < tend) {
+    bool simulation_complete = false;
+
+    while (time < tend && !simulation_complete) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
         auto veh_speed = vehicle->GetVehicle().GetSpeed();
-        const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
+        const auto& veh_rot = vehicle->GetVehicle().GetRot();
         auto front_load = blade->GetAppliedForce();
         const auto& blade_loc = vehicle->GetChassisBody()->TransformPointParentToLocal(blade->GetPos());
         const auto& blade_rot = blade->GetRot().GetCardanAnglesZYX();
         auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
         auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
-        //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
-        
 
         DriverInputs driver_inputs;
 
-        // motor_yaw->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_yaw));
-        // motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_pitch));
-        // motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(current_cmd.blade_vertical));
-
-        // apply the throttle to the vehicle
-        // State machine to control vehicle movement based on new logic
+        // State machine to control vehicle movement
         switch (vehicle_state) {
             case VehicleState::FORWARD_TO_POSITIVE: {
-                // Active from time 0s to 5s
                 if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: FORWARD_TO_POSITIVE" << endl;
-                driver_inputs.m_throttle = 1.0; // Forward throttle
-                driver_inputs.m_steering = blade_pv_setpoints[4][0]; // Use first steering value from 5th row
+                driver_inputs.m_throttle = 1.0;
                 driver_inputs.m_braking = 0.0;
-                vehicle->GetVehicle().GetTransmission()->SetGear(1); // Ensure forward gear
+                vehicle->GetVehicle().GetTransmission()->SetGear(1);
                 
-                // based on time set motor angles:
-                if (time > 1.0 && time < 3.5){
+                if (time > 1.0 && time < 3.5) {
                     motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[0][0]));
                     motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[0][1]));
                 }
-                else if (time > 3.5 && time < 6.0){
+
+                else if (time > 3.5 && time < 6.0) {
                     motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[1][0]));
                     motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[1][1]));
                 }
+
                 if (time >= 6.0 || veh_loc.x() >= 2.5) {
                     if (verbose) cout << "Transition: FORWARD_TO_POSITIVE -> WAIT_AT_POSITIVE" << endl;
                     vehicle_state = VehicleState::WAIT_AT_POSITIVE;
-                    t_switch = time; // Record the time when forward target is reached
-                    // Brakes will be applied by the next state's default or explicit setting
+                    t_switch = time;
                 }
                 break;
             }
                 
             case VehicleState::WAIT_AT_POSITIVE: {
-                // Active from time 5s to 6s
                 if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: WAIT_AT_POSITIVE" << endl;
                 driver_inputs.m_throttle = 0.0;
-                driver_inputs.m_braking = 1.0; // Brakes on
-                driver_inputs.m_steering = blade_pv_setpoints[4][0]; // Use first steering value from 5th row
+                driver_inputs.m_braking = 1.0;
                 motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(0.0));
                 motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(-0.1));
+                
                 if (time >= t_switch + 1.0) {
                     if (verbose) cout << "Transition: WAIT_AT_POSITIVE -> BACKWARD_TO_NEGATIVE" << endl;
                     vehicle_state = VehicleState::BACKWARD_TO_NEGATIVE;
-                    vehicle->GetVehicle().GetTransmission()->SetGear(-1); // Switch to reverse gear
+                    vehicle->GetVehicle().GetTransmission()->SetGear(-1);
                 }
                 break;
             }
                 
             case VehicleState::BACKWARD_TO_NEGATIVE: {
-                // Active from time 6s until target_backward_x is reached
-                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: BACKWARD_TO_NEGATIVE (until X=" << vehicle_back_x << ")" << endl;
-                driver_inputs.m_throttle = 0.2; // Backward throttle
+                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: BACKWARD_TO_NEGATIVE" << endl;
+                driver_inputs.m_throttle = 0.1;
                 driver_inputs.m_braking = 0.0;
-                driver_inputs.m_steering = blade_pv_setpoints[4][0]; // Use first steering value from 5th row
-                // Ensure reverse gear (should be set upon entering this state)
 
                 double dist_to_target = ChVector3d(veh_loc.x()-vehicle_back_x,0,0).Length();
                 if (dist_to_target < 0.5) {
-                    t_back = time; // Record the time when backward target is reached
+                    t_back = time;
                     if (verbose) cout << "Reached backward target at X=" << vehicle_back_x << " at time t_back = " << t_back << "s" << endl;
                     if (verbose) cout << "Transition: BACKWARD_TO_NEGATIVE -> WAIT_AT_NEGATIVE" << endl;
                     vehicle_state = VehicleState::WAIT_AT_NEGATIVE;
-                    // Brakes will be applied by the next state's default
+                    // Save SPH data and end simulation
+                    if (!saved_particle) {
+                        sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir);
+                        cout << "Particle data saved to " << out_dir << endl;
+                        saved_particle = true;
+                    }
                 }
                 break;
             }
                 
             case VehicleState::WAIT_AT_NEGATIVE: {
-                // Active from t_back to t_back + 1s
-                // Ensure t_back has been set
-                if (t_back < 0) { 
+                if (t_back < 0) {
                     if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: WAIT_AT_NEGATIVE (waiting for t_back)" << endl;
-                    // Still in BACKWARD_TO_NEGATIVE or an issue occurred, maintain braking
                     driver_inputs.m_throttle = 0.0;
                     driver_inputs.m_braking = 1.0;
-                    break; 
+                    break;
                 }
-                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: WAIT_AT_NEGATIVE (t_back to t_back+1s), t_back=" << t_back << "s" << endl;
+                
+                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: WAIT_AT_NEGATIVE" << endl;
                 driver_inputs.m_throttle = 0.0;
-                driver_inputs.m_braking = 1.0; // Brakes on
-                driver_inputs.m_steering = blade_pv_setpoints[4][1]; // Use second steering value from 5th row
+                driver_inputs.m_braking = 1.0;
                 motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(0.0));
-
                 if (time >= t_back + 1.0) {
-                    if (verbose) cout << "Transition: WAIT_AT_NEGATIVE -> FORWARD_TO_POSITIVE_AGAIN" << endl;
                     vehicle_state = VehicleState::FORWARD_TO_POSITIVE_AGAIN;
                     vehicle->GetVehicle().GetTransmission()->SetGear(1); // Switch to forward gear
+                    // read the new control command file
+                    std::string push_seq = "secondpush";
+                    std::string new_control_command_file = "/home/harry/AutoGrading/data/control_commands/" + std::to_string(pile_max_height) + "_" + push_seq + ".txt";
+                    if (!LoadBladePvControlData(new_control_command_file, blade_pv_setpoints)) {
+                        std::cerr << "Warning: Could not load blade P,V control data. Blade pitch/vertical will rely solely on the original schedule." << std::endl;
+                        return 1;
+                    }
+                    std::cout << "Loaded new control command file: " << new_control_command_file << std::endl;
                 }
                 break;
             }
-                
+
             case VehicleState::FORWARD_TO_POSITIVE_AGAIN: {
-                // Active from t_back + 1s to t_back + 6s
-                if (t_back < 0) { 
-                     if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: FORWARD_TO_POSITIVE_AGAIN (waiting for t_back)" << endl;
-                    driver_inputs.m_throttle = 0.0;
-                    driver_inputs.m_braking = 1.0;
-                    break; 
-                }
-                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: FORWARD_TO_POSITIVE_AGAIN, t_back=" << t_back << "s" << endl;
-                driver_inputs.m_throttle = 1.0; // Forward throttle
+                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: FORWARD_TO_POSITIVE_AGAIN" << endl;
+                driver_inputs.m_throttle = 1.0;
                 driver_inputs.m_braking = 0.0;
-                driver_inputs.m_steering = blade_pv_setpoints[4][1]; // Use second steering value from 5th row
-                // set motor angles:
                 if (time > t_back + 2.0 && time < t_back + 4.5){
-                    motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[2][0]));
-                    motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[2][1]));
+                    motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[0][0]));
+                    motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[0][1]));
                 }
                 else if (time > t_back + 4.5 && time < t_back + 7.0){
-                    motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[3][0]));
-                    motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[3][1]));
+                    motor_pitch->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[1][0]));
+                    motor_vertical->SetMotionFunction(chrono_types::make_shared<ChFunctionConst>(blade_pv_setpoints[1][1]));
                 }
-
-                if (time >= t_back + 7.0) {
-                    if (verbose) cout << "Transition: FORWARD_TO_POSITIVE_AGAIN -> REACHED_DESTINATION" << endl;
-                    vehicle_state = VehicleState::REACHED_DESTINATION;
-                    // Brakes will be applied by the next state's default
-                }
-                break;
-            }
-                
-            case VehicleState::REACHED_DESTINATION: {
-                // Active when time > t_back + 6s (or >= t_back + 6s)
-                 if (t_back < 0) { 
-                    if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: REACHED_DESTINATION (waiting for t_back)" << endl;
-                    driver_inputs.m_throttle = 0.0;
-                    driver_inputs.m_braking = 1.0;
-                    break; 
-                }
-                if (verbose) cout << std::fixed << std::setprecision(3) << "Time: " << time << "s | State: REACHED_DESTINATION (time > t_back+6s), t_back=" << t_back << "s" << endl;
-                driver_inputs.m_throttle = 1.0;
-                driver_inputs.m_braking = 0.0; // Final destination reached - keep brakes applied
-                driver_inputs.m_steering = blade_pv_setpoints[4][1]; // Use second steering value from 5th row
-                // No further state transitions from here in this logic
                 break;
             }
         }
 
-        //auto driver_inputs = driver.GetInputs();
-        //cout << "blade angle: "<< blade->GetRot().GetCardanAnglesZYX()<<endl;
         // Run-time visualization
 #if defined(CHRONO_OPENGL) || defined(CHRONO_VSG)
         if (render && time >= render_frame / render_fps) {
@@ -603,13 +549,14 @@ int main(int argc, char* argv[]) {
                 ChVector3d cam_loc = veh_loc + ChVector3d(6, 0, 2.5);
                 ChVector3d cam_point = veh_loc;
                 visFSI->UpdateCamera(cam_loc, cam_point);
-             }
+            }
             if (!visFSI->Render())
                 break;
             
             render_frame++;
         }
 #endif
+
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
@@ -626,40 +573,22 @@ int main(int argc, char* argv[]) {
         timer.reset();
         timer.start();
 
-        // (a) Sequential integration of terrain and vehicle systems
         terrain.Advance(step_size);
         vehicle->Advance(step_size);
-        // (b) Concurrent integration (vehicle in main thread)
-        // std::thread th(&CRMTerrain::Advance, &terrain, step_size);40
-        // (c) Concurrent integration (terrain in main thread)
-        // std::thread th(&ChWheeledVehicle::Advance, vehicle->GetVehicle().get(), step_size);
-        // terrain.Advance(step_size);+ ChVector3d(6, 0, 0)
+
         timer.stop();
         double rtf = timer() / step_size;
         sysFSI.SetRtf(rtf);
 
-        // Log data to console
-        // std::cout << time << "  " << veh_loc.x() << "  " << veh_loc.y() << "  " << veh_loc.z() << "  " 
-        //           << driver_inputs.m_steering << "  " << driver_inputs.m_throttle << "  " 
-        //           << front_load.Length() << "  " << veh_rot.x() << "  " << veh_rot.y() << "  " 
-        //           << veh_rot.z() << std::endl;
-
         // Log data to CSV file
-        csv_file << time << "," << veh_loc.x() << "," << veh_loc.y() << "," << veh_loc.z() << "," 
-                  << driver_inputs.m_steering << "," << driver_inputs.m_throttle << "," 
-                  << front_load.Length() << "," << veh_rot.x() << "," << veh_rot.y() << "," 
-                  << veh_rot.z() << "," << blade_loc.x() <<"," << blade_loc.y() <<"," << blade_loc.z()<< 
-                  "," << blade_rot.x() << "," << blade_rot.y() << "," << blade_rot.z() << "," << engine_rpm << "," << engine_torque << "\n";
-        // Ensure data is written to file immediately
+        csv_file << time << "," 
+                 << veh_loc.x() << "," << veh_loc.y() << "," << veh_loc.z() << ","
+                 << veh_rot.e0() << "," << veh_rot.e1() << "," << veh_rot.e2() << "," << veh_rot.e3() << ","
+                 << driver_inputs.m_steering << "," << driver_inputs.m_throttle << ","
+                 << blade_loc.x() << "," << blade_loc.y() << "," << blade_loc.z() << ","
+                 << blade_rot.x() << "," << blade_rot.y() << "," << blade_rot.z() << "\n";
         csv_file.flush();
 
-        // Only save particle data on the last time step
-        // if (time + step_size >= tend) {
-        if (( (veh_loc.x() > 2.5 && t_back > 0) || sim_frame > end_output_frame) && saved_particle == false) {
-            sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir);
-            cout << "Particle data saved to " << out_dir << endl;
-            saved_particle = true;
-        }
         time += step_size;
         sim_frame++;
     }
@@ -750,35 +679,27 @@ void CreateFSIWheels(std::shared_ptr<gator::Gator> vehicle, CRMTerrain& terrain)
                 }
                 terrain.AddFeaMesh(mesh, false);
             } else {
-            terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
+                terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
             }
         }
     }
 }
 
 void CreateFSIBlade(std::shared_ptr<ChBody> blade, CRMTerrain& terrain) {
-    // Create geometry for the blade using its mesh
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     
-    // // Use the same mesh file that was used to create the blade
-    // std::string mesh_filename = vehicle::GetDataFile("gator/gator_frontblade.obj");
-    // geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
-
-    // Define a box instead of loading a mesh
     ChVector3d box_size(1.5, 0.5, 0.05);  // half-dimensions
     ChVector3d box_pos(0, -0.1, 0);
     ChQuaternion<> rot = QuatFromAngleY(CH_PI / 2);  // 90 degrees
     geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box_pos, rot, box_size));
 
-    // Add the blade as a rigid body to the FSI system
     size_t num_blade_BCE = terrain.AddRigidBody(blade, geometry, false);
     cout << "Added " << num_blade_BCE << " BCE markers on blade" << endl;
 }
 
-// ADDED: Function to load blade p,v control data from a separate file
 bool LoadBladePvControlData(const std::string& filename, std::vector<std::array<double, 2>>& pv_data) {
-    pv_data.clear(); // Clear any existing data
+    pv_data.clear();
 
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -788,35 +709,31 @@ bool LoadBladePvControlData(const std::string& filename, std::vector<std::array<
 
     std::string line;
     int valid_lines_read = 0;
-    while (std::getline(file, line) && valid_lines_read < 5) {  // Changed from 4 to 5
-        // Skip empty lines or lines with only whitespace
+    while (std::getline(file, line) && valid_lines_read < 2) {  // Changed to expect only 2 pairs
         std::string trimmed_line = line;
         trimmed_line.erase(std::remove_if(trimmed_line.begin(), trimmed_line.end(), ::isspace), trimmed_line.end());
         if (trimmed_line.empty()) {
             continue;
         }
 
-        std::stringstream ss(line); // Use original line for stringstream
+        std::stringstream ss(line);
         std::string p_str, v_str;
         
         if (std::getline(ss, p_str, ',') && std::getline(ss, v_str)) {
             try {
-                // Trim whitespace from individual tokens
                 p_str.erase(p_str.find_last_not_of(" \n\r\t")+1);
                 p_str.erase(0, p_str.find_first_not_of(" \n\r\t"));
                 v_str.erase(v_str.find_last_not_of(" \n\r\t")+1);
                 v_str.erase(0, v_str.find_first_not_of(" \n\r\t"));
 
                 if (p_str.empty() || v_str.empty()) {
-                     std::cerr << "Error: Empty value after parsing comma in P,V control file. Line: \"" << line << "\"" << std::endl;
-                     // Continue to next line, do not increment valid_lines_read for this malformed line
-                     continue; 
+                    std::cerr << "Error: Empty value after parsing comma in P,V control file. Line: \"" << line << "\"" << std::endl;
+                    continue;
                 }
                 pv_data.push_back({std::stod(p_str), std::stod(v_str)});
                 valid_lines_read++;
             } catch (const std::invalid_argument& ia) {
                 std::cerr << "Error: Invalid number format in P,V control file. Line: \"" << line << "\". Details: " << ia.what() << std::endl;
-                // Continue to next line for robustness, or return false for stricter parsing
             } catch (const std::out_of_range& oor) {
                 std::cerr << "Error: Number out of range in P,V control file. Line: \"" << line << "\". Details: " << oor.what() << std::endl;
             }
@@ -825,14 +742,14 @@ bool LoadBladePvControlData(const std::string& filename, std::vector<std::array<
         }
     }
 
-    if (valid_lines_read < 5) {  // Changed from 4 to 5
-        std::cerr << "Error: Blade P,V control file does not contain enough valid data. Expected 5 rows of p,v pairs, found " << valid_lines_read << "." << std::endl;
-        pv_data.clear(); // Ensure data is not partially filled on error
+    if (valid_lines_read < 2) {  // Changed to expect only 2 pairs
+        std::cerr << "Error: Blade P,V control file does not contain enough valid data. Expected 2 rows of p,v pairs, found " << valid_lines_read << "." << std::endl;
+        pv_data.clear();
         return false;
     }
-    if (valid_lines_read > 5) {  // Changed from 4 to 5
-        std::cout << "Warning: Blade P,V control file contains more than 5 valid data rows. Using only the first 5." << std::endl;
-        pv_data.resize(5); // Should not happen if loop condition is valid_lines_read < 5
+    if (valid_lines_read > 2) {  // Changed to expect only 2 pairs
+        std::cout << "Warning: Blade P,V control file contains more than 2 valid data rows. Using only the first 2." << std::endl;
+        pv_data.resize(2);
     }
 
     std::cout << "Successfully loaded blade P,V control data (" << pv_data.size() << " pairs):" << std::endl;

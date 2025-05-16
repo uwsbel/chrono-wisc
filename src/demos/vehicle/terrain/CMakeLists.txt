@@ -42,10 +42,8 @@ endif()
 if(CH_ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS}
         demo_VEH_CRMTerrain_Gator
-        demo_VEH_CRMTerrain_Gator_Blade
-        demo_VEH_RigidTerrain_Gator_Blade
         demo_VEH_CRMTerrain_Gator_LevelTwice
-        demo_VEH_CRMTerrain_Gator_SteerLevel
+        demo_VEH_CRMTerrain_LevelValidation
         )
 endif()
 

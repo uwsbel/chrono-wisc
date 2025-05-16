@@ -52,9 +52,13 @@
 
 #include "demos/SetChronoSolver.h"
 
+#include "chrono_postprocess/ChBlender.h"
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::vehicle;
+using namespace postprocess;
+
 
 using std::cout;
 using std::cin;
@@ -174,8 +178,8 @@ int main(int argc, char* argv[]) {
     }
     cout << "pile_max_height: " << pile_max_height << endl;
 
-    if (!LoadControlScheduleFromFile(vehicle::GetDataFile("ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
-    // if (!LoadControlScheduleFromFile("/home/harry/control_command.txt", control_schedule)) {
+    // if (!LoadControlScheduleFromFile(vehicle::GetDataFile("ctrl_cmds/cmd"+std::to_string(exp_index)+".txt"), control_schedule)) {
+    if (!LoadControlScheduleFromFile("/home/harry/ctrl_cmd.txt", control_schedule)) {
         return 1;  // Exit if loading failed
     }
 
@@ -378,7 +382,7 @@ int main(int argc, char* argv[]) {
                 vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f)); // Set background to light blue
             }
             visFSI->AttachSystem(sysMBS);
-            visFSI->AddCamera(ChVector3d(2, -4, .5), ChVector3d(2, 4, 0));
+            visFSI->AddCamera(ChVector3d(2, -6, 1.0), ChVector3d(2, 4, 0));
             visFSI->Initialize();
         }
 #endif
@@ -423,13 +427,27 @@ int main(int argc, char* argv[]) {
     bool saved_particle = false;
     int end_output_frame = (tend-0.5)/step_size;
     cout << "End output frame: " << end_output_frame << endl;
+
+    // Create an exporter to Blender
+    ChBlender blender_exporter = ChBlender(sysMBS);
+    // Set the path where it will save all files, a directory will be created if not
+    // existing
+    blender_exporter.SetBlenderUp_is_ChronoZ();
+    blender_exporter.SetBasePath(GetChronoOutputPath() + "BLENDER");
+    blender_exporter.AddAll();
+    blender_exporter.ExportScript();
+
+    double render_step_size = 1.0 / 20;  // FPS = 20
+    int render_steps = (int)std::ceil(render_step_size / step_size);
+
     while (time < tend) {
         const auto& veh_loc = vehicle->GetVehicle().GetPos();
         auto veh_speed = vehicle->GetVehicle().GetSpeed();
         const auto& veh_rot = vehicle->GetVehicle().GetRot().GetCardanAnglesZYX();
         auto front_load = blade->GetAppliedForce();
         const auto& blade_loc = vehicle->GetChassisBody()->TransformPointParentToLocal(blade->GetPos());
-        const auto& blade_rot = blade->GetRot().GetCardanAnglesZYX();
+        const auto& blade_rot = vehicle->GetChassisBody()->GetRot().GetInverse() * blade->GetRot();
+        const auto& blade_rot_angles = blade_rot.GetCardanAnglesZYX();
         auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
         auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
         //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
@@ -499,16 +517,15 @@ int main(int argc, char* argv[]) {
                   << driver_inputs.m_steering << "," << driver_inputs.m_throttle << "," 
                   << front_load.Length() << "," << veh_rot.x() << "," << veh_rot.y() << "," 
                   << veh_rot.z() << "," << blade_loc.x() <<"," << blade_loc.y() <<"," << blade_loc.z()<< 
-                  "," << blade_rot.x() << "," << blade_rot.y() << "," << blade_rot.z() << "," << engine_rpm << "," << engine_torque << "\n";
+                  "," << blade_rot_angles.x() << "," << blade_rot_angles.y() << "," << blade_rot_angles.z() << "," << engine_rpm << "," << engine_torque << "\n";
         // Ensure data is written to file immediately
         csv_file.flush();
 
         // Only save particle data on the last time step
         // if (time + step_size >= tend) {
-        if ((veh_loc.x() > 2.5 || sim_frame > end_output_frame) && saved_particle == false) {
+        if (sim_frame % render_steps == 0) {
             sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir);
-            cout << "Particle data saved to " << out_dir << endl;
-            saved_particle = true;
+            blender_exporter.ExportData();
         }
         time += step_size;
         sim_frame++;
@@ -554,13 +571,13 @@ std::tuple<std::shared_ptr<gator::Gator>, std::shared_ptr<ChBody>, std::shared_p
     blade->SetFixed(false);
     gator->GetSystem()->AddBody(blade);
 
-    auto vir_yaw_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
+    auto vir_yaw_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, false, false,contact_mat);
     vir_yaw_body->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     gator->GetSystem()->AddBody(vir_yaw_body);
-    auto vir_pitch_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
+    auto vir_pitch_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, false, false,contact_mat);
     vir_pitch_body->SetPos(gator->GetChassisBody()->TransformPointLocalToParent(offsetpos));
     gator->GetSystem()->AddBody(vir_pitch_body);
-    auto vir_vertical_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false,contact_mat);
+    auto vir_vertical_body = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, false, false,contact_mat);
 
     auto motor_yaw = chrono_types::make_shared<ChLinkMotorRotationAngle>();
     auto motor_pitch = chrono_types::make_shared<ChLinkMotorRotationAngle>();
