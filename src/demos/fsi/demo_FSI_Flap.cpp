@@ -45,7 +45,7 @@ using std::endl;
 // -----------------------------------------------------------------------------
 
 // Final simulation time
-double t_end = 3.0;
+double t_end = 6.0;
 //double initial_spacing = 0.01;
 double initial_spacing = 0.005;
 
@@ -72,7 +72,7 @@ double depth = 0.5;
 
 // Output frequency
 bool output = true;
-double output_fps = 20;
+double output_fps = 5;
 
 // write info frequency
 double csv_fps = 100;
@@ -280,13 +280,13 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
     ChVector3d bottom_panel_size(bottom_panel_thickness, window_width - initial_spacing * 2, bottom_panel_height);
     ChVector3d mini_window_size;
     // mini window size all the same! 0 angle is when the windows are closed
-    if (mini_window_angle < 1e-4) {
+    //if (mini_window_angle < 1e-4) {
 		mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
             									  mini_window_height - initial_spacing);
-	} else {
-		mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
-            									  mini_window_height - 4 * initial_spacing);
-	}
+	//} else {
+	//	mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
+ //           									  mini_window_height - 4 * initial_spacing);
+	//}
 
     ChVector3d mini_window_pos(0, 0, bottom_panel_height + mini_window_height / 2);
 
@@ -361,7 +361,7 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 2e-5;  // used to be 5e-5!
+    double step_size = 1e-4;  // used to be 5e-5!
     bool verbose = true;
 
     if (argc != 4) {
@@ -398,7 +398,6 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
-    sph_params.num_bce_layers = 3;
     sph_params.kernel_type = KernelType::CUBIC_SPLINE;
     sph_params.d0_multiplier = 1.2;
     sph_params.max_velocity = 4;
@@ -406,6 +405,7 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_diffusion_A = 1.0;
     sph_params.shifting_diffusion_AFST = 2.0;
     sph_params.shifting_diffusion_AFSM = 3.0;
+    sph_params.num_proximity_search_steps = 1;
 
 
 
@@ -419,7 +419,7 @@ int main(int argc, char* argv[]) {
     sph_params.use_delta_sph = true;
     sph_params.delta_sph_coefficient = 0.1;
 
-    sph_params.num_bce_layers = 5;
+    sph_params.num_bce_layers = 3;
     fsi.SetSPHParameters(sph_params);
     fsi.SetStepSizeCFD(step_size);
     fsi.SetStepsizeMBD(step_size);
@@ -450,7 +450,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "FSI_Flap_spacing_5e-3_artificial_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
+        GetChronoOutputPath() + "FSI_Flap_spacing_5e-3_wider_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -554,7 +554,6 @@ int main(int argc, char* argv[]) {
             if (verbose)
                 cout << " -- Output frame " << out_frame << " at t = " << time << endl;
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
-            printf("write file: %s\n", (out_dir + "/fsi").c_str());
             out_frame++;
         }
 

@@ -49,10 +49,10 @@ void SaveFileCFD(const std::string& filename,
 
     switch (level) {
         case OutputLevel::STATE:
-            sstream << "x,y,z,|U|,acc\n";
+            sstream << "x,y,z,|U|\n";
             break;
         case OutputLevel::STATE_PRESSURE:
-            sstream << "x,y,z,v_x,v_y,v_z,|U|,acc,rho,pressure\n";
+            sstream << "x,y,z,v_x,v_y,v_z,|U|,acc_x,acc_y,acc_z,rho,pressure\n";
             break;
         case OutputLevel::CRM_FULL:
             sstream << "x,y,z,h,v_x,v_y,v_z,|U|,acc,rho(rpx),p11(tauXxYyZz_11),p22(tauXxYyZz_22),p33("
@@ -75,7 +75,7 @@ void SaveFileCFD(const std::string& filename,
                 break;
             case OutputLevel::STATE_PRESSURE:
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", "
-                        << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y;
+                        << v_len << ", " << a.x << ", " << a.y << ", " << a.z << ", " << rp.x << ", " << rp.y;
                 break;
             case OutputLevel::CRM_FULL:
                 Real4 st = srTauMu[i];
