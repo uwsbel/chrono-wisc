@@ -161,8 +161,8 @@ int main(int argc, char* argv[]) {
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
-    sph_params.boundary_type = BoundaryType::ADAMI;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
     ////sph_params.num_proximity_search_steps = 1;
     terrain.SetSPHParameters(sph_params);
 
@@ -183,13 +183,13 @@ int main(int argc, char* argv[]) {
     // Initialize visualization
     // ------------------------
 
+    auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(aabb.min.z(), aabb.max.z());
     auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
     visFSI->EnableFluidMarkers(true);
     visFSI->EnableBoundaryMarkers(true);
     visFSI->EnableRigidBodyMarkers(false);
     visFSI->EnableFlexBodyMarkers(false);
-    visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
-                                                                                       aabb.min.z(), aabb.max.z()));
+    visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::BROWN);
 
     auto visVSG = chrono_types::make_shared<ChVisualSystemVSG>();
     visVSG->AttachSystem(&sysMBS);
@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
     visVSG->SetCameraVertical(CameraVerticalDir::Z);
     visVSG->AddCamera(ChVector3d(terrain_length / 2, -3, 2), ChVector3d(terrain_length / 2, 0, 0));
     visVSG->SetWindowSize(1280, 720);
-    visVSG->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+    visVSG->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
     visVSG->EnableSkyBox();
     visVSG->SetCameraAngleDeg(40.0);
     visVSG->SetLightIntensity(1.0f);

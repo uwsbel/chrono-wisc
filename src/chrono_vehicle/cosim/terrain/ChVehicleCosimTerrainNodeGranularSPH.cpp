@@ -470,15 +470,15 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
 #ifdef CHRONO_VSG
         // FSI plugin
         const auto& aabb_particles = m_terrain->GetSPHBoundingBox();
-        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(
-            ChColor(0.10f, 0.40f, 0.65f), aabb_particles.min.z(), aabb_particles.max.z());
+        auto col_callback =
+            chrono_types::make_shared<ParticleHeightColorCallback>(aabb_particles.min.z(), aabb_particles.max.z());
 
         auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(m_show_bce);
         visFSI->EnableFlexBodyMarkers(m_show_bce);
-        visFSI->SetSPHColorCallback(col_callback);
+        visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::BROWN);
 
         // VSG visual system (attach visFSI as plugin)
         m_vsys = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
@@ -488,7 +488,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
         m_vsys->SetVerbose(false);
         m_vsys->SetWindowSize(1280, 720);
         m_vsys->AddCamera(m_cam_pos, ChVector3d(0, 0, 0));
-        m_vsys->SetClearColor(ChColor(0.455f, 0.525f, 0.640f));
+        m_vsys->SetBackgroundColor(ChColor(0.455f, 0.525f, 0.640f));
         m_vsys->SetImageOutputDirectory(m_node_out_dir + "/images");
         m_vsys->SetImageOutput(m_writeRT);
         m_vsys->Initialize();

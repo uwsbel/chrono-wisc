@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <string>
+#include <unordered_map>
 
 #include <vsg/all.h>
 #include <vsgXchange/all.h>
@@ -28,6 +29,7 @@
 
 #include "chrono/assets/ChVisualSystem.h"
 #include "chrono/assets/ChVisualModel.h"
+#include "chrono/assets/ChColormap.h"
 
 #include "chrono/assets/ChVisualShapeBox.h"
 #include "chrono/assets/ChVisualShapeSphere.h"
@@ -182,7 +184,6 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     void SetWindowPosition(const ChVector2i& pos);
     void SetWindowPosition(int from_left, int from_top);
     void SetWindowTitle(const std::string& title);
-    void SetClearColor(const ChColor& color);
     void SetOutputScreen(int screenNum = 0);
 
     /// Enable full-screen mode (default: false).
@@ -249,7 +250,12 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     /// Add a colorbar as a GUI component.
     /// Returns the index of the new component. This function must be called before Initialize().
-    size_t AddGuiColorbar(const std::string& title, double min_val, double max_val);
+    size_t AddGuiColorbar(const std::string& title,  ///< GUI window title
+                          const ChVector2d& range,   ///< data range
+                          ChColormap::Type type,     ///< colormap
+                          bool bimodal = false,      ///< negative/positive
+                          float width = 400          ///< texture width in pixels
+    );
 
     /// Access the specified GUI component.
     /// Identify the GUI component with the index returned by AddGuiComponent.
@@ -298,6 +304,9 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     /// Get a reference to the underlying shape builder.
     vsg::ref_ptr<ShapeBuilder> GetVSGShapeBuilder() const { return m_shapeBuilder; }
+
+    /// Get the ImGui texture for the specified colormap.
+    vsg::ref_ptr<vsgImGui::Texture> GetColormapTexture(ChColormap::Type type) const { return m_colormap_textures.at(type); }
 
   protected:
     /// Perform necessary setup operations at the beginning of a time step.
@@ -502,7 +511,6 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     int m_windowX = 0;
     int m_windowY = 0;
     std::string m_windowTitle;
-    ChColor m_clearColor;
 
     int m_numThreads = 16;
     vsg::ref_ptr<vsg::OperationThreads> m_loadThreads;
@@ -569,6 +577,10 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     ChTimer m_timer_render;                           ///< timer for rendering speed
     double m_old_time, m_current_time, m_time_total;  ///< render times
     double m_fps;                                     ///< estimated FPS (moving average)
+
+    // ImGui textures
+    vsg::ref_ptr<vsgImGui::Texture> m_logo_texture;
+    std::unordered_map<ChColormap::Type, vsg::ref_ptr<vsgImGui::Texture>> m_colormap_textures; 
 
     friend class ChMainGuiVSG;
     friend class ChBaseGuiComponentVSG;

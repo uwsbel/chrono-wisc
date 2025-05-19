@@ -559,14 +559,6 @@ __device__ inline Real4 LaplacianOperator(float G_i[9],
     return mR4(2 * Part1 * Part2, Part3.x * (2 * Part1), Part3.y * (2 * Part1), Part3.z * (2 * Part1));
 }
 
-// Luning: why is there an upper case EOS?
-//__global__ void EOS(Real4* sortedRhoPreMu, volatile bool* isErrorD) {
-//    uint index = blockIdx.x * blockDim.x + threadIdx.x;
-//    if (index >= numObjectsD.numAllMarkers)
-//        return;
-//    sortedRhoPreMu[index].y = Eos(sortedRhoPreMu[index].x);
-//}
-
 // =============================================================================
 
 FsiForceWCSPH::FsiForceWCSPH(FsiDataManager& data_mgr, BceManager& bce_mgr, bool verbose)
@@ -1029,7 +1021,7 @@ __global__ void CfdHolmesBC(const uint* numNeighborsPerPart,
 void FsiForceWCSPH::CrmApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
     cudaResetErrorFlag(m_errflagD);
 
-    if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
+    if (m_data_mgr.paramsH->boundary_method == BoundaryMethod::ADAMI) {
         CrmAdamiBC<<<numBlocks, numThreads>>>(
             U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
             mR4CAST(sortedSphMarkersD->posRadD), numActive, mR3CAST(m_data_mgr.bceAcc),
@@ -1056,7 +1048,7 @@ void FsiForceWCSPH::CrmApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD
 void FsiForceWCSPH::CfdApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
     cudaResetErrorFlag(m_errflagD);
 
-    if (m_data_mgr.paramsH->boundary_type == BoundaryType::ADAMI) {
+    if (m_data_mgr.paramsH->boundary_method == BoundaryMethod::ADAMI) {
         CfdAdamiBC<<<numBlocks, numThreads>>>(U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
                                               mR4CAST(sortedSphMarkersD->posRadD), numActive,
                                               mR3CAST(m_data_mgr.bceAcc), mR4CAST(sortedSphMarkersD->rhoPresMuD),
@@ -1145,8 +1137,8 @@ __device__ inline Real4 crmDvDt(Real W_ini_inv,
     // }
     Real derivM1 = 0;
     Real vAB_rAB = dot(velMasA - velMasB, dist3);
-    switch (paramsD.viscosity_type) {
-        case ViscosityType::ARTIFICIAL_UNILATERAL: {
+    switch (paramsD.viscosity_method) {
+        case ViscosityMethod::ARTIFICIAL_UNILATERAL: {
             // Artificial Viscosity from Monaghan 1997
             // This has no viscous forces in the seperation phase - used in SPH codes simulating fluids
             if (vAB_rAB < 0) {
@@ -1156,7 +1148,7 @@ __device__ inline Real4 crmDvDt(Real W_ini_inv,
 
             break;
         }
-        case ViscosityType::ARTIFICIAL_BILATERAL: {
+        case ViscosityMethod::ARTIFICIAL_BILATERAL: {
             // Artificial viscosity treatment from J J Monaghan (2005) "Smoothed particle hydrodynamics"
             // Here there is viscous force added even during the seperation phase - makes the simulation more stable
             Real nu = -paramsD.Ar_vis_alpha * paramsD.h * paramsD.Cs * paramsD.invrho0;
@@ -1996,8 +1988,8 @@ __device__ inline Real4 cfdDvDt(Real3 dist3,
     }
 
     Real3 derivV;
-    switch (paramsD.viscosity_type) {
-        case ViscosityType::ARTIFICIAL_UNILATERAL: {
+    switch (paramsD.viscosity_method) {
+        case ViscosityMethod::ARTIFICIAL_UNILATERAL: {
             //  pressure component
             derivV = -paramsD.markerMass *
                      (rhoPresMuA.y / (rhoPresMuA.x * rhoPresMuA.x) + rhoPresMuB.y / (rhoPresMuB.x * rhoPresMuB.x)) *
@@ -2015,7 +2007,7 @@ __device__ inline Real4 cfdDvDt(Real3 dist3,
             }
             break;
         }
-        case ViscosityType::LAMINAR: {
+        case ViscosityMethod::LAMINAR: {
             // laminar physics-based viscosity, directly from the Momentum equation, see Arman's PhD thesis, eq.(2.12)
             // and Morris et al.,"Modeling Low Reynolds Number Incompressible Flows Using SPH, 1997" suitable for
             // Poiseulle flow, or oil, honey, etc
@@ -2397,8 +2389,6 @@ void FsiForceWCSPH::CalculateShifting(std::shared_ptr<SphMarkerDataD> sortedSphM
 
     computeGridSize(numActive, 1024, numBlocks, numThreads);
 
-    // thrust::fill(m_data_mgr.vel_XSPH_D.begin(), m_data_mgr.vel_XSPH_D.end(),
-    //              mR3(0));  // no this can not be zero ... i computed vel_xsph_d in collid wrapper
     thrust::fill(m_data_mgr.vel_XSPH_D.begin(), m_data_mgr.vel_XSPH_D.begin() + numActive, mR3(0));
 
     switch (m_data_mgr.paramsH->shifting_method) {

@@ -110,8 +110,8 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     sph_params.kernel_threshold = 0.8;
     sph_params.max_velocity = 1.0;
     sph_params.num_proximity_search_steps = 1;
-    sph_params.boundary_type = BoundaryType::ADAMI;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
 
     m_sysSPH->SetSPHParameters(sph_params);
 
@@ -138,7 +138,7 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
                     -box_multiplier * m_box_size.z() * (m_num_boxes / m_boxes_per_layer + 1));
     ChVector3d cMax(+m_box_size.x() / 2, +m_box_size.y() / 2,
                     +box_multiplier * m_box_size.z() * (m_num_boxes / m_boxes_per_layer + 1));
-    m_sysSPH->SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::ALL);
+    m_sysSPH->SetComputationalDomain(ChAABB(cMin, cMax), BC_ALL_PERIODIC);
 
     chrono::utils::ChGridSampler<> sampler(sph_params.initial_spacing);
     ChVector3d boxCenter(0.0, 0.0, 0.0);

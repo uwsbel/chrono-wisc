@@ -69,8 +69,8 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     struct CH_FSI_API SPHParameters {
         IntegrationScheme integration_scheme;  ///< Integration scheme (default: RK2)
         EosType eos_type;                      ///< equation of state (default: ISOTHERMAL)
-        ViscosityType viscosity_type;          ///< viscosity treatment (default: ARTIFICIAL_UNILATERAL)
-        BoundaryType boundary_type;            ///< boundary treatment (default: ADAMI)
+        ViscosityMethod viscosity_method;      ///< viscosity treatment (default: ARTIFICIAL_UNILATERAL)
+        BoundaryMethod boundary_method;        ///< boundary treatment (default: ADAMI)
         KernelType kernel_type;                ///< kernel type (default: CUBIC_CPLINE)
         ShiftingMethod shifting_method;        ///< shifting method (default: XSPH)
         int num_bce_layers;                    ///< number of BCE layers (boundary and solids, default: 3)
@@ -139,14 +139,13 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     /// Set the fluid container dimension
     void SetContainerDim(const ChVector3d& box_dim);
 
-    /// Set computational domain and periodic boundary conditions on its sides.
-    /// `periodic_sides` indicates the directions of the computational domain (axis-aligned) for which periodic boundary
-    /// conditions are enforced. This is an integer which can be one of the `PeriodicSide` values or a combination using
-    /// bit-wise or & and. Default is periodic_sides = NONE.
-    void SetComputationalDomain(const ChAABB& computational_AABB, int periodic_sides);
+    /// Set computational domain and boundary conditions on its sides.
+    /// `bc_type` indicates the types of BCs imposed in the three directions of the computational domain.
+    /// By default, no special boundary conditions are imposed in any direction (BCType::NONE).
+    void SetComputationalDomain(const ChAABB& computational_AABB, BoundaryConditions bc_type);
 
     /// Set computational domain.
-    /// Note that this version leaves the setting for periodic BC sides unchanged.
+    /// Note that this version leaves the setting for BC type unchanged.
     void SetComputationalDomain(const ChAABB& computational_AABB);
 
     /// Set dimensions of the active domain AABB.
@@ -233,10 +232,10 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     void SetOutputLevel(OutputLevel output_level);
 
     /// Set boundary treatment type (default: Adami).
-    void SetBoundaryType(BoundaryType boundary_type);
+    void SetBoundaryType(BoundaryMethod boundary_method);
 
     /// Set viscosity treatment type (default: artificial unilateral).
-    void SetViscosityType(ViscosityType viscosity_type);
+    void SetViscosityType(ViscosityMethod viscosity_method);
 
     /// Set artificial viscosity coefficient (default: 0.02).
     void SetArtificialViscosityCoefficient(double coefficient);
@@ -316,10 +315,10 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     std::vector<ChVector3d> GetParticleFluidProperties() const;
 
     /// Return the boundary treatment type.
-    BoundaryType GetBoundaryType() const { return m_paramsH->boundary_type; }
+    BoundaryMethod GetBoundaryType() const { return m_paramsH->boundary_method; }
 
     /// Return the viscosity treatment type.
-    ViscosityType GetViscosityType() const { return m_paramsH->viscosity_type; }
+    ViscosityMethod GetViscosityType() const { return m_paramsH->viscosity_method; }
 
     /// Return the kernel type.
     KernelType GetKernelType() const { return m_paramsH->kernel_type; }

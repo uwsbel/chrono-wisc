@@ -87,7 +87,7 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 // ===================================================================================================================
 
 int main(int argc, char* argv[]) {
-    // ---------------- 
+    // ----------------
     // Problem settings
     // ----------------
 
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     double render_fps = 200;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
-    bool visualization_rigid_bce = true;   // render wheel BCE markers
+    bool visualization_rigid_bce = false;  // render wheel BCE markers
 
     // CRM material properties
     double density = 1700;
@@ -193,8 +193,8 @@ int main(int argc, char* argv[]) {
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
-    sph_params.boundary_type = BoundaryType::ADAMI;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
     terrain.SetSPHParameters(sph_params);
 
     // Set output level from SPH simulation
@@ -287,11 +287,12 @@ int main(int argc, char* argv[]) {
 #ifdef CHRONO_VSG
     if (render) {
         // FSI plugin
+        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(aabb.min.z(), aabb.max.z());
         auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-        visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
+        visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::BROWN);
 
         // Wheeled vehicle VSG visual system (attach visFSI as plugin)
         auto visVSG = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();

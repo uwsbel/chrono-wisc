@@ -131,8 +131,8 @@ int main(int argc, char* argv[]) {
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.num_proximity_search_steps = 1;
-    sph_params.boundary_type = BoundaryType::ADAMI;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
 
     fsi.SetSPHParameters(sph_params);
 
@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) {
     // Explicitly set computational domain (necessary if no side walls)
     ChVector3d cMin = ChVector3d(-5 * csize.x(), -csize.y() / 2 - initial_spacing / 2, -5 * csize.z());
     ChVector3d cMax = ChVector3d(+5 * csize.x(), +csize.y() / 2 + initial_spacing / 2, +5 * csize.z());
-    fsi.SetComputationalDomain(ChAABB(cMin, cMax), PeriodicSide::Y);
+    fsi.SetComputationalDomain(ChAABB(cMin, cMax), BC_Y_PERIODIC);
 
     // Initialize FSI problem
     fsi.Initialize();
@@ -193,13 +193,15 @@ int main(int argc, char* argv[]) {
 #ifdef CHRONO_VSG
     if (render) {
         // FSI plugin
-        auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2.5);
+        double vel_min = 0.0;
+        double vel_max = 2.5;
+        auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(vel_min, vel_max);
 
         auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(false);
-        visFSI->SetSPHColorCallback(col_callback);
+        visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::KINDLMANN);
         visFSI->SetSPHVisibilityCallback(chrono_types::make_shared<MarkerPositionVisibilityCallback>());
 
         // VSG visual system (attach visFSI as plugin)
@@ -210,13 +212,10 @@ int main(int argc, char* argv[]) {
         visVSG->SetWindowSize(1280, 800);
         visVSG->SetWindowPosition(100, 100);
         visVSG->AddCamera(ChVector3d(0, -2.0, 0.3), ChVector3d(0, 0, 0.3));
-        ////visVSG->AddCamera(ChVector3d(0.2, -0.75, 0.2), ChVector3d(0.2, 0, 0.2));
         visVSG->SetLightIntensity(0.9f);
         visVSG->SetLightDirection(-CH_PI_2, CH_PI / 6);
 
         visVSG->Initialize();
-
-        ////visVSG->SetFeaMeshVisibility(false);
 
         vis = visVSG;
     }
@@ -341,7 +340,7 @@ std::shared_ptr<ChMesh> CreateANCFCable(ChSystem& sysMBS, double x, int n) {
 
     auto vis_mesh = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_mesh->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MZ);
-    vis_mesh->SetColorscaleMinMax(-0.4, 0.4);
+    vis_mesh->SetColormapRange(-0.4, 0.4);
     vis_mesh->SetSmoothFaces(true);
     vis_mesh->SetWireframe(false);
     mesh->AddVisualShapeFEA(vis_mesh);
@@ -385,7 +384,7 @@ std::shared_ptr<ChMesh> CreateANCF3243Beam(ChSystem& sysMBS, double x, int n) {
 
     auto vis_mesh1 = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_mesh1->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MZ);
-    vis_mesh1->SetColorscaleMinMax(-0.4, 0.4);
+    vis_mesh1->SetColormapRange(-0.4, 0.4);
     vis_mesh1->SetSmoothFaces(true);
     vis_mesh1->SetWireframe(false);
     mesh->AddVisualShapeFEA(vis_mesh1);
@@ -445,7 +444,7 @@ std::shared_ptr<ChMesh> CreateANCF3333Beam(ChSystem& sysMBS, double x, int n) {
 
     auto vis_mesh1 = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_mesh1->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MZ);
-    vis_mesh1->SetColorscaleMinMax(-0.4, 0.4);
+    vis_mesh1->SetColormapRange(-0.4, 0.4);
     vis_mesh1->SetSmoothFaces(true);
     vis_mesh1->SetWireframe(false);
     mesh->AddVisualShapeFEA(vis_mesh1);
@@ -485,7 +484,7 @@ std::shared_ptr<ChMesh> CreateEulerBeam(ChSystem& sysMBS, double x, int n) {
 
     auto vis_mesh1 = chrono_types::make_shared<ChVisualShapeFEA>();
     vis_mesh1->SetFEMdataType(ChVisualShapeFEA::DataType::ELEM_BEAM_MZ);
-    vis_mesh1->SetColorscaleMinMax(-0.4, 0.4);
+    vis_mesh1->SetColormapRange(-0.4, 0.4);
     vis_mesh1->SetSmoothFaces(true);
     vis_mesh1->SetWireframe(false);
     mesh->AddVisualShapeFEA(vis_mesh1);

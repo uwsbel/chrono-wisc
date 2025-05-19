@@ -98,11 +98,11 @@ void ChFsiFluidSystemSPH::InitParams() {
     // SPH parameters
     m_paramsH->integration_scheme = IntegrationScheme::RK2;
     m_paramsH->eos_type = EosType::ISOTHERMAL;
-    m_paramsH->viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
-    m_paramsH->boundary_type = BoundaryType::ADAMI;
+    m_paramsH->viscosity_method = ViscosityMethod::ARTIFICIAL_UNILATERAL;
+    m_paramsH->boundary_method = BoundaryMethod::ADAMI;
     m_paramsH->kernel_type = KernelType::CUBIC_SPLINE;
     m_paramsH->shifting_method = ShiftingMethod::XSPH;
-    m_paramsH->periodic_sides = static_cast<int>(PeriodicSide::NONE);
+    m_paramsH->bc_type = {BCType::NONE, BCType::NONE, BCType::NONE};
 
     m_paramsH->d0 = Real(0.01);
     m_paramsH->ood0 = 1 / m_paramsH->d0;
@@ -311,13 +311,13 @@ void ChFsiFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
         if (doc["SPH Parameters"].HasMember("Boundary Treatment Type")) {
             std::string type = doc["SPH Parameters"]["Boundary Treatment Type"].GetString();
             if (type == "Adami")
-                m_paramsH->boundary_type = BoundaryType::ADAMI;
+                m_paramsH->boundary_method = BoundaryMethod::ADAMI;
             else if (type == "Holmes")
-                m_paramsH->boundary_type = BoundaryType::HOLMES;
+                m_paramsH->boundary_method = BoundaryMethod::HOLMES;
             else {
                 cerr << "Incorrect boundary treatment type in the JSON file: " << type << endl;
                 cerr << "Falling back to Adami " << endl;
-                m_paramsH->boundary_type = BoundaryType::ADAMI;
+                m_paramsH->boundary_method = BoundaryMethod::ADAMI;
             }
         }
 
@@ -326,15 +326,15 @@ void ChFsiFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
             if (m_verbose)
                 cout << "viscosity treatment is : " << type << endl;
             if (type == "Laminar")
-                m_paramsH->viscosity_type = ViscosityType::LAMINAR;
+                m_paramsH->viscosity_method = ViscosityMethod::LAMINAR;
             else if (type == "Artificial Unilateral") {
-                m_paramsH->viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
+                m_paramsH->viscosity_method = ViscosityMethod::ARTIFICIAL_UNILATERAL;
             } else if (type == "Artificial Bilateral") {
-                m_paramsH->viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+                m_paramsH->viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
             } else {
                 cerr << "Incorrect viscosity type in the JSON file: " << type << endl;
                 cerr << "Falling back to Artificial Unilateral Viscosity" << endl;
-                m_paramsH->viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
+                m_paramsH->viscosity_method = ViscosityMethod::ARTIFICIAL_UNILATERAL;
             }
         }
 
@@ -547,12 +547,12 @@ void ChFsiFluidSystemSPH::ReadParametersFromFile(const std::string& json_file) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void ChFsiFluidSystemSPH::SetBoundaryType(BoundaryType boundary_type) {
-    m_paramsH->boundary_type = boundary_type;
+void ChFsiFluidSystemSPH::SetBoundaryType(BoundaryMethod boundary_method) {
+    m_paramsH->boundary_method = boundary_method;
 }
 
-void ChFsiFluidSystemSPH::SetViscosityType(ViscosityType viscosity_type) {
-    m_paramsH->viscosity_type = viscosity_type;
+void ChFsiFluidSystemSPH::SetViscosityType(ViscosityMethod viscosity_method) {
+    m_paramsH->viscosity_method = viscosity_method;
 }
 
 void ChFsiFluidSystemSPH::SetArtificialViscosityCoefficient(double coefficient) {
@@ -595,11 +595,12 @@ void ChFsiFluidSystemSPH::SetContainerDim(const ChVector3d& box_dim) {
     m_paramsH->boxDimZ = box_dim.z();
 }
 
-void ChFsiFluidSystemSPH::SetComputationalDomain(const ChAABB& computational_AABB, int periodic_sides) {
+void ChFsiFluidSystemSPH::SetComputationalDomain(const ChAABB& computational_AABB,
+                                                 BoundaryConditions bc_type) {
     m_paramsH->cMin = ToReal3(computational_AABB.min);
     m_paramsH->cMax = ToReal3(computational_AABB.max);
     m_paramsH->use_default_limits = false;
-    m_paramsH->periodic_sides = periodic_sides;
+    m_paramsH->bc_type = bc_type;
 }
 
 void ChFsiFluidSystemSPH::SetComputationalDomain(const ChAABB& computational_AABB) {
@@ -704,13 +705,13 @@ void ChFsiFluidSystemSPH::CheckSPHParameters() {
             cerr << "ERROR: Non-Newtonian viscosity model is not supported for granular CRM." << endl;
             throw std::runtime_error("Non-Newtonian viscosity model is not supported for granular CRM.");
         }
-        if (m_paramsH->viscosity_type == ViscosityType::LAMINAR) {
+        if (m_paramsH->viscosity_method == ViscosityMethod::LAMINAR) {
             cerr << "ERROR: Viscosity type LAMINAR not supported for CRM granular. "
                     " Use ARTIFICIAL_UNILATERAL or ARTIFICIAL_BILATERAL."
                  << endl;
             throw std::runtime_error("Viscosity type LAMINAR not supported for CRM granular.");
         }
-        if (m_paramsH->viscosity_type == ViscosityType::ARTIFICIAL_UNILATERAL) {
+        if (m_paramsH->viscosity_method == ViscosityMethod::ARTIFICIAL_UNILATERAL) {
             cerr << "WARNING: Viscosity type ARTIFICIAL_UNILATERAL may be less stable for CRM granular. "
                     "Consider using ARTIFICIAL_BILATERAL or ensure the step size is small enough."
                  << endl;
@@ -721,7 +722,7 @@ void ChFsiFluidSystemSPH::CheckSPHParameters() {
                  << endl;
         }
     } else {
-        if (m_paramsH->viscosity_type == ViscosityType::ARTIFICIAL_BILATERAL) {
+        if (m_paramsH->viscosity_method == ViscosityMethod::ARTIFICIAL_BILATERAL) {
             cerr << "ERROR: Viscosity type ARTIFICIAL_BILATERAL not supported for CFD. "
                     " Use ARTIFICIAL_UNILATERAL or LAMINAR."
                  << endl;
@@ -845,8 +846,8 @@ ChFsiFluidSystemSPH::SPHParameters::SPHParameters()
       num_bce_layers(3),
       consistent_gradient_discretization(false),
       consistent_laplacian_discretization(false),
-      viscosity_type(ViscosityType::ARTIFICIAL_UNILATERAL),
-      boundary_type(BoundaryType::ADAMI),
+      viscosity_method(ViscosityMethod::ARTIFICIAL_UNILATERAL),
+      boundary_method(BoundaryMethod::ADAMI),
       kernel_type(KernelType::CUBIC_SPLINE),
       use_delta_sph(true),
       delta_sph_coefficient(0.1),
@@ -859,8 +860,8 @@ void ChFsiFluidSystemSPH::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->integration_scheme = sph_params.integration_scheme;
 
     m_paramsH->eos_type = sph_params.eos_type;
-    m_paramsH->viscosity_type = sph_params.viscosity_type;
-    m_paramsH->boundary_type = sph_params.boundary_type;
+    m_paramsH->viscosity_method = sph_params.viscosity_method;
+    m_paramsH->boundary_method = sph_params.boundary_method;
     m_paramsH->kernel_type = sph_params.kernel_type;
     m_paramsH->shifting_method = sph_params.shifting_method;
 
@@ -944,7 +945,6 @@ std::string ChFsiFluidSystemSPH::GetSphIntegrationSchemeString() const {
 
     return method;
 }
-
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -1085,22 +1085,22 @@ void PrintDeviceProperties(const cudaDeviceProp& prop) {
 
 void PrintParams(const ChFsiParamsSPH& params, const Counters& counters) {
     cout << "Simulation parameters" << endl;
-    switch (params.viscosity_type) {
-        case ViscosityType::LAMINAR:
+    switch (params.viscosity_method) {
+        case ViscosityMethod::LAMINAR:
             cout << "  Viscosity treatment: Laminar" << endl;
             break;
-        case ViscosityType::ARTIFICIAL_UNILATERAL:
+        case ViscosityMethod::ARTIFICIAL_UNILATERAL:
             cout << "  Viscosity treatment: Artificial Unilateral";
             cout << "  (coefficient: " << params.Ar_vis_alpha << ")" << endl;
             break;
-        case ViscosityType::ARTIFICIAL_BILATERAL:
+        case ViscosityMethod::ARTIFICIAL_BILATERAL:
             cout << "  Viscosity treatment: Artificial Bilateral";
             cout << "  (coefficient: " << params.Ar_vis_alpha << ")" << endl;
             break;
     }
-    if (params.boundary_type == BoundaryType::ADAMI) {
+    if (params.boundary_method == BoundaryMethod::ADAMI) {
         cout << "  Boundary treatment: Adami" << endl;
-    } else if (params.boundary_type == BoundaryType::HOLMES) {
+    } else if (params.boundary_method == BoundaryMethod::HOLMES) {
         cout << "  Boundary treatment: Holmes" << endl;
     } else {
         cout << "  Boundary treatment: Adami" << endl;
@@ -1295,8 +1295,8 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBody>& fsi_bodies,
     for (const auto& m : fsi_meshes2D) {
         AddFsiMesh2D(num_fsi_meshes2D, m, use_node_directions);
         num_fsi_meshes2D++;
-        num_fsi_nodes1D += m.GetNumNodes();
-        num_fsi_elements1D += m.GetNumElements();
+        num_fsi_nodes2D += m.GetNumNodes();
+        num_fsi_elements2D += m.GetNumElements();
     }
 
     // ----------------
@@ -1366,12 +1366,12 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBody>& fsi_bodies,
             mR3(-2 * m_paramsH->boxDimX, -2 * m_paramsH->boxDimY, -2 * m_paramsH->boxDimZ) - 10 * mR3(m_paramsH->h);
         m_paramsH->cMax =
             mR3(+2 * m_paramsH->boxDimX, +2 * m_paramsH->boxDimY, +2 * m_paramsH->boxDimZ) + 10 * mR3(m_paramsH->h);
-        m_paramsH->periodic_sides = static_cast<int>(PeriodicSide::NONE);
+        m_paramsH->bc_type = BC_NONE;
     }
 
-    m_paramsH->x_periodic = (m_paramsH->periodic_sides & static_cast<int>(PeriodicSide::X)) != 0;
-    m_paramsH->y_periodic = (m_paramsH->periodic_sides & static_cast<int>(PeriodicSide::Y)) != 0;
-    m_paramsH->z_periodic = (m_paramsH->periodic_sides & static_cast<int>(PeriodicSide::Z)) != 0;
+    m_paramsH->x_periodic = m_paramsH->bc_type.x == BCType::PERIODIC;
+    m_paramsH->y_periodic = m_paramsH->bc_type.y == BCType::PERIODIC;
+    m_paramsH->z_periodic = m_paramsH->bc_type.z == BCType::PERIODIC;
 
     // Set up subdomains for faster neighbor particle search
     m_paramsH->Apply_BC_U = false;
