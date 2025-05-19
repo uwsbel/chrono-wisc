@@ -45,13 +45,15 @@ using std::endl;
 
 // -----------------------------------------------------------------------------
 //Container dimensions
-ChVector3d csize(1.0, 1.0, 1.2);
-ChVector3d fsize(1.0, 1.0, 0.8);
+//ChVector3d csize(1.0, 1.0, 1.2);
+//ChVector3d fsize(1.0, 1.0, 0.8);
+ ChVector3d csize(2.2, 2.2, 1.4);
+ ChVector3d fsize(2.2, 2.2, 0.99);
 
 
 // Object type
 enum class ObjectShape { SPHERE_PRIMITIVE, CYLINDER_PRIMITIVE, MESH };
-ObjectShape object_shape = ObjectShape::SPHERE_PRIMITIVE;
+ObjectShape object_shape = ObjectShape::MESH;
 
 // Mesh specification (for object_shape = ObjectShape::MESH)
 std::string mesh_obj_filename = GetChronoDataFile("models/semicapsule.obj");
@@ -130,7 +132,7 @@ bool GetProblemSpecs(int argc,
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double t_end = 2;             // simulation duration
+    double t_end = 5;             // simulation duration
     bool output = true;
     double output_fps = 5;
     const ChVector3d gravity(0, 0, -9.82);
@@ -138,19 +140,19 @@ int main(int argc, char* argv[]) {
     // given initial height, compute impact velocity
 
     double impact_velocity = -sqrt(2 * std::abs(gravity.z()) * (initial_height - mesh_bottom_offset));
-    bool use_impact_velocity = true;
+    bool use_impact_velocity = false;
     impact_velocity = 0;  // starts the object above water surface, but set impact velocity to 0
 
 
     // Default parameter values
     double initial_spacing = 0.01;  // initial spacing between SPH particles
-    double step_size = 4e-5;      // integration step size
+    double step_size = 2e-5;      // integration step size
     double d0 = 1.5;
     std::string viscosity_type = "laminar_dual";
     double fluid_density = 998.2;
     double v_max = 4.0;
     std::string kernel_type = "cubic_spline";
-    std::string run_tag = "sphere";
+    std::string run_tag = "capsule_symplectic";
 
      //Parse command line arguments
     if (!GetProblemSpecs(argc, argv, viscosity_type, kernel_type, initial_spacing, d0, step_size, fluid_density, v_max, run_tag)) {
@@ -184,7 +186,6 @@ int main(int argc, char* argv[]) {
     // Set SPH solution parameters
     int num_bce_layers = 5;   // this seems quite large... but let's see if it makes a difference. 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
-    sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.num_bce_layers = num_bce_layers;
 
     sph_params.initial_spacing = initial_spacing;
@@ -211,6 +212,8 @@ int main(int argc, char* argv[]) {
     sph_params.num_proximity_search_steps = 1;
     sph_params.use_delta_sph = true;
     sph_params.delta_sph_coefficient = 0.1;
+    sph_params.integration_scheme = IntegrationScheme::SYMPLECTIC;
+
 
     // Set boundary and viscosity types
     sph_params.boundary_method = BoundaryMethod::ADAMI;
