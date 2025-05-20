@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
 
 
     // Default parameter values
-    double initial_spacing = 0.01;  // initial spacing between SPH particles
+    double initial_spacing = 0.015;  // initial spacing between SPH particles
     double step_size = 2e-5;      // integration step size
     double d0 = 1.5;
     std::string viscosity_type = "laminar_dual";
@@ -345,12 +345,12 @@ int main(int argc, char* argv[]) {
         Q_ROTATE_Z_TO_Y,
         ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing, wall_thickness), 0));
 
-    // last wall ... 
     geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
-        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
+        ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing + 0.005, csize.z() / 2), -Q_ROTATE_Z_TO_Y,
         ChVector3d(csize.x() + 2 * num_bce_layers * initial_spacing, csize.z() + 2 * num_bce_layers * initial_spacing,
                    wall_thickness),
         0));
+
 
      //geometry_side_walls.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(
      //    ChVector3d(0, csize.y() / 2 + wall_thickness / 2.0 + initial_spacing, csize.z() / 2),
