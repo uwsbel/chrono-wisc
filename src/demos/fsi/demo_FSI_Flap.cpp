@@ -45,7 +45,7 @@ using std::endl;
 // -----------------------------------------------------------------------------
 
 // Final simulation time
-double t_end = 6.0;
+double t_end = 10.0;
 //double initial_spacing = 0.01;
 double initial_spacing = 0.005;
 
@@ -89,15 +89,6 @@ bool show_rigid = true;
 bool show_rigid_bce = false;
 bool show_boundary_bce = true;
 bool show_particles_sph = true;
-
-// Size of initial volume of SPH fluid
-// wec location
-// ChVector3d wec_pos(-2.9875, -0.0125, -0.1);
-//// Size of the baffles
-// ChVector3d wec_size(0.225, 0.975, 1.2);
-// ChVector3d fsize(12, 1.25, 1.3);  // fluid slightly higher than the flap.
-//// Container dimensions
-// ChVector3d csize(12, 1.25, 1.8);
 
 // -----------------------------------------------------------------------------
 
@@ -267,8 +258,6 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
     // double mini_window_rb = door_thickness/2;
 
     double mini_window_ra = mini_window_height / 2;
-    // double mini_window_angle = 0;   // when angle is 0, all windows are closed!
-    // double mini_window_angle = 45 / 180. * CH_PI;
 
     // location of front box -y
     ChVector3d front_box_pos(0, -(door_width + window_width) / 4, door_height / 2);
@@ -278,15 +267,9 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
     ChVector3d top_panel_size(door_thickness, window_width - initial_spacing * 2, top_panel_height);
     ChVector3d bottom_panel_pos(0, 0, bottom_panel_height / 2);
     ChVector3d bottom_panel_size(bottom_panel_thickness, window_width - initial_spacing * 2, bottom_panel_height);
-    ChVector3d mini_window_size;
-    // mini window size all the same! 0 angle is when the windows are closed
-    //if (mini_window_angle < 1e-4) {
-		mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
-            									  mini_window_height - initial_spacing);
-	//} else {
-	//	mini_window_size = ChVector3d(mini_window_rb * 2, window_width - initial_spacing * 2,
- //           									  mini_window_height - 4 * initial_spacing);
-	//}
+    ChVector3d mini_window_size = ChVector3d(mini_window_rb * 2, 
+                                             window_width - initial_spacing * 2,
+            							     mini_window_height - initial_spacing);
 
     ChVector3d mini_window_pos(0, 0, bottom_panel_height + mini_window_height / 2);
 
@@ -361,7 +344,7 @@ std::shared_ptr<ChLinkLockRevolute> CreateFlap(ChFsiProblemSPH& fsi, double mini
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 1e-4;  // used to be 5e-5!
+    double step_size = 2.5e-5;  // used to be 5e-5!
     bool verbose = true;
 
     if (argc != 4) {
@@ -419,7 +402,7 @@ int main(int argc, char* argv[]) {
     sph_params.use_delta_sph = true;
     sph_params.delta_sph_coefficient = 0.1;
 
-    sph_params.num_bce_layers = 3;
+    sph_params.num_bce_layers = 5;
     fsi.SetSPHParameters(sph_params);
     fsi.SetStepSizeCFD(step_size);
     fsi.SetStepsizeMBD(step_size);
@@ -431,7 +414,6 @@ int main(int argc, char* argv[]) {
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
 
     // Create a wave tank
-    // double stroke = 0.1;
     double stroke = 0.1;
     double frequency = 1 / period;
     auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, frequency);
@@ -450,7 +432,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "FSI_Flap_spacing_5e-3_wider_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
+        GetChronoOutputPath() + "FSI_Flap_spacing_5mm_dt_25e-6_" + argv[2] + "_window_" + argv[1] + "_DEG" + "_waveT_" + argv[3] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -542,8 +524,6 @@ int main(int argc, char* argv[]) {
     double flap_angular_velo;  // pitch velo
     double pto_power;
 
-    // create a csv file to store the reaction force
-    // create a csv file to store the reaction force
     std::ofstream ofile;
     ofile.open(out_dir + "/info.csv");
     ofile << "time,Fx,Fy,Fz,angle,angle_dt,pto_power" << std::endl;
