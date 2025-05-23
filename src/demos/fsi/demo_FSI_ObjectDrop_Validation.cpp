@@ -89,6 +89,7 @@ bool GetProblemSpecs(int argc,
     double& step_size,
     double& v_max,
     std::string& integrator,
+    double& offset_ratio,
     std::string& run_tag) {
     ChCLI cli(argv[0], "FSI object drop demo");
 
@@ -101,6 +102,7 @@ bool GetProblemSpecs(int argc,
 
     // Object parameters
     cli.AddOption<double>("Fluid", "v_max", "Maxiemum fluid velocity", std::to_string(v_max));
+    cli.AddOption<double>("Fluid", "offset_ratio", "Offset ratio for sphere 0.1, 0.3 and 0.5", std::to_string(offset_ratio));
 
     // Physics options
     cli.AddOption<std::string>("Physics", "integrator", "Integrator type (rk2/verlet/symplectic)", integrator);
@@ -118,6 +120,7 @@ bool GetProblemSpecs(int argc,
     v_max = cli.GetAsType<double>("v_max");
     d0 = cli.GetAsType<double>("d0");
     integrator = cli.GetAsType<std::string>("integrator");
+    offset_ratio = cli.GetAsType<double>("offset_ratio");
     run_tag = cli.GetAsType<std::string>("run_tag");
 
     return true;
@@ -139,12 +142,13 @@ int main(int argc, char* argv[]) {
     double fluid_density = 998.2;
     double v_max = 4.0;
     double offset = 0.0;
+    double offset_ratio = 0.1;  // offset ratio for sphere 0.1, 0.3 and 0.5
     std::string integrator = "rk2";
-    std::string run_tag = "capsule_symplectic";
+    std::string run_tag = "0." + std::to_string(int(offset_ratio*10)) + "D";
     std::string case_name = "sphere_primitive";
 
     //Parse command line arguments
-    if (!GetProblemSpecs(argc, argv, case_name, initial_spacing, d0, step_size, v_max, integrator, run_tag)) {
+    if (!GetProblemSpecs(argc, argv, case_name, initial_spacing, d0, step_size, v_max, integrator, offset_ratio, run_tag)) {
         return 1;
     }
 
@@ -252,8 +256,8 @@ int main(int argc, char* argv[]) {
         mass = 7.056;  // from paper
         inertia = mass * sphere.GetGyration();
         geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
-        mesh_bottom_offset = radius;
-        initial_position.z() = fsize.z() + initial_spacing + mesh_bottom_offset;
+        mesh_bottom_offset = offset_ratio * 2. * radius;
+        initial_position.z() = fsize.z() + mesh_bottom_offset;   // having extra initial_spacing is fine to ensure object and water are not touching
         break;
         }
 
@@ -265,7 +269,7 @@ int main(int argc, char* argv[]) {
         mass = 7.056;  // from paper
         inertia = mass * sphere.GetGyration();
         geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
-        mesh_bottom_offset = radius;
+        mesh_bottom_offset = offset_ratio * 2. * radius;
         initial_position.z() = fsize.z() + initial_spacing/2.0 + mesh_bottom_offset;
         break;
         }
