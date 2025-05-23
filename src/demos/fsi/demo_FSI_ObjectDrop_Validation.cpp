@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
     fsi.SetCfdSPH(fluid_props);
 
     // Set SPH solution parameters
-    int num_bce_layers = 3;   // this seems quite large... but let's see if it makes a difference. 
+    int num_bce_layers = 5;   // this seems quite large... but let's see if it makes a difference. 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.num_bce_layers = num_bce_layers;
 
