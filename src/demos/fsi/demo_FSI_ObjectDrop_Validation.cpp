@@ -340,7 +340,9 @@ int main(int argc, char* argv[]) {
     // Initialize FSI problem
     fsi.Initialize();
 
-    std::string out_dir = case_name + "_" + integrator + "_" + run_tag;
+    std::string out_dir = case_name + "_" + integrator + "_" + "H0" + std::to_string(int(offset_ratio * 10)) + "D"+ run_tag;
+
+    std::cout << "Output directory: " << out_dir << std::endl;
 
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
