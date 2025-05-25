@@ -73,6 +73,7 @@ double depth = 0.5;
 // Output frequency
 bool output = true;
 double output_fps = 5;
+bool save_csv = false;
 
 // write info frequency
 double csv_fps = 100;
@@ -357,6 +358,10 @@ int main(int argc, char* argv[]) {
     pto_damping = atof(argv[2]);
     double period = atof(argv[3]);  // range from omae paper: 0.8 to 2.0
 
+
+    double t_end = 5 * period;
+
+
     // Create the Chrono system and associated collision system
     ChSystemNSC sysMBS;
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
@@ -389,10 +394,6 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_diffusion_AFST = 2.0;
     sph_params.shifting_diffusion_AFSM = 3.0;
     sph_params.num_proximity_search_steps = 1;
-
-
-
-
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
     sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_UNILATERAL;
@@ -437,18 +438,20 @@ int main(int argc, char* argv[]) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
-    out_dir = out_dir + fsi.GetSphIntegrationSchemeString();
+    //out_dir = out_dir + fsi.GetSphIntegrationSchemeString();
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
-        cerr << "Error creating directory " << out_dir + "/particles" << endl;
-        return 1;
-    }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
-        cerr << "Error creating directory " << out_dir + "/fsi" << endl;
-        return 1;
+    if (save_csv) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+            cerr << "Error creating directory " << out_dir + "/particles" << endl;
+            return 1;
+        }
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+            cerr << "Error creating directory " << out_dir + "/fsi" << endl;
+            return 1;
+        }
     }
     if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
         cerr << "Error creating directory " << out_dir + "/vtk" << endl;
@@ -523,13 +526,15 @@ int main(int argc, char* argv[]) {
     ChVector3 reaction_force;
     double flap_angular_velo;  // pitch velo
     double pto_power;
+    ChVector3 flap_pos;
+    ChQuaterniond flap_quat;
 
     std::ofstream ofile;
     ofile.open(out_dir + "/info.csv");
-    ofile << "time,Fx,Fy,Fz,angle,angle_dt,pto_power" << std::endl;
+    ofile << "time,Fx,Fy,Fz,angle,angle_dt,pto_power,x,y,z,q0,q1,q2,q3" << std::endl;
 
     while (time < t_end) {
-        if (output && time >= out_frame / output_fps) {
+        if (save_csv && time >= out_frame / output_fps) {
             if (verbose)
                 cout << " -- Output frame " << out_frame << " at t = " << time << endl;
             fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
@@ -541,8 +546,24 @@ int main(int argc, char* argv[]) {
             reaction_force = revolute->GetReaction2().force;
             flap_angular_velo = revolute->GetRelativeAngVel().z();
             pto_power = pto_damping * flap_angular_velo * flap_angular_velo;
-            ofile << time << ", " << reaction_force.x() << ", " << reaction_force.y() << ", " << reaction_force.z()
-                  << ", " << revolute->GetRelAngle() << "," << flap_angular_velo << ", " << pto_power << std::endl;
+            flap_pos = sysMBS.GetBodies()[1]->GetPos();
+            flap_quat = sysMBS.GetBodies()[1]->GetRot();
+
+   //         std::vector<std::shared_ptr<ChBody>> bodies = sysMBS.GetBodies();
+   //         for (auto& body : bodies) {
+   //             //if (body->GetIdentifier() == 4) {
+			//		flap_pos = body->GetPos();
+   //                 std::cout << "body : " << body->GetIdentifier() << " pos: " << body->GetPos() << std::endl;
+			//	//}
+			//}
+
+
+            ofile << time << ", " 
+                  << reaction_force.x() << ", " << reaction_force.y() << ", " << reaction_force.z() << ", " 
+                  << revolute->GetRelAngle() << "," << flap_angular_velo << ", " << pto_power  << ", " 
+                  << flap_pos.x() << ", " << flap_pos.y() << ", " << flap_pos.z() << ", "
+                  << flap_quat.e0() << ", " << flap_quat.e1() << ", " << flap_quat.e2() << ", " << flap_quat.e3() 
+                  << std::endl;
             csv_frame++;
         }
 
