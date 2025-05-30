@@ -47,9 +47,13 @@ using std::endl;
 //Container dimensions
 //ChVector3d csize(1.0, 1.0, 1.2);
 //ChVector3d fsize(1.0, 1.0, 0.8);
+
+// what i've been using for sphere drop presentation etc 
 ChVector3d csize(2.1, 2.1, 1.4);
 ChVector3d fsize(2.1, 2.1, 0.8);
 
+//ChVector3d csize(1.0, 1.0, 1.2);
+//ChVector3d fsize(1.0, 1.0, 0.8);
 
 // Object type
 enum class ObjectShape { SPHERE_PRIMITIVE, SPHERE_BCEDUAL, MESH };
@@ -144,7 +148,7 @@ int main(int argc, char* argv[]) {
     double offset = 0.0;
     double offset_ratio = 0.1;  // offset ratio for sphere 0.1, 0.3 and 0.5
     std::string integrator = "rk2";
-    std::string run_tag = "0." + std::to_string(int(offset_ratio*10)) + "D";
+    std::string run_tag = "test";
     std::string case_name = "sphere_primitive";
 
     //Parse command line arguments
@@ -425,10 +429,17 @@ int main(int argc, char* argv[]) {
         auto body_height = body->GetPos().z();
         ofile << time << "\t" << body_height << "\n";
 
+        if (out_frame == 0) {
+            cout << " -- initial frame " << out_frame << " at t = " << time << endl;
+            // always save the first frame for debug
+            fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");   
+            cout << " -- initial frame saved" << endl;
+            out_frame++;
+        }
+
         if (output && time >= out_frame / output_fps) {
             cout << " -- Output frame " << out_frame << " at t = " << time << endl;
-            fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
-
+            //fsi.SaveOutputData(time, out_dir + "/particles", out_dir + "/fsi");
             out_frame++;
         }
 
