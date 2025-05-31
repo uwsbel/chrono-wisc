@@ -45,6 +45,8 @@ if(ENABLE_MODULE_FSI AND (ENABLE_MODULE_OPENGL OR ENABLE_MODULE_VSG))
         demo_VEH_CRMTerrain_WheeledVehicle
         demo_VEH_CRMTerrain_TrackedVehicle
         demo_VEH_CRMTerrain_Viper
+        #demo_VEH_PE_CRMTerrain_WheeledVehicle_DBP
+        demo_VEH_PE_LRV
     )
 endif()
 
@@ -113,6 +115,9 @@ if(ENABLE_MODULE_POSTPROCESS)
     list(APPEND LIBS "ChronoEngine_postprocess")
 endif()
 
+if(ENABLE_MODULE_POWERELECTRONICS)
+    list(APPEND LIBS "ChronoEngine_powerelectronics")
+endif()
 #--------------------------------------------------------------
 # Create the executables
 

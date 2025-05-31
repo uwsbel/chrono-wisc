@@ -19,7 +19,7 @@ cmake_policy(SET CMP0091 NEW)
 set(Chrono_DIR "/usr/local/chrono/lib/cmake/Chrono")
 set(CMAKE_INSTALL_PREFIX "/usr/local/chrono" )
 
-project(my_project)
+project(pe_demos)
 
 #--------------------------------------------------------------
 # === 2 ===
@@ -167,14 +167,14 @@ endif()
 # files in your project. 
 #--------------------------------------------------------------
 
-add_executable(my_demo demo_PowerElectronics_MotorControl.cpp ${SOURCES})
+add_executable(pe_demos demo_PowerElectronics_MotorControl.cpp ${SOURCES})
 
 #--------------------------------------------------------------
 # INIZIO NUOVO
 #--------------------------------------------------------------
 
 target_include_directories (
-    my_demo 
+    pe_demos 
     PRIVATE ${APP_SOURCE}
 )
 
@@ -191,15 +191,15 @@ target_include_directories (
 # install tree (if using an installed version of Chrono).
 #--------------------------------------------------------------
 
-target_compile_definitions(my_demo PUBLIC "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\"") 
-target_compile_options(my_demo PUBLIC ${CHRONO_CXX_FLAGS})
-target_link_options(my_demo PUBLIC ${CHRONO_LINKER_FLAGS})
+target_compile_definitions(pe_demos PUBLIC "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\"") 
+target_compile_options(pe_demos PUBLIC ${CHRONO_CXX_FLAGS})
+target_link_options(pe_demos PUBLIC ${CHRONO_LINKER_FLAGS})
 
 #--------------------------------------------------------------
 # Link to Chrono libraries and dependency libraries
 #--------------------------------------------------------------
 
-target_link_libraries(my_demo PRIVATE
+target_link_libraries(pe_demos PRIVATE
 	${CHRONO_LIBRARIES} 
   ${PYTHON_LIBRARIES}
 	ChronoEngine_powerelectronics)
