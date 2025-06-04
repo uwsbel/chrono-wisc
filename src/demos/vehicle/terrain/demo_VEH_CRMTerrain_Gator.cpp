@@ -165,8 +165,8 @@ int main(int argc, char* argv[]) {
     double blade_yaw = 0.0;
     double blade_pitch = 0.0;
     double blade_vertical = 0.0;
-    double throttle_ctrl = 0.5;
-    double pile_max_height = 0.5;
+    double throttle_ctrl = 1.0;
+    double pile_max_height = 0.35;
 
     // Process command-line parameters
     if (!GetProblemSpecs(argc, argv, blade_yaw, blade_pitch, blade_vertical, throttle_ctrl, pile_max_height)) {
@@ -426,7 +426,6 @@ int main(int argc, char* argv[]) {
         auto engine_rpm = vehicle->GetVehicle().GetEngine()->GetMotorSpeed();
         auto engine_torque = vehicle->GetVehicle().GetEngine()->GetOutputMotorshaftTorque();
         //cout << "Vehicle speed: " << veh_speed << "  Engine RPM: " << engine_rpm << "  Engine Torque: " << engine_torque << endl;
-        cout << "blade angle: "<< blade->GetRot().GetCardanAnglesZYX()<<endl;
         // Set current driver inputs
         // auto steering = veh_loc.y()*0.1;
         // auto throttle = (target_speed-veh_speed)*0.5;
