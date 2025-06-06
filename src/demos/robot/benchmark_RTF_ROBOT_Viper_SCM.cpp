@@ -23,11 +23,16 @@
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 #include "chrono/assets/ChVisualSystem.h"
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
 using namespace chrono::vsg3d;
+#endif
+
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
 #endif
 
 using namespace chrono;
@@ -36,14 +41,8 @@ using namespace chrono::viper;
 // Output directories and settings
 const std::string out_dir = GetChronoOutputPath() + "BENCHMARK3_RTF/SCM_Viper/";
 
-// SCM grid spacing - Matches the CRM spacing
-double mesh_resolution = 0.02;
-
 // Enable/disable bulldozing effects
 bool enable_bulldozing = true;
-
-// Enable/disable moving patch feature
-bool enable_moving_patch = true;
 
 // If true, use provided callback to change soil properties based on location
 bool var_params = true;
@@ -57,6 +56,11 @@ bool use_custom_mat = false;
 // Enable visualization
 bool render = false;
 double render_fps = 100;
+
+// Enable post-processing options
+bool snapshots = false;       // Enable for visual snapshots
+bool blender_output = false;  // Enable for Blender post-processing
+double output_fps = 10.0;     // FPS for Blender output
 
 // Custom callback for setting location-dependent soil properties.
 // Note that the location is given in the SCM reference frame.
@@ -119,9 +123,45 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
 
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
+    // SCM grid spacing - Matches the CRM spacing
+    double mesh_resolution = 0.02;
+    // Enable/disable moving patch feature
+    bool enable_moving_patch = true;
+    // Process command line arguments
+    ChCLI cli(argv[0], "Viper rover on SCM terrain");
+
+    // Add command line options
+    cli.AddOption<double>("Physics", "mesh_resolution", "SCM grid spacing", std::to_string(mesh_resolution));
+    cli.AddOption<std::string>("Physics", "enable_moving_patch", "Enable moving patch feature (true/false)", "false");
+
+    // Parse command line arguments
+    if (!cli.Parse(argc, argv, true))
+        return 0;
+
+    // Get parameter values from command line
+    mesh_resolution = cli.GetAsType<double>("mesh_resolution");
+    if (cli.GetAsType<std::string>("enable_moving_patch") == "true") {
+        enable_moving_patch = true;
+    } else {
+        enable_moving_patch = false;
+    }
+
+    // Display values
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Viper rover on SCM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  SCM grid spacing: " << mesh_resolution << std::endl;
+    std::cout << "  Moving patch enabled: " << (enable_moving_patch ? "yes" : "no") << std::endl;
+
+    // Set output path based on whether moving patch is enabled
+    std::string benchmark_dir;
+    if (enable_moving_patch) {
+        benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF_Active/";
+    } else {
+        benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF_noActive/";
+    }
 
     // Create output directories
-    std::string benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF/";
     if (!filesystem::create_directory(filesystem::path(benchmark_dir))) {
         std::cerr << "Error creating directory " << benchmark_dir << std::endl;
         return 1;
@@ -131,6 +171,13 @@ int main(int argc, char* argv[]) {
     if (!filesystem::create_directory(filesystem::path(scm_dir))) {
         std::cerr << "Error creating directory " << scm_dir << std::endl;
         return 1;
+    }
+
+    if (snapshots) {
+        if (!filesystem::create_directory(filesystem::path(scm_dir + "/snapshots"))) {
+            std::cerr << "Error creating directory " << scm_dir + "/snapshots" << std::endl;
+            return 1;
+        }
     }
 
     // Global parameter for moving patch size:
@@ -173,13 +220,13 @@ int main(int argc, char* argv[]) {
         terrain->RegisterSoilParametersCallback(my_params);
     } else {
         terrain->SetSoilParameters(0.2e6,  // Bekker Kphi
-                                  0,      // Bekker Kc
-                                  1.1,    // Bekker n exponent
-                                  0,      // Mohr cohesive limit (Pa)
-                                  30,     // Mohr friction limit (degrees)
-                                  0.01,   // Janosi shear coefficient (m)
-                                  4e7,    // Elastic stiffness (Pa/m), before plastic yield, must be > Kphi
-                                  3e4     // Damping (Pa s/m), proportional to negative vertical speed (optional)
+                                   0,      // Bekker Kc
+                                   1.1,    // Bekker n exponent
+                                   0,      // Mohr cohesive limit (Pa)
+                                   30,     // Mohr friction limit (degrees)
+                                   0.01,   // Janosi shear coefficient (m)
+                                   4e7,    // Elastic stiffness (Pa/m), before plastic yield, must be > Kphi
+                                   3e4     // Damping (Pa s/m), proportional to negative vertical speed (optional)
         );
     }
 
@@ -195,10 +242,10 @@ int main(int argc, char* argv[]) {
 
     // Add moving patches for each wheel
     if (enable_moving_patch) {
-        terrain->AddMovingPatch(Wheel_1, ChVector3d(0, 0, 0), ChVector3d(0.4,0.15, 0.4));
-        terrain->AddMovingPatch(Wheel_2, ChVector3d(0, 0, 0), ChVector3d(0.4,0.15, 0.4));
-        terrain->AddMovingPatch(Wheel_3, ChVector3d(0, 0, 0), ChVector3d(0.4,0.15, 0.4));
-        terrain->AddMovingPatch(Wheel_4, ChVector3d(0, 0, 0), ChVector3d(0.4,0.15, 0.4));
+        terrain->AddMovingPatch(Wheel_1, ChVector3d(0, 0, 0), ChVector3d(0.4, 0.15, 0.4));
+        terrain->AddMovingPatch(Wheel_2, ChVector3d(0, 0, 0), ChVector3d(0.4, 0.15, 0.4));
+        terrain->AddMovingPatch(Wheel_3, ChVector3d(0, 0, 0), ChVector3d(0.4, 0.15, 0.4));
+        terrain->AddMovingPatch(Wheel_4, ChVector3d(0, 0, 0), ChVector3d(0.4, 0.15, 0.4));
     }
 
     // Set visualization parameters
@@ -227,11 +274,24 @@ int main(int argc, char* argv[]) {
     render = false;
 #endif
 
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(&sys);
+    if (blender_output) {
+        blender_exporter.SetBasePath(scm_dir);
+        blender_exporter.SetCamera(ChVector3d(-2, 2, 1.5), ChVector3d(-5, 0, 0), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
+
     // Simulation parametersx
     double step_size = 2.5e-4;
     double end_time = 2.0;
     double current_time = 0.0;
     int current_step = 0;
+    int render_frame = 0;
+    int blender_frame = 0;
 
     // Timing variables
     double total_sim_time = 0.0;
@@ -253,24 +313,43 @@ int main(int argc, char* argv[]) {
         total_sim_time = current_time;
 
         // Run-time visualization
-        if (render) {
+        if (render && current_time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
             vis->BeginScene();
             vis->SetCameraTarget(Body_1->GetPos());
             vis->Render();
             vis->EndScene();
+
+            // Save snapshots if enabled
+            if (snapshots) {
+                std::cout << " -- Snapshot frame " << render_frame << " at t = " << current_time << std::endl;
+                std::ostringstream filename;
+                filename << scm_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
+                         << ".bmp";
+                vis->WriteImageToFile(filename.str());
+            }
+            render_frame++;
         }
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && current_time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
     }
 
     // Print results
     std::cout << "\nBenchmark Results:" << std::endl;
     std::cout << "-----------------" << std::endl;
     std::cout << "Terrain size: " << length << " x " << width << " m" << std::endl;
-    std::cout << "Active box size: " << 0.5 << " x " << 2 * wheel_range << " x " << 2 * wheel_range << " m" << std::endl;
+    std::cout << "Active box size: " << 0.5 << " x " << 2 * wheel_range << " x " << 2 * wheel_range << " m"
+              << std::endl;
     std::cout << "Total simulated time: " << total_sim_time << " s" << std::endl;
     std::cout << "Total real time: " << total_real_time << " s" << std::endl;
-    std::cout << "Real-time factor (RTF): " <<  total_real_time / total_sim_time << std::endl;
+    std::cout << "Real-time factor (RTF): " << total_real_time / total_sim_time << std::endl;
 
     // Write results to file
     std::ofstream outfile(scm_dir + "benchmark_results.txt");
@@ -279,16 +358,18 @@ int main(int argc, char* argv[]) {
         outfile << "----------------" << std::endl;
         outfile << "Terrain type: SCM" << std::endl;
         outfile << "Terrain size: " << length << " x " << width << " m" << std::endl;
-        outfile << "Active box size: " << 0.5 << " x " << 2 * wheel_range << " x " << 2 * wheel_range << " m" << std::endl;
+        outfile << "Active box size: " << 0.5 << " x " << 2 * wheel_range << " x " << 2 * wheel_range << " m"
+                << std::endl;
         outfile << "Mesh resolution: " << mesh_resolution << " m" << std::endl;
         outfile << "Bulldozing enabled: " << (enable_bulldozing ? "yes" : "no") << std::endl;
         outfile << "Moving patch enabled: " << (enable_moving_patch ? "yes" : "no") << std::endl;
         outfile << "Variable parameters: " << (var_params ? "yes" : "no") << std::endl;
-        outfile << "Wheel type: " << (wheel_type == ViperWheelType::RealWheel ? "RealWheel" : "SimpleWheel") << std::endl;
+        outfile << "Wheel type: " << (wheel_type == ViperWheelType::RealWheel ? "RealWheel" : "SimpleWheel")
+                << std::endl;
         outfile << "Custom material: " << (use_custom_mat ? "yes" : "no") << std::endl;
         outfile << "Total simulated time: " << total_sim_time << " s" << std::endl;
         outfile << "Total real time: " << total_real_time << " s" << std::endl;
-        outfile << "Real-time factor (RTF): " <<  total_real_time / total_sim_time << std::endl;
+        outfile << "Real-time factor (RTF): " << total_real_time / total_sim_time << std::endl;
         outfile.close();
         std::cout << "Results written to: " << scm_dir << "benchmark_results.txt" << std::endl;
     } else {
@@ -297,4 +378,4 @@ int main(int argc, char* argv[]) {
     }
 
     return 0;
-} 
+}

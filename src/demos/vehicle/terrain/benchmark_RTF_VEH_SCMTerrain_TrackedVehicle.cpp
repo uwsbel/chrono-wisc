@@ -34,11 +34,16 @@
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 #include "chrono/assets/ChVisualSystem.h"
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
 using namespace chrono::vsg3d;
+#endif
+
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
 #endif
 
 #include "demos/SetChronoSolver.h"
@@ -63,14 +68,53 @@ int main(int argc, char* argv[]) {
     double t_end = 2;
     double step_size = 5e-4;
     double active_box_hdim = 0.4;
+    double mesh_resolution = 0.04;
 
-    bool render = false;      // Set false except for debugging
-    double render_fps = 200;  // rendering FPS
+    bool render = false;       // Set false except for debugging
+    double render_fps = 100;  // rendering FPS
 
     bool chase_cam = true;  // chase-cam or fixed camera
 
+    bool snapshots = false;       // Enable for visual snapshots
+    bool blender_output = false;  // Enable for Blender post-processing
+    double output_fps = 10.0;    // FPS for Blender output
+
+    bool enable_moving_patch = false;
+
+    // Process command line arguments
+    ChCLI cli(argv[0], "Tracked vehicle on SCM terrain");
+
+    // Add command line options
+    cli.AddOption<double>("Physics", "mesh_resolution", "SCM grid spacing", std::to_string(mesh_resolution));
+    cli.AddOption<std::string>("Physics", "enable_moving_patch", "Enable moving patch feature (true/false)", "false");
+    // Parse command line arguments
+    if (!cli.Parse(argc, argv, true))
+        return 0;
+
+    // Get parameter values from command line
+    mesh_resolution = cli.GetAsType<double>("mesh_resolution");
+    if (cli.GetAsType<std::string>("enable_moving_patch") == "true") {
+        enable_moving_patch = true;
+    } else {
+        enable_moving_patch = false;
+    }
+
+    // Display values
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Tracked vehicle on SCM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  SCM grid spacing: " << mesh_resolution << std::endl;
+    std::cout << "  Moving patch enabled: " << (enable_moving_patch ? "yes" : "no") << std::endl;
+
+    // Set output path based on whether moving patch is enabled
+    std::string benchmark_dir;
+    if (enable_moving_patch) {
+        benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF_Active_render/";
+    } else {
+        benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF_noActive_render/";
+    }
+
     // Create output directories
-    std::string benchmark_dir = GetChronoOutputPath() + "BENCHMARK3_RTF/";
     if (!filesystem::create_directory(filesystem::path(benchmark_dir))) {
         std::cerr << "Error creating directory " << benchmark_dir << std::endl;
         return 1;
@@ -80,6 +124,13 @@ int main(int argc, char* argv[]) {
     if (!filesystem::create_directory(filesystem::path(scm_dir))) {
         std::cerr << "Error creating directory " << scm_dir << std::endl;
         return 1;
+    }
+
+    if (snapshots) {
+        if (!filesystem::create_directory(filesystem::path(scm_dir + "/snapshots"))) {
+            std::cerr << "Error creating directory " << scm_dir + "/snapshots" << std::endl;
+            return 1;
+        }
     }
 
     // Create vehicle
@@ -101,18 +152,17 @@ int main(int argc, char* argv[]) {
     // Use a regular grid
     double length = 10;
     double width = 4;
-    double mesh_resolution = 0.04;
     terrain->Initialize(length, width, mesh_resolution);
 
     // Set the soil terramechanical parameters
     terrain->SetSoilParameters(2e7,   // Bekker Kphi
-                              0,      // Bekker Kc
-                              1.1,    // Bekker n exponent
-                              0,      // Mohr cohesive limit (Pa)
-                              20,     // Mohr friction limit (degrees)
-                              0.01,   // Janosi shear coefficient (m)
-                              2e8,    // Elastic stiffness (Pa/m), before plastic yield
-                              3e4     // Damping (Pa s/m), proportional to negative vertical speed (optional)
+                               0,     // Bekker Kc
+                               1.1,   // Bekker n exponent
+                               0,     // Mohr cohesive limit (Pa)
+                               20,    // Mohr friction limit (degrees)
+                               0.01,  // Janosi shear coefficient (m)
+                               2e8,   // Elastic stiffness (Pa/m), before plastic yield
+                               3e4    // Damping (Pa s/m), proportional to negative vertical speed (optional)
     );
 
     // Enable bulldozing effects
@@ -124,16 +174,20 @@ int main(int argc, char* argv[]) {
         6);  // number of concentric vertex selections subject to erosion
 
     // Add moving patches for each track shoe
-    auto nshoes_left = vehicle->GetNumTrackShoes(VehicleSide::LEFT);
-    for (size_t i = 0; i < nshoes_left; i++) {
-        auto shoe_body = vehicle->GetTrackShoe(VehicleSide::LEFT, i)->GetShoeBody();
-        terrain->AddMovingPatch(shoe_body, ChVector3d(0, 0, 0), ChVector3d(active_box_hdim, active_box_hdim, active_box_hdim));
-    }
+    if (enable_moving_patch) {
+        auto nshoes_left = vehicle->GetNumTrackShoes(VehicleSide::LEFT);
+        for (size_t i = 0; i < nshoes_left; i++) {
+            auto shoe_body = vehicle->GetTrackShoe(VehicleSide::LEFT, i)->GetShoeBody();
+            terrain->AddMovingPatch(shoe_body, ChVector3d(0, 0, 0),
+                                    ChVector3d(active_box_hdim, active_box_hdim, active_box_hdim));
+        }
 
-    auto nshoes_right = vehicle->GetNumTrackShoes(VehicleSide::RIGHT);
-    for (size_t i = 0; i < nshoes_right; i++) {
-        auto shoe_body = vehicle->GetTrackShoe(VehicleSide::RIGHT, i)->GetShoeBody();
-        terrain->AddMovingPatch(shoe_body, ChVector3d(0, 0, 0), ChVector3d(active_box_hdim, active_box_hdim, active_box_hdim));
+        auto nshoes_right = vehicle->GetNumTrackShoes(VehicleSide::RIGHT);
+        for (size_t i = 0; i < nshoes_right; i++) {
+            auto shoe_body = vehicle->GetTrackShoe(VehicleSide::RIGHT, i)->GetShoeBody();
+            terrain->AddMovingPatch(shoe_body, ChVector3d(0, 0, 0),
+                                    ChVector3d(active_box_hdim, active_box_hdim, active_box_hdim));
+        }
     }
 
     // Set visualization parameters
@@ -172,11 +226,23 @@ int main(int argc, char* argv[]) {
     render = false;
 #endif
 
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(sysMBS);
+    if (blender_output) {
+        blender_exporter.SetBasePath(scm_dir);
+        blender_exporter.SetCamera(ChVector3d(-6, 6, 2.0), veh_init_pos, 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
+
     // Simulation loop
     DriverInputs driver_inputs = {0, 0, 0};
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
+    int blender_frame = 0;
 
     if (x_max < veh_init_pos.x())
         x_max = veh_init_pos.x() + 0.25;
@@ -220,7 +286,24 @@ int main(int argc, char* argv[]) {
             vis->BeginScene();
             vis->Render();
             vis->EndScene();
+
+            // Save snapshots if enabled
+            if (snapshots) {
+                cout << " -- Snapshot frame " << render_frame << " at t = " << time << endl;
+                std::ostringstream filename;
+                filename << scm_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
+                         << ".bmp";
+                vis->WriteImageToFile(filename.str());
+            }
             render_frame++;
+        }
+#endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
         }
 #endif
 
@@ -247,7 +330,8 @@ int main(int argc, char* argv[]) {
     std::cout << "\nBenchmark Results:" << std::endl;
     std::cout << "-----------------" << std::endl;
     std::cout << "Terrain size: " << length << " x " << width << " m" << std::endl;
-    std::cout << "Active box size: " << 0.5 << " x " << 2 * active_box_hdim << " x " << 2 * active_box_hdim << " m" << std::endl;
+    std::cout << "Active box size: " << 0.5 << " x " << 2 * active_box_hdim << " x " << 2 * active_box_hdim << " m"
+              << std::endl;
     std::cout << "Total simulated time: " << total_sim_time << " s" << std::endl;
     std::cout << "Total real time: " << total_real_time << " s" << std::endl;
     std::cout << "Real-time factor (RTF): " << total_sim_time / total_real_time << std::endl;
@@ -259,10 +343,11 @@ int main(int argc, char* argv[]) {
         outfile << "----------------" << std::endl;
         outfile << "Terrain type: SCM" << std::endl;
         outfile << "Terrain size: " << length << " x " << width << " m" << std::endl;
-        outfile << "Active box size: " << 0.5 << " x " << 2 * active_box_hdim << " x " << 2 * active_box_hdim << " m" << std::endl;
+        outfile << "Active box size: " << 0.5 << " x " << 2 * active_box_hdim << " x " << 2 * active_box_hdim << " m"
+                << std::endl;
         outfile << "Mesh resolution: " << mesh_resolution << " m" << std::endl;
         outfile << "Bulldozing enabled: yes" << std::endl;
-        outfile << "Moving patch enabled: yes" << std::endl;
+        outfile << "Moving patch enabled: " << (enable_moving_patch ? "yes" : "no") << std::endl;
         outfile << "Total simulated time: " << total_sim_time << " s" << std::endl;
         outfile << "Total real time: " << total_real_time << " s" << std::endl;
         outfile << "Real-time factor (RTF): " << total_sim_time / total_real_time << std::endl;
@@ -313,4 +398,4 @@ std::shared_ptr<ChBezierCurve> CreatePath() {
     points.push_back(ChVector3d(100, 0, 0));
 
     return std::shared_ptr<ChBezierCurve>(new ChBezierCurve(points));
-} 
+}

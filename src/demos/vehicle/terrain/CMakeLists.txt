@@ -55,6 +55,7 @@ if(CH_ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS}
         benchmark_RTF_VEH_CRMTerrain_TrackedVehicle
         benchmark_RTF_VEH_CRMTerrain_WheeledVehicleScaling
+        benchmark_DemoOFTech_VEH_CRMTerrain_DefTIre_Pressure
     )
 endif()
 

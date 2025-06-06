@@ -81,6 +81,11 @@ if(CH_ENABLE_MODULE_VSG)
     endif()
 endif()
 
+# Add support for Blender post-processing
+if(CH_ENABLE_MODULE_POSTPROCESS)
+    list(APPEND LIBS "Chrono_postprocess")
+endif()
+
 # ------------------------------------------------------------------------------
 # Add all executables
 # ------------------------------------------------------------------------------

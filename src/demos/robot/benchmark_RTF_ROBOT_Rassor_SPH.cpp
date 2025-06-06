@@ -37,6 +37,13 @@
 #include "chrono_thirdparty/filesystem/path.h"
 #include <cmath>  // Make sure to include cmath for the sin() function
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
+#include <chrono>
+#include <fstream>
+
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
+#endif
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
@@ -60,12 +67,15 @@ ChVector3d init_loc(-bxDim / 2.0 + 1.0, 0, bzDim + 0.25);
 bool verbose = false;
 // Save data as csv files to see the results off-line using Paraview
 bool output = false;
-int out_fps = 100;
+int out_fps = 20;
 
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
 bool render = false;
 bool snapshots = false;
-float render_fps = 100;
+float render_fps = 20;
+
+bool blender_output = false;  // Enable Blender post-processing
+double output_fps = 20;       // FPS for Blender output
 
 // Pointer to store the Rassor instance
 std::shared_ptr<Rassor> rover;
@@ -100,7 +110,8 @@ bool GetProblemSpecs(int argc,
                      int& ps_freq,
                      std::string& boundary_type,
                      std::string& viscosity_type,
-                     double& d0_multiplier) {
+                     double& d0_multiplier,
+                     bool& active_domains) {
     ChCLI cli(argv[0], "Flexible cable FSI demo");
 
     cli.AddOption<double>("Input", "t_end", "Simulation duration [s]");
@@ -109,6 +120,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Physics", "viscosity_type",
                                "Viscosity type (laminar/artificial_unilateral/artificial_bilateral)");
     cli.AddOption<double>("Physics", "d0_multiplier", "SPH density multiplier");
+    cli.AddOption<std::string>("Physics", "active_domains", "Enable active domains (true/false)", "false");
 
     if (argc == 1) {
         std::cout << "Required parameters missing. See required parameters and descriptions below:\n\n";
@@ -126,6 +138,11 @@ bool GetProblemSpecs(int argc,
     boundary_type = cli.GetAsType<std::string>("boundary_type");
     viscosity_type = cli.GetAsType<std::string>("viscosity_type");
     d0_multiplier = cli.GetAsType<double>("d0_multiplier");
+    if (cli.GetAsType<std::string>("active_domains") == "true") {
+        active_domains = true;
+    } else {
+        active_domains = false;
+    }
 
     return true;
 }
@@ -143,7 +160,35 @@ int main(int argc, char* argv[]) {
     double wheel_radius = 0.22;
     double wheel_driver_speed = rover_velocity_array[TestID] / wheel_radius;
     double bucket_driver_speed = bucket_omega_array[TestID];
-    SetChronoOutputPath("BENCHMARK3_RTF/");
+
+    double t_end = 2;
+    double iniSpacing = 0.004;
+    double d0_multiplier = 1.2;
+    std::string boundary_type = "adami";
+    std::string viscosity_type = "artificial_bilateral";
+    int ps_freq = 1;
+    bool active_domains = false;
+    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier, active_domains)) {
+        return 1;
+    }
+
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Rassor on CRM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  Simulation end time: " << t_end << " s" << std::endl;
+    std::cout << "  Proximity search frequency: " << ps_freq << std::endl;
+    std::cout << "  Boundary type: " << boundary_type << std::endl;
+    std::cout << "  Viscosity type: " << viscosity_type << std::endl;
+    std::cout << "  Density multiplier: " << d0_multiplier << std::endl;
+    std::cout << "  Active domains: " << (active_domains ? "enabled" : "disabled") << std::endl;
+
+    // Set output path based on whether active domains are used
+    if (active_domains) {
+        SetChronoOutputPath("BENCHMARK3_RTF_Active_render/");
+    } else {
+        SetChronoOutputPath("BENCHMARK3_RTF_noActive_render/");
+    }
+
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_RASSOR/";
 
@@ -165,6 +210,10 @@ int main(int argc, char* argv[]) {
         }
         if (!filesystem::create_subdirectory(filesystem::path(out_dir + "/fsi"))) {
             std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
+            return 1;
+        }
+        if (!filesystem::create_subdirectory(filesystem::path(out_dir + "/rover"))) {
+            std::cerr << "Error creating directory " << out_dir + "/rover" << std::endl;
             return 1;
         }
     }
@@ -197,16 +246,6 @@ int main(int argc, char* argv[]) {
     sysFSI.SetGravitationalAcceleration(gravity);
 
     double dT = 2e-4;
-    double t_end = 2;
-    double iniSpacing = 0.004;
-    double d0_multiplier = 1.2;
-    std::string boundary_type = "adami";
-    std::string viscosity_type = "artificial_bilateral";
-    int ps_freq = 1;
-    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier)) {
-        return 1;
-    }
-
     // Set the simulation stepsize
     sysFSI.SetStepSizeCFD(dT);
     sysFSI.SetStepsizeMBD(dT);
@@ -246,8 +285,12 @@ int main(int argc, char* argv[]) {
     mat_props.cohesion_coeff = 0;
 
     sysSPH.SetElasticSPH(mat_props);
-    sysSPH.SetActiveDomain(ChVector3d(0.3, 0.2, 1.0));
-    // sysSPH.SetActiveDomainDelay(0.0);
+
+    // Only set active domain if enabled
+    if (active_domains) {
+        sysSPH.SetActiveDomain(ChVector3d(0.5, 0.85, 0.7));
+        sysSPH.SetActiveDomainDelay(0.0);
+    }
 
     // Set the terrain container size
     sysSPH.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
@@ -260,14 +303,14 @@ int main(int argc, char* argv[]) {
     double initSpace0 = sysSPH.GetInitialSpacing();
     ChVector3d cMin(-bxDim / 2 - 3 * iniSpacing, -byDim / 2 - 0.5 * iniSpacing, -bzDim * 15);
     ChVector3d cMax(bxDim / 2 + 3 * iniSpacing, byDim / 2 + 0.5 * iniSpacing, bzDim * 20);
-    sysSPH.SetComputationalBoundaries(cMin, cMax, PeriodicSide::Y & PeriodicSide::Z);
+    sysSPH.SetComputationalBoundaries(cMin, cMax, PeriodicSide::Y);
 
     sysSPH.SetOutputLevel(OutputLevel::STATE);
 
     // Create an initial box for the terrain patch
     chrono::utils::ChGridSampler<> sampler(initSpace0);
     ChVector3d boxCenter(0, 0, bzDim / 2);
-    ChVector3d boxHalfDim(bxDim / 2, byDim / 2, bzDim / 2);
+    ChVector3d boxHalfDim(bxDim / 2 - 0.5 * initSpace0, byDim / 2 - 0.5 * initSpace0, bzDim / 2 - 0.5 * initSpace0);
     std::vector<ChVector3d> points = sampler.SampleBox(boxCenter, boxHalfDim);
 
     // Add SPH particles from the sampler points to the FSI system
@@ -294,6 +337,22 @@ int main(int argc, char* argv[]) {
     if (output)
         ofile.open(out_dir + "./body_position.txt");
 
+        // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(&sysMBS);
+    if (blender_output) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/blender"))) {
+            std::cerr << "Error creating directory " << out_dir + "/blender" << std::endl;
+            return 1;
+        }
+        blender_exporter.SetBasePath(out_dir + "/blender");
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(0, -3 * byDim, bzDim * 5), ChVector3d(0, 0, 0), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
+
 #if !defined(CHRONO_VSG)
     render = false;
 #endif
@@ -313,7 +372,7 @@ int main(int argc, char* argv[]) {
         visVSG->AttachPlugin(visFSI);
         visVSG->AttachSystem(&sysMBS);
         visVSG->SetWindowTitle("RASSOR on CRM terrain");
-        visVSG->SetWindowSize(1280, 720);
+        visVSG->SetWindowSize(1280, 960);
         visVSG->SetWindowPosition(100, 100);
         visVSG->AddCamera(ChVector3d(0, -3 * byDim, bzDim), ChVector3d(0, 0, 0));
         visVSG->SetLightIntensity(0.9f);
@@ -330,6 +389,7 @@ int main(int argc, char* argv[]) {
     double time = 0.0;
     int current_step = 0;
     int render_frame = 0;
+    int blender_frame = 0;
     auto body = sysMBS.GetBodies()[1];
     double timer_step = 0;
     double timer_CFD = 0;
@@ -436,6 +496,15 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
+
         sysFSI.DoStepDynamics(dT);
         timer_step += sysFSI.GetTimerStep();
         timer_CFD += sysFSI.GetTimerCFD();
@@ -487,7 +556,7 @@ void CreateSolidPhase(ChSystemSMC& sysMBS, ChFsiSystem& sysFSI, ChFsiFluidSystem
     sysSPH.AddBoxContainerBCE(box,                                        //
                               ChFrame<>(ChVector3d(0, 0, bzDim), QUNIT),  //
                               ChVector3d(bxDim, byDim, 2 * bzDim),        //
-                              ChVector3i(2, 2, -1));
+                              ChVector3i(2, 0, -1));
 
     driver = chrono_types::make_shared<RassorSpeedDriver>(1.0);
     rover = chrono_types::make_shared<Rassor>(&sysMBS, wheel_type);
@@ -515,12 +584,12 @@ void CreateSolidPhase(ChSystemSMC& sysMBS, ChFsiSystem& sysFSI, ChFsiFluidSystem
             wheel_body = rover->GetWheel(RassorWheelID::RA_RB)->GetBody();
         }
 
-        sysFSI.AddFsiBody(wheel_body);
         if (i == 0 || i == 2) {
             sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QuatFromAngleZ(CH_PI)), true);
         } else {
             sysSPH.AddPointsBCE(wheel_body, BCE_wheel, ChFrame<>(VNULL, QUNIT), true);
         }
+        sysFSI.AddFsiBody(wheel_body);
     }
 
     std::vector<ChVector3d> BCE_razor_back;
@@ -543,21 +612,20 @@ void CreateSolidPhase(ChSystemSMC& sysMBS, ChFsiSystem& sysFSI, ChFsiFluidSystem
             razor_body = rover->GetDrum(RassorDirID::RA_B)->GetBody();
         }
 
-        sysFSI.AddFsiBody(razor_body);
-
         // This is the case for bucket pushing soil away (front drum spin counter clock wise)
-        if (i == 0) {
-            sysSPH.AddPointsBCE(razor_body, BCE_razor_front, ChFrame<>(VNULL, QUNIT), true);
-        } else {
-            sysSPH.AddPointsBCE(razor_body, BCE_razor_back, ChFrame<>(VNULL, QUNIT), true);
-        }
-
-        // This is the case for front drum spins clockwise
         // if (i == 0) {
-        //    sysFSI.AddPointsBCE(razor_body, BCE_razor_back, ChFrame<>(VNULL, QUNIT), true);
-        //} else {
-        //    sysFSI.AddPointsBCE(razor_body, BCE_razor_front, ChFrame<>(VNULL, QUNIT), true);
-        //}
+        //     sysSPH.AddPointsBCE(razor_body, BCE_razor_front, ChFrame<>(VNULL, QUNIT), true);
+        // } else {
+        //     sysSPH.AddPointsBCE(razor_body, BCE_razor_back, ChFrame<>(VNULL, QUNIT), true);
+        // }
+
+        //     // This is the case for front drum spins clockwise
+        if (i == 0) {
+            sysSPH.AddPointsBCE(razor_body, BCE_razor_back, ChFrame<>(VNULL, QUNIT), true);
+        } else {
+            sysSPH.AddPointsBCE(razor_body, BCE_razor_front, ChFrame<>(VNULL, QUNIT), true);
+        }
+        sysFSI.AddFsiBody(razor_body);
     }
 }
 

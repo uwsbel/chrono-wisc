@@ -33,15 +33,19 @@
 #include "chrono_fsi/sph/utils/UtilsTimingOutput.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 #include "chrono_thirdparty/filesystem/path.h"
+#include <chrono>
+#include <fstream>
+
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
+#endif
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
 using namespace chrono::viper;
 
-
-
 // Output directories and settings
-const std::string out_dir = GetChronoOutputPath() + "FSI_Viper/";
 
 // If true, save as Wavefront OBJ; if false, save as VTK
 bool save_obj = false;
@@ -61,13 +65,15 @@ ChVector3d init_loc(-bxDim / 2.0 + 1.0, 0, bzDim + 0.3);
 
 // Save data as csv files to see the results off-line using Paraview
 bool output = false;
-int out_fps = 20;
+int out_fps = 50;
 bool verbose = false;
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
 bool render = false;
 float render_fps = 100;
 
 bool snapshots = false;
+bool blender_output = false;  // Enable Blender post-processing
+double output_fps = 50.0;    // FPS for Blender output
 // Pointer to store the VIPER instance
 std::shared_ptr<Viper> rover;
 
@@ -112,7 +118,7 @@ std::shared_ptr<ChContactMaterial> CustomWheelMaterial(ChContactMethod contact_m
 }
 
 // Forward declaration of helper functions
-void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI);
+void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI, std::string out_dir);
 void CreateSolidPhase(ChFsiSystemSPH& sysFSI);
 bool GetProblemSpecs(int argc,
                      char** argv,
@@ -120,12 +126,40 @@ bool GetProblemSpecs(int argc,
                      int& ps_freq,
                      std::string& boundary_type,
                      std::string& viscosity_type,
-                     double& d0_multiplier);
+                     double& d0_multiplier,
+                     bool& active_domains);
 
 int main(int argc, char* argv[]) {
-    SetChronoOutputPath("BENCHMARK3_RTF/");
-    // Create oputput directories
+    int ps_freq = 1;
+    // Simulation time and stepsize
+    double t_end = 5.0;
+    double dT = 2.5e-4;
+    std::string boundary_type = "adami";
+    std::string viscosity_type = "artificial_bilateral";
+    double d0_multiplier = 1.2;
+    bool active_domains = false;
+    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier, active_domains)) {
+        return 1;
+    }
+
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Viper rover on CRM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  Simulation end time: " << t_end << " s" << std::endl;
+    std::cout << "  Proximity search frequency: " << ps_freq << std::endl;
+    std::cout << "  Boundary type: " << boundary_type << std::endl;
+    std::cout << "  Viscosity type: " << viscosity_type << std::endl;
+    std::cout << "  Density multiplier: " << d0_multiplier << std::endl;
+    std::cout << "  Active domains: " << (active_domains ? "enabled" : "disabled") << std::endl;
+
+    // Set output path based on whether active domains are used
+    if (active_domains) {
+        SetChronoOutputPath("BENCHMARK3_RTF_Active_render/");
+    } else {
+        SetChronoOutputPath("BENCHMARK3_RTF_noActive_render/");
+    }
     std::string out_dir = GetChronoOutputPath() + "FSI_Viper/";
+
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
@@ -141,14 +175,13 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-    int ps_freq = 1;
-    // Simulation time and stepsize
-    double t_end = 5.0;
-    double dT = 2.5e-4;
-    std::string boundary_type = "adami";
-    std::string viscosity_type = "artificial_bilateral";
-    double d0_multiplier = 1.2;
-    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier)) {
+
+    if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+        std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
+        return 1;
+    }
+    if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+        std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
         return 1;
     }
 
@@ -175,6 +208,7 @@ int main(int argc, char* argv[]) {
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.num_proximity_search_steps = ps_freq;
+    sph_params.num_bce_layers = 3;
 
     if (boundary_type == "holmes")
         sph_params.boundary_type = BoundaryType::HOLMES;
@@ -220,7 +254,7 @@ int main(int argc, char* argv[]) {
     // Create an initial box for the terrain patch
     chrono::utils::ChGridSampler<> sampler(initSpace0);
     ChVector3d boxCenter(0, 0, bzDim / 2);
-    ChVector3d boxHalfDim(bxDim / 2, byDim / 2, bzDim / 2);
+    ChVector3d boxHalfDim(bxDim / 2 - 0.5 * initSpace0, byDim / 2 - 0.5 * initSpace0, bzDim / 2 - 0.5 * initSpace0);
     std::vector<ChVector3d> points = sampler.SampleBox(boxCenter, boxHalfDim);
 
     // Add SPH particles from the sampler points to the FSI system
@@ -240,15 +274,36 @@ int main(int argc, char* argv[]) {
     std::cout << "Generate BCE markers" << std::endl;
     CreateSolidPhase(sysFSI);
 
-    sysSPH.SetActiveDomain(ChVector3d(0.4, 0.15, 0.4));
-    sysSPH.SetActiveDomainDelay(0.0);
+    // Only set active domain if enabled
+    if (active_domains) {
+        sysSPH.SetActiveDomain(ChVector3d(0.4, 0.15, 0.4));
+        sysSPH.SetActiveDomainDelay(0.0);
+    }
+
     // Complete construction of the FSI system
     sysFSI.Initialize();
 
     // Write position and velocity to file
     std::ofstream ofile;
-    if (output)
-        ofile.open(out_dir + "./body_position.txt");
+    if (output) {
+        ofile.open(out_dir + "/rover_position.txt");
+    }
+
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(&sysMBS);
+    if (blender_output) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/blender"))) {
+            std::cerr << "Error creating directory " << out_dir + "/blender" << std::endl;
+            return 1;
+        }
+        blender_exporter.SetBasePath(out_dir + "/blender");
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(0, -3 * byDim, bzDim * 5), ChVector3d(0, 0, 0), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
 
 #if !defined(CHRONO_VSG)
     render = false;
@@ -288,6 +343,7 @@ int main(int argc, char* argv[]) {
 
     auto body = sysMBS.GetBodies()[1];
     int render_frame = 0;
+    int blender_frame = 0;
     double timer_step = 0;
     double timer_CFD = 0;
     double timer_MBS = 0;
@@ -297,9 +353,10 @@ int main(int argc, char* argv[]) {
         if (output) {
             ofile << time << "  " << body->GetPos() << "    " << body->GetPosDt() << std::endl;
             if (current_step % output_steps == 0) {
+                std::cout << "Saving particle data" << std::endl;
                 sysSPH.SaveParticleData(out_dir + "/particles");
                 sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                SaveParaViewFiles(time, sysFSI);
+                SaveParaViewFiles(time, sysFSI, out_dir);
             }
         }
 #ifdef CHRONO_VSG
@@ -321,6 +378,15 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
+
         sysFSI.DoStepDynamics(dT);
         timer_step += sysFSI.GetTimerStep();
         timer_CFD += sysFSI.GetTimerCFD();
@@ -416,7 +482,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI) {
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
-void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI) {
+void SaveParaViewFiles(double time, ChFsiSystemSPH& sysFSI, std::string out_dir) {
     ChSystem& sysMBS = sysFSI.GetMultibodySystem();
 
     std::string rover_dir = out_dir + "/rover";
@@ -822,7 +888,8 @@ bool GetProblemSpecs(int argc,
                      int& ps_freq,
                      std::string& boundary_type,
                      std::string& viscosity_type,
-                     double& d0_multiplier) {
+                     double& d0_multiplier,
+                     bool& active_domains) {
     ChCLI cli(argv[0], "Flexible cable FSI demo");
 
     cli.AddOption<double>("Input", "t_end", "Simulation duration [s]");
@@ -831,6 +898,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Physics", "viscosity_type",
                                "Viscosity type (laminar/artificial_unilateral/artificial_bilateral)");
     cli.AddOption<double>("Physics", "d0_multiplier", "SPH density multiplier");
+    cli.AddOption<std::string>("Physics", "active_domains", "Enable active domains (true/false)", "false");
 
     if (argc == 1) {
         std::cout << "Required parameters missing. See required parameters and descriptions below:\n\n";
@@ -848,6 +916,11 @@ bool GetProblemSpecs(int argc,
     boundary_type = cli.GetAsType<std::string>("boundary_type");
     viscosity_type = cli.GetAsType<std::string>("viscosity_type");
     d0_multiplier = cli.GetAsType<double>("d0_multiplier");
+    if (cli.GetAsType<std::string>("active_domains") == "true") {
+        active_domains = true;
+    } else {
+        active_domains = false;
+    }
 
     return true;
 }

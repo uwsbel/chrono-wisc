@@ -68,8 +68,8 @@ double czDim = 2.0;
 
 // Create additional solids
 bool create_flex_cable2 = false;
-bool create_cylinder_post = false;
-bool create_cylinder_free = false;
+bool create_cylinder_post = true;
+bool create_cylinder_free = true;
 
 // Visibility flags
 bool show_rigid = true;

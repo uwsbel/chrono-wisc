@@ -46,6 +46,11 @@ if(CH_ENABLE_MODULE_PARDISO_MKL)
     list(APPEND LIBS "Chrono_pardisomkl")
 endif()
 
+# Add support for Blender post-processing
+if(CH_ENABLE_MODULE_POSTPROCESS)
+    list(APPEND LIBS "Chrono_postprocess")
+endif()
+
 #--------------------------------------------------------------
 
 message(STATUS "Add demo programs for FSI module")

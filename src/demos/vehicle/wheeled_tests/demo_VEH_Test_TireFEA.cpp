@@ -60,12 +60,18 @@ ChVisualSystem::Type vis_type = ChVisualSystem::Type::VSG;
 std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
 ////std::string tire_json = "hmmwv/tire/HMMWV_ANCF4Tire.json";
 
-// Mass of the wheel/spindle
-double wheel_mass = 18;
+// Mass load on wheel/spindle (kg)
+double load_mass = 1000;
+
+// Internal tire pressure (N/m2)
+// Manufacturer recommended values:
+//   HMMWV:   37 psi (255 kPa)
+//   Polaris: 16 psi (110 kPa)
+double tire_pressure = 70e3;
 
 bool fix_wheel = false;
-bool tire_pressure = true;
-bool tire_contact = true;
+bool enable_tire_pressure = true;
+bool enable_tire_contact = true;
 
 // -----------------------------------------------------------------------------
 
@@ -94,7 +100,7 @@ int main(int argc, char* argv[]) {
     // Solver and integrator settings
     double step_size = 1e-4;
     auto solver_type = ChSolver::Type::PARDISO_MKL;
-    auto integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+    auto integrator_type = ChTimestepper::Type::HHT;
     int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
     int num_threads_collision = 1;
     int num_threads_eigen = 1;
@@ -118,7 +124,7 @@ int main(int argc, char* argv[]) {
     // Create the spindle body (at origin)
     auto spindle = chrono_types::make_shared<ChSpindle>();
     spindle->SetPos(VNULL);
-    spindle->SetMass(wheel_mass);
+    spindle->SetMass(load_mass);
     spindle->SetFixed(fix_wheel);
     sys.AddBody(spindle);
 
@@ -134,8 +140,9 @@ int main(int argc, char* argv[]) {
         cerr << "ERROR: Incorrect tire specification JSON file" << endl;
         return 1;
     }
-    tire_def->EnablePressure(tire_pressure);
-    tire_def->EnableContact(tire_contact);
+    tire_def->SetPressure(tire_pressure);
+    tire_def->EnablePressure(enable_tire_pressure);
+    tire_def->EnableContact(enable_tire_contact);
     tire_def->EnableRimConnection(true);
     tire_def->SetContactSurfaceType(ChTire::ContactSurfaceType::TRIANGLE_MESH);
 
@@ -150,12 +157,13 @@ int main(int argc, char* argv[]) {
     cout << "Tire input file: " << tire_json << endl;
     cout << "Tire radius:     " << radius << endl;
     cout << "Tire mass:       " << tire_def->GetTireMass() << endl;
-    cout << "Wheel mass:      " << wheel_mass << endl;
- 
+    cout << "Tire pressure:   " << tire_pressure << endl;
+    cout << "Mass load:       " << load_mass << endl;
+
     // If wheel not fixed and if tire contact enabled,
     // - create rigid floor (below tire)
     // - connect spindle to ground with a vertical prismatic joint
-    if (!fix_wheel && tire_contact) {
+    if (!fix_wheel && enable_tire_contact) {
         ChContactMaterialData mat_data;
         mat_data.mu = 0.9f;
         auto floor = chrono_types::make_shared<ChBody>();
@@ -199,7 +207,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->SetWindowTitle("FEA tire");
             vis_vsg->AddCamera(ChVector3d(0, -1.5, 0), VNULL);
             vis_vsg->SetWindowSize(1280, 800);
-            vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+            // vis_vsg->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
             vis_vsg->EnableSkyBox();
             vis_vsg->SetCameraVertical(CameraVerticalDir::Z);
             vis_vsg->SetCameraAngleDeg(40.0);
@@ -246,6 +254,7 @@ int main(int argc, char* argv[]) {
             csv << ls_direct->GetTimeSetup_Assembly() << ls_direct->GetTimeSetup_SolverCall()
                 << ls_direct->GetTimeSolve_Assembly() << ls_direct->GetTimeSolve_SolverCall();
         }
+        csv << spindle->GetPos().z();
         csv << endl;
     }
 
@@ -253,6 +262,14 @@ int main(int argc, char* argv[]) {
     csv.WriteToFile(out_file);
 
 #ifdef CHRONO_POSTPROCESS
+    {
+        postprocess::ChGnuPlot gplot(out_dir + "/spindle_height.gpl");
+        gplot.SetGrid();
+        gplot.SetLabelX("time (s)");
+        gplot.SetLabelY("height (m)");
+        gplot.SetTitle("Spindle Height");
+        gplot.Plot(out_file, 1, 15, "height", " with lines lt 1 lw 2");
+    }
     {
         postprocess::ChGnuPlot gplot(out_dir + "/rtf.gpl");
         gplot.SetGrid();

@@ -37,13 +37,13 @@
 
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
-
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
 #endif
 #include "chrono_fsi/sph/utils/UtilsTimingOutput.h"
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
+    #include "chrono_postprocess/ChBlender.h"
 #endif
 
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
@@ -63,8 +63,6 @@ using std::endl;
 // Physics problem type
 PhysicsProblem problem_type = PhysicsProblem::CRM;
 
-
-
 // Dimension of the domain
 double cxDim = 3.0;
 double cyDim = 0.2;
@@ -72,8 +70,8 @@ double czDim = 2.0;
 
 // Create additional solids
 bool create_flex_cable2 = false;
-bool create_cylinder_post = false;
-bool create_cylinder_free = false;
+bool create_cylinder_post = true;
+bool create_cylinder_free = true;
 
 // Visibility flags
 bool show_rigid = true;
@@ -85,14 +83,18 @@ bool show_particles_sph = true;
 
 // RTF benchmark so set this always to false
 bool output = false;
-double output_fps = 20;
+double output_fps = 100;
 // Set to true only for debugging - Run benchmark with render = false
 bool render = false;
-double render_fps = 400;
+double render_fps = 100;
 // Set to true only for debugging - Run benchmark with snapshots = false
 bool snapshots = false;
 // Only prints at initialization so can be kept at true without affecting performance
 bool verbose = true;
+#ifdef CHRONO_POSTPROCESS
+bool blender_output = false;  // Enable Blender post-processing
+double blender_fps = 100;    // FPS for Blender output
+#endif
 // -----------------------------------------------------------------------------
 
 std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiProblemSPH& fsi);
@@ -256,7 +258,7 @@ int main(int argc, char* argv[]) {
     // Initialize FSI problem
     fsi.Initialize();
 
-    SetChronoOutputPath("BENCHMARK3_RTF/");
+    SetChronoOutputPath("BENCHMARK3_RTF_noActive_render/");
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_Flexible_Cable/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
@@ -291,6 +293,22 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(&sysMBS);
+    if (blender_output) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/blender"))) {
+            cerr << "Error creating directory " << out_dir + "/blender" << endl;
+            return 1;
+        }
+        blender_exporter.SetBasePath(out_dir + "/blender");
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(0, -3, 0.75), ChVector3d(0, 0, 0.75), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
 
     // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
@@ -345,6 +363,9 @@ int main(int argc, char* argv[]) {
     int sim_frame = 0;
     int out_frame = 0;
     int render_frame = 0;
+#ifdef CHRONO_POSTPROCESS
+    int blender_frame = 0;
+#endif
 
     // Reset all the timers
     double timer_step = 0;
@@ -381,6 +402,15 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / blender_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
+
         fsi.DoStepDynamics(step_size);
 
         time += step_size;

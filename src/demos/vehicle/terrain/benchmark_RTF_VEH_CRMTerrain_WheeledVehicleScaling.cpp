@@ -21,7 +21,8 @@
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
-#include <chrono>  // Added for timing measurements
+#include <chrono>   // Added for timing measurements
+#include <sstream>  // Added for stringstream
 
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
@@ -46,6 +47,7 @@
 
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
+    #include "chrono_postprocess/ChBlender.h"
 #endif
 
 #include "demos/SetChronoSolver.h"
@@ -75,7 +77,7 @@ double terrain_height = 0.25;  // Added explicit variable for terrain height
 std::string vehicle_json = "Polaris/Polaris.json";
 std::string engine_json = "Polaris/Polaris_EngineSimpleMap.json";
 std::string transmission_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
-std::string tire_json = "Polaris/Polaris_RigidTire.json";
+std::string tire_json = "Polaris/Polaris_RigidMeshTire.json";
 ////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
 
 // Suspend vehicle
@@ -110,23 +112,35 @@ int main(int argc, char* argv[]) {
     terrain_length = cli.GetAsType<double>("length");
     terrain_width = cli.GetAsType<double>("width");
     terrain_height = cli.GetAsType<double>("height");
+    // Always enable active domains
+    bool active_domains = true;
 
-    cout << "Terrain dimensions: " << terrain_length << " x " << terrain_width << " x " << terrain_height << endl;
+    // Print problem specifications
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Wheeled vehicle on CRM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  Terrain dimensions: " << terrain_length << " x " << terrain_width << " x " << terrain_height
+              << std::endl;
+    std::cout << "  Active domains: enabled" << std::endl;
 
     // ----------------
     // Problem settings
     // ----------------
 
     double target_speed = 7.0;
-    double tend = 10;  // Changed from 30 to 10 as requested
+    double tend = 1;  // Changed from 30 to 10 as requested
     bool verbose = true;
 
     // Visualization settings
-    bool render = false;                   // use run-time visualization
-    double render_fps = 200;               // rendering FPS
+    bool render = false;                    // use run-time visualization
+    double render_fps = 400;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
+
+    // Blender output settings
+    bool blender_output = false;  // Enable Blender post-processing
+    double output_fps = 100.0;   // FPS for Blender output
 
     // CRM material properties
     double density = 1700;
@@ -211,13 +225,14 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.sph_method = SPHMethod::WCSPH;
     sph_params.initial_spacing = spacing;
-    sph_params.d0_multiplier = 1;
+    sph_params.d0_multiplier = 1.2;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
     sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
     sph_params.boundary_type = BoundaryType::ADAMI;
+    sph_params.num_proximity_search_steps = 10;
     terrain.SetSPHParameters(sph_params);
 
     // Set output level from SPH simulation
@@ -225,6 +240,8 @@ int main(int argc, char* argv[]) {
 
     // Add vehicle wheels as FSI solids
     CreateFSIWheels(vehicle, terrain);
+
+    // Always set active domain
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
     terrain.SetActiveDomainDelay(settling_time);
 
@@ -292,14 +309,49 @@ int main(int argc, char* argv[]) {
     // Set up output
     // -----------------------------
 
+    // Create a unique output folder based on simulation length
+    std::stringstream ss;
+    ss << "BENCHMARK3_SCALING_length" << terrain_length << "/";
+    std::string output_folder = ss.str();
+    SetChronoOutputPath(output_folder);
+
+    // Particle output settings
+    bool particle_output = false;  // Enable particle data output
+    double particle_fps = 50.0;   // Frequency of particle data output
+    int particle_frame = 0;       // Current frame counter for particle output
+
     std::string out_dir = GetChronoOutputPath() + "CRM_Wheeled_Vehicle/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
 
+    // Create subdirectories for particle and FSI data
+    std::string particles_dir = out_dir + "/particles";
+    std::string fsi_dir = out_dir + "/fsi";
+    if (!filesystem::create_directory(filesystem::path(particles_dir))) {
+        cerr << "Error creating directory " << particles_dir << endl;
+        return 1;
+    }
+    if (!filesystem::create_directory(filesystem::path(fsi_dir))) {
+        cerr << "Error creating directory " << fsi_dir << endl;
+        return 1;
+    }
+
     std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
+
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(sysMBS);
+    if (blender_output) {
+        blender_exporter.SetBasePath(out_dir);
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(-6, 6, 2.0), ChVector3d(terrain_length / 2, 0, vehicle_init_height), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
 
     // -----------------------------
     // Create run-time visualization
@@ -314,7 +366,8 @@ int main(int argc, char* argv[]) {
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-        visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
+        visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
+                                                                                           aabb.min.z(), aabb.max.z()));
 
         // Wheeled vehicle VSG visual system (attach visFSI as plugin)
         auto visVSG = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
@@ -344,6 +397,7 @@ int main(int argc, char* argv[]) {
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
+    int blender_frame = 0;
     bool braking = false;
 
     cout << "Start simulation..." << endl;
@@ -356,6 +410,19 @@ int main(int argc, char* argv[]) {
 
         // Set current driver inputs
         auto driver_inputs = driver.GetInputs();
+
+        if (particle_output && time >= particle_frame / particle_fps) {
+            if (verbose)
+                cout << " -- Output SPH data at t = " << time << endl;
+
+            // Save SPH particle data
+            sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir + "/particles");
+
+            // Save solid interaction data
+            sysFSI.GetFluidSystemSPH().SaveSolidData(out_dir + "/fsi", time);
+
+            particle_frame++;
+        }
 
         // Ramp up throttle to value requested by the cruise controller
         if (time < 0.5) {
@@ -386,9 +453,13 @@ int main(int argc, char* argv[]) {
         }
 #endif
 
-        // if (!render) {
-        //     std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
-        // }
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
 
         // Synchronize systems
         driver.Synchronize(time);

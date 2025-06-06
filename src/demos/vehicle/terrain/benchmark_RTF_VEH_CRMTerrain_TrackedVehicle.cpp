@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
+#include <chrono>
+#include <fstream>
 
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChSystemSMC.h"
@@ -41,6 +43,10 @@
     #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
 #endif
 
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
+#endif
+
 #include "demos/SetChronoSolver.h"
 #include "chrono_fsi/sph/utils/UtilsTimingOutput.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -57,7 +63,6 @@ using std::endl;
 
 // ===================================================================================================================
 
-
 // ===================================================================================================================
 
 std::shared_ptr<TrackedVehicle> CreateVehicle(const ChCoordsys<>& init_pos);
@@ -72,7 +77,8 @@ bool GetProblemSpecs(int argc,
                      int& ps_freq,
                      std::string& boundary_type,
                      std::string& viscosity_type,
-                     double& d0_multiplier) {
+                     double& d0_multiplier,
+                     bool& active_domains) {
     ChCLI cli(argv[0], "Flexible cable FSI demo");
 
     cli.AddOption<double>("Input", "t_end", "Simulation duration [s]");
@@ -81,6 +87,7 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<std::string>("Physics", "viscosity_type",
                                "Viscosity type (laminar/artificial_unilateral/artificial_bilateral)");
     cli.AddOption<double>("Physics", "d0_multiplier", "SPH density multiplier");
+    cli.AddOption<std::string>("Physics", "active_domains", "Enable active domains (true/false)", "false");
 
     if (argc == 1) {
         std::cout << "Required parameters missing. See required parameters and descriptions below:\n\n";
@@ -98,6 +105,11 @@ bool GetProblemSpecs(int argc,
     boundary_type = cli.GetAsType<std::string>("boundary_type");
     viscosity_type = cli.GetAsType<std::string>("viscosity_type");
     d0_multiplier = cli.GetAsType<double>("d0_multiplier");
+    if (cli.GetAsType<std::string>("active_domains") == "true") {
+        active_domains = true;
+    } else {
+        active_domains = false;
+    }
 
     return true;
 }
@@ -108,8 +120,8 @@ int main(int argc, char* argv[]) {
     // Set model and simulation parameters
     std::string terrain_dir = "terrain/sph/S-lane_RMS";
 
-    double density = 1700;
-    double cohesion = 5e3;
+    double density = 1900;
+    double cohesion = 5e4;
     double friction = 0.8;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
@@ -119,10 +131,15 @@ int main(int argc, char* argv[]) {
     double step_size = 5e-4;
     double active_box_hdim = 0.4;
 
-    bool render = false;      // Set false except for debugging
-    double render_fps = 200;  // rendering FPS
+    bool render = false;       // Set false except for debugging
+    double render_fps = 100;  // rendering FPS
 
     bool snapshots = false;
+    bool blender_output = false;  // Enable for Blender post-processing
+    double output_fps = 10.0;    // FPS for Blender output
+
+    bool particle_output = false;  // Enable for SPH particle data output
+    double particle_fps = 10.0;   // FPS for particle data output
 
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
@@ -138,10 +155,22 @@ int main(int argc, char* argv[]) {
     std::string boundary_type = "adami";
     std::string viscosity_type = "artificial_bilateral";
     int ps_freq = 1;
+    bool active_domains = false;
 
-    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier)) {
+    if (!GetProblemSpecs(argc, argv, t_end, ps_freq, boundary_type, viscosity_type, d0_multiplier, active_domains)) {
         return 1;
     }
+
+    // Print problem specifications
+    std::cout << "-------------------------------------" << std::endl;
+    std::cout << "Tracked vehicle on CRM terrain" << std::endl;
+    std::cout << "Problem Specifications:" << std::endl;
+    std::cout << "  Simulation end time: " << t_end << " s" << std::endl;
+    std::cout << "  Proximity search frequency: " << ps_freq << std::endl;
+    std::cout << "  Boundary type: " << boundary_type << std::endl;
+    std::cout << "  Viscosity type: " << viscosity_type << std::endl;
+    std::cout << "  Density multiplier: " << d0_multiplier << std::endl;
+    std::cout << "  Active domains: " << (active_domains ? "enabled" : "disabled") << std::endl;
 
     // Create vehicle
     cout << "Create vehicle..." << endl;
@@ -159,7 +188,6 @@ int main(int argc, char* argv[]) {
     terrain.SetVerbose(verbose);
     terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
     terrain.SetStepSizeCFD(step_size);
-
 
     // Set SPH parameters and soil material properties
     ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
@@ -179,9 +207,11 @@ int main(int argc, char* argv[]) {
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = d0_multiplier;
     sph_params.kernel_threshold = 0.8;
-    sph_params.artificial_viscosity = 0.5;
-    sph_params.shifting_method = ShiftingMethod::XSPH;
+    sph_params.artificial_viscosity = 0.8;
+    sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
     sph_params.shifting_xsph_eps = 0.5;
+    sph_params.shifting_ppst_push = 3.0;
+    sph_params.shifting_ppst_pull = 1.0;
     sph_params.consistent_gradient_discretization = false;
     sph_params.consistent_laplacian_discretization = false;
     if (viscosity_type == "laminar")
@@ -194,6 +224,7 @@ int main(int argc, char* argv[]) {
         sph_params.boundary_type = BoundaryType::HOLMES;
     else
         sph_params.boundary_type = BoundaryType::ADAMI;
+    sph_params.num_proximity_search_steps = ps_freq;
     terrain.SetSPHParameters(sph_params);
 
     // Set output level from SPH simulation
@@ -201,7 +232,11 @@ int main(int argc, char* argv[]) {
 
     // Add track shoes as FSI bodies
     CreateFSITracks(vehicle, terrain);
-    terrain.SetActiveDomain(ChVector3d(active_box_hdim));
+
+    // Only set active domain if enabled
+    if (active_domains) {
+        terrain.SetActiveDomain(ChVector3d(active_box_hdim));
+    }
 
     cout << "Create terrain..." << endl;
     // Construct flat rectangular CRM terrain
@@ -229,36 +264,42 @@ int main(int argc, char* argv[]) {
     driver.Initialize();
     // Create run-time visualization
     std::shared_ptr<ChVisualSystem> vis;
-    #ifdef CHRONO_VSG
-        if (render) {
-            // FSI plugin
-            auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
-                                                                                        aabb.min.z(), aabb.max.z());
+#ifdef CHRONO_VSG
+    if (render) {
+        // FSI plugin
+        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f),
+                                                                                   aabb.min.z(), aabb.max.z());
 
-            auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
-            visFSI->EnableFluidMarkers(visualization_sph);
-            visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
-            visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-            visFSI->SetSPHColorCallback(col_callback);
+        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        visFSI->EnableFluidMarkers(visualization_sph);
+        visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
+        visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
+        visFSI->SetSPHColorCallback(col_callback);
 
-            // VSG visual system (attach visFSI as plugin)
-            auto visVSG = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
-            visVSG->AttachPlugin(visFSI);
-            visVSG->AttachSystem(sysMBS);
-            visVSG->SetWindowTitle("Tracked vehicle on CRM deformable terrain");
-            visVSG->SetWindowSize(1280, 800);
-            visVSG->SetWindowPosition(100, 100);
-            visVSG->AddCamera(ChVector3d(0, 8, 0.5), ChVector3d(0, -1, 0));
-            visVSG->SetLightIntensity(0.9f);
+        // VSG visual system (attach visFSI as plugin)
+        auto visVSG = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
+        visVSG->AttachPlugin(visFSI);
+        visVSG->AttachSystem(sysMBS);
+        visVSG->SetWindowTitle("Tracked vehicle on CRM deformable terrain");
+        visVSG->SetWindowSize(1280, 800);
+        visVSG->SetWindowPosition(100, 100);
+        visVSG->AddCamera(ChVector3d(0, 8, 0.5), ChVector3d(0, -1, 0));
+        visVSG->SetLightIntensity(0.9f);
 
-            visVSG->Initialize();
-            vis = visVSG;
-        }
-    #else
-        render = false;
-    #endif
+        visVSG->Initialize();
+        vis = visVSG;
+    }
+#else
+    render = false;
+#endif
 
-    SetChronoOutputPath("BENCHMARK3_RTF/");
+    // Set output path based on whether active domains are used
+    if (active_domains) {
+        SetChronoOutputPath("BENCHMARK3_RTF_Active_render/");
+    } else {
+        SetChronoOutputPath("BENCHMARK3_RTF_noActive_render/");
+    }
+
     // Create oputput directories
     std::string out_dir = GetChronoOutputPath() + "FSI_TRACKED_VEHICLE/";
 
@@ -281,11 +322,36 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    if (particle_output) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+            std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
+            return 1;
+        }
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+            std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
+            return 1;
+        }
+    }
+
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(sysMBS);
+    if (blender_output) {
+        blender_exporter.SetBasePath(out_dir);
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(-6, 6, 2.0), veh_init_pos, 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
+
     // Simulation loop
     DriverInputs driver_inputs = {0, 0, 0};
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
+    int blender_frame = 0;
+    int particle_frame = 0;
 
     if (x_max < veh_init_pos.x())
         x_max = veh_init_pos.x() + 0.25;
@@ -298,6 +364,12 @@ int main(int argc, char* argv[]) {
     double timer_MBS = 0;
     double timer_FSI = 0;
     ChTimer timer;
+
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    double total_sim_time = 0.0;
+    double total_real_time = 0.0;
+
     while (time < t_end) {
         const auto& veh_loc = vehicle->GetPos();
 
@@ -337,6 +409,29 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / output_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
+
+        // Save particle and solid data at specified FPS rate
+        if (particle_output && time >= particle_frame / particle_fps) {
+            if (verbose)
+                cout << " -- Output SPH data at t = " << time << endl;
+
+            // Save SPH particle data
+            sysFSI.GetFluidSystemSPH().SaveParticleData(out_dir + "/particles");
+
+            // Save solid interaction data
+            sysFSI.GetFluidSystemSPH().SaveSolidData(out_dir + "/fsi", time);
+
+            particle_frame++;
+        }
+
         timer.reset();
         timer.start();
         // Synchronize systems
@@ -347,7 +442,6 @@ int main(int argc, char* argv[]) {
         // Create a variable to store the vehicle advance time
         double vehicle_time = 0;
 
-        
         driver.Advance(step_size);
         terrain.Advance(step_size);
         timer.stop();
@@ -359,6 +453,43 @@ int main(int argc, char* argv[]) {
 
         time += step_size;
         sim_frame++;
+    }
+
+    // Print benchmark results
+    total_real_time = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count();
+    total_sim_time = time;
+
+    std::cout << "\nBenchmark Results:" << std::endl;
+    std::cout << "-----------------" << std::endl;
+    std::cout << "Terrain type: CRM-SPH" << std::endl;
+    std::cout << "Initial SPH spacing: " << initial_spacing << " m" << std::endl;
+    std::cout << "SPH density multiplier: " << d0_multiplier << std::endl;
+    std::cout << "Boundary type: " << boundary_type << std::endl;
+    std::cout << "Viscosity type: " << viscosity_type << std::endl;
+    std::cout << "Proximity search frequency: " << ps_freq << std::endl;
+    std::cout << "Total simulated time: " << total_sim_time << " s" << std::endl;
+    std::cout << "Total real time: " << total_real_time << " s" << std::endl;
+    std::cout << "Real-time factor (RTF): " << total_sim_time / total_real_time << std::endl;
+
+    // Write benchmark results to file
+    std::ofstream outfile(out_dir + "/benchmark_results.txt");
+    if (outfile.is_open()) {
+        outfile << "Benchmark Results" << std::endl;
+        outfile << "----------------" << std::endl;
+        outfile << "Terrain type: CRM-SPH" << std::endl;
+        outfile << "Initial SPH spacing: " << initial_spacing << " m" << std::endl;
+        outfile << "SPH density multiplier: " << d0_multiplier << std::endl;
+        outfile << "Boundary type: " << boundary_type << std::endl;
+        outfile << "Viscosity type: " << viscosity_type << std::endl;
+        outfile << "Proximity search frequency: " << ps_freq << std::endl;
+        outfile << "Total simulated time: " << total_sim_time << " s" << std::endl;
+        outfile << "Total real time: " << total_real_time << " s" << std::endl;
+        outfile << "Real-time factor (RTF): " << total_sim_time / total_real_time << std::endl;
+        outfile.close();
+        std::cout << "Results written to: " << out_dir << "/benchmark_results.txt" << std::endl;
+    } else {
+        std::cerr << "Error opening output file" << std::endl;
+        return 1;
     }
 
     // Create Output JSON file

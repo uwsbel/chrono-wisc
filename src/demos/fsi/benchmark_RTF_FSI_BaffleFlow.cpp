@@ -29,6 +29,10 @@
 #include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
+#ifdef CHRONO_POSTPROCESS
+    #include "chrono_postprocess/ChBlender.h"
+#endif
+
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
@@ -38,8 +42,6 @@ using std::cerr;
 using std::endl;
 
 // -----------------------------------------------------------------
-
-
 
 // Container dimensions (base scale)
 ChVector3d csize(1.6, 1.4, 0.5);
@@ -62,7 +64,7 @@ bool show_boundary_bce = false;
 bool show_particles_sph = true;
 
 // RTF benchmark so set this always to false
-bool output = false;
+bool output = true;
 double output_fps = 100;
 // Set to true only for debugging - Run benchmark with render = false
 bool render = false;
@@ -71,6 +73,10 @@ double render_fps = 100;
 bool snapshots = false;
 // Only prints at initialization so can be kept at true without affecting performance
 bool verbose = true;
+#ifdef CHRONO_POSTPROCESS
+bool blender_output = false;  // Enable Blender post-processing
+double blender_fps = 100;   // FPS for Blender output
+#endif
 // ----------------------------------------------------------------------------
 
 // Callback for setting initial SPH particle properties
@@ -292,7 +298,7 @@ int main(int argc, char* argv[]) {
     }
 
     fsi.Initialize();
-    SetChronoOutputPath("BENCHMARK3_RTF/");
+    SetChronoOutputPath("BENCHMARK3_RTF_noActive_render/");
     // Output directories
     std::string out_dir;
     out_dir = GetChronoOutputPath() + "FSI_Baffle_Flow/";
@@ -328,6 +334,23 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+
+    // Create the Blender exporter
+#ifdef CHRONO_POSTPROCESS
+    postprocess::ChBlender blender_exporter(&sysMBS);
+    if (blender_output) {
+        if (!filesystem::create_directory(filesystem::path(out_dir + "/blender"))) {
+            std::cerr << "Error creating directory " << out_dir + "/blender" << std::endl;
+            return 1;
+        }
+        blender_exporter.SetBasePath(out_dir + "/blender");
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetCamera(ChVector3d(1.5, -1.5, 0.5), ChVector3d(0, 0, 0), 45);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
+    }
+#endif
+
     // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 #ifdef CHRONO_VSG
@@ -364,6 +387,9 @@ int main(int argc, char* argv[]) {
     int sim_frame = 0;
     int out_frame = 0;
     int render_frame = 0;
+#ifdef CHRONO_POSTPROCESS
+    int blender_frame = 0;
+#endif
 
     double timer_step = 0;
     double timer_CFD = 0;
@@ -393,6 +419,15 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+
+#ifdef CHRONO_POSTPROCESS
+        // Export to Blender at specified FPS rate
+        if (blender_output && time >= blender_frame / blender_fps) {
+            blender_exporter.ExportData();
+            blender_frame++;
+        }
+#endif
+
         // Call the FSI solver
         fsi.DoStepDynamics(step_size);
 
