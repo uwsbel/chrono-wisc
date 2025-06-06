@@ -341,7 +341,7 @@ int main(int argc, char* argv[]) {
                         /*boundary_type*/ "adami",
                         /*viscosity_type*/ "artificial_bilateral",
                         /*kernel_type*/ "cubic",
-                        /*artificial_viscosity*/ 0.05,
+                        /*artificial_viscosity*/ 0.02,
                         /*wheel_vel*/ 0.15,
                         /*wheel_AngVel*/ 2.09,
                         /*total_mass*/ 2.5 * 3.,
