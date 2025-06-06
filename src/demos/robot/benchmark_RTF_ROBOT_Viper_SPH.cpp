@@ -216,8 +216,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Generate BCE markers" << std::endl;
     CreateSolidPhase(sysMBS, sysFSI);
 
-    sysFSI.SetActiveDomain(ChVector3d(0.4, 0.3, 0.5));
-    sysFSI.SetActiveDomainDelay(0.0);
+    // sysFSI.SetActiveDomain(ChVector3d(0.4, 0.3, 0.5));
+    // sysFSI.SetActiveDomainDelay(0.0);
 
     // Complete construction of the FSI system
     sysFSI.Initialize();

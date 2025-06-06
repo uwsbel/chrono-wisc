@@ -171,7 +171,7 @@ int main(int argc, char* argv[]) {
     sysFSI.SetSPHParameters(sph_params);
     sysFSI.SetStepSize(step_size);
 
-    sysFSI.SetActiveDomain(ChVector3d(active_box_hdim));
+    // sysFSI.SetActiveDomain(ChVector3d(active_box_hdim));
 
     sysFSI.SetOutputLength(0);
 

@@ -61,7 +61,7 @@ bool output = false;
 int out_fps = 100;
 
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
-bool render = false;
+bool render = true;
 float render_fps = 100;
 
 // Pointer to store the Rassor instance
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
     sph_params.sph_solver = FluidDynamics::WCSPH;
     sph_params.initial_spacing = iniSpacing;
     sph_params.kernel_h = iniSpacing * d0_multiplier;
-    sph_params.xsph_coefficient = 0.1;
+    sph_params.xsph_coefficient = 0.5;
     sph_params.shifting_coefficient = 1.0;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
@@ -207,8 +207,8 @@ int main(int argc, char* argv[]) {
     mat_props.cohesion_coeff = 0;
 
     sysFSI.SetElasticSPH(mat_props);
-    sysFSI.SetActiveDomain(ChVector3d(0.3, 0.2, 1.0));
-    sysFSI.SetActiveDomainDelay(0.0);
+    // sysFSI.SetActiveDomain(ChVector3d(0.3, 0.2, 1.0));
+    // sysFSI.SetActiveDomainDelay(0.0);
 
     // Set the terrain container size
     sysFSI.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
