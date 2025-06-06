@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bool write_marker_files = true;
+    bool write_marker_files = false;
     // Print all problem specs
     std::cout << "Problem Specs:" << std::endl;
     std::cout << "t_end: " << t_end << std::endl;
@@ -600,6 +600,9 @@ int main(int argc, char* argv[]) {
     int out_frame = 0;
     int render_frame = 0;
     double dT = sysFSI.GetStepSizeCFD();
+    
+    double rtf_average = 0.0;
+    unsigned int rtf_count = 0;
 
     std::string out_file = out_dir + "/cone_penetration_depth.txt";
     std::ofstream ofile(out_file, std::ios::trunc);
@@ -647,6 +650,9 @@ int main(int argc, char* argv[]) {
               << cone->GetPosDt().z() << std::endl;
         // Advance simulation for one timestep for all systems
         sysFSI.DoStepDynamics(dT);
+        double rtf = sysFSI.GetRtf();
+        rtf_average = (rtf_average * rtf_count + rtf) / (rtf_count + 1);
+        rtf_count++;
         time += dT;
 
         sim_frame++;
@@ -654,6 +660,19 @@ int main(int argc, char* argv[]) {
     timer.stop();
     std::cout << "End Time: " << t_end << std::endl;
     std::cout << "\nSimulation time: " << timer() << " seconds\n" << std::endl;
+    std::cout << "Average RTF: " << rtf_average << std::endl;
+    std::cout << "Simulation finished" << std::endl;
+    
+    // Write runtime information to a file
+    if (output) {
+        std::ofstream runtime_file(out_dir + "/runtime.txt");
+        runtime_file << "Runtime: " << timer() << " seconds\n" << std::endl;
+        runtime_file << "Simulation time: " << time << std::endl;
+        runtime_file << "Average RTF: " << rtf_average << std::endl;
+        runtime_file << "ps_freq: " << ps_freq << std::endl;
+        runtime_file << "Simulation finished";
+        runtime_file.close();
+    }
 
     return 0;
 }

@@ -867,7 +867,9 @@ void ChFsiFluidSystemSPH::SetSPHParameters(const SPHParameters& sph_params) {
     m_paramsH->ooh = 1 / m_paramsH->h;
 
     m_paramsH->v_Max = sph_params.max_velocity;
-    m_paramsH->Cs = 10 * m_paramsH->v_Max;
+    if (!m_paramsH->elastic_SPH) {
+        m_paramsH->Cs = 10 * m_paramsH->v_Max;
+    }
     m_paramsH->shifting_xsph_eps = sph_params.shifting_xsph_eps;
     m_paramsH->shifting_ppst_push = sph_params.shifting_ppst_push;
     m_paramsH->shifting_ppst_pull = sph_params.shifting_ppst_pull;
@@ -1642,13 +1644,13 @@ size_t ChFsiFluidSystemSPH::AddSphereBCE(std::shared_ptr<ChBody> body,
 }
 
 void ChFsiFluidSystemSPH::CreateBCE_On_Wheel_Grouser(std::vector<ChVector3d>& posRadBCE,
-                                                  double wheel_rad,
-                                                  double wheel_w,
-                                                  double gro_h,
-                                                  double gro_w,
-                                                  int gro_num,
-                                                  double spacing,
-                                                  bool cartesian) {
+                                                     double wheel_rad,
+                                                     double wheel_w,
+                                                     double gro_h,
+                                                     double gro_w,
+                                                     int gro_num,
+                                                     double spacing,
+                                                     bool cartesian) {
     int num_layers = (int)std::floor(1.00001 * wheel_w / spacing) + 1;
     for (size_t si = 0; si < num_layers; si++) {
         Real s = -0.5 * wheel_w + spacing * si;
@@ -1693,13 +1695,13 @@ void ChFsiFluidSystemSPH::CreateBCE_On_Wheel_Grouser(std::vector<ChVector3d>& po
 }
 
 void ChFsiFluidSystemSPH::AddWheelBCE_Grouser(std::shared_ptr<ChBody> body,
-                                           const ChFrame<>& frame,
-                                           double radius,
-                                           double wide,
-                                           double grouser_height,
-                                           double grouser_wide,
-                                           int grouser_num,
-                                           bool cartesian) {
+                                              const ChFrame<>& frame,
+                                              double radius,
+                                              double wide,
+                                              double grouser_height,
+                                              double grouser_wide,
+                                              int grouser_num,
+                                              bool cartesian) {
     std::vector<ChVector3d> bce;
     CreateBCE_On_Wheel_Grouser(bce, radius, wide, grouser_height, grouser_wide, grouser_num, m_paramsH->d0, cartesian);
     AddPointsBCE(body, bce, frame, true);

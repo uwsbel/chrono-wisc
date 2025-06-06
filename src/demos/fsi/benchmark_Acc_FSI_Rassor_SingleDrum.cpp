@@ -89,6 +89,7 @@ ChVector3d wheel_IniVel(0.0, 0.0, 0.0f);
 // double total_time = 5.0;
 // double total_time = 60.0;
 double total_time = 20;
+// double total_time = 1.0;
 
 // linear actuator and angular actuator
 auto actuator = chrono_types::make_shared<ChLinkLockLinActuator>();
@@ -97,9 +98,9 @@ auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
 // Save data as csv files to see the results off-line using Paraview
 bool output = true;
 int out_fps = 100;
-bool write_marker_files = true;
+bool write_marker_files = false;
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
-bool render = true;
+bool render = false;
 float render_fps = 100;
 
 // Verbose terminal output
@@ -346,7 +347,7 @@ int main(int argc, char* argv[]) {
                         /*total_mass*/ 2.5 * 3.,
                         /*output*/ true,
                         /*out_fps*/ 200,
-                        /*render*/ true,
+                        /*render*/ false,
                         /*render_fps*/ 100,
                         /*snapshots*/ true};
 
@@ -399,10 +400,12 @@ int main(int argc, char* argv[]) {
             wheel_params << "wheel_vel_" << params.wheel_vel << "_wheel_AngVel_" << params.wheel_AngVel
                          << "_total_mass_" << params.total_mass;
 
-            std::string base_dir = chrono_output_path + "FSI_Rassor_SingleDrum/" + wheel_params.str() + "/";
+            // std::string folder_name = "FSI_Rassor_SingleDrum_noActive";
+            std::string folder_name = "FSI_Rassor_SingleDrum";
+            std::string base_dir = chrono_output_path + folder_name + "/" + wheel_params.str() + "/";
 
             // Try to create the directory structure - ignoring errors if directories already exist
-            filesystem::create_directory(filesystem::path(chrono_output_path + "FSI_Rassor_SingleDrum/"));
+            filesystem::create_directory(filesystem::path(chrono_output_path + folder_name + "/"));
             filesystem::create_directory(filesystem::path(base_dir));
 
             // Create directory with all parameters in a single folder
@@ -484,7 +487,7 @@ int main(int argc, char* argv[]) {
     mat_props.cohesion_coeff = 0;
 
     sysSPH.SetElasticSPH(mat_props);
-    sysSPH.SetActiveDomain(ChVector3d(0.3, 0.2, 1.0));
+    sysSPH.SetActiveDomain(ChVector3d(0.5, 0.4, 0.7));
     sysSPH.SetActiveDomainDelay(0.0);
 
     // Set the terrain container size
@@ -523,6 +526,9 @@ int main(int argc, char* argv[]) {
 
     // Initialize simulation time
     double time = 0.0;
+    // Start the timer
+    ChTimer timer;
+    timer.start();
 
     // Write the information into a txt file
     std::ofstream myFile;
@@ -575,6 +581,9 @@ int main(int argc, char* argv[]) {
     int current_step = 0;
     int render_frame = 0;
 
+    double rtf_average = 0.0;
+    unsigned int rtf_count = 0;
+
     while (time < total_time) {
         // Get the infomation of the wheel
         reaction = actuator->GetReaction2();
@@ -611,6 +620,9 @@ int main(int argc, char* argv[]) {
 
         // Call the FSI solver
         sysFSI.DoStepDynamics(params.time_step);
+        double rtf = sysFSI.GetRtf();
+        rtf_average = (rtf_average * rtf_count + rtf) / (rtf_count + 1);
+        rtf_count++;
         time += params.time_step;
         current_step++;
 
@@ -637,6 +649,25 @@ int main(int argc, char* argv[]) {
             render_frame++;
         }
 #endif
+    }
+
+    // Stop the timer and record runtime info
+    timer.stop();
+
+    std::cout << "Runtime: " << timer() << " seconds\n" << std::endl;
+    std::cout << "Simulation time: " << time << std::endl;
+    std::cout << "Average RTF: " << rtf_average << std::endl;
+    std::cout << "Simulation finished" << std::endl;
+
+    // Write runtime information to a file
+    if (params.output) {
+        std::ofstream runtime_file(out_dir + "/runtime.txt");
+        runtime_file << "Runtime: " << timer() << " seconds\n" << std::endl;
+        runtime_file << "Simulation time: " << time << std::endl;
+        runtime_file << "Average RTF: " << rtf_average << std::endl;
+        runtime_file << "ps_freq: " << params.ps_freq << std::endl;
+        runtime_file << "Simulation finished";
+        runtime_file.close();
     }
 
     return 0;

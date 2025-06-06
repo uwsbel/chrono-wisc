@@ -69,6 +69,7 @@ int grouser_num = 24;
 std::string wheel_obj = "robot/viper/obj/nasa_viper_wheel.obj";
 
 double total_time = 10.0;
+// double total_time = 1.0;
 
 // linear actuator and angular actuator
 auto actuator = chrono_types::make_shared<ChLinkLockLinActuator>();
@@ -77,11 +78,11 @@ auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
 // Save data as csv files to see the results off-line using Paraview
 bool output = true;
 int out_fps = 100;
-bool write_marker_files = true;
+bool write_marker_files = false;
 int print_fps = 100;
 
 // Output directories and settings
-std::string out_dir = GetChronoOutputPath() + "FSI_Viper_Single_Wheel2";
+std::string out_dir = GetChronoOutputPath() + "FSI_Viper_Single_Wheel3/";
 
 // Enable/disable run-time visualization (if Chrono::OpenGL is available)
 bool render = true;
@@ -395,7 +396,7 @@ int main(int argc, char* argv[]) {
     ss << out_dir << "/ps_" << params.ps_freq;
     ss << "_s_" << std::setprecision(3) << params.initial_spacing;
     ss << "_d0_" << std::setprecision(1) << params.d0_multiplier;
-    ss << "_av_" << std::setprecision(1) << params.artificial_viscosity << "/";
+    ss << "_av_" << std::setprecision(2) << params.artificial_viscosity << "/";
     out_dir = ss.str();
 
     if (output) {
@@ -483,6 +484,8 @@ int main(int argc, char* argv[]) {
     } else {
         sph_params.viscosity_type = ViscosityType::ARTIFICIAL_UNILATERAL;
     }
+
+    sysSPH.SetSPHParameters(sph_params);
 
     double iniSpacing = params.initial_spacing;
     double dT = params.time_step;
@@ -591,6 +594,9 @@ int main(int argc, char* argv[]) {
     unsigned int print_steps = (unsigned int)round(1 / (print_fps * dT));
     unsigned int render_steps = (unsigned int)round(1 / (render_fps * dT));
 
+    double rtf_average = 0.0;
+    unsigned int rtf_count = 0;
+
     double time = 0.0;
     int current_step = 0;
 
@@ -665,13 +671,26 @@ int main(int argc, char* argv[]) {
 
         // Call the FSI solver
         sysFSI.DoStepDynamics(dT);
+        double rtf = sysFSI.GetRtf();
+        rtf_average = (rtf_average * rtf_count + rtf) / (rtf_count + 1);
+        rtf_count++;
         time += dT;
         current_step++;
     }
     timer.stop();
     std::cout << "Runtime: " << timer() << " seconds\n" << std::endl;
     std::cout << "Simulation time: " << time << std::endl;
+    std::cout << "Average RTF: " << rtf_average << std::endl;
     std::cout << "Simulation finished" << std::endl;
+
+    // Write runtime information to a file
+    std::ofstream runtime_file(out_dir + "/runtime.txt");
+    runtime_file << "Runtime: " << timer() << " seconds\n" << std::endl;
+    runtime_file << "Simulation time: " << time << std::endl;
+    runtime_file << "Average RTF: " << rtf_average << std::endl;
+    runtime_file << "ps_freq: " << params.ps_freq << std::endl;
+    runtime_file << "Simulation finished";
+    runtime_file.close();
 
     if (output) {
         myFile.close();
