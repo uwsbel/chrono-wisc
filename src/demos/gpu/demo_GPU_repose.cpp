@@ -23,6 +23,7 @@
 #include "chrono_gpu/physics/ChSystemGpu.h"
 #include "chrono_gpu/utils/ChGpuJsonParser.h"
 
+#include "chrono/assets/ChVisualSystem.h"
 #ifdef CHRONO_VSG
     #include "chrono_gpu/visualization/ChGpuVisualizationVSG.h"
 #endif
