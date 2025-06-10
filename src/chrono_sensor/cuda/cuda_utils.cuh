@@ -65,7 +65,7 @@ void createNanoVDBGridHandle(void* h_points_buffer,
 
 nanovdb::GridHandle<nanovdb::CudaDeviceBuffer> addVDBVolume(std::shared_ptr<openvdb::FloatGrid> openVDBgrid); 
 
-void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, void* h_points,
+void createDustGrid(nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& dustHandle, float* h_points,
                     int n,
                     float threshold_vel,
                     void** dust_particles_ptr,

@@ -563,9 +563,9 @@ std::vector<float> ChSystemFsi_impl::GetParticleData() {
     bool haveGhost = (refArr[0].z == -2 || refArr[1].z == -2) ? true : false;
 
     size_t fluidStart = refArr[haveHelper + haveGhost].x;
-    size_t fluidEnd = refArr[haveHelper + haveGhost].y;
+    size_t fluidEnd = refArr[haveHelper + haveGhost + 2].y;
 
-    int n = fluidEnd - fluidStart; //sphMarkersD2->posRadD.size();
+    int n = fluidEnd - fluidStart;  //sortedSphMarkers2_D->posRadD.size();  //
     printf("Converting %d Real4 points to float buffer...\n", n);
     float* pts_d;
     cudaMalloc((void**)&pts_d, 6 * n * sizeof(float));

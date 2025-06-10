@@ -436,11 +436,11 @@ int main(int argc, char* argv[]) {
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat->SetAmbientColor({1, 1, 1});        // 0.65f,0.65f,0.65f
-    vis_mat->SetDiffuseColor({0.5, 0.5, 0.5});  // 0.29f, 0.29f, 0.235f
+    vis_mat->SetDiffuseColor({0.1, 0.1, 0.1});  // 0.29f, 0.29f, 0.235f
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetAbsorptionCoefficient(1e-4);
+    vis_mat->SetAbsorptionCoefficient(1e-3);
     vis_mat->SetScatteringCoefficient(0.01);
     vis_mat->SetEmissivePower(100.f);
     vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
@@ -479,7 +479,7 @@ int main(int argc, char* argv[]) {
     floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sysMBS.Add(floor);
-
+    
     if (!runFSIOnline) {
         sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
 
@@ -527,7 +527,7 @@ int main(int argc, char* argv[]) {
 
     // chrono::ChFrame<double> offset_pose1({0, 5, 0}, Q_from_AngAxis(0.2, {0, 0, 1}));  //-1200, -252, 100
     chrono::ChFrame<double> offset_pose1(
-        {0, -5, 1}, QuatFromAngleAxis(CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
+        {-1, -3, 1}, QuatFromAngleAxis(CH_PI_2, {0, 0, 1}));  // Q_from_AngAxis(CH_PI_4, {0, 1, 0})  //-1200, -252, 100
     auto cam = chrono_types::make_shared<ChCameraSensor>(floor,         // body camera is attached to
                                                          update_rate,   // update rate in Hz
                                                          offset_pose1,  // offset pose
@@ -686,8 +686,9 @@ int main(int argc, char* argv[]) {
         }
 
         //if (runFSIOnline)
-            rover->Update();            
-        if (current_step % sensor_render_steps == 0 && current_step > 0) {
+        rover->Update();   
+        timer.start();
+        if (current_step % sensor_render_steps == 0 && current_step > 0 && time > 0.2f) {
             //timerNVDB.start();
             if (runFSIOnline)
              h_points = sysFSI.GetParticleData();
@@ -709,18 +710,17 @@ int main(int argc, char* argv[]) {
                 //sysFSI.PrintParticleToFile(out_dir + "/particles");
                 //sysFSI.PrintFsiInfoToFile(out_dir + "/fsi", time);
                 //SaveParaViewFiles(sysFSI, sysMBS, time);
-                saveVectorToBinaryFile(h_points, out_dir, fileNo);
+                //saveVectorToBinaryFile(h_points, out_dir, fileNo);
             }
         }
 
         if (runFSIOnline) {
-            timer.start();
             sysFSI.DoStepDynamics_FSI();
-            timer.stop();
+           
         } else {
             sysMBS.DoStepDynamics(dT);
         }
-   
+        timer.stop();
 
         time += dT;
         current_step++;
