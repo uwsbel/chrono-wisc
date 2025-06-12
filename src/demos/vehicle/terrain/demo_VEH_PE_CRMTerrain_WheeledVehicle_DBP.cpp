@@ -207,6 +207,15 @@ int main(int argc, char* argv[]) {
     double target_speed = 4.0;
     double tend = 30;
     bool verbose = true;
+    double cube_density = 2500.0;  // Default cube density in kg/m³
+
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--cube_density" && i + 1 < argc) {
+            cube_density = std::stod(argv[i + 1]);
+            i++; // Skip the next argument since it's the value
+        }
+    }
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
@@ -377,7 +386,6 @@ int main(int argc, char* argv[]) {
     auto cube = chrono_types::make_shared<ChBody>();
     
     // Set cube properties
-    double cube_density = 2500;  // Density in kg/m^3 
     ChVector3d cube_size(0.6, 0.6, 0.6);  // Cube dimensions in m
     
     // Calculate mass and inertia from density and size
