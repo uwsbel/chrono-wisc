@@ -353,6 +353,7 @@ inline const char* ChUtils_GetFilename() {
 
 // utils classes
 %include "ChBodyGeometry.i"
+%include "ChUtilsSamplers.i"
 
 //collision classes
 %include "ChContactMaterial.i"

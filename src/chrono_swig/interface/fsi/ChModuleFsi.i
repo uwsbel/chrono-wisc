@@ -106,6 +106,7 @@ using namespace chrono::fsi;
 %import(module="pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
 
 %include "ChFsiDefinitions.i"
+%include "ChFsiDefinitionsSPH.i"
 %include "ChFsiSystem.i"
 %include "ChFsiFluidSystemSPH.i"
 %include "ChFsiSystemSPH.i"
