@@ -43,7 +43,7 @@ if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_VEH_CRMTerrain_WheeledVehicle
         demo_VEH_CRMTerrain_TrackedVehicle
-        demo_FSI_Wheel_Visualization
+        # demo_FSI_Wheel_Visualization
     )
 endif()
 

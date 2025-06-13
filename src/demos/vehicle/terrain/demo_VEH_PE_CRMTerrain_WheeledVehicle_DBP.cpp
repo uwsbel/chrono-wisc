@@ -207,12 +207,12 @@ int main(int argc, char* argv[]) {
     double target_speed = 4.0;
     double tend = 30;
     bool verbose = true;
-    double cube_density = 2500.0;  // Default cube density in kg/m³
+    double sphere_density = 2500.0;  // Default cube density in kg/m³
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--cube_density" && i + 1 < argc) {
-            cube_density = std::stod(argv[i + 1]);
+        if (std::string(argv[i]) == "--sphere_density" && i + 1 < argc) {
+            sphere_density = std::stod(argv[i + 1]);
             i++; // Skip the next argument since it's the value
         }
     }
@@ -382,51 +382,51 @@ int main(int argc, char* argv[]) {
             break;
     }
 
-    // Add a draggable cube
-    auto cube = chrono_types::make_shared<ChBody>();
+    // Add a draggable sphere
+    auto sphere = chrono_types::make_shared<ChBody>();
     
-    // Set cube properties
-    ChVector3d cube_size(0.6, 0.6, 0.6);  // Cube dimensions in m
+    // Set sphere properties
+    double sphere_radius = 0.3;  // Sphere radius in m
     
     // Calculate mass and inertia from density and size
-    double cube_volume = cube_size.x() * cube_size.y() * cube_size.z();
-    double cube_mass = cube_density * cube_volume;
-    double cube_inertia = cube_mass * (cube_size.x() * cube_size.x() + cube_size.y() * cube_size.y()) / 12.0;
+    double sphere_volume = (4.0/3.0) * CH_PI * sphere_radius * sphere_radius * sphere_radius;
+    double sphere_mass = sphere_density * sphere_volume;
+    double sphere_inertia = (2.0/5.0) * sphere_mass * sphere_radius * sphere_radius;
     
-    cube->SetMass(cube_mass);
-    cube->SetInertiaXX(ChVector3d(cube_inertia, cube_inertia, cube_inertia));
-    cube->SetPos(ChVector3d(2.0, 0, 0.6));  // Initial position 1m behind vehicle
-    cube->SetFixed(false);
-    cube->EnableCollision(false);
+    sphere->SetMass(sphere_mass);
+    sphere->SetInertiaXX(ChVector3d(sphere_inertia, sphere_inertia, sphere_inertia));
+    sphere->SetPos(ChVector3d(1.5, 0, 0.6));  // Initial position 1m behind vehicle
+    sphere->SetFixed(false);
+    sphere->EnableCollision(false);
 
-    // Add collision geometry for the cube
-    auto cube_mat = chrono_types::make_shared<ChContactMaterialSMC>();
-    cube_mat->SetFriction(0.8f);
-    cube_mat->SetRestitution(0.1f);
-    cube_mat->SetYoungModulus(1e8);
-    cube_mat->SetPoissonRatio(0.3);
+    // Add collision geometry for the sphere
+    auto sphere_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    sphere_mat->SetFriction(0.8f);
+    sphere_mat->SetRestitution(0.1f);
+    sphere_mat->SetYoungModulus(1e8);
+    sphere_mat->SetPoissonRatio(0.3);
 
-    auto cube_shape = chrono_types::make_shared<ChCollisionShapeBox>(cube_mat, cube_size.x(), cube_size.y(), cube_size.z());
-    cube->AddCollisionShape(cube_shape);
+    auto sphere_shape = chrono_types::make_shared<ChCollisionShapeSphere>(sphere_mat, sphere_radius);
+    sphere->AddCollisionShape(sphere_shape);
 
-    // Add visualization for the cube
-    auto cube_vis = chrono_types::make_shared<ChVisualShapeBox>(cube_size);
-    cube_vis->SetColor(ChColor(0.8f, 0.2f, 0.2f));  // Red color
-    cube->AddVisualShape(cube_vis);
+    // Add visualization for the sphere
+    auto sphere_vis = chrono_types::make_shared<ChVisualShapeSphere>(sphere_radius);
+    sphere_vis->SetColor(ChColor(0.8f, 0.2f, 0.2f));  // Red color
+    sphere->AddVisualShape(sphere_vis);
 
-    sysMBS->AddBody(cube);
+    sysMBS->AddBody(sphere);
 
-    // Add cube to FSI system
+    // Add sphere to FSI system
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
-    geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(VNULL, QUNIT, ChBox(cube_size), 0));
-    terrain.AddRigidBody(cube, geometry, false);
+    geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere_radius, 0));
+    terrain.AddRigidBody(sphere, geometry, false);
 
-    // Create a distance constraint between the vehicle chassis and the cube
+    // Create a distance constraint between the vehicle chassis and the sphere
     auto distance_constraint = chrono_types::make_shared<ChLinkDistance>();
-    distance_constraint->Initialize(vehicle->GetChassisBody(), cube, false, 
+    distance_constraint->Initialize(vehicle->GetChassisBody(), sphere, false, 
                                   ChVector3d(-0.5, 0, 0),  // Point on chassis (1m behind)
-                                  ChVector3d(0, 0, 0));    // Point on cube (center)
+                                  ChVector3d(0, 0, 0));    // Point on sphere (center)
     sysMBS->AddLink(distance_constraint);
 
     // Initialize the terrain system
@@ -471,7 +471,7 @@ int main(int argc, char* argv[]) {
     std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
     std::ofstream csv_file(out_dir+"/dbp_simulation_data.csv");
-    csv_file << "time,cube_density,sr1,sr2,sr3,sr4,sa1,sa2,sa3,sa4,"
+    csv_file << "time,sphere_density,sr1,sr2,sr3,sr4,sa1,sa2,sa3,sa4,"
              << "motor_torque1,motor_torque2,motor_torque3,motor_torque4,"
              << "x,y,z,roll,pitch,yaw,vx,vy,vz,throttle,braking,"
              << "wheel_torque1,wheel_torque2,wheel_torque3,wheel_torque4,"
@@ -575,7 +575,7 @@ int main(int argc, char* argv[]) {
 
         csv_file << std::fixed << std::setprecision(6)
                 << time << ","
-                << cube_density << ","
+                << sphere_density << ","
                 << sr1 << ","
                 << sr2 << ","
                 << sr3 << ","
