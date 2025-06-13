@@ -65,6 +65,7 @@ class ChApi ChBodyGeometry {
 
     /// Box shape for visualization and/or collision.
     struct ChApi BoxShape {
+        BoxShape() = default;
         BoxShape(const ChVector3d& pos, const ChQuaternion<>& rot, const ChVector3d& dims, int matID = -1);
         BoxShape(const ChVector3d& pos, const ChQuaternion<>& rot, const ChBox& box, int matID = -1);
         ChVector3d pos;      ///< center position relative to body

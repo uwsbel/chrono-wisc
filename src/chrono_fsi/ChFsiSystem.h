@@ -73,7 +73,7 @@ class CH_FSI_API ChFsiSystem {
     /// Add a rigid body to the FSI system.
     /// If geometry=nullptr, it is assumed that the interaction geometry is provided separately.
     /// Returns the index of the FSI body in the internal list.
-    size_t AddFsiBody(std::shared_ptr<ChBody> body, std::shared_ptr<ChBodyGeometry> geometry = nullptr);
+    size_t AddFsiBody(std::shared_ptr<ChBody> body, std::shared_ptr<ChBodyGeometry> geometry = {});
 
     /// Add an FEA mesh to the FSI system.
     /// Contact surfaces (of type segment_set or tri_mesh) already defined for the FEA mesh are used to generate the
