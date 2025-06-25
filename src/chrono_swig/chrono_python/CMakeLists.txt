@@ -389,6 +389,165 @@ if(CH_ENABLE_MODULE_POSTPROCESS)
 
 endif()
 
+if(CH_ENABLE_MODULE_VSG)
+  #-----------------------------------------------------------------------------
+  # MODULE for the vsg python wrapper.
+  #-----------------------------------------------------------------------------
+
+  message(STATUS "Add python VSG module")
+
+  # Python module name
+  set(CHPY_VSG vsg)
+
+  set(CHPY_VSG_MODULE_FILE ChModuleVsg_python.i)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set_source_files_properties(${CHPY_VSG_MODULE_FILE} PROPERTIES COMPILE_FLAGS "-D_WIN32")
+  endif()
+  set_source_files_properties(${CHPY_VSG_MODULE_FILE} PROPERTIES CPLUSPLUS ON)
+  if(MSVC)
+    set_source_files_properties(${CHPY_VSG_MODULE_FILE} PROPERTIES COMPILE_OPTIONS ${CHRONO_SWIG_FLAGS})
+  endif()
+
+  swig_add_library(vsg LANGUAGE python SOURCES ${CHPY_VSG_MODULE_FILE})
+  target_link_libraries(vsg PRIVATE Python3::Python Chrono_core Chrono_vsg)
+
+    # Disable additional warnings for generated C++ code TODO: are they all really needed for all targets?
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  elseif(MSVC)
+    target_compile_options(vsg PRIVATE "/wd4189")  # local variable is initialized but not referenced
+    target_compile_options(vsg PRIVATE "/wd4275")  # non-DLL-interface class used as base for DLL-interface class
+    target_compile_options(vsg PRIVATE "/wd4456")  # declaration hides previous local declaration
+    target_compile_options(vsg PRIVATE "/wd4702")  # unreachable code
+    target_compile_options(vsg PRIVATE "/wd4706")  # assignment within conditional expression
+  else()
+    target_compile_options(vsg PRIVATE "-Wno-unused-variable")
+  endif()
+
+  # Ensure that the PYD library file is generated in the bin/ directory.
+  set_target_properties(vsg PROPERTIES
+                        PROJECT_LABEL "Chrono_python_vsg"
+                        LIBRARY_OUTPUT_DIRECTORY "${EXECUTABLE_OUTPUT_PATH}"
+                        SWIG_USE_TARGET_INCLUDE_DIRECTORIES TRUE
+                        )
+
+  target_compile_definitions(vsg PRIVATE "IGNORE_DEPRECATED_WARNING")
+
+  add_dependencies(vsg Chrono_core)
+  add_dependencies(vsg Chrono_vsg)
+  add_dependencies(vsg core)
+
+  # Copy PY file in a package dir
+  set(CHPY_VSG_PY_FILE "${CMAKE_SWIG_OUTDIR}/vsg.py")
+
+  set(CHPY_VSG_PYD_PATH $<TARGET_FILE_DIR:vsg>)
+
+  add_custom_command(TARGET vsg
+                     POST_BUILD
+                     COMMAND ${CMAKE_COMMAND} -E make_directory ${CHPY_VSG_PYD_PATH}/pychrono)
+  add_custom_command(TARGET vsg
+                     POST_BUILD
+                     COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_VSG_PY_FILE} ${CHPY_VSG_PYD_PATH}/pychrono)
+
+  # Install .pyd binary module (.so on linux)
+  install(TARGETS vsg
+          EXPORT ChronoTargets
+          RUNTIME DESTINATION "${CH_INSTALL_PYTHON}"
+          LIBRARY DESTINATION "${CH_INSTALL_PYTHON}"
+          ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}")
+  # Install .py module wrapper
+  install(FILES "${CHPY_VSG_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
+
+  if (DBG_SCRIPT)
+    message("Module name:     vsg")
+    message("PY file:         ${CHPY_VSG_PY_FILE}")
+    message("PYD path:        ${CHPY_VSG_PYD_PATH}")
+  endif()
+
+endif()
+
+
+
+if(CH_ENABLE_MODULE_FSI)
+  if (NOT CH_ENABLE_MODULE_VSG)
+    message(FATAL_ERROR "Chrono::FSI module's Python binding requires Chrono::VSG module. Please enable CH_ENABLE_MODULE_VSG.")
+  endif()
+  #-----------------------------------------------------------------------------
+  # MODULE for the fsi python wrapper.
+  #-----------------------------------------------------------------------------
+
+  message(STATUS "Add python FSI module")
+
+  # Python module name
+  set(CHPY_FSI fsi)
+
+  set(CHPY_FSI_MODULE_FILE ChModuleFsi_python.i)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set_source_files_properties(${CHPY_FSI_MODULE_FILE} PROPERTIES COMPILE_FLAGS "-D_WIN32")
+  endif()
+  set_source_files_properties(${CHPY_FSI_MODULE_FILE} PROPERTIES CPLUSPLUS ON)
+  if(MSVC)
+    set_source_files_properties(${CHPY_FSI_MODULE_FILE} PROPERTIES COMPILE_OPTIONS ${CHRONO_SWIG_FLAGS})
+  endif()
+
+  swig_add_library(fsi LANGUAGE python SOURCES ${CHPY_FSI_MODULE_FILE})
+  target_link_libraries(fsi PRIVATE Python3::Python Chrono_core Chrono_vsg Chrono_fsi Chrono_fsisph Chrono_fsisph_vsg)
+
+    # Disable additional warnings for generated C++ code TODO: are they all really needed for all targets?
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  elseif(MSVC)
+    target_compile_options(fsi PRIVATE "/wd4189")  # local variable is initialized but not referenced
+    target_compile_options(fsi PRIVATE "/wd4275")  # non-DLL-interface class used as base for DLL-interface class
+    target_compile_options(fsi PRIVATE "/wd4456")  # declaration hides previous local declaration
+    target_compile_options(fsi PRIVATE "/wd4702")  # unreachable code
+    target_compile_options(fsi PRIVATE "/wd4706")  # assignment within conditional expression
+  else()
+    target_compile_options(fsi PRIVATE "-Wno-unused-variable")
+  endif()
+
+  # Ensure that the PYD library file is generated in the bin/ directory.
+  set_target_properties(fsi PROPERTIES
+                        PROJECT_LABEL "Chrono_python_fsi"
+                        LIBRARY_OUTPUT_DIRECTORY "${EXECUTABLE_OUTPUT_PATH}"
+                        SWIG_USE_TARGET_INCLUDE_DIRECTORIES TRUE
+                        )
+
+  target_compile_definitions(fsi PRIVATE "IGNORE_DEPRECATED_WARNING")
+
+  add_dependencies(fsi Chrono_core)
+  add_dependencies(fsi Chrono_fsi)
+  add_dependencies(fsi Chrono_fsisph)
+  add_dependencies(fsi Chrono_fsisph_vsg)
+  add_dependencies(fsi core)
+
+  # Copy PY file in a package dir
+  set(CHPY_FSI_PY_FILE "${CMAKE_SWIG_OUTDIR}/fsi.py")
+
+  set(CHPY_FSI_PYD_PATH $<TARGET_FILE_DIR:fsi>)
+
+  add_custom_command(TARGET fsi
+                     POST_BUILD
+                     COMMAND ${CMAKE_COMMAND} -E make_directory ${CHPY_FSI_PYD_PATH}/pychrono)
+  add_custom_command(TARGET fsi
+                     POST_BUILD
+                     COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_FSI_PY_FILE} ${CHPY_FSI_PYD_PATH}/pychrono)
+
+  # Install .pyd binary module (.so on linux)
+  install(TARGETS fsi
+          EXPORT ChronoTargets
+          RUNTIME DESTINATION "${CH_INSTALL_PYTHON}"
+          LIBRARY DESTINATION "${CH_INSTALL_PYTHON}"
+          ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}")
+  # Install .py module wrapper
+  install(FILES "${CHPY_FSI_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
+
+  if (DBG_SCRIPT)
+    message("Module name:     fsi")
+    message("PY file:         ${CHPY_FSI_PY_FILE}")
+    message("PYD path:        ${CHPY_FSI_PYD_PATH}")
+  endif()
+
+endif()
+
 #-----------------------------------------------------------------------------
 # MODULE for the irrlicht python wrapper.
 #-----------------------------------------------------------------------------
