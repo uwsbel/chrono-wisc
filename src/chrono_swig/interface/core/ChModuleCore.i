@@ -640,6 +640,8 @@ inline const char* ChUtils_GetFilename() {
 %DefSharedPtrDynamicCast(chrono, ChGeometry, ChTriangleMeshConnected)
 %DefSharedPtrDynamicCast(chrono, ChGeometry, ChTriangleMeshSoup)
 
+%DefSharedPtrDynamicCast(chrono, ChSystem, ChSystemSMC)
+
 // .. to complete
 
 

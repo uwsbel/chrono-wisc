@@ -1,9 +1,9 @@
 //////////////////////////////////////////////////
 //  
-//   ChModuleFsi.i
+//   ChModuleVsg.i
 //
 //   SWIG configuration file.
-//   This is processed by SWIG to create the chrono::fsi
+//   This is processed by SWIG to create the chrono::vsg3d
 //   wrapper for Python.
 //
 ///////////////////////////////////////////////////
@@ -11,10 +11,10 @@
 
 
 // Define the module to be used in Python when typing 
-//  'import pychrono.fsi'
+//  'import pychrono.vsg'
 
 
-%module(directors="1") fsi
+%module(directors="1") vsg
 
 
 // Turn on the documentation of members, for more intuitive IDE typing
@@ -49,21 +49,15 @@
 #include "chrono/assets/ChVisualShapes.h"
 #include "chrono/utils/ChBodyGeometry.h"
 
-#include "chrono_fsi/ChFsiDefinitions.h"
-#include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChFsiSystem.h"
-#include "chrono_fsi/sph/ChFsiFluidSystemSPH.h"
-#include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_vsg/ChApiVSG.h"
 
 using namespace chrono;
-using namespace chrono::utils;
-using namespace chrono::fsi;
+using namespace chrono::vsg3d;
 
 
 %}
 
 // Undefine ChApi and other macros that otherwise SWIG gives a syntax error
-#define CH_FSI_API
 #define CH_VSG_API
 #define ChApi 
 #define EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -83,16 +77,8 @@ using namespace chrono::fsi;
 %include "cstring.i"
 %include "cpointer.i"
 
-%shared_ptr(chrono::ChFrame<double>)
-%shared_ptr(chrono::fsi::ChFsiSystem)
-%shared_ptr(chrono::fsi::sph::ChFsiFluidSystemSPH)
-%shared_ptr(chrono::fsi::sph::ChFsiSystemSPH)
-%shared_ptr(chrono::fsi::sph::ChFsiVisualizationVSG)
-%shared_ptr(chrono::fsi::sph::ChFsiVisualizationVSG::ParticleColorCallback)
-%shared_ptr(chrono::fsi::sph::ParticlePressureColorCallback)
-%shared_ptr(chrono::fsi::sph::ParticleVelocityColorCallback)
-%shared_ptr(chrono::fsi::sph::ParticleDensityColorCallback)
-%shared_ptr(chrono::fsi::sph::ParticleHeightColorCallback)
+%shared_ptr(chrono::vsg3d::ChVisualSystemVSG)
+%shared_ptr(chrono::vsg3d::ChVisualSystemVSGPlugin)
 
 %import(module="pychrono.core") "chrono_swig/interface/core/ChClassFactory.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVector2.i"
@@ -106,18 +92,10 @@ using namespace chrono::fsi;
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVisualMaterial.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVisualShape.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVisualModel.i"
+%import(module="pychrono.core") "chrono_swig/interface/core/ChVisualSystem.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChColor.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChColormap.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChSystem.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
-%import(module="pychrono.vsg") "chrono_swig/interface/vsg/ChVisualSystemVSG.i"
 
-%include "ChFsiDefinitions.i"
-%include "ChFsiDefinitionsSPH.i"
-%include "ChFsiSystem.i"
-%include "ChFsiFluidSystemSPH.i"
-%include "ChFsiSystemSPH.i"
-%include "ChFsiVisualizationVSG.i"
-
-%DefSharedPtrDynamicCast2NS(chrono::vsg3d, chrono::fsi::sph, ChVisualSystemVSGPlugin, ChFsiVisualizationVSG)
-%DefSharedPtrDynamicCast2NS(chrono::fsi::sph::ChFsiVisualizationVSG, chrono::fsi::sph, ParticleColorCallback, ParticleVelocityColorCallback)
+%include "ChVisualSystemVSG.i"
