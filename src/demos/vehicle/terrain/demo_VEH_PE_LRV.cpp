@@ -644,6 +644,12 @@ int main(int argc, char* argv[]) {
     auto hm3 = std::make_shared<HubMotor>(spindle3);
     auto hm4 = std::make_shared<HubMotor>(spindle4);
 
+    // Add accumulators for each spindle
+    unsigned int sp1_acccu = spindle1->AddAccumulator();
+    unsigned int sp2_acccu = spindle2->AddAccumulator();
+    unsigned int sp3_acccu = spindle3->AddAccumulator();
+    unsigned int sp4_acccu = spindle4->AddAccumulator();
+
     // Prismatic joint
     // auto prismatic1 = chrono_types::make_shared<ChLinkLockPrismatic>();
     // prismatic1->Initialize(wagon->GetChassisBody(), vehicle->GetChassisBody(), ChFrame<>(vehicle->GetChassis()->GetPos(), QuatFromAngleY(3.14159/2.)));
@@ -992,16 +998,16 @@ int main(int argc, char* argv[]) {
         hm3->Advance(step_size);
         hm4->Advance(step_size);
 
-        spindle1->EmptyAccumulators();
-        spindle2->EmptyAccumulators();
-        spindle3->EmptyAccumulators();
-        spindle4->EmptyAccumulators();
+        spindle1->EmptyAccumulator(sp1_acccu);
+        spindle2->EmptyAccumulator(sp2_acccu);
+        spindle3->EmptyAccumulator(sp3_acccu);
+        spindle4->EmptyAccumulator(sp4_acccu);
 
 
-        spindle1->AccumulateTorque(hm1->GetOutputMotorshaftTorque()*149.,true);
-        spindle2->AccumulateTorque(hm2->GetOutputMotorshaftTorque()*149.,true);
-        spindle3->AccumulateTorque(hm3->GetOutputMotorshaftTorque()*149.,true);
-        spindle4->AccumulateTorque(hm4->GetOutputMotorshaftTorque()*149.,true);
+        spindle1->AccumulateTorque(sp1_acccu, ChVector3d(0, hm1->GetOutputMotorshaftTorque()*149., 0), true);
+        spindle2->AccumulateTorque(sp2_acccu, ChVector3d(0, hm2->GetOutputMotorshaftTorque()*149., 0), true);
+        spindle3->AccumulateTorque(sp3_acccu, ChVector3d(0, hm3->GetOutputMotorshaftTorque()*149., 0), true);
+        spindle4->AccumulateTorque(sp4_acccu, ChVector3d(0, hm4->GetOutputMotorshaftTorque()*149., 0), true);
         
 
         sys.DoStepDynamics(step_size);

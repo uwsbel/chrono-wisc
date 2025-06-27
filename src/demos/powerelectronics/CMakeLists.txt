@@ -7,12 +7,8 @@ endif()
 
 # Add demos that can work with poerelectronics
 set(DEMOS
-    demo_PE_MotorControl
-    demo_PE_RCvalidation
-    demo_PE_RLvalidation
-    demo_PE_RLCvalidation)
-#    demo_PowerElectronics_MotorControl_validation
-#)
+   demo_PowerElectronics_MotorControl
+)
 
 #--------------------------------------------------------------
 
@@ -22,7 +18,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 #--------------------------------------------------------------
 # Include nlohmann.json to export results in json format.
 #--------------------------------------------------------------
-include_directories(${CMAKE_INSTALL_PREFIX}/../../libreries/json-develop/include)
+# include_directories(${CMAKE_INSTALL_PREFIX}/../../libreries/json-develop/include)
 
 include_directories(${CH_INCLUDES})
 set(COMPILER_FLAGS "${CH_CXX_FLAGS}")
