@@ -79,11 +79,11 @@ double terrain_length = 20;
 double terrain_width = 3;
 
 // Vehicle specification files
-std::string vehicle_json = "LRV/Polaris.json";
+std::string vehicle_json = "Polaris/Polaris_LTV.json";
 // std::string engine_json = "LRV/Polaris_EngineSimpleMap.json";
 // std::string transmission_json = "LRV/Polaris_AutomaticTransmissionSimpleMap.json";
-std::string driveline_json = "LRV/Polaris_simple_driveline.json";
-std::string tire_json = "LRV/Polaris_RigidMeshTire.json";
+std::string driveline_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
+std::string tire_json = "Polaris/Polaris_RigidTire.json";
 // Also change the mesh in CreateFSIWheels()
 // std::string tire_json = "LRV/Polaris_RigidMeshTire_lug.json";
 
@@ -132,7 +132,7 @@ public:
         motor->InitMotorModel(L_coil,R_coil);
 
         // Initialize the motor with time step
-        motor->Initialize(5e-4);  // Using the same time step as the main simulation
+        motor->Initialize();  // Using the same time step as the main simulation
     }
     /// Return the output engine torque on the motorshaft (N-m)
     double GetOutputMotorshaftTorque() {
@@ -205,17 +205,19 @@ int main(int argc, char* argv[]) {
     // ----------------
 
     double target_speed = 4.0;
-    double tend = 30;
+    double tend = 20;
     bool verbose = true;
-    double sphere_density = 2500.0;  // Default cube density in kg/m³
+    double sphere_density = 4000.0;  // Default cube density in kg/m³
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--sphere_density" && i + 1 < argc) {
+        if (std::string(argv[i]) == "--density" && i + 1 < argc) {
             sphere_density = std::stod(argv[i + 1]);
             i++; // Skip the next argument since it's the value
         }
     }
+
+    printf("sphere_density: %f\n", sphere_density);
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
@@ -246,7 +248,7 @@ int main(int argc, char* argv[]) {
     // --------------
 
     cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.6;
+    double vehicle_init_height = 0.25;
     bool fea_tires;
     auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
@@ -344,6 +346,7 @@ int main(int argc, char* argv[]) {
     CreateFSIWheels(vehicle, terrain);
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
     terrain.SetActiveDomainDelay(settling_time);
+
     // Construct the terrain and associated path
     cout << "Create terrain..." << endl;
     std::shared_ptr<ChBezierCurve> path;
@@ -386,7 +389,7 @@ int main(int argc, char* argv[]) {
     auto sphere = chrono_types::make_shared<ChBody>();
     
     // Set sphere properties
-    double sphere_radius = 0.3;  // Sphere radius in m
+    double sphere_radius = 0.397;  // Sphere radius in m - 
     
     // Calculate mass and inertia from density and size
     double sphere_volume = (4.0/3.0) * CH_PI * sphere_radius * sphere_radius * sphere_radius;
@@ -395,7 +398,7 @@ int main(int argc, char* argv[]) {
     
     sphere->SetMass(sphere_mass);
     sphere->SetInertiaXX(ChVector3d(sphere_inertia, sphere_inertia, sphere_inertia));
-    sphere->SetPos(ChVector3d(1.5, 0, 0.6));  // Initial position 1m behind vehicle
+    sphere->SetPos(ChVector3d(1, 0, 0.65));  // Initial position 1m behind vehicle
     sphere->SetFixed(false);
     sphere->EnableCollision(false);
 
@@ -424,8 +427,8 @@ int main(int argc, char* argv[]) {
 
     // Create a distance constraint between the vehicle chassis and the sphere
     auto distance_constraint = chrono_types::make_shared<ChLinkDistance>();
-    distance_constraint->Initialize(vehicle->GetChassisBody(), sphere, false, 
-                                  ChVector3d(-0.5, 0, 0),  // Point on chassis (1m behind)
+    distance_constraint->Initialize(vehicle->GetChassisBody(), sphere, true, 
+                                  ChVector3d(-1, 0, 0.397),  // Point on chassis (1m behind)
                                   ChVector3d(0, 0, 0));    // Point on sphere (center)
     sysMBS->AddLink(distance_constraint);
 
@@ -612,17 +615,17 @@ int main(int argc, char* argv[]) {
                 << hm3->GetMotorshaftSpeed() << ","
                 << hm4->GetMotorshaftSpeed() << "\n";
 
-        cout << vehicle_pos.x() << " " << vehicle_pos.y() << " " << vehicle_pos.z() << endl;
+        // cout << vehicle_pos.x() << " " << vehicle_pos.y() << " " << vehicle_pos.z() << endl;
         // ===============================================
         const auto& veh_loc = vehicle->GetPos();
 
 
         // Ramp up throttle to value requested by the cruise controller
-        if (time < 0.5) {
+        if (time < 5.0) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         } else {
-            ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, (time - 0.5) / 0.5);
+            ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, (time - 5.0) / 0.5);
         }
 
         // Stop vehicle before reaching end of terrain patch, then end simulation after 2 more second2
@@ -707,6 +710,10 @@ int main(int argc, char* argv[]) {
 
     csv.WriteToFile(out_file);
 
+    // Print final x-coordinate
+    ChVector3d final_vehicle_pos = vehicle->GetPos();
+    cout << "Final vehicle x-coordinate: " << final_vehicle_pos.x() << " m" << endl;
+
 #ifdef CHRONO_POSTPROCESS
     postprocess::ChGnuPlot gplot(out_dir + "/height.gpl");
     gplot.SetGrid();
@@ -756,8 +763,8 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
 }
 
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
-    std::string mesh_filename = vehicle::GetDataFile("LRV/meshes/Polaris_tire.obj");
-    // std::string mesh_filename = vehicle::GetDataFile("LRV/lugs/body_1_1_scaled.obj");
+    // std::string mesh_filename = vehicle::GetDataFile("Polaris/scaled_obj_files/body_6_1_scaled.obj");
+    std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
     utils::ChBodyGeometry geometry;
     geometry.materials.push_back(ChContactMaterialData());
     geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
