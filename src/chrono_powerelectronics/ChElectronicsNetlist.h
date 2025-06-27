@@ -66,13 +66,8 @@ public:
     }
 
     void SetBranchTracking(Branch_V branches) {
-
         this->tracked_branches = branches;
     }
-
-    /*void SetBranchTracking(Branch_V branches) {
-        this->tracked_branches = branches;
-    }*/
 
     // For each key in pwl_in, and from last,
     // set V_0 and V_f in pwl_sources accordingly

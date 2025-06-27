@@ -20,7 +20,6 @@ namespace powerelectronics {
 ChElectronicMotor::ChElectronicMotor(std::shared_ptr<ChBody> spindle, double t_step)
     : ChElectronicCircuit("../data/Circuit/MotorControl/Circuit_Netlist.cir", t_step) {
     this->spindle = spindle;
-    this->spindle_acccu = spindle->AddAccumulator();
 }
 
 ChElectronicMotor::ChElectronicMotor(double t_step)
@@ -94,22 +93,22 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
 
     ChVector3d spindle_torque = spindle_torque_mag * torque_vec_norm;
     this->spindle_torque = spindle_torque;
+    
 
+    double ang_vel = this->shaft_angvel*0.10472; // RPM to Rad/S
 
-    double ang_vel = this->shaft_angvel; // RPM to Rad/S
-
-    // if (this->spindle != nullptr) {
-    //     ang_vel = spindle->GetAngVelLocal()[2];
-    // }
+    if (this->spindle != nullptr) {
+        ang_vel = spindle->GetAngVelLocal()[2];
+    }
     // std::cout << "Current " << IVprobe1 << " Ang Vel " << ang_vel << std::endl;
 
 
     this->VbackemfCVAR = ke_motor * ang_vel ;
 
-    // if (this->spindle != nullptr) {
-    //     spindle->EmptyAccumulator(spindle_acccu); // Clear previous forces/torques
-    //     spindle->AccumulateTorque(spindle_acccu, spindle_torque, false); // Apply torque to the spindle body
-    // }
+    if (this->spindle != nullptr) {
+        spindle->EmptyAccumulator(0); // Clear previous forces/torques (assuming accumulator index 0)
+        spindle->AccumulateTorque(0, spindle_torque, false); // Apply torque to the spindle body
+    }
 
 
 }

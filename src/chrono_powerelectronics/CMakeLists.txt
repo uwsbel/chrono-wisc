@@ -22,6 +22,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS True )
 
 set(CXX_FLAGS "${CH_CXX_FLAGS}")
 set(LINKER_FLAGS "${CH_LINKERFLAG_SHARED}")
+set(CH_POWERELECTRONICS_INCLUDES "")
 set(CH_POWERELECTRONICS_LIBRARIES "Chrono_core")
 set(CH_POWERELECTRONICS_LINKED_LIBRARIES "")
 
@@ -57,16 +58,15 @@ set(CH_POWERELECTRONICS_BASE_FILES
 
   ChElectronicsCosimResult.h
   
+  circuits/ChElectronicCircuit.cpp
   circuits/ChElectronicCircuit.h
-
-  circuits/ChElectronicGeneric.h
-  circuits/ChElectronicGeneric.cpp
 
   circuits/ChElectronicMotor.h
   circuits/ChElectronicMotor.cpp
+
+
 )
-source_group("" FILES 
-            ${CH_POWERELECTRONICS_BASE_FILES})
+source_group("base" FILES ${CH_POWERELECTRONICS_BASE_FILES})
 
 #-----------------------------------------------------------------------------
 # Create the ChronoEngine_powerelectronics library

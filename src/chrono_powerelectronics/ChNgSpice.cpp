@@ -93,6 +93,7 @@ void ChNgSpice::runTransientAnalysis(std::vector<std::string> netlist, double t_
 
 }
 
+
 // Helper function to read circuit from a file
 std::vector<std::string> ChNgSpice::readCircuitFromFile(const std::string& filename) {
     std::vector<std::string> circuit;

@@ -21,7 +21,6 @@
 
 #include "../ChElectronicsCosimResult.h"
 #include "../ChElectronicsCosimulation.h"
-#include "../ChElectronicsNetlist.h"
 #include <chrono>
 // =======================
 // ======== Class ========
@@ -50,37 +49,11 @@ public:
     
     virtual void PostAdvance (double dt_mbs) {};
 
-    virtual void Initialize(double dt_mbs) final {
-        // Pre initialize the model
+    virtual void Initialize() final {
         this->PreInitialize();
         cosim.Initialize(netlist_file);
         netlist = cosim.GetNetlist().netlist_file;
         this->PostInitialize();
-
-        // Generate a preliminary result map to obtain the branches related to the inductance inside the Netlist
-        this->Advance(dt_mbs);
-        auto res = this->GetResult();
-        /*
-        // Plot the results
-        std::cout << "Results:\n" << std::endl;
-        for (const auto& [key, values] : res) { 
-            std::cout << key << ": ";
-            }
-            std::cout << std::endl;*/
-
-        // Generate the list of inductance inside the Netlist
-        std::vector<std::string> InductanceMap = this->InductanceListDef(res);
-        this->SetBranchTracking(InductanceMap);
-
-        // Officially initialize the model
-        this->PreInitialize();
-        cosim.Initialize(netlist_file);
-        netlist = cosim.GetNetlist().netlist_file;
-        this->PostInitialize();
-
-        // Set the Netlist to the real firs Initial Condition
-        this->Advance(dt_mbs);
-        
     }
 
     virtual void Advance(double dt_mbs) final {
@@ -91,13 +64,7 @@ public:
         t_sim_electronics += dt_mbs;
 
         auto runSpiceStart = std::chrono::high_resolution_clock::now();
-        /*std::cout << "#########################################################" << std::endl;
-        std::cout << "Netlist file: " << std::endl;
-            for (const auto& line : this->netlist) {
-                std::cout << line << std::endl;
-            }
-        std::cout << "#########################################################" << std::endl;*/
-        
+
         this->result = cosim.RunSpice(this->netlist, this->t_step, dt_mbs, initial);
         auto runSpiceEnd = std::chrono::high_resolution_clock::now();
         auto runSpiceTime = std::chrono::duration_cast<std::chrono::microseconds>(runSpiceEnd - runSpiceStart).count();
@@ -125,17 +92,6 @@ public:
         this->cosim.SetInitialFlowInICs(map);
     }
 
-    std::vector<std::string> InductanceListDef(std::map<std::string,std::vector<double>> resmap){
-        std::vector<std::string> InductanceMap;
-        for (const auto& [key, vec] : resmap) {
-            if (netlistObj.toLowerCase(key)[0] == 'l'){
-                //std::cout << key << std::endl;
-                InductanceMap.push_back(key);
-            }
-        }
-        return InductanceMap;
-    }
-
     void SetBranchTracking(Branch_V branches) {
         this->cosim.SetBranchTracking(branches);
     }
@@ -150,15 +106,10 @@ public:
     PWLInMap GetPWLIn() {
         return pwl_in;
     }
-    // Added this method since the netlist member is private, it is not directly accessible from the outside
-    Netlist_V GetNetlist() const {
-        return this->netlist;
-    }
-
 
 private:
 
-    //
+    Netlist_V netlist;
     std::string netlist_file;
 
     ChElectronicsCosimulation cosim;
@@ -170,10 +121,8 @@ private:
     std::map<std::string,std::vector<double>> result;
 
 protected:
-    Netlist_V netlist;
     FlowInMap flow_in;
     PWLInMap pwl_in;
-    ChElectronicsNetlist netlistObj; 
     
 };
 
