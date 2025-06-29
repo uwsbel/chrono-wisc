@@ -2,10 +2,9 @@ import pychrono as chrono
 import pychrono.fsi as fsi
 import pychrono.vsg as vsg
 import os
-import pychrono.irrlicht as chronoirr
 
 def main():
-    input_json = "demo_FSI_DamBreak_Explicit.json"
+    input_json = chrono.GetChronoDataFile("fsi/input_json/demo_FSI_DamBreak_Explicit.json")
     t_end = 1.0
     verbose = True
     output = True
