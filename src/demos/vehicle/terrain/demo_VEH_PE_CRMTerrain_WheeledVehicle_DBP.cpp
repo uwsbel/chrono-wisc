@@ -565,10 +565,10 @@ int main(int argc, char* argv[]) {
         double wheel_torque4 = spindle4->GetAccumulatedTorque(sp4_acccu).y();
 
         // Wheel rpm
-        double wheel_speed1 = spindle1->GetAngVelLocal()[2];
-        double wheel_speed2 = spindle2->GetAngVelLocal()[2];
-        double wheel_speed3 = spindle3->GetAngVelLocal()[2];
-        double wheel_speed4 = spindle4->GetAngVelLocal()[2];
+        double wheel_speed1 = spindle1->GetAngVelLocal()[1];
+        double wheel_speed2 = spindle2->GetAngVelLocal()[1];
+        double wheel_speed3 = spindle3->GetAngVelLocal()[1];
+        double wheel_speed4 = spindle4->GetAngVelLocal()[1];
 
         // Vehicle orientation in Euler angles (roll, pitch, yaw)
         ChVector3d euler_angles = vehicle_rot.GetRotVec();
