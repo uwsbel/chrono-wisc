@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
+#include <sstream>
+#include <algorithm>
 
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
@@ -75,7 +77,7 @@ enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
 PatchType patch_type = PatchType::RECTANGULAR;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 20;
+double terrain_length = 30;
 double terrain_width = 3;
 
 // Vehicle specification files
@@ -96,6 +98,8 @@ BrakeType brake_type = BrakeType::SHAFTS;
 
 std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool& fea_tires);
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain);
+void AddWheelBCEFromCSV(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain, const std::string& csv_file);
+std::vector<ChVector3d> ReadBCEMarkersFromCSV(const std::string& csv_file);
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 
 // ===================================================================================================================
@@ -115,7 +119,7 @@ private:
 
 public:
     HubMotor(std::shared_ptr<ChBody> spindle) {
-        motor = std::make_shared<ChElectronicMotor>(6e-3);
+        motor = std::make_shared<ChElectronicMotor>(1e-3);
 
         double kt_motor = 0.1066;  // Motor torque constant [Nm/A]
         double ke_motor = -0.107;  // Motor back EMF constant [V/(rad/s)]
@@ -138,6 +142,21 @@ public:
     double GetOutputMotorshaftTorque() {
         return last_torque;
         // return 100.;
+    }
+    
+    /// Return the current motor current (A)
+    double GetCurrent() {
+        auto res = motor->GetResult();
+        if (res.find("vprobe1") != res.end() && !res["vprobe1"].empty()) {
+            return res["vprobe1"].back();
+        }
+        return 0.0;
+    }
+    
+    /// Return the current motor voltage (V)
+    double GetVoltage() {
+        // Return the PWM voltage being applied to the motor
+        return PWM;
     }
     
     void Advance(double step) {
@@ -178,7 +197,8 @@ public:
         //     motor->SetPWM(0.0);  // No voltage applied when PWM is off
         // }
 
-        motor->SetPWM(48.0*duty_cycle);  // Apply the calculated PWM voltage signal
+        PWM = 48.0*duty_cycle;  // Store the PWM voltage
+        motor->SetPWM(PWM);  // Apply the calculated PWM voltage signal
 
         // if(duty_cycle == 0) {
         //     motor->SetPWM(0.0);
@@ -205,7 +225,7 @@ int main(int argc, char* argv[]) {
     // ----------------
 
     double target_speed = 4.0;
-    double tend = 20;
+    double tend = 12;
     bool verbose = true;
     double sphere_density = 4000.0;  // Default cube density in kg/m³
 
@@ -221,7 +241,7 @@ int main(int argc, char* argv[]) {
 
     // Visualization settings
     bool render = true;                    // use run-time visualization
-    double render_fps = 200;               // rendering FPS
+    double render_fps = 50;               // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
@@ -237,18 +257,18 @@ int main(int argc, char* argv[]) {
     double poisson_ratio = 0.3;
 
     // CRM (moving) active box dimension
-    double active_box_hdim = 0.4;
+    double active_box_hdim = 0.5;
     double settling_time = 0;
 
     // Set SPH spacing
-    double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.04;
+    double spacing = 0.04;
 
     // --------------
     // Create vehicle
     // --------------
 
     cout << "Create vehicle..." << endl;
-    double vehicle_init_height = 0.25;
+    double vehicle_init_height = 0.35; //0.25
     bool fea_tires;
     auto vehicle = CreateVehicle(ChCoordsys<>(ChVector3d(3.5, 0, vehicle_init_height), QUNIT), fea_tires);
     vehicle->GetChassis()->SetFixed(fix_chassis);
@@ -285,7 +305,7 @@ int main(int argc, char* argv[]) {
         solver_type = ChSolver::Type::PARDISO_MKL;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     } else {
-        step_size = 5e-4;
+        step_size = 1e-4;
         solver_type = ChSolver::Type::BARZILAIBORWEIN;
         integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     }
@@ -341,9 +361,8 @@ int main(int argc, char* argv[]) {
 
     // Set output level from SPH simulation
     terrain.SetOutputLevel(OutputLevel::STATE);
-
-    // Add vehicle wheels as FSI solids
-    CreateFSIWheels(vehicle, terrain);
+    
+    
     terrain.SetActiveDomain(ChVector3d(active_box_hdim));
     terrain.SetActiveDomainDelay(settling_time);
 
@@ -389,7 +408,7 @@ int main(int argc, char* argv[]) {
     auto sphere = chrono_types::make_shared<ChBody>();
     
     // Set sphere properties
-    double sphere_radius = 0.397;  // Sphere radius in m - 
+    double sphere_radius = 0.3;  // Sphere radius in m - 
     
     // Calculate mass and inertia from density and size
     double sphere_volume = (4.0/3.0) * CH_PI * sphere_radius * sphere_radius * sphere_radius;
@@ -419,11 +438,16 @@ int main(int argc, char* argv[]) {
 
     sysMBS->AddBody(sphere);
 
-    // Add sphere to FSI system
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(ChContactMaterialData());
-    geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere_radius, 0));
-    terrain.AddRigidBody(sphere, geometry, false);
+    // Add sphere to FSI system using AddPointsBCE and AddFsiBody
+    ChFsiFluidSystemSPH& sysSPH = terrain.GetSystemFSI().GetFluidSystemSPH();
+    
+    // Create BCE markers for the sphere interior (solid=true)
+    std::vector<ChVector3d> sphere_bce;
+    sysSPH.CreateBCE_SphereInterior(sphere_radius, true, sphere_bce);  // true for polar coordinates
+    
+    // Add body to FSI system and add BCE markers
+    sysFSI.AddFsiBody(sphere);
+    sysSPH.AddPointsBCE(sphere, sphere_bce, ChFrame<>(), true);  // true for solid body
 
     // Create a distance constraint between the vehicle chassis and the sphere
     auto distance_constraint = chrono_types::make_shared<ChLinkDistance>();
@@ -432,8 +456,15 @@ int main(int argc, char* argv[]) {
                                   ChVector3d(0, 0, 0));    // Point on sphere (center)
     sysMBS->AddLink(distance_constraint);
 
+    // Add vehicle wheels as FSI solids
+    CreateFSIWheels(vehicle, terrain);
+
+    // Add BCE markers from CSV file to wheels
+    // AddWheelBCEFromCSV(vehicle, terrain, "bona.csv");
+
     // Initialize the terrain system
     terrain.Initialize();
+
 
     auto aabb = terrain.GetSPHBoundingBox();
     cout << "  SPH particles:     " << terrain.GetNumSPHParticles() << endl;
@@ -471,15 +502,18 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::string out_file = out_dir + "/results.txt";
+    // std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
     std::ofstream csv_file(out_dir+"/dbp_simulation_data.csv");
     csv_file << "time,sphere_density,sr1,sr2,sr3,sr4,sa1,sa2,sa3,sa4,"
              << "motor_torque1,motor_torque2,motor_torque3,motor_torque4,"
+             << "current1,current2,current3,current4,"
+             << "voltage1,voltage2,voltage3,voltage4,"
              << "x,y,z,roll,pitch,yaw,vx,vy,vz,throttle,braking,"
              << "wheel_torque1,wheel_torque2,wheel_torque3,wheel_torque4,"
              << "wheel_speed1,wheel_speed2,wheel_speed3,wheel_speed4,"
-             << "motorshaft_speed1,motorshaft_speed2,motorshaft_speed3,motorshaft_speed4\n";
+             << "motorshaft_speed1,motorshaft_speed2,motorshaft_speed3,motorshaft_speed4,"
+             << "sphere_x\n";
 
     // -----------------------------
     // Create run-time visualization
@@ -526,6 +560,7 @@ int main(int argc, char* argv[]) {
     int render_frame = 0;
     int snapshot_frame = 0;  // Counter for sequential snapshot numbering
     bool braking = false;
+    double gear_ratio = 80.0;
 
     cout << "Start simulation..." << endl;
 
@@ -558,6 +593,18 @@ int main(int argc, char* argv[]) {
         double motor_torque3 = hm3->GetOutputMotorshaftTorque();
         double motor_torque4 = hm4->GetOutputMotorshaftTorque();
 
+        // Motor current
+        double current1 = hm1->GetCurrent();
+        double current2 = hm2->GetCurrent();
+        double current3 = hm3->GetCurrent();
+        double current4 = hm4->GetCurrent();
+
+        // Motor voltage
+        double voltage1 = hm1->GetVoltage();
+        double voltage2 = hm2->GetVoltage();
+        double voltage3 = hm3->GetVoltage();
+        double voltage4 = hm4->GetVoltage();
+
         // Wheel torque
         double wheel_torque1 = spindle1->GetAccumulatedTorque(sp1_acccu).y();
         double wheel_torque2 = spindle2->GetAccumulatedTorque(sp2_acccu).y();
@@ -576,6 +623,9 @@ int main(int argc, char* argv[]) {
         double pitch = euler_angles.y();
         double yaw = euler_angles.z();
 
+        // Sphere position
+        ChVector3d sphere_pos = sphere->GetPos();
+
         csv_file << std::fixed << std::setprecision(6)
                 << time << ","
                 << sphere_density << ","
@@ -591,6 +641,14 @@ int main(int argc, char* argv[]) {
                 << motor_torque2 << ","
                 << motor_torque3 << ","
                 << motor_torque4 << ","
+                << current1 << ","
+                << current2 << ","
+                << current3 << ","
+                << current4 << ","
+                << voltage1 << ","
+                << voltage2 << ","
+                << voltage3 << ","
+                << voltage4 << ","
                 << vehicle_pos.x() << ","
                 << vehicle_pos.y() << ","
                 << vehicle_pos.z() << ","
@@ -613,19 +671,21 @@ int main(int argc, char* argv[]) {
                 << hm1->GetMotorshaftSpeed() << ","
                 << hm2->GetMotorshaftSpeed() << ","
                 << hm3->GetMotorshaftSpeed() << ","
-                << hm4->GetMotorshaftSpeed() << "\n";
+                << hm4->GetMotorshaftSpeed() << ","
+                << sphere_pos.x() << "\n";
 
         // cout << vehicle_pos.x() << " " << vehicle_pos.y() << " " << vehicle_pos.z() << endl;
         // ===============================================
         const auto& veh_loc = vehicle->GetPos();
 
 
-        // Ramp up throttle to value requested by the cruise controller
-        if (time < 5.0) {
+        // Ramp up throttle to 0.5 over 0.5 seconds
+        if (time < 1.0) {
             driver_inputs.m_throttle = 0;
             driver_inputs.m_braking = 1;
         } else {
-            ChClampValue(driver_inputs.m_throttle, driver_inputs.m_throttle, (time - 5.0) / 0.5);
+            // Ramp throttle from 0 to 1.0 over 1 second
+            driver_inputs.m_throttle = std::min(1.0, (time - 1.0) / 1.0);
         }
 
         // Stop vehicle before reaching end of terrain patch, then end simulation after 2 more second2
@@ -646,7 +706,7 @@ int main(int argc, char* argv[]) {
             vis->Render();
             
             // Save snapshot if enabled
-            if (snapshots && render_frame % (int)(render_fps / 100) == 0) {  
+            if (snapshots) {  // Save snapshot at render_fps rate
                 std::ostringstream filename;
                 filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << snapshot_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
@@ -668,10 +728,10 @@ int main(int argc, char* argv[]) {
         // TODO: Check if anything special needs to be done here?
         DriverInputs driver_inputs_hm = driver_inputs;
 
-        hm1->Synchronize(time, driver_inputs_hm,spindle1->GetAngVelLocal()[1]*80.);
-        hm2->Synchronize(time, driver_inputs_hm,spindle2->GetAngVelLocal()[1]*80.);
-        hm3->Synchronize(time, driver_inputs_hm,spindle3->GetAngVelLocal()[1]*80.);
-        hm4->Synchronize(time, driver_inputs_hm,spindle4->GetAngVelLocal()[1]*80.);
+        hm1->Synchronize(time, driver_inputs_hm, spindle1->GetAngVelLocal()[1] * gear_ratio);
+        hm2->Synchronize(time, driver_inputs_hm, spindle2->GetAngVelLocal()[1] * gear_ratio);
+        hm3->Synchronize(time, driver_inputs_hm, spindle3->GetAngVelLocal()[1] * gear_ratio);
+        hm4->Synchronize(time, driver_inputs_hm, spindle4->GetAngVelLocal()[1] * gear_ratio);
 
         // Advance simulation
         terrain.Advance(step_size);
@@ -687,16 +747,10 @@ int main(int argc, char* argv[]) {
         spindle3->EmptyAccumulator(sp3_acccu);
         spindle4->EmptyAccumulator(sp4_acccu);
 
-        spindle1->AccumulateTorque(sp1_acccu,ChVector3d(0,hm1->GetOutputMotorshaftTorque()*80.,0),true); 
-        spindle2->AccumulateTorque(sp2_acccu,ChVector3d(0,hm2->GetOutputMotorshaftTorque()*80.,0),true);
-        spindle3->AccumulateTorque(sp3_acccu,ChVector3d(0,hm3->GetOutputMotorshaftTorque()*80.,0),true);
-        spindle4->AccumulateTorque(sp4_acccu,ChVector3d(0,hm4->GetOutputMotorshaftTorque()*80.,0),true);
-
-        // Output spindle torques
-        // cout << "hm1: " << hm1->GetOutputMotorshaftTorque() << " " << spindle1->GetAccumulatedTorque(sp1_acccu) << endl;
-        // cout << "hm2: " << hm2->GetOutputMotorshaftTorque() << " " << spindle2->GetAccumulatedTorque(sp2_acccu) << endl;
-        // cout << "hm3: " << hm3->GetOutputMotorshaftTorque() << " " << spindle3->GetAccumulatedTorque(sp3_acccu) << endl;
-        // cout << "hm4: " << hm4->GetOutputMotorshaftTorque() << " " << spindle4->GetAccumulatedTorque(sp4_acccu) << endl;
+        spindle1->AccumulateTorque(sp1_acccu, ChVector3d(0, hm1->GetOutputMotorshaftTorque() * gear_ratio, 0), true); 
+        spindle2->AccumulateTorque(sp2_acccu, ChVector3d(0, hm2->GetOutputMotorshaftTorque() * gear_ratio, 0), true);
+        spindle3->AccumulateTorque(sp3_acccu, ChVector3d(0, hm3->GetOutputMotorshaftTorque() * gear_ratio, 0), true);
+        spindle4->AccumulateTorque(sp4_acccu, ChVector3d(0, hm4->GetOutputMotorshaftTorque() * gear_ratio, 0), true);
 
         // Advance system state
         // vehicle->Advance(step_size);
@@ -707,8 +761,6 @@ int main(int argc, char* argv[]) {
         time += step_size;
         sim_frame++;
     }
-
-    csv.WriteToFile(out_file);
 
     // Print final x-coordinate
     ChVector3d final_vehicle_pos = vehicle->GetPos();
@@ -734,7 +786,6 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
 
     // Create and initialize the vehicle
     auto vehicle = chrono_types::make_shared<WheeledVehicle>(vehicle::GetDataFile(vehicle_json), ChContactMethod::SMC);
-    auto driveline = chrono_types::make_shared<SimpleDriveline>(vehicle::GetDataFile(driveline_json));
     vehicle->Initialize(init_pos);
     vehicle->GetChassis()->SetFixed(false);
     vehicle->SetChassisVisualizationType(VisualizationType::MESH);
@@ -771,25 +822,52 @@ void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrai
 
     for (auto& axle : vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
-            auto tire_fea = std::dynamic_pointer_cast<ChDeformableTire>(wheel->GetTire());
-            if (tire_fea) {
-                auto mesh = tire_fea->GetMesh();
-                if (mesh->GetNumContactSurfaces() > 0) {
-                    auto surf = mesh->GetContactSurface(0);
-                    cout << "FEA tire HAS contact surface: ";
-                    if (std::dynamic_pointer_cast<fea::ChContactSurfaceNodeCloud>(surf))
-                        cout << " NODE_CLOUD" << endl;
-                    else
-                        cout << " TRI_MESH" << endl;
-                } else {
-                    cout << "FEA tire DOES NOT HAVE contact surface!" << endl;
-                }
-                terrain.AddFeaMesh(mesh, false);
-            } else {
-                terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
-            }
+            terrain.AddRigidBody(wheel->GetSpindle(), geometry, false);
         }
     }
+}
+
+
+void AddWheelBCEFromCSV(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain, const std::string& csv_file) {
+    // Read BCE markers from CSV file
+    std::vector<ChVector3d> wheel_bce_markers = ReadBCEMarkersFromCSV(csv_file);
+    cout << "Loaded " << wheel_bce_markers.size() << " BCE markers for wheels from CSV file" << endl;
+
+    // Add wheels with custom BCE markers from CSV
+    for (auto& axle : vehicle->GetAxles()) {
+        for (auto& wheel : axle->GetWheels()) {
+            terrain.AddRigidBody(wheel->GetSpindle(), wheel_bce_markers, true);
+            cout << "Added " << wheel_bce_markers.size() << " custom BCE markers to wheel" << endl;
+        }
+    }
+}
+
+std::vector<ChVector3d> ReadBCEMarkersFromCSV(const std::string& csv_file) {
+    std::vector<ChVector3d> bce;
+    
+    std::ifstream file(vehicle::GetDataFile(csv_file));
+    if (!file.is_open()) {
+        cerr << "Error: Could not open BCE markers CSV file: " << csv_file << endl;
+        return bce;
+    }
+    
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::stringstream ss(line);
+        double x, y, z;
+        
+        if (ss >> x >> y >> z) {
+            bce.push_back(ChVector3d(x, y, z));
+        }
+    }
+    
+    file.close();
+    cout << "Loaded " << bce.size() << " BCE markers from " << csv_file << endl;
+    
+    return bce;
 }
 
 std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
