@@ -57,6 +57,7 @@ if(CH_ENABLE_MODULE_POWERELECTRONICS)
     set(DEMOS ${DEMOS}
         # demo_VEH_PE_CRMTerrain_WheeledVehicle
         demo_VEH_PE_CRMTerrain_WheeledVehicle_DBP
+        demo_VEH_PE_CRMTerrain_WheeledVehicle_DBPbox
         # demo_VEH_PE_CRMTerrain_WheeledVehicle_Incline
         # demo_VEH_PE_CRMTerrain_WheeledVehicle_HM
         # demo_test
