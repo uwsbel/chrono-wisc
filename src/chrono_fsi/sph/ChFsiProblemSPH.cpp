@@ -174,6 +174,35 @@ size_t ChFsiProblemSPH::AddRigidBodyMesh(std::shared_ptr<ChBody> body,
     return AddRigidBody(body, geometry, true, true);
 }
 
+size_t ChFsiProblemSPH::AddRigidBody(std::shared_ptr<ChBody> body,
+                                     const std::vector<ChVector3d>& bce_points,
+                                     bool check_embedded,
+                                     const ChFrame<>& rel_frame) {
+    if (m_verbose) {
+        cout << "Add FSI rigid body " << body->GetName() << " with custom BCE markers" << endl;
+    }
+
+    RigidBody b;
+    b.body = body;
+    b.check_embedded = check_embedded;
+
+    // The provided BCE points are relative to rel_frame, which is in turn relative to the body's frame.
+    // The BCE markers stored in the RigidBody struct must be relative to the body's frame.
+    // Therefore, transform the points by rel_frame before storing them.
+    b.bce.reserve(bce_points.size());
+    for (const auto& p : bce_points) {
+        b.bce.push_back(rel_frame.TransformPointLocalToParent(p));
+    }
+
+    m_bodies.push_back(b);
+
+    if (m_verbose) {
+        cout << "  Num. BCE markers: " << b.bce.size() << endl;
+    }
+
+    return b.bce.size();
+}
+
 // ----------------------------------------------------------------------------
 
 void ChFsiProblemSPH::EnableNodeDirections(bool val) {

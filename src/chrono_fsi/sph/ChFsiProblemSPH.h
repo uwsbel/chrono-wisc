@@ -93,6 +93,16 @@ class CH_FSI_API ChFsiProblemSPH {
                             const ChVector3d& interior_point,
                             double scale);
 
+    /// Add a rigid body to the FSI problem with explicitly provided BCE markers.
+    /// The BCE markers are provided as a vector of points.
+    /// Creation of FSI bodies embedded in the fluid phase is allowed (SPH markers inside the body geometry volume are
+    /// pruned). To check for possible overlap with SPH particles, set 'check_embedded=true'.
+    /// This function must be called before Initialize().
+    size_t AddRigidBody(std::shared_ptr<ChBody> body,
+                        const std::vector<ChVector3d>& bce_points,
+                        bool check_embedded,
+                        const ChFrame<>& rel_frame = ChFrame<>());
+
     /// Enable/disable use of node direction vectors for FSI flexible meshes.
     /// When enabled, node direction vectors (average of adjacent segment directions or average of face normals) are
     /// calculated from the FSI mesh position states and communicated to the SPH fluid solver which uses these to 
