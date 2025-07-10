@@ -95,7 +95,7 @@ void ChElectronicMotor::PostAdvance(double dt_mbs) {
     this->spindle_torque = spindle_torque;
     
 
-    double ang_vel = this->shaft_angvel*0.10472; // RPM to Rad/S
+    double ang_vel = this->shaft_angvel; // RPM to Rad/S
 
     if (this->spindle != nullptr) {
         ang_vel = spindle->GetAngVelLocal()[2];
