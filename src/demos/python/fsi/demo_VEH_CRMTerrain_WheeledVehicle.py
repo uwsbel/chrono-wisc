@@ -45,11 +45,11 @@ engine_json = "Polaris/Polaris_EngineSimpleMap.json"
 transmission_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json"
 tire_json = "Polaris/Polaris_RigidTire.json"
 # Visualization type for vehicle parts (PRIMITIVES, MESH, or NONE)
-chassis_vis_type = veh.VisualizationType_MESH
-suspension_vis_type = veh.VisualizationType_PRIMITIVES
-steering_vis_type = veh.VisualizationType_PRIMITIVES
-wheel_vis_type = veh.VisualizationType_NONE
-tire_vis_type = veh.VisualizationType_MESH
+chassis_vis_type = chrono.VisualizationType_MESH
+suspension_vis_type = chrono.VisualizationType_PRIMITIVES
+steering_vis_type = chrono.VisualizationType_PRIMITIVES
+wheel_vis_type = chrono.VisualizationType_NONE
+tire_vis_type = chrono.VisualizationType_MESH
 
 # --------------
 # Create vehicle
@@ -75,7 +75,7 @@ vehicle.InitializePowertrain(powertrain)
 for axle in vehicle.GetAxles():
     for wheel in axle.GetWheels():
         tire = veh.ReadTireJSON(veh.GetDataFile(tire_json))
-        vehicle.InitializeTire(tire, wheel, veh.VisualizationType_MESH)
+        vehicle.InitializeTire(tire, wheel, chrono.VisualizationType_MESH)
 
 sysMBS = vehicle.GetSystem()
 sysMBS.SetCollisionSystemType(chrono.ChCollisionSystem.Type_BULLET)
