@@ -21,6 +21,7 @@
 #include <iomanip>
 
 #include "chrono/physics/ChSystemNSC.h"
+#include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/assets/ChVisualSystem.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
