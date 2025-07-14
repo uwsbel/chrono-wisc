@@ -77,9 +77,6 @@ using namespace chrono::vsg3d;
 %include "cstring.i"
 %include "cpointer.i"
 
-%shared_ptr(chrono::vsg3d::ChVisualSystemVSG)
-%shared_ptr(chrono::vsg3d::ChVisualSystemVSGPlugin)
-
 %import(module="pychrono.core") "chrono_swig/interface/core/ChClassFactory.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVector2.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVector3.i"

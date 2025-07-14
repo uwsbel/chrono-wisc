@@ -812,11 +812,25 @@ if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
     set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_IRRLICHT")
   endif()
 
+  # Make sure CHRONO_VSG is defined for the SWIG processor
+  if (CH_ENABLE_MODULE_VSG)
+      set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_VSG")
+  endif()
+
+
   swig_add_library(vehicle LANGUAGE python SOURCES ${CHPY_VEHICLE_MODULE_FILE})
   target_link_libraries(vehicle PRIVATE Python3::Python Chrono_core Chrono_vehicle ChronoModels_vehicle)
   if(CH_ENABLE_MODULE_IRRLICHT)
     find_package(Irrlicht QUIET REQUIRED)
     target_link_libraries(vehicle PRIVATE Chrono_vehicle_irrlicht Chrono_irrlicht Irrlicht::Irrlicht)
+  endif()
+
+  if (CH_ENABLE_MODULE_VSG)
+      target_link_libraries(vehicle PRIVATE Chrono_vehicle_vsg Chrono_vsg)
+  endif()
+
+  if(CH_ENABLE_MODULE_FSI)
+    target_link_libraries(vehicle PRIVATE Chrono_fsi Chrono_fsisph)
   endif()
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

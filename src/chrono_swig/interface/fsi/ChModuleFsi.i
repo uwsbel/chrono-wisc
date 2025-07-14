@@ -117,6 +117,7 @@ using namespace chrono::fsi;
 %include "ChFsiSystem.i"
 %include "ChFsiFluidSystemSPH.i"
 %include "ChFsiSystemSPH.i"
+%include "ChFsiProblemSPH.i"
 %include "ChFsiVisualizationVSG.i"
 
 %DefSharedPtrDynamicCast2NS(chrono::vsg3d, chrono::fsi::sph, ChVisualSystemVSGPlugin, ChFsiVisualizationVSG)
