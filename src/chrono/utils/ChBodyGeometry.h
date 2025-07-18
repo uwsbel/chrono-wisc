@@ -144,6 +144,7 @@ class ChApi ChBodyGeometry {
                      std::shared_ptr<ChTriangleMeshConnected> trimesh,
                      double radius,
                      int matID = -1);
+        TrimeshShape() = default;
 
         std::shared_ptr<ChTriangleMeshConnected> trimesh;  ///< triangular mesh
         ChVector3d int_point;                              ///< location of a point inside the mesh

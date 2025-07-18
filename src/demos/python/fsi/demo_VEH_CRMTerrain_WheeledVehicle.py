@@ -4,9 +4,63 @@ import pychrono.fsi as fsi
 import pychrono.vsg as vsg
 import os
 
+def CreateFSIWheels(vehicle, terrain):
+    """
+    Add vehicle wheels as FSI solids to the CRM terrain.
+    
+    Args:
+        vehicle: WheeledVehicle object
+        terrain: CRMTerrain object
+    """
+    mesh_filename = veh.GetDataFile("Polaris/meshes/Polaris_tire_collision.obj")
+    
+    # Create geometry for rigid wheels
+    geometry = chrono.ChBodyGeometry()
 
+    geometry.coll_meshes.append(chrono.TrimeshShape(chrono.VNULL, mesh_filename, 0.01, 0))
+    geometry.vis_mesh_file = mesh_filename
+    
+    # Add contact material
+    # mat_data = chrono.ChContactMaterialData()
+    # geometry.materials = chrono.ChVector<chrono.ChContactMaterialData>(mat_data)
+    
 
-# TODO(uebian): Expose CRMTerrain and related FSI coupling classes.
+    
+    # Iterate through all axles and wheels
+    for axle in vehicle.GetAxles():
+        for wheel in axle.GetWheels():
+            tire = wheel.GetTire()
+            # Check if this is a deformable tire (FEA)
+            try:
+                # Try to get FEA mesh if it's a deformable tire
+                if hasattr(tire, 'GetMesh'):
+                    mesh = tire.GetMesh()
+                    if mesh and mesh.GetNumContactSurfaces() > 0:
+                        surf = mesh.GetContactSurface(0)
+                        print(f"FEA tire HAS contact surface")
+                        # Add FEA mesh to terrain
+                        terrain.AddFeaMesh(mesh, False)
+                    else:
+                        print("FEA tire DOES NOT HAVE contact surface!")
+                        # Still add as FEA mesh
+                        terrain.AddFeaMesh(mesh, False)
+                else:
+                    # Rigid tire - add as rigid body
+                    print("Adding rigid tire as rigid body")
+                    body = chrono.ChBody(wheel.GetSpindle())
+                    terrain.AddRigidBody(body, geometry, False)
+                    # terrain.AddRigidBodyMesh(body, chrono.VNULL, mesh_filename, chrono.VNULL, 0.01)
+            except Exception as e:
+                print(f"Error processing wheel: {e}")
+                # If we can't access FEA mesh methods, treat as rigid tire
+                try:
+                    print("Adding rigid tire as rigid body")
+                    body = chrono.ChBody(wheel.GetSpindle())
+                    terrain.AddRigidBody(body, geometry, False)
+                    # terrain.AddRigidBodyMesh(body, chrono.VNULL, mesh_filename, chrono.VNULL, 0.01)
+                except Exception as e2:
+                    print(f"Error adding rigid body: {e2}")
+
 
     
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
@@ -119,9 +173,9 @@ terrain.SetSPHParameters(sph_params)
 # Set output level from SPH simulation (if available)
 # terrain.SetOutputLevel(fsi.OutputLevel_STATE)
 
-# Add vehicle wheels as FSI solids (if needed)
-# This step may require a helper function, as in the C++ demo
-# For now, assume terrain.RegisterVehicle handles this
+# Add vehicle wheels as FSI solids
+print("Adding vehicle wheels as FSI solids...")
+CreateFSIWheels(vehicle, terrain)
 
 terrain.SetActiveDomain(chrono.ChVector3d(active_box_dim, active_box_dim, active_box_dim))
 terrain.SetActiveDomainDelay(settling_time)
