@@ -94,7 +94,7 @@ terrain.SetStepSizeCFD(5e-4)
 terrain.RegisterVehicle(vehicle)
 
 # Set SPH parameters and soil material properties
-mat_props = fsi.ChFsiFluidSystemSPH.ElasticMaterialProperties()
+mat_props = fsi.ElasticMaterialProperties()
 mat_props.density = density
 mat_props.Young_modulus = youngs_modulus
 mat_props.Poisson_ratio = poisson_ratio
@@ -106,7 +106,7 @@ mat_props.cohesion_coeff = cohesion
 terrain.SetElasticSPH(mat_props)
 
 # Set SPH solver parameters (if available)
-sph_params = fsi.ChFsiFluidSystemSPH.SPHParameters()
+sph_params = fsi.SPHParameters()
 sph_params.initial_spacing = spacing
 sph_params.d0_multiplier = 1
 sph_params.kernel_threshold = 0.8
@@ -130,7 +130,7 @@ terrain.SetActiveDomainDelay(settling_time)
 print("Create terrain...")
 terrain_length = 20
 terrain_width = 3
-terrain.Construct([terrain_length, terrain_width, 0.25], chrono.ChVector3d(terrain_length / 2, 0, 0))
+terrain.Construct(chrono.ChVector3d(terrain_length, terrain_width, 0.25), chrono.ChVector3d(terrain_length / 2, 0, 0), (fsi.BoxSide_ALL & ~fsi.BoxSide_Z_POS))
 
 # Create straight line path (if needed for driver)
 path = veh.StraightLinePath(chrono.ChVector3d(0, 0, vehicle_init_height), chrono.ChVector3d(terrain_length, 0, vehicle_init_height), 1)
@@ -178,9 +178,9 @@ if render:
     visFSI.EnableFluidMarkers(visualization_sph)
     visFSI.EnableBoundaryMarkers(visualization_bndry_bce)
     visFSI.EnableRigidBodyMarkers(visualization_rigid_bce)
-    visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap_Type_BROWN)
+    visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap.Type_BROWN)
 
-    visVSG = vsg.ChWheeledVehicleVisualSystemVSG()
+    visVSG = veh.ChWheeledVehicleVisualSystemVSG()
     visVSG.AttachVehicle(vehicle)
     visVSG.AttachPlugin(visFSI)
     visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
