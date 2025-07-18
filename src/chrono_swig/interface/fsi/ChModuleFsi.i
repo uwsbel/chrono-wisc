@@ -109,6 +109,7 @@ using namespace chrono::fsi;
 %import(module="pychrono.core") "chrono_swig/interface/core/ChColor.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChColormap.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChSystem.i"
+%import(module="pychrono.core") "chrono_swig/interface/core/ChBody.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
 %import(module="pychrono.vsg") "chrono_swig/interface/vsg/ChVisualSystemVSG.i"
 
