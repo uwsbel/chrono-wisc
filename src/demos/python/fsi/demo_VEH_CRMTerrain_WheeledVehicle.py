@@ -16,13 +16,7 @@ def CreateFSIWheels(vehicle, terrain):
     
     # Create geometry for rigid wheels
     geometry = chrono.ChBodyGeometry()
-
     geometry.coll_meshes.append(chrono.TrimeshShape(chrono.VNULL, mesh_filename, 0.01, 0))
-    geometry.vis_mesh_file = mesh_filename
-    
-    # Add contact material
-    # mat_data = chrono.ChContactMaterialData()
-    # geometry.materials = chrono.ChVector<chrono.ChContactMaterialData>(mat_data)
     
 
     
@@ -46,17 +40,13 @@ def CreateFSIWheels(vehicle, terrain):
                         terrain.AddFeaMesh(mesh, False)
                 else:
                     # Rigid tire - add as rigid body
-                    print("Adding rigid tire as rigid body")
-                    body = chrono.ChBody(wheel.GetSpindle())
-                    terrain.AddRigidBody(body, geometry, False)
+                    terrain.AddRigidBody(wheel.GetSpindle(), geometry, False)
                     # terrain.AddRigidBodyMesh(body, chrono.VNULL, mesh_filename, chrono.VNULL, 0.01)
             except Exception as e:
                 print(f"Error processing wheel: {e}")
                 # If we can't access FEA mesh methods, treat as rigid tire
                 try:
-                    print("Adding rigid tire as rigid body")
-                    body = chrono.ChBody(wheel.GetSpindle())
-                    terrain.AddRigidBody(body, geometry, False)
+                    terrain.AddRigidBody(wheel.GetSpindle(), geometry, False)
                     # terrain.AddRigidBodyMesh(body, chrono.VNULL, mesh_filename, chrono.VNULL, 0.01)
                 except Exception as e2:
                     print(f"Error adding rigid body: {e2}")
@@ -102,7 +92,7 @@ tire_json = "Polaris/Polaris_RigidTire.json"
 chassis_vis_type = chrono.VisualizationType_MESH
 suspension_vis_type = chrono.VisualizationType_PRIMITIVES
 steering_vis_type = chrono.VisualizationType_PRIMITIVES
-wheel_vis_type = chrono.VisualizationType_NONE
+wheel_vis_type = chrono.VisualizationType_MESH
 tire_vis_type = chrono.VisualizationType_MESH
 
 # --------------
@@ -118,6 +108,7 @@ vehicle.SetChassisVisualizationType(chassis_vis_type)
 vehicle.SetSuspensionVisualizationType(suspension_vis_type)
 vehicle.SetSteeringVisualizationType(steering_vis_type)
 vehicle.SetWheelVisualizationType(wheel_vis_type)
+vehicle.SetTireVisualizationType(tire_vis_type)
 
 # Powertrain
 engine = veh.ReadEngineJSON(veh.GetDataFile(engine_json))
