@@ -77,6 +77,7 @@ class ChApi ChBodyGeometry {
 
     /// Sphere shape for visualization and/or collision.
     struct ChApi SphereShape {
+        SphereShape() = default;
         SphereShape(const ChVector3d& pos, double radius, int matID = -1);
         SphereShape(const ChVector3d& pos, const ChSphere& sphere, int matID = -1);
         ChVector3d pos;  ///< center position relative to body
@@ -87,6 +88,7 @@ class ChApi ChBodyGeometry {
 
     /// Cylinder shape for visualization and/or collision.
     struct ChApi CylinderShape {
+        CylinderShape() = default;
         CylinderShape(const ChVector3d& pos, const ChVector3d& axis, double radius, double length, int matID = -1);
         CylinderShape(const ChVector3d& pos, const ChQuaternion<>& rot, double radius, double length, int matID = -1);
         CylinderShape(const ChVector3d& pos, const ChQuaternion<>& rot, const ChCylinder& cylinder, int matID = -1);
@@ -100,6 +102,7 @@ class ChApi ChBodyGeometry {
 
     /// Cone shape for visualization and/or collision.
     struct ChApi ConeShape {
+        ConeShape() = default;
         ConeShape(const ChVector3d& pos, const ChVector3d& axis, double radius, double length, int matID = -1);
         ConeShape(const ChVector3d& pos, const ChQuaternion<>& rot, double radius, double length, int matID = -1);
         ConeShape(const ChVector3d& pos, const ChQuaternion<>& rot, const ChCone& cone, int matID = -1);
@@ -113,6 +116,7 @@ class ChApi ChBodyGeometry {
 
     /// Line shape for visualization.
     struct ChApi LineShape {
+        LineShape() = default;
         LineShape(const ChVector3d& pos, const ChQuaternion<>& rot, std::shared_ptr<ChLine> line);
         ChVector3d pos;                ///< position relative to body
         ChQuaternion<> rot;            ///< orientation relative to body
@@ -121,6 +125,7 @@ class ChApi ChBodyGeometry {
 
     /// Convex hulls shape for collision.
     struct ChApi ConvexHullsShape {
+        ConvexHullsShape() = default;
         ConvexHullsShape(const std::string& filename, int matID = -1);
         std::vector<std::vector<ChVector3d>> hulls;  ///< convex hulls in group
         int matID;                                   ///< index in contact material list
@@ -128,6 +133,7 @@ class ChApi ChBodyGeometry {
 
     /// Tri-mesh shape for collision.
     struct ChApi TrimeshShape {
+        TrimeshShape() = default;
         TrimeshShape(const ChVector3d& pos,
                      const std::string& filename,
                      const ChVector3d& interior_point,
