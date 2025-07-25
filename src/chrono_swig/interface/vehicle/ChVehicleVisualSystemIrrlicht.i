@@ -34,11 +34,6 @@ using namespace irr::scene; // This is inserted for the extend functions that us
 
 #ifdef SWIGCSHARP
 
-    // InteractiveDriverIRR
-    %include "../../../chrono/core/ChBezierCurve.h"
-    %import "ChDriver.i" // make SWIG aware of the ChDriver interface file
-    %shared_ptr(chrono::vehicle::ChInteractiveDriver)
-
     %ignore chrono::vehicle::ChJoystickAxisIRR; // Ignore this for now Using an alias enum, SWIG can't translate the irr namespace right.
 
     //
@@ -148,8 +143,6 @@ using namespace irr::scene; // This is inserted for the extend functions that us
     %shared_ptr(chrono::vehicle::ChWheeledVehicleVisualSystemIrrlicht)
     %shared_ptr(chrono::vehicle::ChSuspensionTestRigVisualSystemIRR)
 
-    %shared_ptr(chrono::vehicle::ChInteractiveDriver)
-    %include "../../../chrono_vehicle/ChDriver.h"
 
     %import(module = "pychrono.irrlicht") "chrono_swig/interface/irrlicht/ChVisualSystemIrrlicht.i"
     %include "../../../chrono_vehicle/ChVehicleVisualSystem.h"
