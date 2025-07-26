@@ -87,7 +87,10 @@ spacing = 0.04
 vehicle_json = "Polaris/Polaris.json"
 engine_json = "Polaris/Polaris_EngineSimpleMap.json"
 transmission_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json"
-tire_json = "Polaris/Polaris_RigidTire.json"
+# tire_json = "Polaris/Polaris_RigidTire.json"
+tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json"
+fea_tires = True
+
 # Visualization type for vehicle parts (PRIMITIVES, MESH, or NONE)
 chassis_vis_type = chrono.VisualizationType_MESH
 suspension_vis_type = chrono.VisualizationType_PRIMITIVES
@@ -121,8 +124,35 @@ for axle in vehicle.GetAxles():
     for wheel in axle.GetWheels():
         tire = veh.ReadTireJSON(veh.GetDataFile(tire_json))
         vehicle.InitializeTire(tire, wheel, chrono.VisualizationType_MESH)
+        if(isinstance(tire, veh.ChDeformableTire)):
+            fea_tires = True
+
+        
 
 sysMBS = vehicle.GetSystem()
+
+# Set solver and integrator based on tire type
+if fea_tires:
+    step_size = 1e-4
+    solver_type = chrono.ChSolver.Type_PARDISO_MKL
+    integrator_type = chrono.ChTimestepper.Type_EULER_IMPLICIT_LINEARIZED
+else:
+    step_size = 5e-4
+    solver_type = chrono.ChSolver.Type_BARZILAIBORWEIN
+    integrator_type = chrono.ChTimestepper.Type_EULER_IMPLICIT_LINEARIZED
+
+# Set number of threads
+num_threads_chrono = 8
+num_threads_collision = 1
+num_threads_eigen = 1
+num_threads_pardiso = 8
+
+# Set solver and integrator
+sysMBS.SetSolverType(solver_type)
+sysMBS.SetTimestepperType(integrator_type)
+sysMBS.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen)
+
+# Set collision system
 sysMBS.SetCollisionSystemType(chrono.ChCollisionSystem.Type_BULLET)
 
 # ----------------------
@@ -247,7 +277,6 @@ time = 0
 sim_frame = 0
 render_frame = 0
 braking = False
-step_size = 5e-4
 
 print("Start simulation...")
 while time < tend:
