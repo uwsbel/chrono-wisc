@@ -384,7 +384,6 @@ inline const char* ChUtils_GetFilename() {
 %include "ChTexture.i"
 %include "ChCamera.i"
 %include "../../../chrono/assets/ChGlyphs.h"
-%include "ChVisualSystem.i"
 
 // physics/  classes
 %include "ChControllers.i"
@@ -431,6 +430,7 @@ inline const char* ChUtils_GetFilename() {
 %include "ChSystem.i"
 %include "ChSystemNSC.i"
 %include "ChSystemSMC.i"
+%include "ChVisualSystem.i"
 %include "ChProximityContainer.i"
 %include "ChLoader.i"
 %include "ChLoad.i"
