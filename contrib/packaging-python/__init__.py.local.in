@@ -27,11 +27,11 @@ try:
 except:
     pass
 try:
-    import _vsg
+    from . import vsg
 except:
     pass
 try:
-    import _fsi
+    from . import fsi
 except:
     pass
 try:
