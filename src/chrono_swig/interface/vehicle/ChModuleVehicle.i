@@ -235,6 +235,7 @@ using namespace chrono::vehicle::m113;
 %import(module = "pychrono.core") "../../../chrono/physics/ChLinkBase.h"
 %import(module = "pychrono.core") "chrono_swig/interface/core/ChTexture.i"
 %import(module = "pychrono.core") "../../../chrono/fea/ChMesh.h"
+%import(module = "pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
 
 
 /*
@@ -280,6 +281,7 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 %shared_ptr(chrono::vehicle::ChSuspensionTestRigPlatform)
 %shared_ptr(chrono::vehicle::ChSuspensionTestRigPushrod)
 
+%shared_ptr(chrono::vehicle::ChDriver)
 %shared_ptr(chrono::vehicle::ChSprocket)
 %shared_ptr(chrono::vehicle::ChIdler)
 %shared_ptr(chrono::vehicle::ChTrackWheel)
@@ -354,8 +356,6 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 %include "ChPowertrain.i"
 %include "ChEngine.i"
 %include "ChTransmission.i"
-
-%include "../core/ChBodyGeometry.i"
 
 %include "../../../chrono_vehicle/ChVehicle.h"
 %include "ChDriver.i"

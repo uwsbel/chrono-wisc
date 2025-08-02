@@ -27,6 +27,10 @@ try:
 except:
     pass
 try:
+    import _fsi
+except:
+    pass
+try:
     @ADD_OCC_DLL@
     from . import cascade
 except:

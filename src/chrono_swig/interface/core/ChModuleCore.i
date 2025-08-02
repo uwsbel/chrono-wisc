@@ -81,8 +81,10 @@
 #include "chrono/utils/ChFilters.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
+#include "chrono/utils/ChBodyGeometry.h"
 
 using namespace chrono;
+using namespace chrono::utils;
 using namespace chrono::fea;
 %}
 
@@ -349,7 +351,8 @@ inline const char* ChUtils_GetFilename() {
 %include "ChGeometry.i"
 
 
-
+// utils classes
+%include "ChBodyGeometry.i"
 
 //collision classes
 %include "ChContactMaterial.i"
