@@ -48,6 +48,13 @@ requirements:
     - libnpp-dev # [not osx]
     - cuda-nvrtc-dev # [not osx]
     - libcurand-dev # [not osx]
+    - libcublas-dev # [not osx]
+    - libcusparse-dev # [not osx]
+    - vulkanscenegraph <1.1.11
+    - vsgxchange >=1.1.6
+    - vsgimgui
+    - imgui
+
   run:
     - python
     - mkl ==2025.2.0 # [not arm64]
@@ -63,6 +70,10 @@ requirements:
     - libgl # [linux]
     - openmpi
     - yaml
+    - vulkanscenegraph <1.1.11
+    - vsgxchange >=1.1.6
+    - vsgimgui
+    - imgui
 
 about:
   home: https://github.com/projectchrono/chrono

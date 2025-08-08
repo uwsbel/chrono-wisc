@@ -146,6 +146,7 @@ using namespace chrono::vehicle::m113;
 
 // Undefine ChApi otherwise SWIG gives a syntax error
 #define CH_VEHICLE_API 
+#define CH_FSI_API 
 #define ChApi
 #define EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 #define CH_DEPRECATED(msg)
@@ -197,7 +198,7 @@ using namespace chrono::vehicle::m113;
 %shared_ptr(chrono::ChCollisionSystem::BroadphaseCallback)
 %shared_ptr(chrono::ChCollisionSystem::NarrowphaseCallback)
 
-
+%shared_ptr(chrono::vehicle::CRMTerrain)
 
 %import(module = "pychrono.core") "chrono_swig/interface/core/ChClassFactory.i"
 %import(module = "pychrono.core") "chrono_swig/interface/core/ChVector2.i"
@@ -235,7 +236,13 @@ using namespace chrono::vehicle::m113;
 %import(module = "pychrono.core") "../../../chrono/physics/ChLinkBase.h"
 %import(module = "pychrono.core") "chrono_swig/interface/core/ChTexture.i"
 %import(module = "pychrono.core") "../../../chrono/fea/ChMesh.h"
+%import(module = "pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
+%import(module = "pychrono.fsi") "chrono_swig/interface/fsi/ChFsiProblemSPH.i"
 
+#ifdef CHRONO_VSG
+#define CH_VSG_API
+%import(module = "pychrono.vsg") "chrono_swig/interface/vsg/ChVisualSystemVSG.i"
+#endif
 
 /*
 from this module: pay attention to inheritance in the model namespace (generic, sedan etc). 
@@ -280,6 +287,7 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 %shared_ptr(chrono::vehicle::ChSuspensionTestRigPlatform)
 %shared_ptr(chrono::vehicle::ChSuspensionTestRigPushrod)
 
+%shared_ptr(chrono::vehicle::ChDriver)
 %shared_ptr(chrono::vehicle::ChSprocket)
 %shared_ptr(chrono::vehicle::ChIdler)
 %shared_ptr(chrono::vehicle::ChTrackWheel)
@@ -355,8 +363,6 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 %include "ChEngine.i"
 %include "ChTransmission.i"
 
-%include "../core/ChBodyGeometry.i"
-
 %include "../../../chrono_vehicle/ChVehicle.h"
 %include "ChDriver.i"
 %include "ChTerrain.i"
@@ -409,6 +415,10 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 // This interface file invokes Irrlicht library and therefore Visual Studio Linker dependencies need specifying
   %include "ChVehicleVisualSystemIrrlicht.i"
 #endif
+#endif
+
+#ifdef CHRONO_VSG
+  %include "ChVehicleVisualSystemVSG.i"
 #endif
 
 //
@@ -478,3 +488,5 @@ Before adding a shared_ptr, mark as shared ptr all its inheritance tree in the m
 %DefSharedPtrDynamicCast(chrono::vehicle,ChDriveline, ChShaftsDriveline4WD)
 %DefSharedPtrDynamicCast(chrono::vehicle,ChDriveline, ChSimpleDriveline)
 %DefSharedPtrDynamicCast(chrono::vehicle,ChDriveline, ChSimpleDrivelineXWD)
+
+%DefSharedPtrDynamicCast2NS(chrono::fsi::sph, chrono::vehicle, ChFsiProblemCartesian, CRMTerrain)
