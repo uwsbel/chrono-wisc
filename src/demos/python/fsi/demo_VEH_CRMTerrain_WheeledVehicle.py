@@ -2,6 +2,7 @@ import pychrono.core as chrono
 import pychrono.vehicle as veh
 import pychrono.fsi as fsi
 import pychrono.vsg as vsg
+import pychrono.pardisomkl as mkl
 import os
 
 def CreateFSIWheels(vehicle, terrain):
@@ -89,7 +90,10 @@ engine_json = "Polaris/Polaris_EngineSimpleMap.json"
 transmission_json = "Polaris/Polaris_AutomaticTransmissionSimpleMap.json"
 # tire_json = "Polaris/Polaris_RigidTire.json"
 tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json"
-fea_tires = True
+if(tire_json.find("ANCF4Tire") != -1):
+    fea_tires = True
+else:
+    fea_tires = False
 
 # Visualization type for vehicle parts (PRIMITIVES, MESH, or NONE)
 chassis_vis_type = chrono.VisualizationType_MESH
@@ -124,8 +128,6 @@ for axle in vehicle.GetAxles():
     for wheel in axle.GetWheels():
         tire = veh.ReadTireJSON(veh.GetDataFile(tire_json))
         vehicle.InitializeTire(tire, wheel, chrono.VisualizationType_MESH)
-        if(isinstance(tire, veh.ChDeformableTire)):
-            fea_tires = True
 
         
 
@@ -134,23 +136,33 @@ sysMBS = vehicle.GetSystem()
 # Set solver and integrator based on tire type
 if fea_tires:
     step_size = 1e-4
-    solver_type = chrono.ChSolver.Type_PARDISO_MKL
+    # solver_type = mkl.ChSolverPardisoMKL
     integrator_type = chrono.ChTimestepper.Type_EULER_IMPLICIT_LINEARIZED
+    # Set number of threads
+    num_threads_chrono = 8
+    num_threads_collision = 1
+    num_threads_eigen = 1
+    num_threads_pardiso = 8
+
+    # Set solver and integrator
+    sysMBS.SetSolver(mkl.ChSolverPardisoMKL(num_threads_pardiso))
+    sysMBS.SetTimestepperType(integrator_type)
+    sysMBS.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen)
 else:
     step_size = 5e-4
     solver_type = chrono.ChSolver.Type_BARZILAIBORWEIN
     integrator_type = chrono.ChTimestepper.Type_EULER_IMPLICIT_LINEARIZED
+    # Set number of threads
+    num_threads_chrono = 8
+    num_threads_collision = 1
+    num_threads_eigen = 6
+    num_threads_pardiso = 0
 
-# Set number of threads
-num_threads_chrono = 8
-num_threads_collision = 1
-num_threads_eigen = 1
-num_threads_pardiso = 8
+    # Set solver and integrator
+    sysMBS.SetSolverType(solver_type)
+    sysMBS.SetTimestepperType(integrator_type)
+    sysMBS.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen)
 
-# Set solver and integrator
-sysMBS.SetSolverType(solver_type)
-sysMBS.SetTimestepperType(integrator_type)
-sysMBS.SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen)
 
 # Set collision system
 sysMBS.SetCollisionSystemType(chrono.ChCollisionSystem.Type_BULLET)
