@@ -857,6 +857,8 @@ size_t FsiDataManager::GetCurrentGPUMemoryUsage() const {
     total_bytes += activeListD.capacity() * sizeof(uint);
     total_bytes += numNeighborsPerPart.capacity() * sizeof(uint);
     total_bytes += neighborList.capacity() * sizeof(uint);
+    total_bytes += pairSortedA.capacity() * sizeof(uint32_t);
+    total_bytes += pairSortedB.capacity() * sizeof(uint32_t);
     total_bytes += freeSurfaceIdD.capacity() * sizeof(uint);
 
     // BCE data

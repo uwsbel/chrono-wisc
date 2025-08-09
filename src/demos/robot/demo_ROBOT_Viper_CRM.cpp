@@ -68,8 +68,8 @@ int main(int argc, char* argv[]) {
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
 
-    double tend = 30;
     double step_size = 5e-4;
+    double tend = 30;
     ChVector3d active_box_dim(0.6, 0.6, 0.6);
 
     bool render = true;       // use run-time visualization
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
-    sph_params.d0_multiplier = 1;
+    sph_params.d0_multiplier = 1.2;
     sph_params.kernel_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
     sph_params.consistent_gradient_discretization = false;

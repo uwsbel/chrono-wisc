@@ -159,6 +159,41 @@ void computeGridSize(uint n,           ///< total number of elements
 );
 
 // ----------------------------------------------------------------------------
+// GPU compatible upper bound search
+// A device-safe transparent comparator that works for any types supporting operator<
+struct device_less {
+    template <class L, class R>
+    __host__ __device__ bool operator()(const L& lhs, const R& rhs) const {
+        return lhs < rhs;
+    }
+};
+
+// Comparator version: comparator must be device-callable
+template <class RandomIt, class T, class Compare>
+__device__ __forceinline__ RandomIt upper_bound_device(RandomIt first,
+                                                       RandomIt last,
+                                                       const T& value,
+                                                       Compare comp) {
+    while (first < last) {
+        RandomIt mid = first + (last - first) / 2;
+        if (comp(value, *mid)) {  // value < *mid
+            last = mid;
+        } else {                  // value >= *mid
+            first = mid + 1;
+        }
+    }
+    return first;
+}
+
+// Default version using device-safe comparator
+template <class RandomIt, class T>
+__device__ __forceinline__ RandomIt upper_bound_device(RandomIt first,
+                                                       RandomIt last,
+                                                       const T& value) {
+    return upper_bound_device(first, last, value, device_less{});
+}
+
+// ----------------------------------------------------------------------------
 
 /// Time recorder for cuda events.
 /// This utility class encapsulates a simple timer for recording the time between a start and stop event.

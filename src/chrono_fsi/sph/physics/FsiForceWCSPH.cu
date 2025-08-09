@@ -703,7 +703,6 @@ __global__ void CrmAdamiBC(const uint* numNeighborsPerPart,
     Real3 sum_rhorw = mR3(0);
     Real3 sum_tauD = mR3(0);
     Real3 sum_tauO = mR3(0);
-
     for (int n = NLStart + 1; n < NLEnd; n++) {
         uint j = neighborList[n];
 
@@ -722,7 +721,7 @@ __global__ void CrmAdamiBC(const uint* numNeighborsPerPart,
         sum_tauD += sortedTauXxYyZz[j] * W3;
         sum_tauO += sortedTauXyXzYz[j] * W3;
     }
-
+    // printf("a: %d, sum_vw_x: %f, sum_vw_y: %f, sum_vw_z: %f\n", index, sum_vw.x, sum_vw.y, sum_vw.z);
     if (sum_w > EPSILON) {
         Real3 prescribedVel = (IsBceSolidMarker(sortedRhoPresMuD[index].w)) ? (2.0f * sortedVelMasD[index]) : mR3(0);
         sortedVelMasD[index] = prescribedVel - sum_vw / sum_w;
@@ -732,6 +731,125 @@ __global__ void CrmAdamiBC(const uint* numNeighborsPerPart,
         sortedVelMasD[index] = mR3(0);
         sortedTauXxYyZz[index] = mR3(0);
         sortedTauXyXzYz[index] = mR3(0);
+    }
+}
+template <uint SHMEM_REALS_PER_PAIR, uint EXP_UNIQUE_As>
+__global__ void CrmAdamiBCPairs(const uint* numNeighborsPerPart,
+                                const uint32_t* pairSortedA,
+                                const uint32_t* pairSortedB,
+                                const Real4* sortedPosRadD,
+                                const uint numCollisionPairs,
+                                Real3* bceAcc,
+                                Real4* sortedRhoPresMuD,
+                                Real3* sortedVelMasD,
+                                Real3* sortedTauXxYyZz,
+                                Real3* sortedTauXyXzYz,
+
+                                volatile bool* error_flag) {
+    //// TODO: The sortedRhoPresMuD array is only used for obtaining marker type - seems wasteful
+
+    uint index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= numCollisionPairs)
+        return;
+
+    uint32_t a = pairSortedA[index];
+    uint32_t b = pairSortedB[index];
+
+    // Don'e need to process self pairs
+    if ((IsFluidParticle(sortedRhoPresMuD[a].w))) {
+        return;
+    }
+
+    extern __shared__ Real shmem[];
+    // Accumulate into the per-"a" shared memory block (component-wise)
+    // uint write_a = a & (blockDim.x - 1); // safe for block size being power of 2
+    uint write_a = a & (EXP_UNIQUE_As - 1);
+    // size_t global_write_a = upper_bound_device(numNeighborsPerPart, numNeighborsPerPart + numActive, index) -
+    // numNeighborsPerPart - 1; uint write_a = global_write_a & (blockDim.x - 1);
+
+    Real* base = shmem + write_a * SHMEM_REALS_PER_PAIR;
+    // For reference - not done to save register usage
+    /*
+    Real& sum_w        = base[0];
+    Real& sum_vw_x     = base[1];
+    Real& sum_vw_y     = base[2];
+    Real& sum_vw_z     = base[3];
+    Real& sum_rhorw_x  = base[4];
+    Real& sum_rhorw_y  = base[5];
+    Real& sum_rhorw_z  = base[6];
+    Real& sum_tauD_x   = base[7];
+    Real& sum_tauD_y   = base[8];
+    Real& sum_tauD_z   = base[9];
+    Real& sum_tauO_x   = base[10];
+    Real& sum_tauO_y   = base[11];
+    Real& sum_tauO_z   = base[12];
+
+    __syncthreads();
+    */
+
+    if (index == 0 || a != pairSortedA[index - 1]) {
+        base[0] = 0;
+        base[1] = 0;
+        base[2] = 0;
+        base[3] = 0;
+        base[4] = 0;
+        base[5] = 0;
+        base[6] = 0;
+        base[7] = 0;
+        base[8] = 0;
+        base[9] = 0;
+        base[10] = 0;
+        base[11] = 0;
+        base[12] = 0;
+    }
+
+    __syncthreads();
+    if (a != b && !IsBceMarker(sortedRhoPresMuD[b].w)) {
+        Real3 posRadA = mR3(sortedPosRadD[a]);
+        Real3 posRadB = mR3(sortedPosRadD[b]);
+        Real3 rij = Distance(posRadA, posRadB);
+        Real d = length(rij);
+        Real W3 = W3h(paramsD.kernel_type, d, paramsD.ooh);
+
+        atomicAdd(&base[0], W3);
+        atomicAdd(&base[1], sortedVelMasD[b].x * W3);
+        atomicAdd(&base[2], sortedVelMasD[b].y * W3);
+        atomicAdd(&base[3], sortedVelMasD[b].z * W3);
+
+        // Since density is constant in CRM
+        atomicAdd(&base[4], paramsD.rho0 * rij.x * W3);
+        atomicAdd(&base[5], paramsD.rho0 * rij.y * W3);
+        atomicAdd(&base[6], paramsD.rho0 * rij.z * W3);
+
+        atomicAdd(&base[7], sortedTauXxYyZz[b].x * W3);
+        atomicAdd(&base[8], sortedTauXxYyZz[b].y * W3);
+        atomicAdd(&base[9], sortedTauXxYyZz[b].z * W3);
+
+        atomicAdd(&base[10], sortedTauXyXzYz[b].x * W3);
+        atomicAdd(&base[11], sortedTauXyXzYz[b].y * W3);
+        atomicAdd(&base[12], sortedTauXyXzYz[b].z * W3);
+    }
+    __syncthreads();
+    // if(a != b && !IsBceMarker(sortedRhoPresMuD[b].w)){
+    //     printf("a: %d, sum_vw_x: %f, sum_vw_y: %f, sum_vw_z: %f\n", a, sum_vw_x, sum_vw_y, sum_vw_z);
+
+    // }
+    if (index == 0 || a != pairSortedA[index - 1]) {
+        Real3 sum_vw = mR3(base[1], base[2], base[3]);
+        Real3 sum_rhorw = mR3(base[4], base[5], base[6]);
+        Real3 sum_tauD = mR3(base[7], base[8], base[9]);
+        Real3 sum_tauO = mR3(base[10], base[11], base[12]);
+        Real sum_w = base[0];
+        if (sum_w > EPSILON) {
+            Real3 prescribedVel = (IsBceSolidMarker(sortedRhoPresMuD[a].w)) ? (2.0f * sortedVelMasD[a]) : mR3(0);
+            sortedVelMasD[a] = prescribedVel - sum_vw / sum_w;
+            sortedTauXxYyZz[a] = (sum_tauD + dot(paramsD.gravity - bceAcc[a], sum_rhorw)) / sum_w;
+            sortedTauXyXzYz[a] = sum_tauO / sum_w;
+        } else {
+            sortedVelMasD[a] = mR3(0);
+            sortedTauXxYyZz[a] = mR3(0);
+            sortedTauXyXzYz[a] = mR3(0);
+        }
     }
 }
 
@@ -1003,11 +1121,28 @@ __global__ void CfdHolmesBC(const uint* numNeighborsPerPart,
 
 void FsiForceWCSPH::CrmApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
     cudaResetErrorFlag(m_errflagD);
-
+    // std::cout << "=====================" << std::endl;
     if (m_data_mgr.paramsH->boundary_method == BoundaryMethod::ADAMI) {
-        CrmAdamiBC<<<numBlocks, numThreads>>>(
-            U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
-            mR4CAST(sortedSphMarkersD->posRadD), numActive, mR3CAST(m_data_mgr.bceAcc),
+        // CrmAdamiBC<<<numBlocks, numThreads>>>(
+        //     U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
+        //     mR4CAST(sortedSphMarkersD->posRadD), numActive, mR3CAST(m_data_mgr.bceAcc),
+        //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
+        //     mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD), m_errflagD);
+        // cudaCheckErrorFlag(m_errflagD, "CrmAdamiBC");
+
+        // Use Pair based BC kernel
+        // IMP: Block size MUST be power of 2
+        constexpr uint PAIRS_PER_BLOCK = 1024;
+        const uint numBlocksPairs = (m_data_mgr.m_num_collision_pairs + PAIRS_PER_BLOCK - 1) / PAIRS_PER_BLOCK;
+        constexpr uint SHMEM_REALS_PER_PAIR = 16;
+        constexpr uint EXP_UNIQUE_As = 128;
+        constexpr int sharedMemBytes = EXP_UNIQUE_As * SHMEM_REALS_PER_PAIR * sizeof(Real);
+        cudaFuncSetAttribute(CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As>,
+                             cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
+
+        CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(
+            U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.pairSortedA), U1CAST(m_data_mgr.pairSortedB),
+            mR4CAST(sortedSphMarkersD->posRadD), m_data_mgr.m_num_collision_pairs, mR3CAST(m_data_mgr.bceAcc),
             mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
             mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD), m_errflagD);
         cudaCheckErrorFlag(m_errflagD, "CrmAdamiBC");

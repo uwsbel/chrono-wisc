@@ -400,6 +400,11 @@ struct FsiDataManager {
     thrust::device_vector<uint> neighborList;    ///< neighbor list for all particles
     thrust::device_vector<uint> freeSurfaceIdD;  ///< identifiers for particles close to free surface
 
+    // Neighbor pairs (stores the sorted index which can be used to query for particle data) - stores self collisions
+    thrust::device_vector<uint32_t> pairSortedA;
+    thrust::device_vector<uint32_t> pairSortedB;
+    uint m_num_collision_pairs;     ///< Number of collision pairs after neighbor search
+
   private:
     // Memory management parameters
     uint m_max_extended_particles;  ///< Maximum number of extended particles seen so far
@@ -407,6 +412,7 @@ struct FsiDataManager {
     float GROWTH_FACTOR;            ///< Buffer factor for growth (20%)
     float SHRINK_THRESHOLD;         ///< Shrink if using less than 50% of capacity
     uint SHRINK_INTERVAL;           ///< Shrink every N resizes
+
 };
 
 /// @} fsisph_physics

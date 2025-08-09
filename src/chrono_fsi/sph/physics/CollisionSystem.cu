@@ -223,9 +223,10 @@ __global__ void neighborSearchNum(const Real4* sortedPosRad,
     Real SqRadii = SuppRadii * SuppRadii;
     uint j_num = 0;
 
-    for (int x = -1; x <= 1; x++) {
+    for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
-            for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 1; x++) {
+
                 int3 neighborPos = gridPos + mI3(x, y, z);
                 // Check if we need to skip this neighbor position (out of bounds for non-periodic dimensions)
                 if (neighborPos.x < paramsD.minBounds.x || neighborPos.x > paramsD.maxBounds.x ||
@@ -257,6 +258,8 @@ __global__ void neighborSearchID(const Real4* sortedPosRad,
                                  const uint numActive,
                                  const uint* numNeighborsPerPart,
                                  uint* neighborList,
+                                 uint32_t* pairSortedA,
+                                 uint32_t* pairSortedB,
                                  volatile bool* error_flag) {
     uint index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= numActive) {
@@ -268,10 +271,13 @@ __global__ void neighborSearchID(const Real4* sortedPosRad,
     Real SqRadii = SuppRadii * SuppRadii;
     uint j_num = 1;
     neighborList[numNeighborsPerPart[index]] = index;
+    pairSortedA[numNeighborsPerPart[index]] = index;
+    pairSortedB[numNeighborsPerPart[index]] = index;
 
-    for (int x = -1; x <= 1; x++) {
+    for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
-            for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 1; x++) {
+
                 int3 neighborPos = gridPos + mI3(x, y, z);
                 // Check if we need to skip this neighbor position (out of bounds for non-periodic dimensions)
                 if (neighborPos.x < paramsD.minBounds.x || neighborPos.x > paramsD.maxBounds.x ||
@@ -289,6 +295,9 @@ __global__ void neighborSearchID(const Real4* sortedPosRad,
                         Real dd = dist3.x * dist3.x + dist3.y * dist3.y + dist3.z * dist3.z;
                         if (dd < SqRadii) {
                             neighborList[numNeighborsPerPart[index] + j_num] = j;
+                            // Create pair arrays
+                            pairSortedA[numNeighborsPerPart[index] + j_num] = index;
+                            pairSortedB[numNeighborsPerPart[index] + j_num] = j;
                             j_num++;
                         }
                     }
@@ -408,15 +417,20 @@ void CollisionSystem::NeighborSearch(std::shared_ptr<SphMarkerDataD> sortedSphMa
     thrust::exclusive_scan(m_data_mgr.numNeighborsPerPart.begin(), m_data_mgr.numNeighborsPerPart.end(),
                            m_data_mgr.numNeighborsPerPart.begin());
 
-    m_data_mgr.neighborList.resize(m_data_mgr.numNeighborsPerPart.back());
-    thrust::fill(m_data_mgr.neighborList.begin(), m_data_mgr.neighborList.end(), 0);
+    m_data_mgr.m_num_collision_pairs = m_data_mgr.numNeighborsPerPart.back();
+    m_data_mgr.neighborList.resize(m_data_mgr.m_num_collision_pairs);
+    m_data_mgr.pairSortedA.resize(m_data_mgr.m_num_collision_pairs);
+    m_data_mgr.pairSortedB.resize(m_data_mgr.m_num_collision_pairs);
+    // thrust::fill(m_data_mgr.neighborList.begin(), m_data_mgr.neighborList.end(), 0);
 
     // second pass
+    // TODO: Deprecate neighborList once all kernel take pairs
     neighborSearchID<<<numBlocksShort, numThreadsShort>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         U1CAST(m_data_mgr.markersProximity_D->cellStartD), U1CAST(m_data_mgr.markersProximity_D->cellEndD), numActive,
-        U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), error_flagD);
+        U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB), error_flagD);
     cudaCheckErrorFlag(error_flagD, "neighborSearchID");
+
 
     cudaFreeErrorFlag(error_flagD);
 }
