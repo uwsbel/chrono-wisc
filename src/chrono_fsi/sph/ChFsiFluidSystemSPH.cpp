@@ -1359,7 +1359,7 @@ void ChFsiFluidSystemSPH::CreateBCEFsiBody(std::shared_ptr<FsiBody> fsi_body,
         bce_coords.clear();
         const auto& X_G_COM = fsi_body->body->GetFrameCOMToAbs();
         std::transform(bce.begin(), bce.end(), std::back_inserter(bce_coords),
-                       [&X_G_COM](ChVector3d& v) { return X_G_COM.TransformPointParentToLocal(v);});
+                       [&X_G_COM](ChVector3d& v) { return X_G_COM.TransformPointParentToLocal(v); });
 
         // Set BCE body association
         bce_ids.resize(bce_coords.size(), fsi_body->index);
@@ -1879,6 +1879,9 @@ void ChFsiFluidSystemSPH::Initialize(const std::vector<FsiBodyState>& body_state
 //------------------------------------------------------------------------------
 
 void ChFsiFluidSystemSPH::OnDoStepDynamics(double time, double step) {
+    // Synchronize any pending async copy operations before updating activity
+    m_fluid_dynamics->SynchronizeCopyStream();
+
     // Update particle activity
     m_fluid_dynamics->UpdateActivity(m_data_mgr->sphMarkers_D, time);
 
@@ -1900,8 +1903,9 @@ void ChFsiFluidSystemSPH::OnDoStepDynamics(double time, double step) {
     // Advance fluid particle states from `time` to `time+step`
     m_fluid_dynamics->DoStepDynamics(m_data_mgr->sortedSphMarkers2_D, time, step, m_paramsH->integration_scheme);
 
-    m_fluid_dynamics->CopySortedToOriginal(MarkerGroup::NON_SOLID, m_data_mgr->sortedSphMarkers2_D,
-                                           m_data_mgr->sphMarkers_D);
+    // Launch copy operation asynchronously - this will run in the background
+    m_fluid_dynamics->CopySortedToOriginalAsync(MarkerGroup::NON_SOLID, m_data_mgr->sortedSphMarkers2_D,
+                                                m_data_mgr->sphMarkers_D);
 
     ChDebugLog("GPU Memory usage: " << m_data_mgr->GetCurrentGPUMemoryUsage() / 1024.0 / 1024.0 << " MB");
 
@@ -1923,8 +1927,8 @@ void ChFsiFluidSystemSPH::OnExchangeSolidStates() {
     m_bce_mgr->UpdateMeshMarker1DState();
     m_bce_mgr->UpdateMeshMarker2DState();
 
-    m_fluid_dynamics->CopySortedToOriginal(MarkerGroup::SOLID, m_data_mgr->sortedSphMarkers2_D,
-                                           m_data_mgr->sphMarkers_D);
+    m_fluid_dynamics->CopySortedToOriginalAsync(MarkerGroup::SOLID, m_data_mgr->sortedSphMarkers2_D,
+                                                m_data_mgr->sphMarkers_D);
 }
 
 //------------------------------------------------------------------------------

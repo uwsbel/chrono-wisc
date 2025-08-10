@@ -74,6 +74,16 @@ class FluidDynamics {
                               std::shared_ptr<SphMarkerDataD> sortedSphMarkersD2,
                               std::shared_ptr<SphMarkerDataD> sphMarkersD);
 
+    /// Copy markers in the specified group from sorted arrays to original-order arrays (async version).
+    /// This version launches the kernel on a stream for asynchronous execution.
+    void CopySortedToOriginalAsync(MarkerGroup group,
+                                   std::shared_ptr<SphMarkerDataD> sortedSphMarkersD2,
+                                   std::shared_ptr<SphMarkerDataD> sphMarkersD);
+
+    /// Synchronize the async copy stream.
+    /// Call this before any operation that depends on the async copy completion.
+    void SynchronizeCopyStream();
+
     /// Function to perform Shepard filtering.
     /// It calculates the densities directly, not based on the derivative of the density. This function is used in
     /// addition to the density update in UpdateFluid.
@@ -99,6 +109,7 @@ class FluidDynamics {
     std::shared_ptr<FsiForce> forceSystem;             ///< force system object; calculates the force between particles
     std::shared_ptr<CollisionSystem> collisionSystem;  ///< collision system for building neighbors list
 
+    cudaStream_t m_copy_stream;                        ///< CUDA stream for async copy operations
     bool m_verbose;
     bool m_check_errors;
 

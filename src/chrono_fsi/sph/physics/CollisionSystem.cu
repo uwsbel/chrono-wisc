@@ -210,8 +210,7 @@ __global__ void neighborSearchNum(const Real4* sortedPosRad,
                                   const uint* cellStart,
                                   const uint* cellEnd,
                                   const uint numActive,
-                                  uint* numNeighborsPerPart,
-                                  volatile bool* error_flag) {
+                                  uint* numNeighborsPerPart) {
     uint index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= numActive) {
         return;
@@ -259,8 +258,7 @@ __global__ void neighborSearchID(const Real4* sortedPosRad,
                                  const uint* numNeighborsPerPart,
                                  uint* neighborList,
                                  uint32_t* pairSortedA,
-                                 uint32_t* pairSortedB,
-                                 volatile bool* error_flag) {
+                                 uint32_t* pairSortedB) {
     uint index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= numActive) {
         return;
@@ -334,7 +332,6 @@ void CollisionSystem::ArrangeData(std::shared_ptr<SphMarkerDataD> sphMarkersD,
         U1CAST(m_data_mgr.prefixSumExtendedActivityIdD), INT_32CAST(m_data_mgr.extendedActivityIdentifierOriginalD),
         U1CAST(m_data_mgr.activeListD), (uint)m_data_mgr.countersH->numAllMarkers);
     cudaDeviceSynchronize();
-    cudaCheckErrorFlag(error_flagD, "fillActiveListD");
 
     // Reset cell size
     int3 cellsDim = m_data_mgr.paramsH->gridSize;
@@ -394,9 +391,6 @@ void CollisionSystem::ArrangeData(std::shared_ptr<SphMarkerDataD> sphMarkersD,
 }
 
 void CollisionSystem::NeighborSearch(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
-    bool* error_flagD;
-    cudaMallocErrorFlag(error_flagD);
-    cudaResetErrorFlag(error_flagD);
 
     uint numActive = (uint)m_data_mgr.countersH->numExtendedParticles;
     uint numBlocksShort, numThreadsShort;
@@ -409,9 +403,7 @@ void CollisionSystem::NeighborSearch(std::shared_ptr<SphMarkerDataD> sortedSphMa
     // first pass
     neighborSearchNum<<<numBlocksShort, numThreadsShort>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        U1CAST(m_data_mgr.markersProximity_D->cellStartD), U1CAST(m_data_mgr.markersProximity_D->cellEndD), numActive,
-        U1CAST(m_data_mgr.numNeighborsPerPart), error_flagD);
-    cudaCheckErrorFlag(error_flagD, "neighborSearchNum");
+        U1CAST(m_data_mgr.markersProximity_D->cellStartD), U1CAST(m_data_mgr.markersProximity_D->cellEndD), numActive, U1CAST(m_data_mgr.numNeighborsPerPart));
 
     // In-place exclusive scan for num of neighbors
     thrust::exclusive_scan(m_data_mgr.numNeighborsPerPart.begin(), m_data_mgr.numNeighborsPerPart.end(),
@@ -428,11 +420,12 @@ void CollisionSystem::NeighborSearch(std::shared_ptr<SphMarkerDataD> sortedSphMa
     neighborSearchID<<<numBlocksShort, numThreadsShort>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         U1CAST(m_data_mgr.markersProximity_D->cellStartD), U1CAST(m_data_mgr.markersProximity_D->cellEndD), numActive,
-        U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB), error_flagD);
-    cudaCheckErrorFlag(error_flagD, "neighborSearchID");
+        U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB));
 
 
-    cudaFreeErrorFlag(error_flagD);
+    cudaCheckError();
+
+
 }
 
 }  // namespace sph

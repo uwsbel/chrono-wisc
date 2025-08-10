@@ -240,8 +240,6 @@ void BceManager::CalcRigidBceAcceleration() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted)                                 //
     );
 
-    cudaDeviceSynchronize();
-    cudaCheckError();
 }
 
 void BceManager::CalcFlex1DBceAcceleration() {
@@ -257,8 +255,6 @@ void BceManager::CalcFlex1DBceAcceleration() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted)  //
     );
 
-    cudaDeviceSynchronize();
-    cudaCheckError();
 }
 
 void BceManager::CalcFlex2DBceAcceleration() {
@@ -274,8 +270,6 @@ void BceManager::CalcFlex2DBceAcceleration() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted)  //
     );
 
-    cudaDeviceSynchronize();
-    cudaCheckError();
 }
 
 // -----------------------------------------------------------------------------
@@ -698,7 +692,6 @@ void BceManager::UpdateBodyMarkerStateInitial() {
         mR3CAST(m_data_mgr.fsiBodyState_D->pos), mR4CAST(m_data_mgr.fsiBodyState_D->rot),
         mR3CAST(m_data_mgr.fsiBodyState_D->lin_vel), mR3CAST(m_data_mgr.fsiBodyState_D->ang_vel));
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 

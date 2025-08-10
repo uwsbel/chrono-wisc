@@ -36,13 +36,19 @@ FluidDynamics::FluidDynamics(FsiDataManager& data_mgr, BceManager& bce_mgr, bool
     : m_data_mgr(data_mgr), m_verbose(verbose), m_check_errors(check_errors) {
     collisionSystem = chrono_types::make_shared<CollisionSystem>(data_mgr);
 
+    // Create CUDA stream for async copy operations
+    cudaStreamCreate(&m_copy_stream);
+
     if (m_data_mgr.paramsH->integration_scheme == IntegrationScheme::IMPLICIT_SPH)
         forceSystem = chrono_types::make_shared<FsiForceISPH>(data_mgr, bce_mgr, verbose);
     else
         forceSystem = chrono_types::make_shared<FsiForceWCSPH>(data_mgr, bce_mgr, verbose);
 }
 
-FluidDynamics::~FluidDynamics() {}
+FluidDynamics::~FluidDynamics() {
+    // Cleanup CUDA stream
+    cudaStreamDestroy(m_copy_stream);
+}
 
 // -----------------------------------------------------------------------------
 
@@ -622,6 +628,38 @@ void FluidDynamics::CopySortedToOriginal(MarkerGroup group,
             mR4CAST(m_data_mgr.derivVelRhoOriginalD), U1CAST(m_data_mgr.markersProximity_D->gridMarkerIndexD));
     }
     cudaCheckError();
+}
+
+void FluidDynamics::CopySortedToOriginalAsync(MarkerGroup group,
+                                              std::shared_ptr<SphMarkerDataD> sortedSphMarkersD,
+                                              std::shared_ptr<SphMarkerDataD> sphMarkersD) {
+    uint numActive = (uint)m_data_mgr.countersH->numExtendedParticles;
+    uint numBlocks, numThreads;
+    computeGridSize(numActive, 1024, numBlocks, numThreads);
+    if (m_data_mgr.paramsH->integration_scheme == IntegrationScheme::IMPLICIT_SPH) {
+        CopySortedToOriginalISPH_D<<<numBlocks, numThreads, 0, m_copy_stream>>>(
+            group, mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+            mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+            mR3CAST(sortedSphMarkersD->tauXyXzYzD), mR4CAST(m_data_mgr.derivVelRhoD), mR4CAST(m_data_mgr.sr_tau_I_mu_i),
+            numActive, mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD), mR4CAST(sphMarkersD->rhoPresMuD),
+            mR3CAST(sphMarkersD->tauXxYyZzD), mR3CAST(sphMarkersD->tauXyXzYzD),
+            mR4CAST(m_data_mgr.derivVelRhoOriginalD), mR4CAST(m_data_mgr.sr_tau_I_mu_i_Original),
+            U1CAST(m_data_mgr.markersProximity_D->gridMarkerIndexD));
+    } else {
+        CopySortedToOriginalWCSPH_D<<<numBlocks, numThreads, 0, m_copy_stream>>>(
+            group, mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+            mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+            mR3CAST(sortedSphMarkersD->tauXyXzYzD), mR4CAST(m_data_mgr.derivVelRhoD), numActive,
+            mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD), mR4CAST(sphMarkersD->rhoPresMuD),
+            mR3CAST(sphMarkersD->tauXxYyZzD), mR3CAST(sphMarkersD->tauXyXzYzD),
+            mR4CAST(m_data_mgr.derivVelRhoOriginalD), U1CAST(m_data_mgr.markersProximity_D->gridMarkerIndexD));
+    }
+    // Note: No cudaCheckError() here as that would synchronize - error checking done during synchronization
+}
+
+void FluidDynamics::SynchronizeCopyStream() {
+    cudaStreamSynchronize(m_copy_stream);
+    cudaCheckError();  // Check for any errors after synchronization
 }
 
 // -----------------------------------------------------------------------------
