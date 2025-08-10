@@ -533,7 +533,6 @@ void BceManager::Rigid_Forces_Torques() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted), (uint)m_data_mgr.countersH->numRigidMarkers,
         m_data_mgr.paramsH->markerMass, (uint)m_data_mgr.countersH->startRigidMarkers);
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -560,7 +559,6 @@ void BceManager::Flex1D_Forces() {
         (uint)m_data_mgr.countersH->startFlexMarkers1D,              //
         m_data_mgr.paramsH->markerMass);
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -587,7 +585,6 @@ void BceManager::Flex2D_Forces() {
         (uint)m_data_mgr.countersH->startFlexMarkers2D,              //
         m_data_mgr.paramsH->markerMass);
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -675,7 +672,6 @@ void BceManager::UpdateBodyMarkerState() {
         mR3CAST(m_data_mgr.fsiBodyState_D->lin_vel), mR3CAST(m_data_mgr.fsiBodyState_D->ang_vel),
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted));
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -949,7 +945,6 @@ void BceManager::UpdateMeshMarker1DState() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted)                                           //
     );
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -973,7 +968,6 @@ void BceManager::UpdateMeshMarker1DStateInitial() {
         mR3CAST(m_data_mgr.flex1D_BCEcoords_D)                                                 //
     );
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -1174,7 +1168,6 @@ void BceManager::UpdateMeshMarker2DState() {
         U1CAST(m_data_mgr.markersProximity_D->mapOriginalToSorted)                                           //
     );
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 
@@ -1198,7 +1191,6 @@ void BceManager::UpdateMeshMarker2DStateInitial() {
         mR3CAST(m_data_mgr.flex2D_BCEcoords_D)                                                 //
     );
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 }
 

@@ -384,7 +384,6 @@ void CollisionSystem::ArrangeData(std::shared_ptr<SphMarkerDataD> sphMarkersD,
         mR3CAST(m_sphMarkersD->tauXyXzYzD), INT_32CAST(m_data_mgr.activityIdentifierOriginalD),
         (uint)m_data_mgr.countersH->numExtendedParticles);
 
-    cudaDeviceSynchronize();
     cudaCheckError();
 
     cudaFreeErrorFlag(error_flagD);
