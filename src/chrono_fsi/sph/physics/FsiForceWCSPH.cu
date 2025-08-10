@@ -548,9 +548,15 @@ FsiForceWCSPH::FsiForceWCSPH(FsiDataManager& data_mgr, BceManager& bce_mgr, bool
     : FsiForce(data_mgr, bce_mgr, verbose) {
     CopyParametersToDevice(m_data_mgr.paramsH, m_data_mgr.countersH);
     density_initialization = 0;
+
+    // Create CUDA stream for async CrmRHSdTau kernel execution
+    cudaStreamCreate(&m_crm_tau_stream);
 }
 
-FsiForceWCSPH::~FsiForceWCSPH() {}
+FsiForceWCSPH::~FsiForceWCSPH() {
+    // Cleanup CUDA stream
+    cudaStreamDestroy(m_crm_tau_stream);
+}
 
 void FsiForceWCSPH::Initialize() {
     FsiForce::Initialize();
@@ -1129,10 +1135,11 @@ void FsiForceWCSPH::CrmApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD
         //                      cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
 
         // CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(
-        //     U1CAST(m_data_mgr.numNeighborsPerPart), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB),
-        //     mR4CAST(sortedSphMarkersD->posRadD), m_data_mgr.m_num_collision_pairs, mR3CAST(m_data_mgr.bceAcc),
-        //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
-        //     mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD));
+        //     U1CAST(m_data_mgr.numNeighborsPerPart), UINT_32CAST(m_data_mgr.pairSortedA),
+        //     UINT_32CAST(m_data_mgr.pairSortedB), mR4CAST(sortedSphMarkersD->posRadD),
+        //     m_data_mgr.m_num_collision_pairs, mR3CAST(m_data_mgr.bceAcc), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+        //     mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+        //     mR3CAST(sortedSphMarkersD->tauXyXzYzD));
     } else {
         thrust::device_vector<Real2> sortedKernelSupport(numActive);
         // Calculate the kernel support of each particle
@@ -1181,25 +1188,14 @@ __device__ inline Real4 crmDvDt(Real W_ini_inv,
                                 Real3 gradW,
                                 Real3 dist3,
                                 Real d,
-                                Real invd,
-                                Real3 velMasA_in,
-                                Real3 velMasB_in,
+                                Real3 velMasA,
+                                Real3 velMasB,
                                 Real4 rhoPresMuA,
                                 Real4 rhoPresMuB,
-                                Real3 tauXxYyZz_A_in,
-                                Real3 tauXyXzYz_A_in,
-                                Real3 tauXxYyZz_B_in,
-                                Real3 tauXyXzYz_B_in) {
-    if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
-        return mR4(0);
-
-    Real3 velMasA = velMasA_in;
-    Real3 velMasB = velMasB_in;
-    Real3 tauXxYyZz_A = tauXxYyZz_A_in;
-    Real3 tauXxYyZz_B = tauXxYyZz_B_in;
-    Real3 tauXyXzYz_A = tauXyXzYz_A_in;
-    Real3 tauXyXzYz_B = tauXyXzYz_B_in;
-
+                                Real3 tauXxYyZz_A,
+                                Real3 tauXyXzYz_A,
+                                Real3 tauXxYyZz_B,
+                                Real3 tauXyXzYz_B) {
     /*if (IsFluidParticle(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w)) {
         tauXxYyZz_B = tauXxYyZz_A;
         tauXyXzYz_B = tauXyXzYz_A;
@@ -1423,7 +1419,6 @@ __global__ void CrmRHS(const Real4* sortedPosRad,
         Real3 posRadB = mR3(sortedPosRad[j]);
         Real3 dist3 = Distance(posRadA, posRadB);
         Real d = length(dist3);
-        Real invd = 1 / d;
         Real3 velMasB = sortedVelMas[j];
         Real3 TauXxYyZzB = sortedTauXxYyZz[j];
         Real3 TauXyXzYzB = sortedTauXyXzYz[j];
@@ -1434,8 +1429,8 @@ __global__ void CrmRHS(const Real4* sortedPosRad,
 
         // Calculate dv/dt
         // Note: The SPH discretization chosen for gradW does not support the use of consistent discretization
-        derivVelRho += crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, invd, velMasA,
-                               velMasB, rhoPresMuA, rhoPresMuB, TauXxYyZzA, TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
+        derivVelRho += crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, velMasA, velMasB, rhoPresMuA, rhoPresMuB, TauXxYyZzA,
+                               TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
 
         // Modify the gradW for stress equation if we decide to use consistent discretization
         if (paramsD.USE_Consistent_G) {
@@ -1500,6 +1495,171 @@ __global__ void CrmRHS(const Real4* sortedPosRad,
     sortedDerivTauXyXzYz[index] = mR3(dTauxy, dTauxz, dTauyz);
 }
 
+__global__ void CrmRHSdVel(const Real4* sortedPosRad,
+                           const Real3* sortedVelMas,
+                           const Real4* sortedRhoPreMu,
+                           const Real3* sortedTauXxYyZz,
+                           const Real3* sortedTauXyXzYz,
+                           const uint* numNeighborsPerPart,
+                           const uint* neighborList,
+                           const uint numActive,
+                           Real4* sortedDerivVelRho,
+                           uint* sortedFreeSurfaceIdD) {
+    uint id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id >= numActive)
+        return;
+
+    if (IsBceWallMarker(sortedRhoPreMu[id].w))
+        return;
+
+    Real3 posRadA = mR3(sortedPosRad[id]);
+    Real3 velMasA = sortedVelMas[id];
+    Real4 rhoPresMuA = sortedRhoPreMu[id];
+    Real3 TauXxYyZzA = sortedTauXxYyZz[id];
+    Real3 TauXyXzYzA = sortedTauXyXzYz[id];
+
+    Real4 derivVelRho = mR4(0);
+    uint NLStart = numNeighborsPerPart[id];
+    uint NLEnd = numNeighborsPerPart[id + 1];
+
+    // Cache constant parameters in registers
+    const Real volume0 = paramsD.volume0;
+    const KernelType kernelType = paramsD.kernel_type;
+    const Real ooh = paramsD.ooh;
+    const Real d0 = paramsD.d0;
+    const Real w_ini_inv = 1 / W3h(kernelType, d0, ooh);
+    Real sum_w_i = W3h(kernelType, 0, ooh) * volume0;
+
+    // Get the interaction from neighbor particles
+    // NLStart + 1 because the first element in neighbor list is the particle itself
+    for (int n = NLStart + 1; n < NLEnd; n++) {
+        uint j = neighborList[n];
+        Real4 rhoPresMuB = sortedRhoPreMu[j];
+        if (IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))
+            continue;  // No BCE-BCE interaction
+
+        Real3 posRadB = mR3(sortedPosRad[j]);
+        Real3 dist3 = Distance(posRadA, posRadB);
+        Real d = length(dist3);
+        Real3 velMasB = sortedVelMas[j];
+        Real3 TauXxYyZzB = sortedTauXxYyZz[j];
+        Real3 TauXyXzYzB = sortedTauXyXzYz[j];
+
+        // Correct the kernel function gradient
+        Real w_AB = W3h(kernelType, d, ooh);
+        Real3 gradW = GradW3h(kernelType, dist3, ooh);
+
+        // Calculate dv/dt
+        // Note: The SPH discretization chosen for gradW does not support the use of consistent discretization
+        derivVelRho += crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, velMasA, velMasB, rhoPresMuA, rhoPresMuB, TauXxYyZzA,
+                               TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
+        sum_w_i += w_AB * volume0;
+    }
+
+    // Check particles who have not enough neighbor particles (only CRM for now)
+    //// TODO: extract and make common to both CFD and CRM
+    if (sum_w_i < paramsD.C_Wi) {
+        sortedFreeSurfaceIdD[id] = 1;
+    } else {
+        sortedFreeSurfaceIdD[id] = 0;
+    }
+
+    // Add gravity and other body force to fluid markers
+    if (IsSphParticle(rhoPresMuA.w)) {
+        Real3 totalFluidBodyForce3 = paramsD.bodyForce3 + paramsD.gravity;
+        derivVelRho += mR4(totalFluidBodyForce3, 0);
+    }
+
+    sortedDerivVelRho[id] = derivVelRho;
+}
+
+__global__ void CrmRHSdTau(const Real4* sortedPosRad,
+                           const Real3* sortedVelMas,
+                           const Real4* sortedRhoPreMu,
+                           const Real3* sortedTauXxYyZz,
+                           const Real3* sortedTauXyXzYz,
+                           const uint* numNeighborsPerPart,
+                           const uint* neighborList,
+                           const uint numActive,
+                           Real3* sortedDerivTauXxYyZz,
+                           Real3* sortedDerivTauXyXzYz) {
+    uint id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id >= numActive)
+        return;
+
+    if (IsBceWallMarker(sortedRhoPreMu[id].w))
+        return;
+
+    Real3 posRadA = mR3(sortedPosRad[id]);
+    Real3 velMasA = sortedVelMas[id];
+    Real3 tauXxYyZzA = sortedTauXxYyZz[id];
+    Real3 tauXyXzYzA = sortedTauXyXzYz[id];
+    Real tauxx = tauXxYyZzA.x;
+    Real tauyy = tauXxYyZzA.y;
+    Real tauzz = tauXxYyZzA.z;
+    Real tauxy = tauXyXzYzA.x;
+    Real tauxz = tauXyXzYzA.y;
+    Real tauyz = tauXyXzYzA.z;
+    Real dTauxx = 0;
+    Real dTauyy = 0;
+    Real dTauzz = 0;
+    Real dTauxy = 0;
+    Real dTauxz = 0;
+    Real dTauyz = 0;
+    uint NLStart = numNeighborsPerPart[id];
+    uint NLEnd = numNeighborsPerPart[id + 1];
+
+    // Cache constant parameters in registers
+    const Real volume0 = paramsD.volume0;
+    const KernelType kernelType = paramsD.kernel_type;
+    const Real ooh = paramsD.ooh;
+
+    // Get the interaction from neighbor particles
+    // NLStart + 1 because the first element in neighbor list is the particle itself
+    for (int n = NLStart + 1; n < NLEnd; n++) {
+        uint j = neighborList[n];
+        if (IsBceMarker(sortedRhoPreMu[id].w) && IsBceMarker(sortedRhoPreMu[j].w))
+            continue;  // No BCE-BCE interaction
+
+        Real3 posRadB = mR3(sortedPosRad[j]);
+        Real3 dist3 = Distance(posRadA, posRadB);
+        Real d = length(dist3);
+        Real3 velMasB = sortedVelMas[j];
+
+        // Correct the kernel function gradient
+        Real w_AB = W3h(kernelType, d, ooh);
+        Real3 gradW = GradW3h(kernelType, dist3, ooh);
+        if (IsFluidParticle(sortedRhoPreMu[id].w)) {
+            // start to calculate the stress rate
+            Real3 vAB = velMasA - velMasB;
+            Real3 vAB_h = 0.5f * vAB * volume0;
+            // entries of strain rate tensor
+            Real exx = -2.0f * vAB_h.x * gradW.x;
+            Real eyy = -2.0f * vAB_h.y * gradW.y;
+            Real ezz = -2.0f * vAB_h.z * gradW.z;
+            Real exy = -vAB_h.x * gradW.y - vAB_h.y * gradW.x;
+            Real exz = -vAB_h.x * gradW.z - vAB_h.z * gradW.x;
+            Real eyz = -vAB_h.y * gradW.z - vAB_h.z * gradW.y;
+            // entries of rotation rate (spin) tensor
+            Real wxy = -vAB_h.x * gradW.y + vAB_h.y * gradW.x;
+            Real wxz = -vAB_h.x * gradW.z + vAB_h.z * gradW.x;
+            Real wyz = -vAB_h.y * gradW.z + vAB_h.z * gradW.y;
+
+            Real edia = 0.3333333333333f * (exx + eyy + ezz);
+            Real twoG = 2 * paramsD.G_shear;
+            Real K_edia = paramsD.K_bulk * 1 * edia;
+            dTauxx += twoG * (exx - edia) + 2.0f * (tauxy * wxy + tauxz * wxz) + K_edia;
+            dTauyy += twoG * (eyy - edia) - 2.0f * (tauxy * wxy - tauyz * wyz) + K_edia;
+            dTauzz += twoG * (ezz - edia) - 2.0f * (tauxz * wxz + tauyz * wyz) + K_edia;
+            dTauxy += twoG * exy - (tauxx * wxy - tauxz * wyz) + (wxy * tauyy + wxz * tauyz);
+            dTauxz += twoG * exz - (tauxx * wxz + tauxy * wyz) + (wxy * tauyz + wxz * tauzz);
+            dTauyz += twoG * eyz - (tauxy * wxz + tauyy * wyz) - (wxy * tauxz - wyz * tauzz);
+        }
+    }
+    sortedDerivTauXxYyZz[id] = mR3(dTauxx, dTauyy, dTauzz);
+    sortedDerivTauXyXzYz[id] = mR3(dTauxy, dTauxz, dTauyz);
+}
+
 template <uint SHMEM_REALS_PER_PAIR, uint EXP_UNIQUE_As>
 __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
                                const Real3* sortedVelMas,
@@ -1545,8 +1705,9 @@ __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
     Real3 TauXyXzYzB = sortedTauXyXzYz[indexB];
     Real w_AB = W3h(kernelType, d, ooh);
     Real3 gradW = GradW3h(kernelType, dist3, ooh);
-    
-    // TODO - This is only used once - If we are at register shortage we don't need to put these in registers and keep till its used - directly load when required.
+
+    // TODO - This is only used once - If we are at register shortage we don't need to put these in registers and keep
+    // till its used - directly load when required.
     Real tauxxA = TauXxYyZzA.x;
     Real tauyyA = TauXxYyZzA.y;
     Real tauzzA = TauXxYyZzA.z;
@@ -1589,11 +1750,9 @@ __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
     __syncthreads();
 
     if (indexA != indexB && !(IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))) {
-
-
         // dVel - Rho is constant and passed back as 0
-        Real4 derivVelRho = crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, invd, velMasA, velMasB,
-                                    rhoPresMuA, rhoPresMuB, TauXxYyZzA, TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
+        Real4 derivVelRho = crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, velMasA, velMasB, rhoPresMuA, rhoPresMuB,
+                                    TauXxYyZzA, TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
 
         atomicAdd(&base[0], derivVelRho.x);
         atomicAdd(&base[1], derivVelRho.y);
@@ -1633,14 +1792,14 @@ __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
             atomicAdd(&base[8], dTauxz);
             atomicAdd(&base[9], dTauyz);
         }
-        if(d > paramsD.h * 1.0e-9f) {
+        if (d > paramsD.h * 1.0e-9f) {
             atomicAdd(&base[10], w_AB * volume0);
         }
     }
 
     __syncthreads();
-    if(IamWriter) {
-        if(base[10] < paramsD.C_Wi) {
+    if (IamWriter) {
+        if (base[10] < paramsD.C_Wi) {
             sortedFreeSurfaceIdD[indexA] = 1;
         } else {
             sortedFreeSurfaceIdD[indexA] = 0;
@@ -1648,7 +1807,7 @@ __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
     }
     __syncthreads();
 
-    if(IamWriter && IsSphParticle(rhoPresMuA.w)) {
+    if (IamWriter && IsSphParticle(rhoPresMuA.w)) {
         Real3 totalFluidBodyForce3 = paramsD.bodyForce3 + paramsD.gravity;
         base[0] += totalFluidBodyForce3.x;
         base[1] += totalFluidBodyForce3.y;
@@ -1656,7 +1815,7 @@ __global__ void CrmRHSPairwise(const Real4* sortedPosRad,
     }
     __syncthreads();
 
-    if(IamWriter) {
+    if (IamWriter) {
         sortedDerivVelRho[indexA] = mR4(base[0], base[1], base[2], 0);
         sortedDerivTauXxYyZz[indexA] = mR3(base[4], base[5], base[6]);
         sortedDerivTauXyXzYz[indexA] = mR3(base[7], base[8], base[9]);
@@ -1673,6 +1832,7 @@ void FsiForceWCSPH::CrmCalcRHS(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD
                                       mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD),
                                       U1CAST(m_data_mgr.freeSurfaceIdD));
 
+    // ===========================================
 
     // constexpr uint PAIRS_PER_BLOCK = 1024;
     // const uint numBlocksPairs = (m_data_mgr.m_num_collision_pairs + PAIRS_PER_BLOCK - 1) / PAIRS_PER_BLOCK;
@@ -1682,14 +1842,33 @@ void FsiForceWCSPH::CrmCalcRHS(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD
     // cudaFuncSetAttribute(CrmRHSPairwise<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As>,
     //                          cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
 
-   
-    // CrmRHSPairwise<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+    // CrmRHSPairwise<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK,
+    // sharedMemBytes>>>(mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
     //                                   mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
-    //                                   mR3CAST(sortedSphMarkersD->tauXyXzYzD), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB),m_data_mgr.m_num_collision_pairs, mR4CAST(m_data_mgr.derivVelRhoD),
-    //                                   mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD),
-    //                                   U1CAST(m_data_mgr.freeSurfaceIdD));
+    //                                   mR3CAST(sortedSphMarkersD->tauXyXzYzD), UINT_32CAST(m_data_mgr.pairSortedA),
+    //                                   UINT_32CAST(m_data_mgr.pairSortedB),m_data_mgr.m_num_collision_pairs,
+    //                                   mR4CAST(m_data_mgr.derivVelRhoD), mR3CAST(m_data_mgr.derivTauXxYyZzD),
+    //                                   mR3CAST(m_data_mgr.derivTauXyXzYzD), U1CAST(m_data_mgr.freeSurfaceIdD));
     // cudaCheckError();
-    
+
+    // ===========================================
+
+    // Split into two kernels
+    // uint newNumBlocks = 0;
+    // uint newNumThreads = 0;
+    // computeGridSize(numActive, 256, newNumBlocks, newNumThreads);
+
+    // CrmRHSdVel<<<newNumBlocks, newNumThreads>>>(
+    //     mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+    //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+    //     mR3CAST(sortedSphMarkersD->tauXyXzYzD), U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
+    //     numActive, mR4CAST(m_data_mgr.derivVelRhoD), U1CAST(m_data_mgr.freeSurfaceIdD));
+    // CrmRHSdTau<<<newNumBlocks, newNumThreads, 0, m_crm_tau_stream>>>(
+    //     mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+    //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+    //     mR3CAST(sortedSphMarkersD->tauXyXzYzD), U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
+    //     numActive, mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD));
+    // cudaCheckError();
 }
 
 // -----------------------------------------------------------------------------

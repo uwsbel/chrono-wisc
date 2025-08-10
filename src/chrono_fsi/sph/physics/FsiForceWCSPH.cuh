@@ -64,6 +64,9 @@ class FsiForceWCSPH : public FsiForce {
     uint numActive;   ///< total number of threads
     uint numBlocks;   ///< number of blocks
     uint numThreads;  ///< number of threads per block
+
+    // CUDA stream for async CrmRHSdTau kernel execution
+    cudaStream_t m_crm_tau_stream;
 };
 
 /// @} fsisph_physics
