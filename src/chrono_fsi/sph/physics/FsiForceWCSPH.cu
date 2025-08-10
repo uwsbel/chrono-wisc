@@ -656,11 +656,9 @@ void FsiForceWCSPH::DensityReinitialization(std::shared_ptr<SphMarkerDataD> sort
     // Re-Initialize the density after several time steps if needed
     thrust::device_vector<Real4> rhoPresMuD_old = sortedSphMarkersD->rhoPresMuD;
     printf("Re-initializing density after %d steps.\n", m_data_mgr.paramsH->densityReinit);
-    calcRho_kernel<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD),
-                                              mR4CAST(sortedSphMarkersD->rhoPresMuD), mR4CAST(rhoPresMuD_old),
-                                              U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
-                                              numActive, density_initialization);
-
+    calcRho_kernel<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR4CAST(rhoPresMuD_old),
+        U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList), numActive, density_initialization);
 }
 
 // -----------------------------------------------------------------------------
@@ -1114,27 +1112,27 @@ __global__ void CfdHolmesBC(const uint* numNeighborsPerPart,
 void FsiForceWCSPH::CrmApplyBC(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
     // std::cout << "=====================" << std::endl;
     if (m_data_mgr.paramsH->boundary_method == BoundaryMethod::ADAMI) {
-        // CrmAdamiBC<<<numBlocks, numThreads>>>(
-        //     U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
-        //     mR4CAST(sortedSphMarkersD->posRadD), numActive, mR3CAST(m_data_mgr.bceAcc),
-        //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
-        //     mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD);
+        CrmAdamiBC<<<numBlocks, numThreads>>>(
+            U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList),
+            mR4CAST(sortedSphMarkersD->posRadD), numActive, mR3CAST(m_data_mgr.bceAcc),
+            mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
+            mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD));
 
         // Use Pair based BC kernel
         // IMP: Block size MUST be power of 2
-        constexpr uint PAIRS_PER_BLOCK = 1024;
-        const uint numBlocksPairs = (m_data_mgr.m_num_collision_pairs + PAIRS_PER_BLOCK - 1) / PAIRS_PER_BLOCK;
-        constexpr uint SHMEM_REALS_PER_PAIR = 16;
-        constexpr uint EXP_UNIQUE_As = 128;
-        constexpr int sharedMemBytes = EXP_UNIQUE_As * SHMEM_REALS_PER_PAIR * sizeof(Real);
-        cudaFuncSetAttribute(CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As>,
-                             cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
+        // constexpr uint PAIRS_PER_BLOCK = 1024;
+        // const uint numBlocksPairs = (m_data_mgr.m_num_collision_pairs + PAIRS_PER_BLOCK - 1) / PAIRS_PER_BLOCK;
+        // constexpr uint SHMEM_REALS_PER_PAIR = 16;
+        // constexpr uint EXP_UNIQUE_As = 128;
+        // constexpr int sharedMemBytes = EXP_UNIQUE_As * SHMEM_REALS_PER_PAIR * sizeof(Real);
+        // cudaFuncSetAttribute(CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As>,
+        //                      cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
 
-        CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(
-            U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.pairSortedA), U1CAST(m_data_mgr.pairSortedB),
-            mR4CAST(sortedSphMarkersD->posRadD), m_data_mgr.m_num_collision_pairs, mR3CAST(m_data_mgr.bceAcc),
-            mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
-            mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD));
+        // CrmAdamiBCPairs<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(
+        //     U1CAST(m_data_mgr.numNeighborsPerPart), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB),
+        //     mR4CAST(sortedSphMarkersD->posRadD), m_data_mgr.m_num_collision_pairs, mR3CAST(m_data_mgr.bceAcc),
+        //     mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->velMasD),
+        //     mR3CAST(sortedSphMarkersD->tauXxYyZzD), mR3CAST(sortedSphMarkersD->tauXyXzYzD));
     } else {
         thrust::device_vector<Real2> sortedKernelSupport(numActive);
         // Calculate the kernel support of each particle
@@ -1184,8 +1182,6 @@ __device__ inline Real4 crmDvDt(Real W_ini_inv,
                                 Real3 dist3,
                                 Real d,
                                 Real invd,
-                                Real4 posRadA,
-                                Real4 posRadB,
                                 Real3 velMasA_in,
                                 Real3 velMasB_in,
                                 Real4 rhoPresMuA,
@@ -1438,7 +1434,7 @@ __global__ void CrmRHS(const Real4* sortedPosRad,
 
         // Calculate dv/dt
         // Note: The SPH discretization chosen for gradW does not support the use of consistent discretization
-        derivVelRho += crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, invd, sortedPosRad[index], sortedPosRad[j], velMasA,
+        derivVelRho += crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, invd, velMasA,
                                velMasB, rhoPresMuA, rhoPresMuB, TauXxYyZzA, TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
 
         // Modify the gradW for stress equation if we decide to use consistent discretization
@@ -1504,8 +1500,170 @@ __global__ void CrmRHS(const Real4* sortedPosRad,
     sortedDerivTauXyXzYz[index] = mR3(dTauxy, dTauxz, dTauyz);
 }
 
-void FsiForceWCSPH::CrmCalcRHS(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
+template <uint SHMEM_REALS_PER_PAIR, uint EXP_UNIQUE_As>
+__global__ void CrmRHSPairwise(const Real4* sortedPosRad,
+                               const Real3* sortedVelMas,
+                               const Real4* sortedRhoPreMu,
+                               const Real3* sortedTauXxYyZz,
+                               const Real3* sortedTauXyXzYz,
+                               const uint* pairSortedA,
+                               const uint* pairSortedB,
+                               const uint numCollisionPairs,
+                               Real4* sortedDerivVelRho,
+                               Real3* sortedDerivTauXxYyZz,
+                               Real3* sortedDerivTauXyXzYz,
+                               uint* sortedFreeSurfaceIdD) {
+    uint id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id >= numCollisionPairs)
+        return;
 
+    uint indexA = pairSortedA[id];
+    uint indexB = pairSortedB[id];
+
+    if (IsBceWallMarker(sortedRhoPreMu[indexA].w))
+        return;
+    bool IamWriter = ((id == 0) || (indexA != pairSortedA[id - 1]));
+    // Cache constant parameters in registers
+    const Real volume0 = paramsD.volume0;
+    const KernelType kernelType = paramsD.kernel_type;
+    const Real ooh = paramsD.ooh;
+    const Real d0 = paramsD.d0;
+    const Real w_ini_inv = 1 / W3h(kernelType, d0, ooh);
+
+    Real3 posRadA = mR3(sortedPosRad[indexA]);
+    Real3 posRadB = mR3(sortedPosRad[indexB]);
+    Real3 dist3 = Distance(posRadA, posRadB);
+    Real d = length(dist3);
+    Real invd = 1 / d;
+    Real3 velMasA = sortedVelMas[indexA];
+    Real3 velMasB = sortedVelMas[indexB];
+    Real4 rhoPresMuA = sortedRhoPreMu[indexA];
+    Real4 rhoPresMuB = sortedRhoPreMu[indexB];
+    Real3 TauXxYyZzA = sortedTauXxYyZz[indexA];
+    Real3 TauXyXzYzA = sortedTauXyXzYz[indexA];
+    Real3 TauXxYyZzB = sortedTauXxYyZz[indexB];
+    Real3 TauXyXzYzB = sortedTauXyXzYz[indexB];
+    Real w_AB = W3h(kernelType, d, ooh);
+    Real3 gradW = GradW3h(kernelType, dist3, ooh);
+    
+    // TODO - This is only used once - If we are at register shortage we don't need to put these in registers and keep till its used - directly load when required.
+    Real tauxxA = TauXxYyZzA.x;
+    Real tauyyA = TauXxYyZzA.y;
+    Real tauzzA = TauXxYyZzA.z;
+    Real tauxyA = TauXyXzYzA.x;
+    Real tauxzA = TauXyXzYzA.y;
+    Real tauyzA = TauXyXzYzA.z;
+
+    extern __shared__ Real shmem[];
+    uint write_a = indexA & (EXP_UNIQUE_As - 1);
+    Real* base = shmem + write_a * SHMEM_REALS_PER_PAIR;
+
+    /* These are accululated in shared memory. We use base to save registers
+    Real& derivVelRho_x = base[0];
+    Real& derivVelRho_y = base[1];
+    Real& derivVelRho_z = base[2];
+    Real& derivVelRho_w = base[3]; - Since this is constant, we don't add to it for now
+    Real& dTauxx = base[4];
+    Real& dTauyy = base[5];
+    Real& dTauzz = base[6];
+    Real& dTauxy = base[7];
+    Real& dTauxz = base[8];
+    Real& dTauyz = base[9];
+    Real& sum_w_i = base[10];
+    base[10] = W3h(kernelType, 0, ooh) * volume0;
+    */
+    if (IamWriter) {
+        base[0] = 0;
+        base[1] = 0;
+        base[2] = 0;
+        base[3] = 0;
+        base[4] = 0;
+        base[5] = 0;
+        base[6] = 0;
+        base[7] = 0;
+        base[8] = 0;
+        base[9] = 0;
+        base[10] = W3h(kernelType, 0, ooh) * volume0;
+    }
+
+    __syncthreads();
+
+    if (indexA != indexB && !(IsBceMarker(rhoPresMuA.w) && IsBceMarker(rhoPresMuB.w))) {
+
+
+        // dVel - Rho is constant and passed back as 0
+        Real4 derivVelRho = crmDvDt(w_ini_inv, w_AB, gradW, dist3, d, invd, velMasA, velMasB,
+                                    rhoPresMuA, rhoPresMuB, TauXxYyZzA, TauXyXzYzA, TauXxYyZzB, TauXyXzYzB);
+
+        atomicAdd(&base[0], derivVelRho.x);
+        atomicAdd(&base[1], derivVelRho.y);
+        atomicAdd(&base[2], derivVelRho.z);
+
+        if (IsFluidParticle(rhoPresMuA.w)) {
+            Real3 vAB = velMasA - velMasB;
+            Real3 vAB_h = 0.5f * vAB * volume0;
+            // entries of strain rate tensor
+            Real exx = -2.0f * vAB_h.x * gradW.x;
+            Real eyy = -2.0f * vAB_h.y * gradW.y;
+            Real ezz = -2.0f * vAB_h.z * gradW.z;
+            Real exy = -vAB_h.x * gradW.y - vAB_h.y * gradW.x;
+            Real exz = -vAB_h.x * gradW.z - vAB_h.z * gradW.x;
+            Real eyz = -vAB_h.y * gradW.z - vAB_h.z * gradW.y;
+            // entries of rotation rate (spin) tensor
+            Real wxy = -vAB_h.x * gradW.y + vAB_h.y * gradW.x;
+            Real wxz = -vAB_h.x * gradW.z + vAB_h.z * gradW.x;
+            Real wyz = -vAB_h.y * gradW.z + vAB_h.z * gradW.y;
+
+            Real edia = 0.3333333333333f * (exx + eyy + ezz);
+            Real twoG = 2 * paramsD.G_shear;
+            Real K_edia = paramsD.K_bulk * 1 * edia;
+            // TODO: We can create these inline in the atomic Add
+            // I wonder will force the threads to also "atomically" compute these quantities.
+            Real dTauxx = twoG * (exx - edia) + 2.0f * (tauxyA * wxy + tauxzA * wxz) + K_edia;
+            Real dTauyy = twoG * (eyy - edia) - 2.0f * (tauxyA * wxy - tauyzA * wyz) + K_edia;
+            Real dTauzz = twoG * (ezz - edia) - 2.0f * (tauxzA * wxz + tauyzA * wyz) + K_edia;
+            Real dTauxy = twoG * exy - (tauxxA * wxy - tauxzA * wyz) + (wxy * tauyyA + wxz * tauyzA);
+            Real dTauxz = twoG * exz - (tauxxA * wxz + tauxyA * wyz) + (wxy * tauyzA + wxz * tauzzA);
+            Real dTauyz = twoG * eyz - (tauxyA * wxz + tauyyA * wyz) - (wxy * tauxzA - wyz * tauzzA);
+
+            atomicAdd(&base[4], dTauxx);
+            atomicAdd(&base[5], dTauyy);
+            atomicAdd(&base[6], dTauzz);
+            atomicAdd(&base[7], dTauxy);
+            atomicAdd(&base[8], dTauxz);
+            atomicAdd(&base[9], dTauyz);
+        }
+        if(d > paramsD.h * 1.0e-9f) {
+            atomicAdd(&base[10], w_AB * volume0);
+        }
+    }
+
+    __syncthreads();
+    if(IamWriter) {
+        if(base[10] < paramsD.C_Wi) {
+            sortedFreeSurfaceIdD[indexA] = 1;
+        } else {
+            sortedFreeSurfaceIdD[indexA] = 0;
+        }
+    }
+    __syncthreads();
+
+    if(IamWriter && IsSphParticle(rhoPresMuA.w)) {
+        Real3 totalFluidBodyForce3 = paramsD.bodyForce3 + paramsD.gravity;
+        base[0] += totalFluidBodyForce3.x;
+        base[1] += totalFluidBodyForce3.y;
+        base[2] += totalFluidBodyForce3.z;
+    }
+    __syncthreads();
+
+    if(IamWriter) {
+        sortedDerivVelRho[indexA] = mR4(base[0], base[1], base[2], 0);
+        sortedDerivTauXxYyZz[indexA] = mR3(base[4], base[5], base[6]);
+        sortedDerivTauXyXzYz[indexA] = mR3(base[7], base[8], base[9]);
+    }
+}
+
+void FsiForceWCSPH::CrmCalcRHS(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD) {
     computeGridSize(numActive, 256, numBlocks, numThreads);
 
     CrmRHS<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
@@ -1514,6 +1672,24 @@ void FsiForceWCSPH::CrmCalcRHS(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD
                                       U1CAST(m_data_mgr.neighborList), numActive, mR4CAST(m_data_mgr.derivVelRhoD),
                                       mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD),
                                       U1CAST(m_data_mgr.freeSurfaceIdD));
+
+
+    // constexpr uint PAIRS_PER_BLOCK = 1024;
+    // const uint numBlocksPairs = (m_data_mgr.m_num_collision_pairs + PAIRS_PER_BLOCK - 1) / PAIRS_PER_BLOCK;
+    // constexpr uint SHMEM_REALS_PER_PAIR = 11; // Over estimated to coalsce memrequest
+    // constexpr uint EXP_UNIQUE_As = 128; // Estimated that needs tons of testing
+    // constexpr int sharedMemBytes = EXP_UNIQUE_As * SHMEM_REALS_PER_PAIR * sizeof(Real);
+    // cudaFuncSetAttribute(CrmRHSPairwise<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As>,
+    //                          cudaFuncAttributeMaxDynamicSharedMemorySize, sharedMemBytes);
+
+   
+    // CrmRHSPairwise<SHMEM_REALS_PER_PAIR, EXP_UNIQUE_As><<<numBlocksPairs, PAIRS_PER_BLOCK, sharedMemBytes>>>(mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+    //                                   mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(sortedSphMarkersD->tauXxYyZzD),
+    //                                   mR3CAST(sortedSphMarkersD->tauXyXzYzD), UINT_32CAST(m_data_mgr.pairSortedA), UINT_32CAST(m_data_mgr.pairSortedB),m_data_mgr.m_num_collision_pairs, mR4CAST(m_data_mgr.derivVelRhoD),
+    //                                   mR3CAST(m_data_mgr.derivTauXxYyZzD), mR3CAST(m_data_mgr.derivTauXyXzYzD),
+    //                                   U1CAST(m_data_mgr.freeSurfaceIdD));
+    // cudaCheckError();
+    
 }
 
 // -----------------------------------------------------------------------------
