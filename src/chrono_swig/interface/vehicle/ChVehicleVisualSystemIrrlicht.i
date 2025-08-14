@@ -20,11 +20,6 @@ using namespace chrono::irrlicht;
 using namespace chrono::vehicle;
 using namespace irr::scene; // This is inserted for the extend functions that use it
 
-// InteractiveDriverIRR includes
-#ifdef SWIGCSHARP
-    #include "chrono_vehicle/driver/ChInteractiveDriver.h"
-#endif
-
 %}
 
 // Expose for both python and csharp
@@ -66,8 +61,6 @@ using namespace irr::scene; // This is inserted for the extend functions that us
     %include "../../../chrono_vehicle/ChVehicleVisualSystem.h"  
     %include "../../../chrono_vehicle/visualization/ChVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_irrlicht/ChVisualSystemIrrlicht.h"    
-    // Includes for interactive driver
-    %include "../../../chrono_vehicle/driver/ChInteractiveDriver.h"
 
     %include "../../../chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
