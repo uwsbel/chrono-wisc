@@ -9,8 +9,6 @@
 %{
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 #include "chrono_vehicle/ChDriver.h"
-#include "chrono_vehicle/driver/ChDataDriver.h"
-#include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/ChVehicleVisualSystem.h"
 #include "chrono_vehicle/visualization/ChVehicleVisualSystemIrrlicht.h"
 #include "chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemIrrlicht.h"
@@ -22,9 +20,6 @@ using namespace chrono::irrlicht;
 using namespace chrono::vehicle;
 using namespace irr::scene; // This is inserted for the extend functions that use it
 
-// InteractiveDriver includes
-#include "chrono_vehicle/driver/ChInteractiveDriver.h"
-
 %}
 
 // Expose for both python and csharp
@@ -33,11 +28,6 @@ using namespace irr::scene; // This is inserted for the extend functions that us
 %shared_ptr(chrono::vehicle::ChSuspensionTestRigPushrod)
 
 #ifdef SWIGCSHARP
-
-    // InteractiveDriverIRR
-    %include "../../../chrono/core/ChBezierCurve.h"
-    %import "ChDriver.i" // make SWIG aware of the ChDriver interface file
-    %shared_ptr(chrono::vehicle::ChInteractiveDriver)
 
     %ignore chrono::vehicle::ChJoystickAxisIRR; // Ignore this for now Using an alias enum, SWIG can't translate the irr namespace right.
 
@@ -71,8 +61,6 @@ using namespace irr::scene; // This is inserted for the extend functions that us
     %include "../../../chrono_vehicle/ChVehicleVisualSystem.h"  
     %include "../../../chrono_vehicle/visualization/ChVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_irrlicht/ChVisualSystemIrrlicht.h"    
-
-    %include "../../../chrono_vehicle/driver/ChInteractiveDriver.h"
 
     %include "../../../chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
@@ -148,19 +136,13 @@ using namespace irr::scene; // This is inserted for the extend functions that us
     %shared_ptr(chrono::vehicle::ChWheeledVehicleVisualSystemIrrlicht)
     %shared_ptr(chrono::vehicle::ChSuspensionTestRigVisualSystemIRR)
 
+
     %import(module = "pychrono.irrlicht") "chrono_swig/interface/irrlicht/ChVisualSystemIrrlicht.i"
     %include "../../../chrono_vehicle/ChVehicleVisualSystem.h"
     %include "../../../chrono_vehicle/visualization/ChVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
     %include "../../../chrono_vehicle/wheeled_vehicle/test_rig/ChSuspensionTestRigVisualSystemIRR.h"
-    %include "../../../chrono_vehicle/ChVehicle.h"
-    %include "../../../chrono_vehicle/ChDriver.h"
-    %include "../../../chrono_vehicle/driver/ChDataDriver.h"
-    %include "../../../chrono/core/ChBezierCurve.h"
-    %include "../../../chrono_vehicle/driver/ChInteractiveDriver.h"
-
-    %include "../../../chrono_irrlicht/ChVisualSystemIrrlicht.h"    
 
     //%DefSharedPtrDynamicCast2NS(chrono::irrlicht, chrono::vehicle, ChVisualSystemIrrlicht, ChVehicleVisualSystemIrrlicht)
     //%DefSharedPtrDynamicCast(chrono::vehicle, ChVehicleVisualSystem, ChVehicleVisualSystemIrrlicht)

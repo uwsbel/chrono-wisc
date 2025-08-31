@@ -81,8 +81,10 @@
 #include "chrono/utils/ChFilters.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
+#include "chrono/utils/ChBodyGeometry.h"
 
 using namespace chrono;
+using namespace chrono::utils;
 using namespace chrono::fea;
 %}
 
@@ -349,7 +351,9 @@ inline const char* ChUtils_GetFilename() {
 %include "ChGeometry.i"
 
 
-
+// utils classes
+%include "ChBodyGeometry.i"
+%include "ChUtilsSamplers.i"
 
 //collision classes
 %include "ChContactMaterial.i"
@@ -380,7 +384,6 @@ inline const char* ChUtils_GetFilename() {
 %include "ChTexture.i"
 %include "ChCamera.i"
 %include "../../../chrono/assets/ChGlyphs.h"
-%include "ChVisualSystem.i"
 
 // physics/  classes
 %include "ChControllers.i"
@@ -427,6 +430,7 @@ inline const char* ChUtils_GetFilename() {
 %include "ChSystem.i"
 %include "ChSystemNSC.i"
 %include "ChSystemSMC.i"
+%include "ChVisualSystem.i"
 %include "ChProximityContainer.i"
 %include "ChLoader.i"
 %include "ChLoad.i"
@@ -635,6 +639,8 @@ inline const char* ChUtils_GetFilename() {
 
 %DefSharedPtrDynamicCast(chrono, ChGeometry, ChTriangleMeshConnected)
 %DefSharedPtrDynamicCast(chrono, ChGeometry, ChTriangleMeshSoup)
+
+%DefSharedPtrDynamicCast(chrono, ChSystem, ChSystemSMC)
 
 // .. to complete
 
