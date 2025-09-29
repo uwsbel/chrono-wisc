@@ -43,6 +43,7 @@ int main(int argc, char* argv[]) {
     // Extract filenames from command-line arguments
     std::string fsi_yaml_filename = GetChronoDataFile("yaml/fsi/objectdrop/objectdrop.yaml");
     ////std::string fsi_yaml_filename = GetChronoDataFile("yaml/fsi/baffleflow/baffleflow.yaml");
+    ////std::string fsi_yaml_filename = GetChronoDataFile("yaml/fsi/wavetank/wavetank.yaml");
 
     ChCLI cli(argv[0], "");
     cli.AddOption<std::string>("", "f,fsi_file", "FSI problem specification YAML file", fsi_yaml_filename);
@@ -59,15 +60,14 @@ int main(int argc, char* argv[]) {
     std::cout << "YAML specification file: " << fsi_yaml_filename << std::endl;
 
     // Create the FSI YAML parser object
-    parsers::ChParserFsiYAML parser(fsi_yaml_filename);
-    parser.SetVerbose(true);
+    parsers::ChParserFsiYAML parser(fsi_yaml_filename, true);
 
     // Create the FSI system and the underlying multibody and fluid systems
     parser.CreateFsiSystem();
     auto sysFSI = parser.GetFsiSystem();
     auto sysCFD = parser.GetFluidSystem();
     auto sysMBS = parser.GetMultibodySystem();
-    auto sysCFD_type = parser.GetFluidSystemType();
+    ////auto sysCFD_type = parser.GetFluidSystemType();
 
     // Extract information from parsed YAML files
     const std::string& model_name = parser.GetName();
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
         visVSG->SetLightIntensity(1.0f);
         visVSG->SetLightDirection(-CH_PI_4, CH_PI_4);
         visVSG->EnableShadows(enable_shadows);
-        visVSG->ToggleAbsFrameVisibility();
+        ////visVSG->ToggleAbsFrameVisibility();
         visVSG->SetAbsFrameScale(2.0);
 
         auto plugin = parserCFD.GetVisualizationPlugin();
@@ -125,8 +125,19 @@ int main(int argc, char* argv[]) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
-        parserMBS.SetOutputDir(out_dir + "/MBS");
-        parserCFD.SetOutputDir(out_dir + "/CFD");
+        std::string out_dirMBS = out_dir + "/MBS"; 
+        if (!filesystem::create_directory(filesystem::path(out_dirMBS))) {
+            std::cout << "Error creating directory " << out_dirMBS << std::endl;
+            return 1;
+        }
+        std::string out_dirCFD = out_dir + "/CFD";
+        if (!filesystem::create_directory(filesystem::path(out_dirCFD))) {
+            std::cout << "Error creating directory " << out_dirCFD << std::endl;
+            return 1;
+        }
+        
+        parserMBS.SetOutputDir(out_dirMBS);
+        parserCFD.SetOutputDir(out_dirCFD);
     }
 
     // Simulation loop
