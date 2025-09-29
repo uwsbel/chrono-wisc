@@ -11,6 +11,7 @@ set(DEMOS ${DEMOS}
    demo_FSI_Kernels
    demo_FSI_ObjectDrop
    demo_FSI_ObjectDrop_Validation
+   demo_FSI_Flap_Buoyance
    demo_FSI_CylindricalTank
    demo_FSI_WaveTank
    demo_FSI_EmbeddedObject
