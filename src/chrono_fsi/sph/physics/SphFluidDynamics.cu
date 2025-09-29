@@ -362,7 +362,12 @@ __device__ void TauEulerStep(Real dT,
     Real I0 = paramsD.mu_I0;  // xi*dia*sqrt(rhoPresMu.x);//
     Real I = Chi * dia * sqrt(paramsD.rho0 / (p_tr + 1.0e-9));
 
-    Real coh = paramsD.Coh_coeff;
+    // Real coh = paramsD.Coh_coeff;
+    // Set the cohesion based on density
+    Real A1 = 0.27;
+    Real k = 4.42;
+    Real density_g_cm3 = rho_p.x / 1000;
+    Real coh = A1 * exp(k * density_g_cm3);
     // Real Chi_cri = 0.1;
     // if (Chi < Chi_cri){
     //     coh = paramsD.Coh_coeff * (1.0 - sin(-1.57 + 3.14 * (Chi / Chi_cri))) / 2.0;

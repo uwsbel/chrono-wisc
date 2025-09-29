@@ -439,7 +439,18 @@ void SimulateMaterial(int i, const SimParams& params) {
                 // https://ntrs.nasa.gov/api/citations/20220014634/downloads/Final%20IEEE%20paper%20formatted%20footnote%20added.pdf
                 double depth_cm = (-p.z() + fzDim) * 100;
                 // Hyperbolic relationship - finally converted to kg/m^3
-                rho_ini = (1.92 * (depth_cm + 12.2) / (depth_cm + 18)) * 1000;
+                // Scaling provides the right mean bulk density across any depth
+                // Shape
+                double b = 12.2;
+                double c = 18;
+                double fzDim_cm = fzDim * 100;
+                double g = (depth_cm + b) / (depth_cm + c);
+                // Mean of shape from 0 to fzDim
+                double gbar = 1.0 - ((c - b) / fzDim_cm) * std::log((c + fzDim_cm) / c);
+                double density_mean_target = params.density;
+                rho_ini = density_mean_target * g / gbar;
+                // Linear relashionship with slope
+                // rho_ini = 1670 + 70 * (2 * depth_cm / fzDim - 1);
                 sysSPH.AddSPHParticle(p, rho_ini, 0, sysSPH.GetViscosity(), ChVector3d(0),
                                       ChVector3d(pre_ini, pre_ini, pre_ini), ChVector3d(0, 0, 0));
                 break;
