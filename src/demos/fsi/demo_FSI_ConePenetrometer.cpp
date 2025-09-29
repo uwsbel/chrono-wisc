@@ -763,8 +763,29 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
     // Output directories
     std::string out_dir;
     if (params.output || params.snapshots) {
-        // Base output directory
-        std::string base_dir = GetChronoOutputPath() + "FSI_ConePenetrometer_GRC1/";
+        // Base output directory depends on testing_mode and includes container height in cm
+        std::string base_dir;
+        const std::string heightCmStr = [&]() {
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(1) << (params.container_height * 100.0) << "cm";
+            return oss.str();
+        }();
+        switch (params.testing_mode) {
+            case 0:
+                base_dir = GetChronoOutputPath() + "FSI_ConePenetrometer_GRC1_" + heightCmStr + "/";
+                break;
+            case 1:
+                base_dir =
+                    GetChronoOutputPath() + "FSI_ConePenetrometer_GRC1_" + heightCmStr + "_correctedInitPressure/";
+                break;
+            case 2:
+                base_dir = GetChronoOutputPath() + "FSI_ConePenetrometer_GRC1_" + heightCmStr +
+                           "_correctedInitPressure_densityScale/";
+                break;
+            default:
+                std::cerr << "Invalid testing mode" << std::endl;
+                return;
+        }
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;
