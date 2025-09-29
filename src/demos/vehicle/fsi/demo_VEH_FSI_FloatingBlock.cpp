@@ -35,7 +35,7 @@
 
 #ifdef CHRONO_VSG
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -55,9 +55,6 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
 
 int main(int argc, char* argv[]) {
     // Parse command line arguments
-    // Default json for fluid part of the system
-    std::string inputJson = GetChronoDataFile("vehicle/fsi/input_json/demo_VEH_FSI_FloatingBlock.json");
-
     double t_end = 3;
     bool verbose = true;
     bool output = false;
@@ -66,7 +63,8 @@ int main(int argc, char* argv[]) {
     double render_fps = 100;
     bool snapshots = false;
     int ps_freq = 1;
-
+    double init_space = 0.1;
+    double step_size = 0.0001;
     // Dimension of the fluid domain
     double fxDim = 4;
     double fyDim = 2.0;
@@ -80,23 +78,41 @@ int main(int argc, char* argv[]) {
     // Create a physics system and an FSI system
     ChSystemSMC sysMBS;
     ChFsiFluidSystemSPH sysSPH;
-    ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
+    ChFsiSystemSPH sysFSI(&sysMBS, &sysSPH);
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    sysSPH.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    // Use the specified input JSON file
+    sysFSI.SetVerbose(verbose);
+    sysFSI.SetStepSizeCFD(step_size);
+    sysFSI.SetStepsizeMBD(step_size);
+
+    ChFsiFluidSystemSPH::FluidProperties fluid_props;
+    fluid_props.density = 1000;
+    fluid_props.viscosity = 5;
+    sysSPH.SetCfdSPH(fluid_props);
+
+    ChFsiFluidSystemSPH::SPHParameters sph_params;
+    sph_params.integration_scheme = IntegrationScheme::RK2;
+    sph_params.initial_spacing = init_space;
+    sph_params.d0_multiplier = 1.2;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_UNILATERAL;
+    sph_params.artificial_viscosity = 0.03;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sph_params.eos_type = EosType::TAIT;
+    sph_params.use_delta_sph = true;
+    sph_params.delta_sph_coefficient = 0.1;
+    sph_params.shifting_method = ShiftingMethod::PPST;
+    sph_params.shifting_ppst_push = 3.0;
+    sph_params.shifting_ppst_pull = 1.0;
+    sph_params.max_velocity = 10.0;
+    sph_params.num_proximity_search_steps = ps_freq;
+    sysSPH.SetSPHParameters(sph_params);
 
     auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
     cmaterial->SetYoungModulus(1e8);
     cmaterial->SetFriction(0.9f);
     cmaterial->SetRestitution(0.4f);
-
-    // Use the specified input JSON file
-    sysSPH.ReadParametersFromFile(inputJson);
-    sysFSI.SetVerbose(verbose);
-
-    auto init_space = sysSPH.GetInitialSpacing();
-
-    // Set frequency of proximity search
-    sysSPH.SetNumProximitySearchSteps(ps_freq);
 
     // Set up the periodic boundary condition (only in Y direction)
     ChVector3d cMin(-bxDim / 2 - 5 * init_space, -byDim / 2 - init_space / 2, -5 * init_space);
@@ -182,10 +198,8 @@ int main(int argc, char* argv[]) {
     sysMBS.AddBody(ground);
 
     // Add FSI container
-    sysSPH.AddBoxContainerBCE(ground,                                         //
-                              ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT),  //
-                              ChVector3d(bxDim, byDim, bzDim),                //
-                              ChVector3i(2, 0, -1));
+    auto ground_bce = sysSPH.CreatePointsBoxContainer(ChVector3d(bxDim, byDim, bzDim), {2, 0, -1});
+    sysFSI.AddFsiBody(ground, ground_bce, ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT), false);
 
     // Floating block size and density
     ChVector3d plate_size(0.9 * fxDim, 0.7 * fyDim, 4 * init_space);
@@ -216,8 +230,11 @@ int main(int argc, char* argv[]) {
     }
 
     sysMBS.AddBody(floating_plate);
-    sysFSI.AddFsiBody(floating_plate);
-    sysSPH.AddBoxBCE(floating_plate, ChFrame<>(), plate_size, true);
+
+    {
+        auto bce = sysSPH.CreatePointsBoxInterior(plate_size);
+        sysFSI.AddFsiBody(floating_plate, bce, ChFrame<>(), false);
+    }
 
     // Create vehicle
     ChVector3d veh_init_pos(-bxDim / 2 - bxDim * CH_1_3, 0, bzDim + 3 * init_space + 0.1);
@@ -265,7 +282,7 @@ int main(int argc, char* argv[]) {
         // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 5.0);
 
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(false);
@@ -414,13 +431,13 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
     // Create wheel BCE markers
     for (auto& axle : vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
-            std::vector<ChVector3d> points;
             wheel->GetSpindle()->AddCollisionShape(wheel_shape);
             wheel->GetSpindle()->EnableCollision(true);
-            sysSPH.CreatePoints_Mesh(*trimesh, sysSPH.GetInitialSpacing(), points);
-            sysSPH.AddPointsBCE(wheel->GetSpindle(), points, ChFrame<>(), true);
-            sysFSI.AddFsiBody(wheel->GetSpindle());
+
+            auto points = sysSPH.CreatePointsMesh(*trimesh);
+            sysFSI.AddFsiBody(wheel->GetSpindle(), points, ChFrame<>(), false);
         }
     }
+
     return vehicle;
 }

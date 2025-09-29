@@ -39,7 +39,7 @@
 
 #ifdef CHRONO_VSG
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #ifdef CHRONO_POSTPROCESS
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
     // ----------------------
 
     CRMTerrain terrain(*sysMBS, spacing);
-    ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
+    auto sysFSI = terrain.GetFsiSystemSPH();
     terrain.SetVerbose(verbose);
     terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
     terrain.SetStepSizeCFD(step_size);
@@ -189,10 +189,10 @@ int main(int argc, char* argv[]) {
     sph_params.integration_scheme = integration_scheme;
     sph_params.initial_spacing = spacing;
     sph_params.d0_multiplier = 1;
-    sph_params.kernel_threshold = 0.8;
+    sph_params.free_surface_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
-    sph_params.consistent_gradient_discretization = false;
-    sph_params.consistent_laplacian_discretization = false;
+    sph_params.use_consistent_gradient_discretization = false;
+    sph_params.use_consistent_laplacian_discretization = false;
     sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
     sph_params.boundary_method = BoundaryMethod::ADAMI;
     terrain.SetSPHParameters(sph_params);
@@ -288,7 +288,7 @@ int main(int argc, char* argv[]) {
     if (render) {
         // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(aabb.min.z(), aabb.max.z());
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
@@ -430,9 +430,9 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
 
 void CreateFSIWheels(std::shared_ptr<WheeledVehicle> vehicle, CRMTerrain& terrain) {
     std::string mesh_filename = vehicle::GetDataFile("Polaris/meshes/Polaris_tire_collision.obj");
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(ChContactMaterialData());
-    geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_filename, VNULL));
+    auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+    geometry->materials.push_back(ChContactMaterialData());
+    geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, mesh_filename, VNULL));
 
     for (auto& axle : vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {

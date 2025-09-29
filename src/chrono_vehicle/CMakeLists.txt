@@ -155,8 +155,6 @@ set(CV_BASE_FILES
     ChDriver.cpp
     ChPart.h
     ChPart.cpp
-    ChVehicleJoint.h
-    ChVehicleJoint.cpp
     ChDriveline.h
     ChDriveline.cpp
     ChPowertrainAssembly.h
@@ -175,7 +173,6 @@ set(CV_BASE_FILES
     ChVehicleModelData.cpp
     ChVehicleVisualSystem.h
     ChVehicleVisualSystem.cpp
-    ChVehicleOutput.h
     ChWorldFrame.cpp
     ChWorldFrame.h
 )
@@ -303,20 +300,6 @@ set(CV_UTILS_FILES
     utils/ChUtilsJSON.cpp
 )
 source_group("utils" FILES ${CV_UTILS_FILES})
-
-set(CV_OUTPUT_FILES
-    output/ChVehicleOutputASCII.h
-    output/ChVehicleOutputASCII.cpp
-)
-if (HDF5_FOUND)
-    set(CVHDF5_OUTPUT_FILES
-        output/ChVehicleOutputHDF5.h
-        output/ChVehicleOutputHDF5.cpp
-    )
-else()
-    set(CVHDF5_OUTPUT_FILES "")
-endif()
-source_group("output" FILES ${CV_OUTPUT_FILES} ${CVHDF5_OUTPUT_FILES})
 
 # --------------- WHEELED VEHICLE FILES
 
@@ -884,8 +867,6 @@ add_library(Chrono_vehicle
     ${CV_POVERTRAIN_FILES}
     ${CV_TERRAIN_FILES}
     ${CV_UTILS_FILES}
-    ${CV_OUTPUT_FILES}
-    ${CVHDF5_OUTPUT_FILES}
 #
     ${CV_WV_BASE_FILES}
     ${CV_WV_ANTIROLL_FILES}
@@ -917,6 +898,8 @@ add_library(Chrono_vehicle
 
 add_library(Chrono::vehicle ALIAS Chrono_vehicle)
 
+set_target_properties(Chrono_vehicle PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
+
 if(CH_WHOLE_PROG_OPT)
   set_target_properties(Chrono_vehicle PROPERTIES COMPILE_FLAGS "/GL")
   set_target_properties(Chrono_vehicle PROPERTIES LINK_FLAGS "/LTCG")
@@ -946,12 +929,6 @@ target_compile_definitions(Chrono_vehicle INTERFACE
 
 target_compile_definitions(Chrono_vehicle PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_VEHICLE>)
 
-if(HDF5_FOUND)
-    target_compile_definitions(Chrono_vehicle PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${HDF5_COMPILE_DEFS}>)
-    target_include_directories(Chrono_vehicle PUBLIC ${HDF5_INCLUDE_DIRS})
-    target_link_libraries(Chrono_vehicle PUBLIC ${HDF5_CXX_LIBRARIES})
-endif()
-
 install(TARGETS Chrono_vehicle
         EXPORT ChronoTargets
         RUNTIME DESTINATION bin
@@ -972,6 +949,8 @@ if(CH_ENABLE_MODULE_IRRLICHT)
         ${CVIRR_TV_FILES}
     )
     add_library(Chrono::vehicle_irrlicht ALIAS Chrono_vehicle_irrlicht)
+
+    set_target_properties(Chrono_vehicle_irrlicht PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
 
     if(CH_WHOLE_PROG_OPT)
       set_target_properties(Chrono_vehicle_irrlicht PROPERTIES COMPILE_FLAGS "/GL")
@@ -1017,6 +996,8 @@ if(CH_ENABLE_MODULE_VSG)
         ${CVVSG_TV_FILES}
     )
     add_library(Chrono::vehicle_vsg ALIAS Chrono_vehicle_vsg)
+
+    set_target_properties(Chrono_vehicle_vsg PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
 
     if(CH_WHOLE_PROG_OPT)
       set_target_properties(Chrono_vehicle_vsg PROPERTIES COMPILE_FLAGS "/GL")
@@ -1093,23 +1074,23 @@ file(COPY ${CMAKE_SOURCE_DIR}/cmake/FindIrrKlang.cmake DESTINATION ${CMAKE_BINAR
 install(FILES "${CMAKE_SOURCE_DIR}/cmake/FindIrrKlang.cmake" DESTINATION ${CH_CONFIG_INSTALL_PATH})
 
 # On Windows, copy DLLs
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    if(CH_ENABLE_MODULE_IRRLICHT AND EXISTS "${IRRKLANG_DLL}")
-        add_custom_command(TARGET Chrono_vehicle_irrlicht POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${IRRKLANG_DLL}"
-            "${PROJECT_BINARY_DIR}/bin/$<CONFIGURATION>")
-    endif()
-
-    if(EXISTS "${OpenCRG_DLL}")
-        add_custom_command(TARGET Chrono_vehicle POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${OpenRG_DLL}"
-            "${PROJECT_BINARY_DIR}/bin/$<CONFIGURATION>")
-      install(FILES "${OpenCRG_DLL}" DESTINATION bin)
-    endif()
-
-  # Make variable visible from outside this directory
-  set(CH_IRRKLANG_DLL "${IRRKLANG_DLL}" PARENT_SCOPE)
-  set(CH_OPENCRG_DLL "${OpenCRG_DLL}" PARENT_SCOPE)
-endif()
+#if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+#    if(CH_ENABLE_MODULE_IRRLICHT AND EXISTS "${IRRKLANG_DLL}")
+#        add_custom_command(TARGET Chrono_vehicle_irrlicht POST_BUILD
+#            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#            "${IRRKLANG_DLL}"
+#            "${PROJECT_BINARY_DIR}/bin/$<CONFIGURATION>")
+#    endif()
+#
+#    if(EXISTS "${OpenCRG_DLL}")
+#        add_custom_command(TARGET Chrono_vehicle POST_BUILD
+#            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#            "${OpenRG_DLL}"
+#            "${PROJECT_BINARY_DIR}/bin/$<CONFIGURATION>")
+#      install(FILES "${OpenCRG_DLL}" DESTINATION bin)
+#    endif()
+#
+#  # Make variable visible from outside this directory
+#  set(CH_IRRKLANG_DLL "${IRRKLANG_DLL}" PARENT_SCOPE)
+#  set(CH_OPENCRG_DLL "${OpenCRG_DLL}" PARENT_SCOPE)
+#endif()

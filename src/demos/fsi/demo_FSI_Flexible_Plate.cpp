@@ -36,7 +36,7 @@
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #ifdef CHRONO_POSTPROCESS
@@ -120,9 +120,9 @@ int main(int argc, char* argv[]) {
     // Create the FSI problem
     double initial_spacing = (problem_type == PhysicsProblem::CFD) ? 0.02 : 0.01;
 
-    ChFsiProblemCartesian fsi(sysMBS, initial_spacing);
+    ChFsiProblemCartesian fsi(initial_spacing, &sysMBS);
     fsi.SetVerbose(verbose);
-    ChFsiSystemSPH& sysFSI = fsi.GetSystemFSI();
+    auto sysFSI = fsi.GetFsiSystemSPH();
 
     // Set gravitational acceleration
     const ChVector3d gravity(0, 0, -9.81);
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
             sph_params.initial_spacing = initial_spacing;
             sph_params.d0_multiplier = 1.2;
             sph_params.max_velocity = 10;
-            sph_params.kernel_threshold = 0.8;
+            sph_params.free_surface_threshold = 0.8;
             sph_params.shifting_method = ShiftingMethod::XSPH;
             sph_params.shifting_xsph_eps = 0.5;
             sph_params.artificial_viscosity = 0.2;
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
             sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
             sph_params.shifting_ppst_pull = 1.0;
             sph_params.shifting_ppst_push = 3.0;
-            sph_params.kernel_threshold = 0.8;
+            sph_params.free_surface_threshold = 0.8;
             sph_params.artificial_viscosity = 0.5;
             sph_params.num_proximity_search_steps = ps_freq;
 
@@ -288,7 +288,7 @@ int main(int argc, char* argv[]) {
         // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, 2.5);
 
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(show_particles_sph);
         visFSI->EnableBoundaryMarkers(show_boundary_bce);
         visFSI->EnableRigidBodyMarkers(show_rigid_bce);
@@ -332,11 +332,6 @@ int main(int argc, char* argv[]) {
     int out_frame = 0;
     int render_frame = 0;
 
-    double timer_CFD = 0;
-    double timer_MBD = 0;
-    double timer_FSI = 0;
-    double timer_step = 0;
-
     // Initial position of top node at the (approx) middle of the plate in x and y
     auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(15));
     std::cout << "Initial position of node: " << node->GetPos().x() << " " << node->GetPos().y() << " "
@@ -361,6 +356,7 @@ int main(int argc, char* argv[]) {
             out_frame++;
         }
         // Render FSI system
+#ifdef CHRONO_VSG
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
@@ -377,24 +373,13 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
+#endif
 
         ChVector3d pos = node->GetPos();
         double displacement = (pos - init_pos).Length();
         ofile << time << "\t" << pos.x() << "\t" << pos.y() << "\t" << pos.z() << "\t" << displacement << "\n";
 
         fsi.DoStepDynamics(step_size);
-
-        timer_CFD += sysFSI.GetTimerCFD();
-        timer_MBD += sysFSI.GetTimerMBD();
-        timer_FSI += sysFSI.GetTimerFSI();
-        timer_step += sysFSI.GetTimerStep();
-        if (verbose && sim_frame == 2000) {
-            cout << "Cummulative timers at time: " << time << endl;
-            cout << "   timer CFD:  " << timer_CFD << endl;
-            cout << "   timer MBD:  " << timer_MBD << endl;
-            cout << "   timer FSI:  " << timer_FSI << endl;
-            cout << "   timer step: " << timer_step << endl;
-        }
 
         time += step_size;
         sim_frame++;
@@ -562,9 +547,9 @@ std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiProblemSPH& fsi, bool verbose
         double height = 0.75;
         double radius = 0.02;
 
-        utils::ChBodyGeometry geometry;
-        geometry.materials.push_back(contact_material_info);
-        geometry.coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(VNULL, QUNIT, radius, height));
+        auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+        geometry->materials.push_back(contact_material_info);
+        geometry->coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(VNULL, QUNIT, radius, height));
 
         auto cylinder = chrono_types::make_shared<ChBody>();
         cylinder->SetPos(ChVector3d(post_x, 0, height / 2));
@@ -573,18 +558,18 @@ std::shared_ptr<fea::ChMesh> CreateSolidPhase(ChFsiProblemSPH& fsi, bool verbose
         sysMBS.AddBody(cylinder);
 
         if (show_rigid)
-            geometry.CreateVisualizationAssets(cylinder, VisualizationType::COLLISION);
+            geometry->CreateVisualizationAssets(cylinder, VisualizationType::COLLISION);
 
         fsi.AddRigidBody(cylinder, geometry, false);
     }
 
     fsi.SetBcePattern2D(BcePatternMesh2D::INWARD);
 
-    // Create the first flexible cable and add to FSI system
+    // Create the first flexible plate and add to FSI system
     auto mesh1 = CreateFlexiblePlate(sysMBS, plate1_x, 5e6, ground, verbose);
     fsi.AddFeaMesh(mesh1, false);
 
-    // Create second flexible cable
+    // Create second flexible plate
     if (create_flex_plate2) {
         auto mesh2 = CreateFlexiblePlate(sysMBS, plate2_x, 2e7, ground, verbose);
         fsi.AddFeaMesh(mesh2, false);

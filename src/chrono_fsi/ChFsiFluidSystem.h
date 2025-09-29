@@ -92,24 +92,37 @@ class CH_FSI_API ChFsiFluidSystem {
                                   std::vector<FsiMeshForce> mesh1D_forces,
                                   std::vector<FsiMeshForce> mesh2D_forces) = 0;
 
+    /// Get the step size.
+    virtual double GetVariableStepSize() = 0;
+
+    /// Print the FSI statistics
+    virtual void PrintFluidSystemSPHStats() const = 0;
+
   protected:
     ChFsiFluidSystem();
 
+    void UseNodeDirections(NodeDirectionsMode mode) { m_node_directions_mode = mode; }
+
+    /// Solver-specific actions taken when a rigid solid is added as an FSI object.
+    virtual void OnAddFsiBody(std::shared_ptr<FsiBody> fsi_body, bool check_embedded) {}
+
+    /// Solver-specific actions taken when a 1D deformable solid is added as an FSI object.
+    virtual void OnAddFsiMesh1D(std::shared_ptr<FsiMesh1D> mesh, bool check_embedded) {}
+
+    /// Solver-specific actions taken when a 2D deformable solid is added as an FSI object.
+    virtual void OnAddFsiMesh2D(std::shared_ptr<FsiMesh2D> mesh, bool check_embedded) {}
+
     /// Initialize the fluid system using initial states of solid FSI objects.
     /// A call to this function marks completion of the fluid system construction and can only be made from ChFsiSystem.
-    /// The boolean `has_node_directions` indicates whether or not mesh states also contain node directions.
-    virtual void Initialize(const std::vector<FsiBody>& fsi_bodies,
-                            const std::vector<FsiMesh1D>& fsi_meshes1D,
-                            const std::vector<FsiMesh2D>& fsi_meshes2D,
-                            const std::vector<FsiBodyState>& body_states,
+    virtual void Initialize(const std::vector<FsiBodyState>& body_states,
                             const std::vector<FsiMeshState>& mesh1D_states,
-                            const std::vector<FsiMeshState>& mesh2D_states,
-                            bool use_node_directions) = 0;
+                            const std::vector<FsiMeshState>& mesh2D_states) = 0;
 
     bool m_verbose;        ///< enable/disable m_verbose terminal output
     std::string m_outdir;  ///< output directory
 
-    bool m_is_initialized;  ///< set to true once the Initialize function is called
+    NodeDirectionsMode m_node_directions_mode;  ///< mode used for FEA node directions
+    bool m_is_initialized;                      ///< set to true once the Initialize function is called
 
     double m_step;         ///< time step for fluid dynamics
     unsigned int m_frame;  ///< current simulation frame
@@ -120,6 +133,7 @@ class CH_FSI_API ChFsiFluidSystem {
     double m_time;         ///< current simulation time
 
     friend class ChFsiSystem;
+    friend class ChFsiInterface;
 };
 
 /// @} fsi_base

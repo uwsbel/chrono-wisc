@@ -31,7 +31,7 @@
 #include "chrono_vehicle/terrain/CRMTerrain.h"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #ifdef CHRONO_POSTPROCESS
@@ -218,13 +218,13 @@ int main() {
     // Create the run-time visualization
     // ---------------------------------
 
-    auto& sysFSI = std::dynamic_pointer_cast<CRMTerrain>(rig.GetTerrain())->GetSystemFSI();
     std::shared_ptr<ChVisualSystem> vis;
 
 #ifdef CHRONO_VSG
     if (render) {
         // FSI plugin
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto sysFSI = std::dynamic_pointer_cast<CRMTerrain>(rig.GetTerrain())->GetFsiSystemSPH();
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(true);
         visFSI->EnableRigidBodyMarkers(true);

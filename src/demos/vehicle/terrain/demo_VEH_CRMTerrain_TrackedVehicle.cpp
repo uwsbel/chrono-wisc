@@ -40,7 +40,7 @@
 
 #ifdef CHRONO_VSG
     #include "chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemVSG.h"
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #include "demos/SetChronoSolver.h"
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
 
     // Create the CRM terrain system
     CRMTerrain terrain(*sysMBS, initial_spacing);
-    ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
+    auto sysFSI = terrain.GetFsiSystemSPH();
     terrain.SetVerbose(verbose);
     terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
     terrain.SetStepSizeCFD(step_size);
@@ -128,10 +128,10 @@ int main(int argc, char* argv[]) {
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = 1;
-    sph_params.kernel_threshold = 0.8;
+    sph_params.free_surface_threshold = 0.8;
     sph_params.artificial_viscosity = 0.5;
-    sph_params.consistent_gradient_discretization = false;
-    sph_params.consistent_laplacian_discretization = false;
+    sph_params.use_consistent_gradient_discretization = false;
+    sph_params.use_consistent_laplacian_discretization = false;
     sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
     sph_params.boundary_method = BoundaryMethod::HOLMES;
     terrain.SetSPHParameters(sph_params);
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
     if (render) {
         // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(aabb.min.z(), aabb.max.z());
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
@@ -333,22 +333,22 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file) {
 }
 
 void CreateFSITracks(std::shared_ptr<TrackedVehicle> vehicle, CRMTerrain& terrain) {
-    auto& sysFSI = terrain.GetSystemFSI();
-    auto& sysSPH = sysFSI.GetFluidSystemSPH();
+    auto sysFSI = terrain.GetFsiSystemSPH();
+    auto sysSPH = terrain.GetFluidSystemSPH();
 
     // GetCollision shapes for a track shoe (will use only collision boxes)
     auto track_geometry = vehicle->GetTrackShoe(VehicleSide::LEFT, 0)->GetGroundContactGeometry();
 
     // Consider only collision boxes that are large enough
-    utils::ChBodyGeometry geometry;
-    auto min_length = 2 * (sysSPH.GetNumBCELayers() - 1) * sysSPH.GetInitialSpacing();
+    auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+    auto min_length = 2 * (sysSPH->GetNumBCELayers() - 1) * sysSPH->GetInitialSpacing();
     for (const auto& box : track_geometry.coll_boxes) {
         if (box.dims.x() > min_length && box.dims.y() > min_length && box.dims.z() < min_length) {
-            geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box.pos, box.rot, box.dims));
+            geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box.pos, box.rot, box.dims));
         }
     }
 
-    cout << "Consider " << geometry.coll_boxes.size() << " collision boxes out of " << track_geometry.coll_boxes.size()
+    cout << "Consider " << geometry->coll_boxes.size() << " collision boxes out of " << track_geometry.coll_boxes.size()
          << endl;
 
     // Add an FSI body and associated BCE markers for each track shoe
@@ -357,13 +357,15 @@ void CreateFSITracks(std::shared_ptr<TrackedVehicle> vehicle, CRMTerrain& terrai
     auto nshoes_left = vehicle->GetNumTrackShoes(VehicleSide::LEFT);
     for (size_t i = 0; i < nshoes_left; i++) {
         auto shoe_body = vehicle->GetTrackShoe(VehicleSide::LEFT, i)->GetShoeBody();
-        num_track_BCE += terrain.AddRigidBody(shoe_body, geometry, false);
+        terrain.AddRigidBody(shoe_body, geometry, false);
+        num_track_BCE += terrain.GetNumBCE(shoe_body);
     }
 
     auto nshoes_right = vehicle->GetNumTrackShoes(VehicleSide::RIGHT);
     for (size_t i = 0; i < nshoes_right; i++) {
         auto shoe_body = vehicle->GetTrackShoe(VehicleSide::RIGHT, i)->GetShoeBody();
-        num_track_BCE += terrain.AddRigidBody(shoe_body, geometry, false);
+        terrain.AddRigidBody(shoe_body, geometry, false);
+        num_track_BCE += terrain.GetNumBCE(shoe_body);
     }
 
     cout << "Added " << num_track_BCE << " BCE markers on track shoes" << endl;

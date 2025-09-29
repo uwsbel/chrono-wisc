@@ -38,14 +38,28 @@ class CH_FSI_API ChFsiSystemSPH : public ChFsiSystem {
     /// If 'use_generic_interface = true', the FSI system will use a generic FSI interface. Otherwise (default), use a
     /// custom FSI interface which works directly with the data manager of the SPH fluid solver and thus circumvents
     /// additional data movement.
-    ChFsiSystemSPH(ChSystem& sysMBS, ChFsiFluidSystemSPH& sysSPH, bool use_generic_interface = false);
+    ChFsiSystemSPH(ChSystem* sysMBS, ChFsiFluidSystemSPH* sysSPH, bool use_generic_interface = false);
     ~ChFsiSystemSPH();
 
     /// Access the associated SPH fluid system.
     ChFsiFluidSystemSPH& GetFluidSystemSPH() const;
 
+    // Allow using the AddFsiBody method from parent class
+    using ChFsiSystem::AddFsiBody;
+
+    /// Add a rigid body to the FSI system with given set of BCE markers.
+    /// BCE marker points are assumed to be specified in the given frame (itself relative to the given body).
+    std::shared_ptr<FsiBody> AddFsiBody(std::shared_ptr<ChBody> body,
+                                        const std::vector<ChVector3d>& bce,
+                                        const ChFrame<>& rel_frame,
+                                        bool check_embedded);
+
+    /// Add a set of boundary BCE markers.
+    /// BCE marker points are assumed to bve specified in the given frame (itself relative to the global frame).
+    void AddFsiBoundary(const std::vector<ChVector3d>& bce, const ChFrame<>& rel_frame);
+
   private:
-    ChFsiFluidSystemSPH& m_sysSPH;  ///< cached SPH fluid solver
+    ChFsiFluidSystemSPH* m_sysSPH;  ///< cached SPH fluid solver
     bool m_generic_fsi_interface;
 };
 

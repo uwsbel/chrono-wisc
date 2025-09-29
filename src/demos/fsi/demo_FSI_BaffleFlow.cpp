@@ -24,7 +24,7 @@
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -92,9 +92,9 @@ void CreateBaffles(ChFsiProblemSPH& fsi) {
     cmat.mu = 0.2f;
     cmat.cr = 0.05f;
 
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(cmat);
-    geometry.coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(ChVector3d(0, 0, 0.5 * bsize.z()), QUNIT, bsize, 0));
+    auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+    geometry->materials.push_back(cmat);
+    geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(ChVector3d(0, 0, 0.5 * bsize.z()), QUNIT, bsize, 0));
 
     auto baffle1 = chrono_types::make_shared<ChBody>();
     baffle1->SetPos(bloc1);
@@ -102,7 +102,7 @@ void CreateBaffles(ChFsiProblemSPH& fsi) {
     baffle1->SetFixed(true);
     sysMBS.AddBody(baffle1);
     if (show_rigid)
-        geometry.CreateVisualizationAssets(baffle1, VisualizationType::COLLISION);
+        geometry->CreateVisualizationAssets(baffle1, VisualizationType::COLLISION);
     fsi.AddRigidBody(baffle1, geometry, false);
 
     auto baffle2 = chrono_types::make_shared<ChBody>();
@@ -111,7 +111,7 @@ void CreateBaffles(ChFsiProblemSPH& fsi) {
     baffle2->SetFixed(true);
     sysMBS.AddBody(baffle2);
     if (show_rigid)
-        geometry.CreateVisualizationAssets(baffle2, VisualizationType::COLLISION);
+        geometry->CreateVisualizationAssets(baffle2, VisualizationType::COLLISION);
     fsi.AddRigidBody(baffle2, geometry, false);
 
     auto baffle3 = chrono_types::make_shared<ChBody>();
@@ -120,7 +120,7 @@ void CreateBaffles(ChFsiProblemSPH& fsi) {
     baffle3->SetFixed(true);
     sysMBS.AddBody(baffle3);
     if (show_rigid)
-        geometry.CreateVisualizationAssets(baffle3, VisualizationType::COLLISION);
+        geometry->CreateVisualizationAssets(baffle3, VisualizationType::COLLISION);
     fsi.AddRigidBody(baffle3, geometry, false);
 }
 
@@ -208,9 +208,9 @@ int main(int argc, char* argv[]) {
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // Create the FSI problem
-    ChFsiProblemCartesian fsi(sysMBS, initial_spacing);
+    ChFsiProblemCartesian fsi(initial_spacing, &sysMBS);
     fsi.SetVerbose(verbose);
-    ChFsiSystemSPH& sysFSI = fsi.GetSystemFSI();
+    auto sysFSI = fsi.GetFsiSystemSPH();
 
     // Set gravitational acceleration
     const ChVector3d gravity(0, 0, -9.8);
@@ -243,7 +243,7 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_xsph_eps = 0.25;
     sph_params.shifting_ppst_pull = 1.0;
     sph_params.shifting_ppst_push = 3.0;
-    sph_params.kernel_threshold = 0.8;
+    sph_params.free_surface_threshold = 0.8;
     sph_params.num_proximity_search_steps = ps_freq;
 
     // Set boundary type
@@ -341,7 +341,7 @@ int main(int argc, char* argv[]) {
         // FSI plugin
         auto col_callback = chrono_types::make_shared<ParticleVelocityColorCallback>(0, v0.Length());
 
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(show_particles_sph);
         visFSI->EnableBoundaryMarkers(show_boundary_bce);
         visFSI->EnableRigidBodyMarkers(show_rigid_bce);
@@ -380,6 +380,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Render SPH particles
+#ifdef CHRONO_VSG
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
@@ -395,6 +396,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
+#endif
 
         if (sim_frame % 1000 == 0) {
             std::cout << "step: " << sim_frame << "\ttime: " << time << "\tRTF_fluid: " << fsi.GetRtfCFD()

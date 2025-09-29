@@ -25,7 +25,7 @@
 #include "demo_FSI_utils.h"
 
 #ifdef CHRONO_VSG
-#include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #ifdef CHRONO_POSTPROCESS
@@ -78,7 +78,7 @@ int render_fps = 20;
 // -----------------------------------------------------------------------------
 
 #ifdef CHRONO_VSG
-class MarkerPositionVisibilityCallback : public ChFsiVisualizationVSG::MarkerVisibilityCallback {
+class MarkerPositionVisibilityCallback : public ChSphVisualizationVSG::MarkerVisibilityCallback {
 public:
     MarkerPositionVisibilityCallback() {}
     virtual bool get(unsigned int n) const override { return pos[n].x < 0 || pos[n].y < 0; }
@@ -176,9 +176,9 @@ int main(int argc, char* argv[]) {
     sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
     // Create the FSI problem
-    ChFsiProblemCartesian fsi(sysMBS, initial_spacing);
+    ChFsiProblemCartesian fsi(initial_spacing, &sysMBS);
     fsi.SetVerbose(true);
-    ChFsiSystemSPH& sysFSI = fsi.GetSystemFSI();
+    auto sysFSI = fsi.GetFsiSystemSPH();
 
     // Set gravitational acceleration
     fsi.SetGravitationalAcceleration(gravity);
@@ -210,8 +210,8 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_diffusion_AFSM = 3.;
     sph_params.shifting_diffusion_AFST = 2.;
     sph_params.eos_type = EosType::TAIT;
-    sph_params.consistent_gradient_discretization = false;
-    sph_params.consistent_laplacian_discretization = false;
+    sph_params.use_consistent_gradient_discretization = false;
+    sph_params.use_consistent_laplacian_discretization = false;
     sph_params.num_proximity_search_steps = 1;
     sph_params.use_delta_sph = true;
     sph_params.delta_sph_coefficient = 0.1;
@@ -249,8 +249,8 @@ int main(int argc, char* argv[]) {
     double mass = 0;
     ChVector3d initial_position(0, 0, 0);
     ChMatrix33d inertia;
-    utils::ChBodyGeometry geometry;
-    geometry.materials.push_back(ChContactMaterialData());
+    auto geometry = std::make_shared<utils::ChBodyGeometry>();
+    geometry->materials.push_back(ChContactMaterialData());
     switch (object_shape) {
     case ObjectShape::SPHERE_PRIMITIVE: {
         double radius = 0.15;
@@ -259,7 +259,7 @@ int main(int argc, char* argv[]) {
         ChSphere sphere(radius);
         mass = 7.056;  // from paper
         inertia = mass * sphere.GetGyration();
-        geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
+        geometry->coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
         mesh_bottom_offset = offset_ratio * 2. * radius;
         initial_position.z() = fsize.z() + mesh_bottom_offset;   // having extra initial_spacing is fine to ensure object and water are not touching
         break;
@@ -272,7 +272,7 @@ int main(int argc, char* argv[]) {
         ChSphere sphere(radius - initial_spacing/2.0);
         mass = 7.056;  // from paper
         inertia = mass * sphere.GetGyration();
-        geometry.coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
+        geometry->coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(VNULL, sphere, 0));
         mesh_bottom_offset = offset_ratio * 2. * radius;
         initial_position.z() = fsize.z() + initial_spacing/2.0 + mesh_bottom_offset;
         break;
@@ -285,8 +285,8 @@ int main(int argc, char* argv[]) {
         mass = 9.75;
         inertia *= density;
         bottom_offset = mesh_bottom_offset;
-        geometry.coll_meshes.push_back(
-            utils::ChBodyGeometry::TrimeshShape(VNULL, mesh_obj_filename, VNULL, mesh_scale, 0.01, 0));
+        geometry->coll_meshes.push_back(
+            utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, mesh_obj_filename, VNULL, mesh_scale, 0.01, 0));
         initial_position.z() = fsize.z() + initial_height;
         break;
         }
@@ -314,7 +314,7 @@ int main(int argc, char* argv[]) {
     sysMBS.AddLink(joint);
 
     if (show_rigid)
-        geometry.CreateVisualizationAssets(body, VisualizationType::COLLISION);
+        geometry->CreateVisualizationAssets(body, VisualizationType::COLLISION);
 
     // Add as an FSI body (create BCE markers on a grid)
     fsi.AddRigidBody(body, geometry, true, true);
@@ -387,7 +387,7 @@ int main(int argc, char* argv[]) {
         ////auto col_callback = chrono_types::make_shared<ParticleDensityColorCallback>(995, 1005);
         auto col_callback = chrono_types::make_shared<ParticlePressureColorCallback>(-1000, 12000, true);
 
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(show_particles_sph);
         visFSI->EnableBoundaryMarkers(show_boundary_bce);
         visFSI->EnableRigidBodyMarkers(show_rigid_bce);

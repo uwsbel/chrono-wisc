@@ -42,7 +42,7 @@ using namespace chrono::irrlicht;
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
     #ifdef CHRONO_FSI
-        #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+        #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
     #endif
 using namespace chrono::vsg3d;
 #endif
@@ -278,10 +278,10 @@ int main(int argc, char* argv[]) {
             sph_params.initial_spacing = spacing;
             sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
             sph_params.d0_multiplier = 1;
-            sph_params.kernel_threshold = 0.8;
+            sph_params.free_surface_threshold = 0.8;
             sph_params.artificial_viscosity = 0.5;
-            sph_params.consistent_gradient_discretization = false;
-            sph_params.consistent_laplacian_discretization = false;
+            sph_params.use_consistent_gradient_discretization = false;
+            sph_params.use_consistent_laplacian_discretization = false;
             sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
             sph_params.boundary_method = BoundaryMethod::ADAMI;
             terrain_crm->SetSPHParameters(sph_params);
@@ -330,8 +330,8 @@ int main(int argc, char* argv[]) {
 
     #ifdef CHRONO_FSI
             if (terrain_type == TerrainType::CRM) {
-                auto sysFSI = std::static_pointer_cast<CRMTerrain>(terrain)->GetSystemFSI();
-                auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+                auto sysFSI = std::static_pointer_cast<CRMTerrain>(terrain)->GetFsiSystemSPH();
+                auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
                 visFSI->EnableFluidMarkers(true);
                 visFSI->EnableBoundaryMarkers(false);
                 visFSI->EnableRigidBodyMarkers(false);
@@ -385,14 +385,13 @@ int main(int argc, char* argv[]) {
         if (terrain_type != TerrainType::CRM)
             sys.DoStepDynamics(step_size);
 
-        std::cout << time << " ----------------------" << std::endl;
-        for (const auto& node : mesh->GetNodes()) {
-            auto n = std::static_pointer_cast<fea::ChNodeFEAxyz>(node);
-            auto f = n->GetForce();
-            if (f.Length() > 1e-6)
-                std::cout << "..." << f << std::endl;
-        }
-        std::cout << "===" << std::endl;
+        ////std::cout << time << " ----------------------" << std::endl;
+        ////for (const auto& node : mesh->GetNodes()) {
+        ////    auto n = std::static_pointer_cast<fea::ChNodeFEAxyz>(node);
+        ////    auto f = n->GetForce();
+        ////    if (f.Length() > 1e-6)
+        ////        std::cout << "..." << f << std::endl;
+        ////}
 
         time += step_size;
 
