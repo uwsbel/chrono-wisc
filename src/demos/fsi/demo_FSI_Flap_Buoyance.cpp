@@ -228,7 +228,7 @@ class WaveTankBezierBeach : public ChFsiProblemWavetank::Profile {
 
 // -----------------------------------------------------------------------------
 
-std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, double mini_window_angle) {
+std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, double prescribed_angle) {
     ChSystem& sysMBS = fsi.GetMultibodySystem();
 
     // Common contact material and geometry
@@ -302,8 +302,7 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
     // add motor to the body
     auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
     motor->Initialize(ground, flap, ChFrame<>(wec_pos, Q_ROTATE_Z_TO_Y));
-    double flap_angle = -0.2;
-    motor->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(flap_angle));
+    motor->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(-prescribed_angle));
     sysMBS.AddLink(motor);
 
     return motor;
@@ -314,10 +313,10 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
 int main(int argc, char* argv[]) {
     double step_size = 5e-5;  // used to be 5e-5!
     bool verbose = true;
+    double t_end = 10;
 
-
-    double t_end = 5;
-
+    // take input of prescribed angle from 0.1 all the way to 0.6
+    double prescribed_angle = atof(argv[1]);
 
     // Create the Chrono system and associated collision system
     ChSystemNSC sysMBS;
@@ -364,7 +363,7 @@ int main(int argc, char* argv[]) {
     fsi.SetStepsizeMBD(step_size);
 
     // Create WEC device
-    std::shared_ptr<ChLinkMotorRotationAngle> revolute = CreateFlap(fsi, 0);
+    std::shared_ptr<ChLinkMotorRotationAngle> revolute = CreateFlap(fsi, prescribed_angle);
 
     // Enable depth-based initial pressure for SPH particles
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
@@ -387,7 +386,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Buoyance_test/";
+        GetChronoOutputPath() + "Flap_Buoyance_Angle_" + std::to_string(int(prescribed_angle * 10)) + "e-1/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -480,7 +479,7 @@ int main(int argc, char* argv[]) {
 
     std::ofstream ofile;
     ofile.open(out_dir + "/info.csv");
-    ofile << "time,Fx,Fy,Fz,angle,angle_dt,pto_power,x,y,z,q0,q1,q2,q3" << std::endl;
+    ofile << "time,torque,angle" << std::endl;
 
     while (time < t_end) {
         if (save_csv && time >= out_frame / output_fps) {
@@ -496,23 +495,7 @@ int main(int argc, char* argv[]) {
             flap_pos = sysMBS.GetBodies()[1]->GetPos();
             flap_quat = sysMBS.GetBodies()[1]->GetRot();
 
-   //         std::vector<std::shared_ptr<ChBody>> bodies = sysMBS.GetBodies();
-   //         for (auto& body : bodies) {
-   //             //if (body->GetIdentifier() == 4) {
-			//		flap_pos = body->GetPos();
-   //                 std::cout << "body : " << body->GetIdentifier() << " pos: " << body->GetPos() << std::endl;
-			//	//}
-			//}
-
-
-            //std::cout << time << ", " 
-            //      << reaction_force <<  ", " 
-            //      << revolute->GetMotorAngle() << "," << flap_angular_velo << ", " << pto_power  << ", " 
-            //      << flap_pos.x() << ", " << flap_pos.y() << ", " << flap_pos.z() << ", "
-            //      << flap_quat.e0() << ", " << flap_quat.e1() << ", " << flap_quat.e2() << ", " << flap_quat.e3() 
-            //      << std::endl;
-
-            std::cout << "time, " << time << ", motor torque, " << motor_torque << ", flap angle, "
+            ofile << "time, " << time << "," << motor_torque << ","
                       << revolute->GetMotorAngle() << std::endl;
 
             csv_frame++;
