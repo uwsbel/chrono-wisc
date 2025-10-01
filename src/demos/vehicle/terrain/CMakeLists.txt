@@ -50,6 +50,7 @@ if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
         demo_VEH_CRMTerrain_WheeledVehicle
         demo_VEH_CRMTerrain_TrackedVehicle
         demo_VEH_CRMTerrain_MovingPatch
+        demo_VEH_PullTest
     )
 endif()
 
