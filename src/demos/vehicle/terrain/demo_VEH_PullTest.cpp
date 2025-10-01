@@ -25,6 +25,11 @@
 #include "chrono/utils/ChUtils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/assets/ChVisualSystem.h"
+#include "chrono/assets/ChVisualShapeSphere.h"
+#include "chrono/assets/ChVisualShapeBox.h"
+#include "chrono/assets/ChVisualShapeCylinder.h"
+#include "chrono/assets/ChVisualShapeLine.h"
+#include "chrono/physics/ChLinkTSDA.h"
 
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_models/vehicle/artcar/ARTcar.h"
@@ -34,6 +39,7 @@
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
 #include "chrono_vehicle/ChVehicleVisualSystem.h"
+#include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
 
@@ -61,7 +67,7 @@ using std::endl;
 
 // ===================================================================================================================
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 2;
+double terrain_length = 2.5;
 double terrain_width = 1;
 double terrain_height = 0.10;
 
@@ -70,6 +76,24 @@ std::string wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv";
 WheelType wheel_type = WheelType::BCE_MARKERS;
 
 void CreateFSIWheels(std::shared_ptr<ARTcar> vehicle, CRMTerrain& terrain, WheelType wheel_type);
+
+// Custom force functor for TSDA
+class PullForceFunctor : public ChLinkTSDA::ForceFunctor {
+  public:
+    PullForceFunctor(std::shared_ptr<ChFunctionSequence> force_func) : m_force_func(force_func) {}
+
+    virtual double evaluate(double time,
+                            double rest_length,
+                            double length,
+                            double vel,
+                            const ChLinkTSDA& link) override {
+        return m_force_func->GetVal(time);
+    }
+
+  private:
+    std::shared_ptr<ChFunctionSequence> m_force_func;
+};
+
 // ===================================================================================================================
 
 int main(int argc, char* argv[]) {
@@ -89,7 +113,7 @@ int main(int argc, char* argv[]) {
 
     // CRM material properties
     double density = 1700;
-    double cohesion = 1e3;
+    double cohesion = 0;
     double friction = 0.8;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
@@ -118,7 +142,7 @@ int main(int argc, char* argv[]) {
     artCar->SetTireType(TireModelType::RIGID);
     artCar->SetMaxMotorVoltageRatio(0.16);
     artCar->SetStallTorque(3);
-    artCar->SetTireRollingResistance(0.06);
+    artCar->SetTireRollingResistance(0);
     artCar->Initialize();
     auto sysMBS = artCar->GetSystem();
     sysMBS->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
@@ -152,7 +176,7 @@ int main(int argc, char* argv[]) {
     auto sysFSI = terrain.GetFsiSystemSPH();
     terrain.SetVerbose(verbose);
     terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
-    terrain.SetStepSizeCFD(step_size);
+    terrain.SetStepSizeCFD(5e-4);
 
     // Register the vehicle with the CRM terrain
     terrain.RegisterVehicle(&artCar->GetVehicle());
@@ -210,6 +234,78 @@ int main(int argc, char* argv[]) {
     // Set maximum vehicle X location (based on CRM patch size with 0.5m tolerance)
     double x_max = aabb.max.x() - 0.5;
 
+    // --------------------------------
+    // Create the path-following driver
+    // --------------------------------
+
+    cout << "Create path..." << endl;
+    // Create straight line path along the terrain
+    auto path =
+        StraightLinePath(ChVector3d(0, 0, vehicle_init_height), ChVector3d(terrain_length, 0, vehicle_init_height), 1);
+
+    // Create path follower driver for steering control
+    double target_speed = 1.0;  // Target speed (not used for throttle control)
+    ChPathFollowerDriver driver(artCar->GetVehicle(), path, "straight_path", target_speed);
+    driver.GetSteeringController().SetLookAheadDistance(1.0);
+    driver.GetSteeringController().SetGains(1.0, 0, 0);
+    driver.GetSpeedController().SetGains(0.6, 0.05, 0);
+    driver.Initialize();
+
+    // Set up TSDA to apply pulling force
+    auto tsda = chrono_types::make_shared<ChLinkTSDA>();
+    double max_force = 20;  // Force in Newtons
+    double zero_force_duration = 0.6;
+    double fast_step_to_max_force_duration = 0.01;
+    double max_force_duration = tend - zero_force_duration - fast_step_to_max_force_duration;
+
+    ChFunctionSequence seq;
+    // Zero force for first 2 seconds
+    auto f_const = chrono_types::make_shared<ChFunctionConst>(0);
+    auto f_fast = chrono_types::make_shared<ChFunctionRamp>(0, -max_force / fast_step_to_max_force_duration);
+    auto f_const_max = chrono_types::make_shared<ChFunctionConst>(-max_force);
+    seq.InsertFunct(f_const, zero_force_duration);
+    seq.InsertFunct(f_fast, fast_step_to_max_force_duration);
+    seq.InsertFunct(f_const_max, max_force_duration);
+    seq.Setup();
+
+    auto chassis_body = artCar->GetVehicle().GetChassisBody();
+
+    // Create spring box (anchor point)
+    auto spring_box = chrono_types::make_shared<ChBody>();
+    spring_box->SetFixed(true);
+    ChVector3d spring_box_pos(0, 0, terrain_height / 2 + 0.1);
+    spring_box->SetPos(spring_box_pos);
+    sysMBS->AddBody(spring_box);
+
+    // Initialize TSDA between chassis and spring box
+    tsda->Initialize(spring_box, chassis_body, true, ChVector3d(0, 0, 0), ChVector3d(0, 0, 0));
+    tsda->SetSpringCoefficient(0);   // No spring force
+    tsda->SetDampingCoefficient(0);  // No damping force
+
+    // Register the force functor
+    auto force_functor =
+        chrono_types::make_shared<PullForceFunctor>(chrono_types::make_shared<ChFunctionSequence>(seq));
+    tsda->RegisterForceFunctor(force_functor);
+
+    sysMBS->AddLink(tsda);
+
+    // Add visualization
+    // Red sphere on vehicle attachment point
+    {
+        auto vis_sphere = chrono_types::make_shared<ChVisualShapeSphere>(0.05);
+        vis_sphere->SetColor(ChColor(1.0f, 0.0f, 0.0f));
+        chassis_body->AddVisualShape(vis_sphere, ChFrame<>(ChVector3d(0, 0, 0)));
+    }
+    // Spring box visualization
+    {
+        auto vis_box = chrono_types::make_shared<ChVisualShapeBox>(0.1, 0.1, 0.1);
+        vis_box->SetColor(ChColor(0.5f, 0.5f, 0.5f));
+        spring_box->AddVisualShape(vis_box, ChFrame<>(ChVector3d(0, 0, 0)));
+    }
+
+    // Visual spring (cylinder representing the TSDA)
+    tsda->AddVisualShape(chrono_types::make_shared<ChVisualShapeSpring>(0.1, 80, 15));
+
     // -----------------------------
     // Set up output
     // -----------------------------
@@ -249,8 +345,8 @@ int main(int argc, char* argv[]) {
         visVSG->SetLightIntensity(1.0f);
         visVSG->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
         visVSG->SetCameraAngleDeg(40);
-        visVSG->SetChaseCamera(VNULL, 3.0, 2.0);
-        visVSG->SetChaseCameraPosition(ChVector3d(0, 4, 0.5));
+        visVSG->SetChaseCamera(VNULL, 1.0, 0.0);
+        visVSG->SetChaseCameraPosition(ChVector3d(0, -1, 0.5));
 
         visVSG->Initialize();
         vis = visVSG;
@@ -273,27 +369,25 @@ int main(int argc, char* argv[]) {
     while (time < tend) {
         const auto& veh_loc = artCar->GetVehicle().GetPos();
 
-        // Create driver inputs
-        DriverInputs driver_inputs;
+        // Get driver inputs from path follower (for steering control)
+        auto driver_inputs = driver.GetInputs();
 
-        // Ramp up throttle from 0 to 100% over 1 second
-        if (time < 1.0) {
-            driver_inputs.m_throttle = time;  // Linear ramp from 0 to 1 over 1 second
-            driver_inputs.m_braking = 0;
+        // Override throttle control with custom logic
+        if (time < zero_force_duration - 0.1) {
+            driver_inputs.m_throttle = 0;  // No throttle initially
+            driver_inputs.m_braking = 1;   // Full braking
+        } else if (time < zero_force_duration && time > zero_force_duration - 0.1) {
+            driver_inputs.m_throttle = -(time - zero_force_duration) / 0.1;  // Ramp up throttle
+            driver_inputs.m_braking = 0;                                     // Release brakes
         } else {
-            driver_inputs.m_throttle = 1.0;  // Full throttle after 1 second
-            driver_inputs.m_braking = 0;
+            driver_inputs.m_throttle = 1.0;  // Full throttle after ramp
+            driver_inputs.m_braking = 0;     // No braking
         }
 
         // Stop vehicle before reaching end of terrain patch (with 0.5m tolerance)
         if (veh_loc.x() > x_max) {
-            driver_inputs.m_throttle = 0;
-            driver_inputs.m_braking = 1;
-            if (!braking) {
-                cout << "Start braking..." << endl;
-                tend = time + 2;
-                braking = true;
-            }
+            // exit loop
+            break;
         }
 
         // Run-time visualization
@@ -308,11 +402,13 @@ int main(int argc, char* argv[]) {
         }
 
         // Synchronize systems
+        driver.Synchronize(time);
         vis->Synchronize(time, driver_inputs);
         terrain.Synchronize(time);
         artCar->GetVehicle().Synchronize(time, driver_inputs, terrain);
 
         // Advance system state
+        driver.Advance(step_size);
         vis->Advance(step_size);
         terrain.Advance(step_size);
 
