@@ -18,6 +18,8 @@
 
 #include <cstdio>
 #include <string>
+#include <vector>
+#include <array>
 #include <stdexcept>
 #include <iomanip>
 #include <thread>
@@ -75,7 +77,9 @@ enum class WheelType { SIMPLE, MESH, BCE_MARKERS };
 std::string wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv";
 WheelType wheel_type = WheelType::BCE_MARKERS;
 
-void CreateFSIWheels(std::shared_ptr<ARTcar> vehicle, CRMTerrain& terrain, WheelType wheel_type);
+std::vector<std::shared_ptr<FsiBody>> CreateFSIWheels(std::shared_ptr<ARTcar> vehicle,
+                                                      CRMTerrain& terrain,
+                                                      WheelType wheel_type);
 
 // Custom force functor for TSDA
 class PullForceFunctor : public ChLinkTSDA::ForceFunctor {
@@ -101,7 +105,7 @@ int main(int argc, char* argv[]) {
     // Problem settings
     // ----------------
 
-    double tend = 30;
+    double tend = 3;
     bool verbose = true;
 
     // Visualization settings
@@ -123,7 +127,7 @@ int main(int argc, char* argv[]) {
     double settling_time = 0;
 
     // Set SPH spacing
-    double spacing = 0.01;
+    double spacing = 0.005;
 
     // SPH integration sacheme
     IntegrationScheme integration_scheme = IntegrationScheme::RK2;
@@ -176,7 +180,7 @@ int main(int argc, char* argv[]) {
     auto sysFSI = terrain.GetFsiSystemSPH();
     terrain.SetVerbose(verbose);
     terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
-    terrain.SetStepSizeCFD(5e-4);
+    terrain.SetStepSizeCFD(1e-4);
 
     // Register the vehicle with the CRM terrain
     terrain.RegisterVehicle(&artCar->GetVehicle());
@@ -211,7 +215,7 @@ int main(int argc, char* argv[]) {
     terrain.SetOutputLevel(OutputLevel::STATE);
 
     // Add vehicle wheels as FSI solids
-    CreateFSIWheels(artCar, terrain, wheel_type);
+    auto fsi_bodies = CreateFSIWheels(artCar, terrain, wheel_type);
     terrain.SetActiveDomain(ChVector3d(active_box_dim));
     terrain.SetActiveDomainDelay(settling_time);
 
@@ -318,6 +322,17 @@ int main(int argc, char* argv[]) {
     std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
 
+    // Prepare per-tire CSV writers (time, Fx, Fy, Fz, Mz, RPM)
+    unsigned int num_axles = artCar->GetVehicle().GetNumberAxles();
+    std::vector<std::array<std::shared_ptr<utils::ChWriterCSV>, 2>> tire_writers(num_axles);
+    std::vector<std::array<unsigned int, 2>> tire_counts(num_axles);
+    for (unsigned int ia = 0; ia < num_axles; ++ia) {
+        tire_writers[ia][0] = std::make_shared<utils::ChWriterCSV>(",");
+        tire_writers[ia][1] = std::make_shared<utils::ChWriterCSV>(",");
+        tire_counts[ia][0] = 0;
+        tire_counts[ia][1] = 0;
+    }
+
     // -----------------------------
     // Create run-time visualization
     // -----------------------------
@@ -414,6 +429,22 @@ int main(int argc, char* argv[]) {
 
         csv << time << artCar->GetVehicle().GetPos() << artCar->GetVehicle().GetSpeed() << endl;
 
+        // Log per-tire forces (global), z torque, and RPM
+        for (unsigned int ia = 0; ia < num_axles; ++ia) {
+            for (int is = 0; is < 2; ++is) {
+                auto side = (is == 0) ? LEFT : RIGHT;
+                auto tire = artCar->GetVehicle().GetTire(ia, side);
+                if (tire) {
+                    ChVector3d force = fsi_bodies[ia * num_axles + is]->fsi_force;
+                    ChVector3d torque = fsi_bodies[ia * num_axles + is]->fsi_torque;
+                    double omega = artCar->GetVehicle().GetSpindleOmega(ia, side);  // rad/s
+                    double rpm = omega * 60.0 / (2.0 * CH_PI);
+                    (*tire_writers[ia][is]) << time << force.x() << force.y() << force.z() << torque.z() << rpm << endl;
+                    tire_counts[ia][is]++;
+                }
+            }
+        }
+
         time += step_size;
         sim_frame++;
     }
@@ -421,19 +452,56 @@ int main(int argc, char* argv[]) {
     csv.WriteToFile(out_file);
 
 #ifdef CHRONO_POSTPROCESS
-    postprocess::ChGnuPlot gplot(out_dir + "/height.gpl");
-    gplot.SetGrid();
-    std::string title = "Vehicle ref frame height";
-    gplot.SetTitle(title);
-    gplot.SetLabelX("time (s)");
-    gplot.SetLabelY("height (m)");
-    gplot.Plot(out_file, 1, 4, "", " with lines lt -1 lw 2 lc rgb'#3333BB' ");
+    // Write per-tire CSVs and generate plots for forces, Mz, and RPM
+    for (unsigned int ia = 0; ia < num_axles; ++ia) {
+        for (int is = 0; is < 2; ++is) {
+            std::string side_str = (is == 0) ? "L" : "R";
+            std::string tire_file = out_dir + "/tire_ax" + std::to_string(ia) + "_" + side_str + ".csv";
+            tire_writers[ia][is]->WriteToFile(tire_file);
+
+            if (tire_counts[ia][is] == 0) {
+                continue;
+            }
+
+            // Combined forces figure (Fx, Fy, Fz)
+            postprocess::ChGnuPlot gplot_forces(out_dir + "/tire_ax" + std::to_string(ia) + "_" + side_str + "_F.gpl");
+            gplot_forces.SetGrid();
+            gplot_forces.SetTitle(std::string("Tire ax") + std::to_string(ia) + " " + side_str + " Forces");
+            gplot_forces.SetLabelX("time (s)");
+            gplot_forces.SetLabelY("Force (N)");
+            gplot_forces.SetCommand("set datafile separator ','");
+            gplot_forces.Plot(tire_file, 1, 2, "Fx", " with lines lw 2");
+            gplot_forces.Plot(tire_file, 1, 3, "Fy", " with lines lw 2");
+            gplot_forces.Plot(tire_file, 1, 4, "Fz", " with lines lw 2");
+
+            // Mz figure
+            postprocess::ChGnuPlot gplot_mz(out_dir + "/tire_ax" + std::to_string(ia) + "_" + side_str + "_Mz.gpl");
+            gplot_mz.SetGrid();
+            gplot_mz.SetTitle(std::string("Tire ax") + std::to_string(ia) + " " + side_str + " Mz");
+            gplot_mz.SetLabelX("time (s)");
+            gplot_mz.SetLabelY("Torque Z (N-m)");
+            gplot_mz.SetCommand("set datafile separator ','");
+            gplot_mz.Plot(tire_file, 1, 5, "Mz", " with lines lw 2");
+
+            // RPM figure
+            postprocess::ChGnuPlot gplot_rpm(out_dir + "/tire_ax" + std::to_string(ia) + "_" + side_str + "_RPM.gpl");
+            gplot_rpm.SetGrid();
+            gplot_rpm.SetTitle(std::string("Tire ax") + std::to_string(ia) + " " + side_str + " RPM");
+            gplot_rpm.SetLabelX("time (s)");
+            gplot_rpm.SetLabelY("RPM");
+            gplot_rpm.SetCommand("set datafile separator ','");
+            gplot_rpm.Plot(tire_file, 1, 6, "RPM", " with lines lw 2");
+        }
+    }
 #endif
 
     return 0;
 }
 
-void CreateFSIWheels(std::shared_ptr<ARTcar> artCar, CRMTerrain& terrain, WheelType wheel_type) {
+std::vector<std::shared_ptr<FsiBody>> CreateFSIWheels(std::shared_ptr<ARTcar> artCar,
+                                                      CRMTerrain& terrain,
+                                                      WheelType wheel_type) {
+    std::vector<std::shared_ptr<FsiBody>> fsi_bodies;
     for (auto& axle : artCar->GetVehicle().GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
             auto sysFSI = terrain.GetFsiSystemSPH();
@@ -476,9 +544,12 @@ void CreateFSIWheels(std::shared_ptr<ARTcar> artCar, CRMTerrain& terrain, WheelT
                     BCE_wheel.push_back(ChVector3d(values[0], values[1], values[2]));
                 }
                 auto sysFSI = terrain.GetFsiSystemSPH();
-                sysFSI->AddFsiBody(wheel->GetSpindle(), BCE_wheel, ChFrame<>(VNULL, Q_ROTATE_Z_TO_Y), false);
+                auto fsi_body =
+                    sysFSI->AddFsiBody(wheel->GetSpindle(), BCE_wheel, ChFrame<>(VNULL, Q_ROTATE_Z_TO_Y), false);
+                fsi_bodies.push_back(fsi_body);
                 std::cout << "Added wheel BCE markers to FSI system" << std::endl;
             }
         }
     }
+    return fsi_bodies;
 }
