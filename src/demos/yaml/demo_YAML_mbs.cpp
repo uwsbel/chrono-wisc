@@ -62,14 +62,14 @@ int main(int argc, char* argv[]) {
     ChCLI cli(argv[0], "");
     cli.AddOption<std::string>("", "m,model_file", "model specification YAML file", model_yaml_filename);
     cli.AddOption<std::string>("", "s,sim_file", "simulation specification YAML file", sim_yaml_filename);
-
     if (!cli.Parse(argc, argv, true))
         return 1;
-
     if (argc == 1) {
         cli.Help();
         std::cout << "Using default YAML model and simulation specification" << std::endl;
     }
+    model_yaml_filename = cli.GetAsType<std::string>("model_file");
+    sim_yaml_filename = cli.GetAsType<std::string>("sim_file");
 
     std::cout << std::endl;
     std::cout << "Model YAML file:        " << model_yaml_filename << std::endl;
@@ -150,7 +150,6 @@ int main(int argc, char* argv[]) {
                 vis_vsg->AddCamera(camera_location, camera_target);
                 vis_vsg->SetWindowSize(1280, 800);
                 vis_vsg->SetWindowPosition(100, 100);
-                vis_vsg->SetBackgroundColor(ChColor(0.4f, 0.45f, 0.55f));
                 vis_vsg->SetCameraVertical(camera_vertical);
                 vis_vsg->SetCameraAngleDeg(40.0);
                 vis_vsg->SetLightIntensity(1.0f);

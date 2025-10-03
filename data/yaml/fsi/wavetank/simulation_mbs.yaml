@@ -21,13 +21,13 @@ simulation:
       sharpness_factor: 1.0
   
   output:
-      type: HDF5
+      type: NONE
       fps: 20
       output_directory: "."
 
   visualization:
       type: Model_file
-      render_fps: 120
+      render_fps: 240
       enable_shadows: false
       camera:
           vertical: Z

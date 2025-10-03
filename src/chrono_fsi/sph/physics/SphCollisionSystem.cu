@@ -404,7 +404,6 @@ void SphCollisionSystem::NeighborSearch(std::shared_ptr<SphMarkerDataD> sortedSp
             mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
             U1CAST(m_data_mgr.markersProximity_D->cellStartD), U1CAST(m_data_mgr.markersProximity_D->cellEndD),
             numActive, U1CAST(m_data_mgr.numNeighborsPerPart), U1CAST(m_data_mgr.neighborList));
-        cudaCheckError();
     }
 }
 

@@ -50,14 +50,14 @@ int main(int argc, char* argv[]) {
     ChCLI cli(argv[0], "");
     cli.AddOption<std::string>("", "m,model_file", "vehicle model specification YAML file", model_yaml_filename);
     cli.AddOption<std::string>("", "s,sim_file", "simulation specification YAML file", sim_yaml_filename);
-
     if (!cli.Parse(argc, argv, true))
         return 1;
-
     if (argc == 1) {
         cli.Help();
         std::cout << "Using default YAML model and simulation specification" << std::endl;
     }
+    model_yaml_filename = cli.GetAsType<std::string>("model_file");
+    sim_yaml_filename = cli.GetAsType<std::string>("sim_file");
 
     std::cout << std::endl;
     std::cout << "Vehicle model YAML file: " << model_yaml_filename << std::endl;
@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-        // Create output directory
+    // Create output directory
     if (output) {
         std::string out_dir = GetChronoOutputPath() + "YAML_VEHICLE";
         if (!filesystem::create_directory(filesystem::path(out_dir))) {
