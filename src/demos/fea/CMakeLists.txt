@@ -33,14 +33,19 @@ if(CH_ENABLE_MODULE_IRRLICHT OR CH_ENABLE_MODULE_VSG)
         demo_FEA_contacts_SMC
         demo_FEA_cables
         demo_FEA_shellsANCF_3423
+        demo_FEA_shellsANCF_3423T
         demo_FEA_shellsANCF_3833
         demo_FEA_hexaANCF_3813
         demo_FEA_loads_dynamics
+        demo_FEA_shellsANCF_3423_SimpleAirlessTire
+		demo_FEA_shellsANCF_3423_SimpleAirlessTireV2
+		demo_FEA_shellsANCF_3443B_SimpleAirlessTire
+        demo_FEA_AirlessTire_SingleWheelTest
     )
     
     if(CH_ENABLE_MODULE_MUMPS)
     set(FEA_DEMOS ${FEA_DEMOS}
-        demo_FEA_cablesMUMPS
+        # demo_FEA_cablesMUMPS
     )
     endif()
 

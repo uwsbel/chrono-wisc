@@ -196,6 +196,8 @@ void ChVehicleCosimWheeledMBSNode::Initialize() {
 void ChVehicleCosimWheeledMBSNode::Synchronize(int step_number, double time) {
     MPI_Status status;
 
+    std::cout << "m_num_tire_nodes: " << m_num_tire_nodes << std::endl;
+
     for (unsigned int i = 0; i < m_num_tire_nodes; i++) {
         // Send wheel state to the tire node
         BodyState state = GetSpindleState(i);
@@ -214,6 +216,8 @@ void ChVehicleCosimWheeledMBSNode::Synchronize(int step_number, double time) {
         // Receive spindle force as applied to the center of the spindle/wheel.
         // Note that we assume this is the resultant wrench at the wheel origin (expressed in absolute frame).
         double force_data[6];
+        std::cout << "looking for i: " << TIRE_NODE_RANK(i) << std::endl;
+
         MPI_Recv(force_data, 6, MPI_DOUBLE, TIRE_NODE_RANK(i), step_number, MPI_COMM_WORLD, &status);
 
         TerrainForce spindle_force;

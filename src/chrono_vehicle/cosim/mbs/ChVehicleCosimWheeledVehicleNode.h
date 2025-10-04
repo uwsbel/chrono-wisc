@@ -22,10 +22,13 @@
 #ifndef CH_VEHCOSIM_WHEELED_VEHICLE_NODE_H
 #define CH_VEHCOSIM_WHEELED_VEHICLE_NODE_H
 
+#include <optional>
+
 #include "chrono_vehicle/ChPowertrainAssembly.h"
 #include "chrono_vehicle/ChTerrain.h"
 #include "chrono_vehicle/ChDriver.h"
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicle.h"
+#include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledTrailer.h"
 #include "chrono_vehicle/wheeled_vehicle/ChTire.h"
 #include "chrono_vehicle/ChVehicleVisualSystem.h"
 
@@ -42,17 +45,19 @@ namespace vehicle {
 class CH_VEHICLE_API ChVehicleCosimWheeledVehicleNode : public ChVehicleCosimWheeledMBSNode {
   public:
     /// Construct a wheeled vehicle node using the provided vehicle and powertrain JSON specification files.
-    ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json,      ///< vehicle JSON specification file
-                                     const std::string& engine_json,       ///< engine JSON specification file
-                                     const std::string& transmission_json  ///< transmission JSON specification file
+    ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json,       ///< vehicle JSON specification file
+                                     const std::string& engine_json,        ///< engine JSON specification file
+                                     const std::string& transmission_json,  ///< transmission JSON specification file
+                                     const std::optional<std::string> trailer_json  ///< trailer JSON specification file
     );
 
     /// Construct a wheeled vehicle node using the provided vehicle and powertrain objects.
     /// Notes:
     /// - the provided vehicle system must be constructed with a null Chrono system.
     /// - the vehicle and powertrain system should not be initialized.
-    ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle,        ///< vehicle system
-                                     std::shared_ptr<ChPowertrainAssembly> powertrain  ///< powertrain system
+    ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle,         ///< vehicle system
+                                     std::shared_ptr<ChPowertrainAssembly> powertrain,  ///< powertrain system
+                                     std::shared_ptr<WheeledTrailer> trailer            ///< trailer system
     );
 
     ~ChVehicleCosimWheeledVehicleNode();
@@ -142,6 +147,7 @@ class CH_VEHICLE_API ChVehicleCosimWheeledVehicleNode : public ChVehicleCosimWhe
     };
 
     std::shared_ptr<ChWheeledVehicle> m_vehicle;         ///< vehicle MBS
+    std::shared_ptr<WheeledTrailer> m_trailer;           ///< trailer MBS
     std::shared_ptr<ChPowertrainAssembly> m_powertrain;  ///< vehicle powertrain
     std::shared_ptr<ChDriver> m_driver;                  ///< vehicle driver
     std::shared_ptr<ChTerrain> m_terrain;                ///< dummy terrain (for vehicle synchronization)
@@ -152,6 +158,7 @@ class CH_VEHICLE_API ChVehicleCosimWheeledVehicleNode : public ChVehicleCosimWhe
     double m_init_yaw;      ///< initial vehicle yaw
 
     int m_num_spindles;                   ///< number of spindles/wheels of the wheeled vehicle
+    int m_num_trailer_spindles;           ///< number of spindles/wheels of the trailer
     std::vector<double> m_spindle_loads;  ///< vertical loads on each spindle
 };
 

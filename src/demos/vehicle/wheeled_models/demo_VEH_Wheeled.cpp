@@ -63,7 +63,7 @@ double terrainWidth = 200.0;   // size in Y direction
 ChContactMethod contact_method = ChContactMethod::SMC;
 
 // Render frequency
-double render_fps = 50;
+double render_fps = 100;
 
 // End time (used only if no run-time visualization)
 double t_end = 20;

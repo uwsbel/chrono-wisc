@@ -24,7 +24,9 @@
 
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChElementShellANCF_3423.h"
+#include "chrono/fea/ChElementShellANCF_3423T.h"
 #include "chrono/fea/ChElementShellANCF_3443.h"
+#include "chrono/fea/ChElementShellANCF_3443B.h"
 #include "chrono/fea/ChElementShellANCF_3833.h"
 #include "chrono/fea/ChElementShellReissner4.h"
 #include "chrono/fea/ChElementShellBST.h"
@@ -677,9 +679,13 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(const ChMesh& mesh,
                                                 double sphere_swept,
                                                 bool ccw,
                                                 bool include_cable_elements,
-                                                bool include_beam_elements) {
+                                                bool include_beam_elements,
+                                                int num_outer_ring_elems) {
     std::vector<std::array<std::shared_ptr<ChNodeFEAxyz>, 3>> triangles_ptrs;
     std::vector<std::array<std::shared_ptr<ChNodeFEAxyzrot>, 3>> triangles_rot_ptrs;
+
+    // Counter for outer ring elements (used for ANCFAirlessTire3443B)
+    int outer_ring_elem_count = 0;
 
     // Boundary faces of TETRAHEDRONS
     std::multimap<std::array<ChNodeFEAxyz*, 3>, ChTetrahedronFace> face_map;
@@ -757,8 +763,53 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(const ChMesh& mesh,
         }
     }
 
+    // For the special T shaped element only take the nodes at the top face
+    for (unsigned int ie = 0; ie < mesh.GetNumElements(); ++ie) {
+        if (auto mshell = std::dynamic_pointer_cast<ChElementShellANCF_3423T>(mesh.GetElement(ie))) {
+            std::shared_ptr<ChNodeFEAxyz> nA = mshell->GetNode1();
+            std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNode2();
+            std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNode3();
+            std::shared_ptr<ChNodeFEAxyz> nD = mshell->GetNode4();
+            if (ccw) {
+                triangles_ptrs.push_back({{nA, nD, nB}});
+                triangles_ptrs.push_back({{nB, nD, nC}});
+            } else {
+                triangles_ptrs.push_back({{nA, nB, nD}});
+                triangles_ptrs.push_back({{nB, nC, nD}});
+            }
+        }
+    }
+
     for (unsigned int ie = 0; ie < mesh.GetNumElements(); ++ie) {
         if (auto mshell = std::dynamic_pointer_cast<ChElementShellANCF_3443>(mesh.GetElement(ie))) {
+            std::shared_ptr<ChNodeFEAxyz> nA = mshell->GetNodeA();
+            std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNodeB();
+            std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNodeC();
+            std::shared_ptr<ChNodeFEAxyz> nD = mshell->GetNodeD();
+            if (ccw) {
+                triangles_ptrs.push_back({{nA, nD, nB}});
+                triangles_ptrs.push_back({{nB, nD, nC}});
+            } else {
+                triangles_ptrs.push_back({{nA, nB, nD}});
+                triangles_ptrs.push_back({{nB, nC, nD}});
+            }
+        }
+    }
+
+    for (unsigned int ie = 0; ie < mesh.GetNumElements(); ++ie) {
+        // For now only add outer ring in contact surface
+        if (auto mshell = std::dynamic_pointer_cast<ChElementShellANCF_3443B>(mesh.GetElement(ie))) {
+            // If num_outer_ring_elems is specified and greater than 0, only add the first num_outer_ring_elems elements
+            // This is specifically for ANCFAirlessTire3443B where we want to control which elements are used for
+            // contact
+            if (num_outer_ring_elems > 0) {
+                // Skip if we've already processed the specified number of outer ring elements
+                if (outer_ring_elem_count >= num_outer_ring_elems) {
+                    continue;  // Skip this element
+                }
+                outer_ring_elem_count++;
+            }
+
             std::shared_ptr<ChNodeFEAxyz> nA = mshell->GetNodeA();
             std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNodeB();
             std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNodeC();

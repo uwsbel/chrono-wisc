@@ -70,17 +70,22 @@ class WheeledVehicleDBPDriver : public ChDriver {
 
 ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json,
                                                                    const std::string& engine_json,
-                                                                   const std::string& transmission_json)
+                                                                   const std::string& transmission_json,
+                                                                   const std::optional<std::string> trailer_json)
     : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     m_vehicle = chrono_types::make_shared<WheeledVehicle>(m_system, vehicle_json);
     auto engine = ReadEngineJSON(engine_json);
     auto transmission = ReadTransmissionJSON(transmission_json);
     m_powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
     m_terrain = chrono_types::make_shared<ChTerrain>();
+    if (trailer_json && trailer_json.has_value()) {
+        m_trailer = chrono_types::make_shared<WheeledTrailer>(m_system, trailer_json.value());
+    }
 }
 
 ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle,
-                                                                   std::shared_ptr<ChPowertrainAssembly> powertrain)
+                                                                   std::shared_ptr<ChPowertrainAssembly> powertrain,
+                                                                   std::shared_ptr<WheeledTrailer> trailer)
     : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     // Ensure the vehicle system has a null ChSystem
     if (vehicle->GetSystem())
@@ -89,7 +94,7 @@ ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(std::shared_p
     m_vehicle = vehicle;
     m_powertrain = powertrain;
     m_terrain = chrono_types::make_shared<ChTerrain>();
-
+    m_trailer = trailer;
     // Associate the vehicle system with this node's ChSystem
     m_vehicle->SetSystem(m_system);
 }
@@ -111,15 +116,56 @@ void ChVehicleCosimWheeledVehicleNode::InitializeMBS(const ChVector2d& terrain_s
     // Initialize powertrain
     m_vehicle->InitializePowertrain(m_powertrain);
 
+    if (m_trailer) {
+        // Initialize trailer
+        m_trailer->Initialize(m_vehicle->GetChassis());
+        m_trailer->SetChassisVisualizationType(VisualizationType::MESH);
+        m_trailer->SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
+        m_trailer->SetWheelVisualizationType(VisualizationType::MESH);
+    }
+
+    // // Extract and cache spindle bodies
+    // auto num_axles = m_vehicle->GetNumberAxles();
+    // auto num_trailer_axles = m_trailer ? m_trailer->GetNumberAxles() : 0;
+
+    // m_num_spindles = 2 * num_axles;
+    // m_num_trailer_spindles = 2 * num_trailer_axles;
+
+    // assert(m_num_spindles + m_num_trailer_spindles == (int)m_num_tire_nodes);
+
+    // auto total_mass = m_vehicle->GetMass();
+
+    // for (int is = 0; is < m_num_spindles; is++) {
+    //     m_spindle_loads.push_back(total_mass / m_num_spindles);
+    // }
+
+    // if (m_trailer) {
+    //     // TODO-JZ: Add wheel mass and suspension mass
+    //     auto trailer_mass = m_trailer->GetChassis()->GetMass();
+
+    //     for (int is = 0; is < m_num_trailer_spindles; is++) {
+    //         m_spindle_loads.push_back(trailer_mass / m_num_trailer_spindles);
+    //     }
+    // }
+
     // Extract and cache spindle bodies
-    auto num_axles = m_vehicle->GetNumberAxles();
+    auto num_axles = m_vehicle->GetNumberAxles() + (m_trailer ? m_trailer->GetNumberAxles() : 0);
+    auto num_trailer_axles = m_trailer ? m_trailer->GetNumberAxles() : 0;
 
     m_num_spindles = 2 * num_axles;
+    m_num_trailer_spindles = 2 * num_trailer_axles;
+
     assert(m_num_spindles == (int)m_num_tire_nodes);
 
     auto total_mass = m_vehicle->GetMass();
+
     for (int is = 0; is < m_num_spindles; is++) {
-        m_spindle_loads.push_back(total_mass / m_num_spindles);
+        if (is < m_num_spindles - m_num_trailer_spindles) {
+            m_spindle_loads.push_back(total_mass / (m_num_spindles - m_num_trailer_spindles));
+        } else {
+            std::cout << "trailer mass: " << m_trailer->GetChassisMass() << std::endl;
+            m_spindle_loads.push_back(m_trailer->GetChassisMass() / m_num_trailer_spindles);
+        }
     }
 
     // Initialize run-time visualization
@@ -174,6 +220,18 @@ void ChVehicleCosimWheeledVehicleNode::ApplyTireInfo(const std::vector<ChVector3
             itire++;
         }
     }
+
+    if (m_trailer) {
+        for (auto& axle : m_trailer->GetAxles()) {
+            for (auto& wheel : axle->GetWheels()) {
+                auto tire = chrono_types::make_shared<DummyTire>(itire, tire_info[itire].x(), tire_info[itire].y(),
+                                                                 tire_info[itire].z());
+                m_trailer->InitializeTire(tire, wheel, VisualizationType::NONE);
+                m_tires.push_back(tire);
+                itire++;
+            }
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -183,7 +241,13 @@ unsigned int ChVehicleCosimWheeledVehicleNode::GetNumSpindles() const {
 
 std::shared_ptr<ChBody> ChVehicleCosimWheeledVehicleNode::GetSpindleBody(unsigned int i) const {
     VehicleSide side = (i % 2 == 0) ? VehicleSide::LEFT : VehicleSide::RIGHT;
-    return m_vehicle->GetWheel(i / 2, side)->GetSpindle();
+
+    if (i < m_num_spindles - m_num_trailer_spindles) {
+        return m_vehicle->GetWheel(i / 2, side)->GetSpindle();
+    } else {
+        // TODO-JZ: Makes this more general
+        return m_trailer->GetAxles()[0]->GetWheel(side)->GetSpindle();
+    }
 }
 
 double ChVehicleCosimWheeledVehicleNode::GetSpindleLoad(unsigned int i) const {
@@ -192,7 +256,15 @@ double ChVehicleCosimWheeledVehicleNode::GetSpindleLoad(unsigned int i) const {
 
 BodyState ChVehicleCosimWheeledVehicleNode::GetSpindleState(unsigned int i) const {
     VehicleSide side = (i % 2 == 0) ? VehicleSide::LEFT : VehicleSide::RIGHT;
-    auto spindle_body = m_vehicle->GetWheel(i / 2, side)->GetSpindle();
+
+    std::shared_ptr<ChBody> spindle_body;
+
+    if (i < m_num_spindles - m_num_trailer_spindles) {
+        spindle_body = m_vehicle->GetWheel(i / 2, side)->GetSpindle();
+    } else {
+        spindle_body = m_trailer->GetAxles()[0]->GetWheel(side)->GetSpindle();
+    }
+
     BodyState state;
 
     state.pos = spindle_body->GetPos();
@@ -232,6 +304,10 @@ void ChVehicleCosimWheeledVehicleNode::PreAdvance(double step_size) {
     m_vehicle->Synchronize(time, driver_inputs, *m_terrain);
     if (m_vsys)
         m_vsys->Synchronize(time, driver_inputs);
+
+    if (m_trailer) {
+        m_trailer->Synchronize(time, driver_inputs, *m_terrain);
+    }
 }
 
 void ChVehicleCosimWheeledVehicleNode::PostAdvance(double step_size) {
@@ -240,6 +316,10 @@ void ChVehicleCosimWheeledVehicleNode::PostAdvance(double step_size) {
         m_driver->Advance(step_size);
     if (m_vsys)
         m_vsys->Advance(step_size);
+
+    if (m_trailer) {
+        m_trailer->Advance(step_size);
+    }
 }
 
 void ChVehicleCosimWheeledVehicleNode::ApplySpindleForce(unsigned int i, const TerrainForce& spindle_force) {
@@ -260,6 +340,7 @@ void ChVehicleCosimWheeledVehicleNode::OnRender() {
     m_vsys->EndScene();
 }
 
+// TODO-JZ: Add trailer output data
 void ChVehicleCosimWheeledVehicleNode::OnOutputData(int frame) {
     // Append to results output file
     if (m_outf.is_open()) {
@@ -304,6 +385,7 @@ void ChVehicleCosimWheeledVehicleNode::OnOutputData(int frame) {
         cout << "[Vehicle node] write output file ==> " << filename << endl;
 }
 
+// TODO-JZ: Add trailer output data
 void ChVehicleCosimWheeledVehicleNode::WriteBodyInformation(utils::ChWriterCSV& csv) {
     // Write number of bodies
     csv << 1 + m_num_spindles << endl;

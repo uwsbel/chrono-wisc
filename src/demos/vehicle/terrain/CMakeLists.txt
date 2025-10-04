@@ -42,6 +42,7 @@ endif()
 if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_VEH_CRMTerrain_WheeledVehicle
+        demo_VEH_CRMTerrain_WheeledVehicle_obs
         demo_VEH_CRMTerrain_TrackedVehicle
     )
 endif()

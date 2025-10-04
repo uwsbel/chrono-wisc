@@ -22,9 +22,12 @@
 #ifndef CH_VEHCOSIM_TERRAIN_NODE_SCM_H
 #define CH_VEHCOSIM_TERRAIN_NODE_SCM_H
 
+#include <optional>
+
 #include "chrono/physics/ChSystem.h"
 #include "chrono/assets/ChVisualSystem.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
+#include "chrono_vehicle/ChVehicleModelData.h"
 
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeChrono.h"
 
@@ -105,6 +108,8 @@ class CH_VEHICLE_API ChVehicleCosimTerrainNodeSCM : public ChVehicleCosimTerrain
     double m_damping_R;      ///< vetical damping R per unit area [Pa.s/m]
 
     double m_radius_p;  ///< radius for a proxy body
+
+    std::optional<std::string> m_scm_profile_file;
 
     bool m_use_checkpoint;              ///< if true, initialize height from checkpoint file
     std::string m_checkpoint_filename;  ///< name of input checkpoint file

@@ -149,6 +149,7 @@ class CH_VEHICLE_API ChWheel : public ChPart {
     friend class ChTire;
     friend class ChWheeledVehicle;
     friend class ChTireTestRig;
+    friend class ChTireTestRig_TorqueControl;
 };
 
 /// Vector of handles to wheel subsystems.

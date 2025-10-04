@@ -462,6 +462,9 @@ void ChSystem::SetTimestepperType(ChTimestepper::Type type) {
         case ChTimestepper::Type::NEWMARK:
             timestepper = chrono_types::make_shared<ChTimestepperNewmark>(this);
             break;
+        case ChTimestepper::Type::EULER_SEMI_IMPLICIT:
+            timestepper = chrono_types::make_shared<ChTimestepperEulerSemiImplicit>(this);
+            break;
         default:
             throw std::invalid_argument("SetTimestepperType: timestepper not supported");
     }

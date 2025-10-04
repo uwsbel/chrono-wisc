@@ -7,7 +7,7 @@ add_subdirectory(two_cars)
 
 add_subdirectory(tracked_models)
 
-add_subdirectory(test_rigs)
+# add_subdirectory(test_rigs)
 
 add_subdirectory(terrain)
 add_subdirectory(controllers)

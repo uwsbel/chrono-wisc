@@ -25,6 +25,8 @@ ChWheeledTrailer::ChWheeledTrailer(const std::string& name, ChSystem* system) : 
 
 void ChWheeledTrailer::Initialize(std::shared_ptr<ChChassis> frontChassis) {
     m_chassis->Initialize(frontChassis, VehicleCollisionFamily::CHASSIS_FAMILY);
+    // m_chassis->Initialize(frontChassis, WheeledCollisionFamily::CHASSIS);
+    std::cout << "test rear chassis mass: " << m_chassis->GetBodyMass() << std::endl;
     m_connector->Initialize(frontChassis, m_chassis);
 }
 

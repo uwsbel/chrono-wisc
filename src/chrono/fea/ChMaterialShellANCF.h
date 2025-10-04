@@ -57,9 +57,13 @@ class ChApi ChMaterialShellANCF {
 
     friend class ChElementShellANCF_3833;
     friend class ChElementShellANCF_3443;
+    friend class ChElementShellANCF_3443B;
     friend class ChElementShellANCF_3423;
     friend class ShellANCF_Force;
     friend class ShellANCF_Jacobian;
+    friend class ChElementShellANCF_3423T;
+    friend class ShellANCF_3423T_Force;
+    friend class ShellANCF_3423T_Jacobian;
 
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

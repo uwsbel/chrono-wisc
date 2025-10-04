@@ -39,6 +39,10 @@ class CH_VEHICLE_API ChANCFTire : public ChDeformableTire {
     /// Get the name of the vehicle subsystem template.
     virtual std::string GetTemplateName() const override { return "ANCFTire"; }
 
+    /// Create the contact surface for the tire mesh with specified number of outer ring elements.
+    /// This is used by derived classes like ANCFAirlessTire3443B that have specific outer ring elements.
+    void CreateContactSurfaceWithOuterRingElements(int numOuterRingElems);
+
   protected:
     /// Tire profile.
     struct Profile {

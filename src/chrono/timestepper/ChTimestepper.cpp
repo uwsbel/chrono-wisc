@@ -92,6 +92,8 @@ std::string ChTimestepper::GetTypeAsString(Type type) {
             return "NEWMARK";
         case Type::CUSTOM:
             return "CUSTOM";
+        case Type::EULER_SEMI_IMPLICIT:
+            return "EULER_SEMI_IMPLICIT";
     }
 
     return "UNKNOWN";

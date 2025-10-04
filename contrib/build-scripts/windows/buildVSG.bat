@@ -21,10 +21,10 @@
 
 set DOWNLOAD=ON
 
-set VSG_INSTALL_DIR="C:/Packages/vsg"
+set VSG_INSTALL_DIR="C:/Packages/vsg_old"
 
 set BUILDSHARED=ON
-set BUILDDEBUG=OFF
+set BUILDDEBUG=ON
 
 @if %DOWNLOAD% EQU OFF (
     set VSG_SOURCE_DIR="C:/Sources/VulkanSceneGraph"

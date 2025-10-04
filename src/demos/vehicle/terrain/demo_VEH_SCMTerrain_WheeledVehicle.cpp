@@ -75,7 +75,7 @@ double delta = 0.05;
 
 // Type of tire (controls both contact and visualization)
 enum class TireType { CYLINDRICAL, LUGGED, FEA };
-TireType tire_type = TireType::LUGGED;
+TireType tire_type = TireType::FEA;
 
 // Rendering frequency (FPS)
 double render_fps = 100;
@@ -86,7 +86,7 @@ bool apply_texture = false;    // add texture
 bool render_sinkage = true;    // use false coloring for sinkage visualization
 
 // Visualization output
-bool img_output = false;
+bool img_output = true;
 
 // =============================================================================
 
@@ -193,9 +193,9 @@ int main(int argc, char* argv[]) {
     hmmwv.SetContactMethod(ChContactMethod::SMC);
     hmmwv.SetChassisFixed(false);
     hmmwv.SetInitPosition(ChCoordsys<>(init_loc, QUNIT));
-    hmmwv.SetEngineType(EngineModelType::SHAFTS);
-    hmmwv.SetTransmissionType(TransmissionModelType::AUTOMATIC_SHAFTS);
-    hmmwv.SetDriveType(DrivelineTypeWV::AWD);
+    hmmwv.SetEngineType(EngineModelType::SIMPLE_MAP);
+    hmmwv.SetTransmissionType(TransmissionModelType::AUTOMATIC_SIMPLE_MAP);
+    hmmwv.SetDriveType(DrivelineTypeWV::SIMPLE);
     switch (tire_type) {
         case TireType::CYLINDRICAL:
             hmmwv.SetTireType(TireModelType::RIGID_MESH);
@@ -204,12 +204,14 @@ int main(int argc, char* argv[]) {
             hmmwv.SetTireType(TireModelType::RIGID);
             break;
         case TireType::FEA:
-            hmmwv.SetTireType(TireModelType::ANCF_LUMPED);
+            // hmmwv.SetTireType(TireModelType::ANCF_LUMPED);
+            hmmwv.SetTireType(TireModelType::ANCF_AIRLESS3443B);
             break;
     }
     hmmwv.Initialize();
 
     hmmwv.SetChassisVisualizationType(VisualizationType::NONE);
+    hmmwv.SetTireVisualizationType(VisualizationType::MESH);
 
     ChSystem* sys = hmmwv.GetSystem();
 
@@ -246,11 +248,11 @@ int main(int argc, char* argv[]) {
     // Create the terrain
     // ------------------
     SCMTerrain terrain(sys);
-    terrain.SetSoilParameters(2e6,   // Bekker Kphi
+    terrain.SetSoilParameters(4e7,   // Bekker Kphi
                               0,     // Bekker Kc
                               1.1,   // Bekker n exponent
                               0,     // Mohr cohesive limit (Pa)
-                              30,    // Mohr friction limit (degrees)
+                              20,    // Mohr friction limit (degrees)
                               0.01,  // Janosi shear coefficient (m)
                               2e8,   // Elastic stiffness (Pa/m), before plastic yield
                               3e4    // Damping (Pa s/m), proportional to negative vertical speed (optional)
@@ -359,9 +361,9 @@ int main(int argc, char* argv[]) {
     auto solver = ChSolver::Type::BARZILAIBORWEIN;
     auto integrator = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
     if (tire_type == TireType::FEA) {
-        step_size = 1e-4;
+        step_size = 3e-3;
         solver = ChSolver::Type::PARDISO_MKL;
-        integrator = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+        integrator = ChTimestepper::Type::HHT;
     }
     int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
     int num_threads_collision = 1;
@@ -439,6 +441,16 @@ int main(int argc, char* argv[]) {
         // Advance dynamics
         hmmwv.Advance(step_size);
         vis->Advance(step_size);
+
+        // auto wheel = hmmwv.GetVehicle().GetWheel(0, VehicleSide::LEFT, WheelLocation::SINGLE);
+        // auto tire = std::dynamic_pointer_cast<ChTire>(wheel);
+
+        // auto spindle = wheel->GetSpindle();
+        // auto torque = spindle->GetAppliedTorque();
+
+        // std::cout << "Torque Spindle: " << torque.x() << ", " << torque.y() << ", " << torque.z() << std::endl;
+        // auto torque_2 = hmmwv.GetVehicle().GetDriveline()->GetSpindleTorque(0, VehicleSide::LEFT);
+        // std::cout << "Torque Driveline: " << torque_2 << std::endl;
 
         // Increment frame number
         sim_frame++;

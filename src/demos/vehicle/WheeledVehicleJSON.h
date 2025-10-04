@@ -124,7 +124,7 @@ class Audi_Model : public WheeledVehicleJSON {
 class Polaris_Model : public WheeledVehicleJSON {
   public:
     virtual std::string ModelName() const override { return "Polaris"; }
-    virtual std::string VehicleJSON() const override { return "Polaris/Polaris.json"; }
+    virtual std::string VehicleJSON() const override { return "Polaris/Polaris_LTV.json"; }
     virtual std::string TireJSON(unsigned int axle) const override {
         return "Polaris/Polaris_TMeasyTire.json";
         ////return "Polaris/Polaris_Pac02Tire.json";
@@ -133,6 +133,7 @@ class Polaris_Model : public WheeledVehicleJSON {
     virtual std::string TransmissionJSON() const override {
         return "Polaris/Polaris_AutomaticTransmissionSimpleMap.json";
     }
+    std::string TrailerJSON() const { return "ultra_tow/UT_Trailer.json"; }
     virtual double CameraDistance() const override { return 7.0; }
 };
 

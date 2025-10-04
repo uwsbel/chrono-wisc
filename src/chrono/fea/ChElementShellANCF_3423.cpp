@@ -536,7 +536,7 @@ void ShellANCF_Force::Evaluate(ChVectorN<double, 54>& result, const double x, co
                          strainD_til(5, ii) * (beta(4) * beta(6) + beta(3) * beta(7));
         strainD(3, ii) = strainD_til(0, ii) * beta(2) * beta(2) + strainD_til(1, ii) * beta(5) * beta(5) +
                          strainD_til(2, ii) * beta(2) * beta(5) + strainD_til(3, ii) * beta(8) * beta(8) +
-                         strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5) * beta(5) * beta(8);
+                         strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5, ii) * beta(5) * beta(8);
         strainD(4, ii) = strainD_til(0, ii) * 2.0 * beta(0) * beta(2) + strainD_til(1, ii) * 2.0 * beta(3) * beta(5) +
                          strainD_til(2, ii) * (beta(2) * beta(3) + beta(0) * beta(5)) +
                          strainD_til(3, ii) * 2.0 * beta(6) * beta(8) +
@@ -878,7 +878,7 @@ void ShellANCF_Jacobian::Evaluate(ChVectorN<double, 696>& result, const double x
                          strainD_til(5, ii) * (beta(4) * beta(6) + beta(3) * beta(7));
         strainD(3, ii) = strainD_til(0, ii) * beta(2) * beta(2) + strainD_til(1, ii) * beta(5) * beta(5) +
                          strainD_til(2, ii) * beta(2) * beta(5) + strainD_til(3, ii) * beta(8) * beta(8) +
-                         strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5) * beta(5) * beta(8);
+                         strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5, ii) * beta(5) * beta(8);
         strainD(4, ii) = strainD_til(0, ii) * 2.0 * beta(0) * beta(2) + strainD_til(1, ii) * 2.0 * beta(3) * beta(5) +
                          strainD_til(2, ii) * (beta(2) * beta(3) + beta(0) * beta(5)) +
                          strainD_til(3, ii) * 2.0 * beta(6) * beta(8) +

@@ -21,14 +21,14 @@ set(PROGRAMS
 if(CH_ENABLE_MODULE_VEHICLE_MODELS)
 
   set(PROGRAMS ${PROGRAMS}
-      demo_VEH_Cosim_WheeledVehicle
+      # demo_VEH_Cosim_WheeledVehicle
       demo_VEH_Cosim_TrackedVehicle
   )
 
-  if(CH_ENABLE_MODULE_FSI)
-    set(PROGRAMS ${PROGRAMS}
-        demo_VEH_Cosim_WheeledVehicle_SPH)
-  endif()
+  # if(ENABLE_MODULE_FSI)
+  #   set(PROGRAMS ${PROGRAMS}
+  #       demo_VEH_Cosim_WheeledVehicle_SPH)
+  # endif()
 
   if(CH_ENABLE_MODULE_MULTICORE)
     set(PROGRAMS ${PROGRAMS}

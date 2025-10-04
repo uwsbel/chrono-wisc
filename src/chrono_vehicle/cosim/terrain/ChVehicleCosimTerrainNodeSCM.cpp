@@ -134,6 +134,10 @@ void ChVehicleCosimTerrainNodeSCM::SetFromSpecfile(const std::string& specfile) 
 
     m_radius_p = d["Simulation settings"]["Proxy contact radius"].GetDouble();
     m_fixed_proxies = d["Simulation settings"]["Fix proxies"].GetBool();
+
+    if (d.HasMember("SCM profile file")) {
+        m_scm_profile_file = d["SCM profile file"].GetString();
+    }
 }
 
 void ChVehicleCosimTerrainNodeSCM::SetPropertiesSCM(double spacing,
