@@ -82,6 +82,7 @@
 #include "chrono_fsi/ChFsiSystem.h"
 #include "chrono_fsi/sph/ChFsiFluidSystemSPH.h"
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
+#include "chrono_fsi/sph/utils/SphErrorHandler.h"
 
 using namespace chrono;
 using namespace chrono::utils;
@@ -150,3 +151,4 @@ using namespace chrono::fsi;
 %include "ChFsiSystemSPH.i"
 %include "ChFsiProblemSPH.i"
 %include "ChSphVisualizationVSG.i"
+%include "SphErrorHandler.i"

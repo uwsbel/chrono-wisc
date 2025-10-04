@@ -19,7 +19,7 @@
 import pychrono.core as chrono
 import pychrono.vehicle as veh
 import pychrono.fsi as fsi
-# import pychrono.vsg3d as vsg
+import pychrono.vsg3d as vsg
 import os
 from simple_wheel_gen import GenSimpleWheelPointCloud
 from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize
@@ -315,32 +315,32 @@ def sim(Params):
             tire_writers[ia][is_side] = open(tire_file, 'w', newline='')
     
     # Create run-time visualization
-    # vis = None
-    # if render:
-    #     # FSI plugin
-    #     col_callback = fsi.ParticleHeightColorCallback(aabb.min.z, aabb.max.z)
-    #     visFSI = fsi.ChSphVisualizationVSG(sysFSI)
-    #     visFSI.EnableFluidMarkers(visualization_sph)
-    #     visFSI.EnableBoundaryMarkers(visualization_bndry_bce)
-    #     visFSI.EnableRigidBodyMarkers(visualization_rigid_bce)
-    #     visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap.Type_BROWN)
+    vis = None
+    if render:
+        # FSI plugin
+        col_callback = fsi.ParticleHeightColorCallback(aabb.min.z, aabb.max.z)
+        visFSI = fsi.ChSphVisualizationVSG(sysFSI)
+        visFSI.EnableFluidMarkers(visualization_sph)
+        visFSI.EnableBoundaryMarkers(visualization_bndry_bce)
+        visFSI.EnableRigidBodyMarkers(visualization_rigid_bce)
+        visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap.Type_BROWN)
         
-    #     # Wheeled vehicle VSG visual system
-    #     visVSG = veh.ChWheeledVehicleVisualSystemVSG()
-    #     visVSG.AttachVehicle(artCar.GetVehicle())
-    #     visVSG.AttachPlugin(visFSI)
-    #     visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
-    #     visVSG.SetWindowSize(1280, 800)
-    #     visVSG.SetWindowPosition(100, 100)
-    #     visVSG.EnableSkyBox()
-    #     visVSG.SetLightIntensity(1.0)
-    #     visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
-    #     visVSG.SetCameraAngleDeg(40)
-    #     visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-    #     visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+        # Wheeled vehicle VSG visual system
+        visVSG = veh.ChWheeledVehicleVisualSystemVSG()
+        visVSG.AttachVehicle(artCar.GetVehicle())
+        visVSG.AttachPlugin(visFSI)
+        visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
+        visVSG.SetWindowSize(1280, 800)
+        visVSG.SetWindowPosition(100, 100)
+        visVSG.EnableSkyBox()
+        visVSG.SetLightIntensity(1.0)
+        visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
+        visVSG.SetCameraAngleDeg(40)
+        visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
+        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
         
-    #     visVSG.Initialize()
-    #     vis = visVSG
+        visVSG.Initialize()
+        vis = visVSG
     
     # Simulation loop
     time = 0
@@ -376,16 +376,16 @@ def sim(Params):
             break
         
         # Run-time visualization
-        # if render and time >= render_frame / render_fps:
-        #     if not vis.Run():
-        #         break
-        #     vis.Render()
-        #     render_frame += 1
+        if render and time >= render_frame / render_fps:
+            if not vis.Run():
+                break
+            vis.Render()
+            render_frame += 1
         try:
             # Synchronize systems
             driver.Synchronize(time)
-            # if vis:
-            #     vis.Synchronize(time, driver_inputs)
+            if vis:
+                vis.Synchronize(time, driver_inputs)
             terrain.Synchronize(time)
             
             # Use safe vehicle synchronization
@@ -398,8 +398,8 @@ def sim(Params):
             
             # Advance system state
             driver.Advance(step_size)
-            # if vis:
-            #     vis.Advance(step_size)
+            if vis:
+                vis.Advance(step_size)
             
             # Use safe terrain advance
             success, error_msg = safe_advance(terrain, step_size)

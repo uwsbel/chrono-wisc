@@ -117,14 +117,20 @@ namespace sph {
             char buffer[256];                                                                                \
             sprintf(buffer, "Error flag intercepted in %s:%d from %s", __FILE__, __LINE__, kernel_name);     \
             printf("%s\n", buffer);                                                                          \
-            throw std::runtime_error(buffer);                                                                \
+            g_cuda_error_occurred = true;                                                                    \
+            strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
+            g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
+            return;                                                                                          \
         }                                                                                                    \
         cudaError_t e = cudaGetLastError();                                                                  \
         if (e != cudaSuccess) {                                                                              \
             char buffer[256];                                                                                \
             sprintf(buffer, "CUDA failure in %s:%d Message: %s", __FILE__, __LINE__, cudaGetErrorString(e)); \
             printf("%s\n", buffer);                                                                          \
-            throw std::runtime_error(buffer);                                                                \
+            g_cuda_error_occurred = true;                                                                    \
+            strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
+            g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
+            return;                                                                                          \
         }                                                                                                    \
     }
 
@@ -136,7 +142,10 @@ namespace sph {
             char buffer[256];                                                                                \
             sprintf(buffer, "CUDA failure in %s:%d Message: %s", __FILE__, __LINE__, cudaGetErrorString(e)); \
             printf("%s\n", buffer);                                                                          \
-            throw std::runtime_error(buffer);                                                                \
+            g_cuda_error_occurred = true;                                                                    \
+            strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
+            g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
+            return;                                                                                          \
         }                                                                                                    \
     }
 
@@ -145,8 +154,17 @@ namespace sph {
         char buffer[256];                                                                  \
         sprintf(buffer, "CUDA failure in %s:%d Message: %s", __FILE__, __LINE__, message); \
         printf("%s\n", buffer);                                                            \
-        throw std::runtime_error(buffer);                                                  \
+        g_cuda_error_occurred = true;                                                      \
+        strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);           \
+        g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                     \
+        return;                                                                            \
     }
+
+// ----------------------------------------------------------------------------
+
+// Global error state variables for Python-friendly error handling
+extern bool g_cuda_error_occurred;
+extern char g_cuda_error_message[512];
 
 // ----------------------------------------------------------------------------
 

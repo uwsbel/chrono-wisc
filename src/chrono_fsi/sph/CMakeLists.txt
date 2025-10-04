@@ -116,6 +116,8 @@ source_group("math" FILES ${FSISPH_MATH_FILES})
 set(FSISPH_UTILS_FILES
     utils/SphUtilsDevice.cuh
     utils/SphUtilsDevice.cu
+    utils/SphErrorHandler.h
+    utils/SphErrorHandler.cpp
     utils/SphUtilsTypeConvert.cuh
     utils/SphUtilsPrint.cuh
     utils/SphUtilsPrint.cu
