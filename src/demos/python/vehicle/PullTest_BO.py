@@ -5,10 +5,16 @@ import os
 import sys
 from datetime import datetime
 
-from ax.generation_strategy.generation_strategy import GenerationStep, GenerationStrategy
+from ax.service.ax_client import AxClient, ObjectiveProperties
+
+from ax.generation_strategy.center_generation_node import CenterGenerationNode
+from ax.generation_strategy.generation_node import GenerationNode
+from ax.generation_strategy.generation_strategy import GenerationStrategy
+from ax.generation_strategy.generator_spec import GeneratorSpec
+from ax.generation_strategy.transition_criterion import MinTrials
 from ax.adapter.registry import Generators
-from ax.service.ax_client import AxClient
-from ax.service.utils.instantiation import ObjectiveProperties
+
+from botorch.acquisition.logei import qLogExpectedImprovement
 
 from PullTest_sim import Params, sim
 
@@ -22,20 +28,64 @@ def compute_int_bounds(lower_m, upper_m, spacing):
 
 
 def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path, resume):
-    ax_client = AxClient(generation_strategy=GenerationStrategy(steps=[
-        GenerationStep(
-            generator=Generators.SOBOL,
-            num_trials=sobol_trials,
-            max_parallelism=max_parallelism,
-        ),
-        GenerationStep(
-            generator=Generators.BOTORCH_MODULAR,
-            num_trials=-1,
-            max_parallelism=max_parallelism,
-            # Prefer qExpectedImprovement for single-objective batch BO
-            model_kwargs={"acquisition_class": "qExpectedImprovement"},
-        ),
-    ]))
+
+    """
+    Create an AxClient configured to:
+      - run `sobol_trials` quasi-random Sobol initial points,
+      - then switch to Modular BoTorch Bayesian optimization using qEI,
+    """
+    # --- Build GenerationStrategy: Center -> Sobol -> BoTorch ---
+    # BoTorch (modular) node with explicit qEI:
+    botorch_node = GenerationNode(
+        node_name="BoTorch",
+        generator_specs=[
+            GeneratorSpec(
+                generator_enum=Generators.BOTORCH_MODULAR,
+                model_kwargs={
+                    # CRITICAL: hand the BoTorch class object, not a string
+                    "botorch_acqf_class": qLogExpectedImprovement,
+                },
+                # Optional: tune acquisition/optimizer budgets via model_gen_kwargs
+                # model_gen_kwargs={
+                #     "model_gen_options": {
+                #         "optimizer_kwargs": {
+                #             "num_restarts": 20,
+                #             "sequential": False,
+                #             "options": {"batch_limit": 5, "maxiter": 200},
+                #         }
+                #     }
+                # }
+            )
+        ],
+    )
+
+    # Sobol node: transition after `sobol_trials` total trials in the experiment
+    sobol_node = GenerationNode(
+        node_name="Sobol",
+        generator_specs=[
+            GeneratorSpec(
+                generator_enum=Generators.SOBOL,
+                model_kwargs={"seed": 0},
+            )
+        ],
+        transition_criteria=[
+            MinTrials(
+                threshold=max(1, int(sobol_trials)),
+                transition_to=botorch_node.node_name,
+                use_all_trials_in_exp=True,
+            )
+        ],
+    )
+
+    # Center-of-search-space warm start (single point) before Sobol
+    center_node = CenterGenerationNode(next_node_name=sobol_node.node_name)
+
+    gs = GenerationStrategy(
+        name="Center+Sobol+BoTorch(qEI)",
+        nodes=[center_node, sobol_node, botorch_node],
+    )
+        
+    ax_client = AxClient(generation_strategy=gs)
 
     if resume and os.path.isfile(state_path):
         ax_client.load_from_json_file(filepath=state_path)
@@ -88,7 +138,7 @@ def ensure_dir(path):
 def main():
     parser = argparse.ArgumentParser(description="Bayesian Optimization for wheel parameters using Ax + BoTorch (qEI)")
     parser.add_argument("--particle_spacing", type=float, default=0.01, help="Particle spacing (meters), used as scale unit for integer geometry params")
-    parser.add_argument("--batches", type=int, default=100, help="Number of outer iterations (batches)")
+    parser.add_argument("--batches", type=int, default=100, help="Number of outer iterations (batches)")    
     parser.add_argument("--q", type=int, default=16, help="Batch size per iteration (number of parallel suggestions)")
     parser.add_argument("--sobol", type=int, default=64, help="Number of Sobol warmup trials before BO")
     parser.add_argument("--out_dir", type=str, default=os.path.join(os.getcwd(), "ARTcar_PullTest_BO"), help="Output directory for logs and state")
