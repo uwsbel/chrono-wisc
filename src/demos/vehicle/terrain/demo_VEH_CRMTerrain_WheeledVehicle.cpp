@@ -64,13 +64,13 @@ bool set_str_spk = true;
 
 // CRM terrain patch type
 enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
-PatchType patch_type = PatchType::RECTANGULAR;
+PatchType patch_type = PatchType::HEIGHT_MAP;
 
 enum class TireType { ANCF_TOROIDAL, ANCF_AIRLESS };
 TireType tire_type = TireType::ANCF_AIRLESS;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 40;
+double terrain_length = 20;
 double terrain_width = 3;
 
 // Vehicle specification files
@@ -97,8 +97,8 @@ int main(int argc, char* argv[]) {
     // ----------------
     // Problem settings
     // ----------------
-
-    double target_speed = 3.0;
+    double slope_angle = 30;
+    double target_speed = 1.0;
     double tend = 30;
     bool verbose = true;
 
@@ -111,8 +111,9 @@ int main(int argc, char* argv[]) {
 
     // CRM material properties
     double density = 1700;
-    double cohesion = 5e3;
-    double friction = 0.8;
+    //double cohesion = 5e3;
+    double cohesion = 500;
+    double friction = 0.9;
     double youngs_modulus = 1e6;
     double poisson_ratio = 0.3;
 
@@ -222,7 +223,7 @@ int main(int argc, char* argv[]) {
 
     // Set collision system
     sysMBS->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
-    sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
+    sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -3.73));
 
     // ----------------------
     // Create the CRM terrain
@@ -267,8 +268,8 @@ int main(int argc, char* argv[]) {
 
     // Add vehicle wheels as FSI solids
     CreateFSIWheels(vehicle, trailer, terrain);
-    terrain.SetActiveDomain(ChVector3d(active_box_hdim));
-    terrain.SetActiveDomainDelay(settling_time);
+    //terrain.SetActiveDomain(ChVector3d(active_box_hdim));
+    //terrain.SetActiveDomainDelay(settling_time);
 
     // Construct the terrain and associated path
     cout << "Create terrain..." << endl;
@@ -284,16 +285,25 @@ int main(int argc, char* argv[]) {
             path = StraightLinePath(ChVector3d(0, 0, vehicle_init_height),
                                     ChVector3d(terrain_length, 0, vehicle_init_height), 1);
             break;
-        case PatchType::HEIGHT_MAP:
+        case PatchType::HEIGHT_MAP: {
+            double max_slope_distance = terrain_length / 2;  // This was how the bmp file was mad
+            double angle = slope_angle;                      // Use the command line argument value
+            double max_height = max_slope_distance * tan(angle * 3.14 / 180);
+            std::string height_map_file =
+                "terrain/height_maps/slope_" + std::to_string(static_cast<int>(angle)) + ".bmp";
+            std::cout << "Height map file: " << height_map_file << std::endl;
+            std::cout << "Using slope angle: " << angle << " degrees" << std::endl;
             // Create a patch from a heigh field map image
-            terrain.Construct(vehicle::GetDataFile("terrain/height_maps/bump64.bmp"),  // height map image file
-                              terrain_length, terrain_width,                           // length (X) and width (Y)
-                              {0, 0.3},                                                // height range
-                              0.25,                                                    // depth
-                              true,                                                    // uniform depth
-                              ChVector3d(terrain_length / 2, 0, 0),                    // patch center
-                              BoxSide::Z_NEG                                           // bottom wall
+            terrain.Construct(vehicle::GetDataFile(height_map_file),  // height map image file
+                              terrain_length, terrain_width,          // length (X) and width (Y)
+                              {0, max_height},                        // height range
+                              0.25,                                   // depth
+                              true,                                   // uniform depth
+                              ChVector3d(terrain_length / 2, 0, 0),   // patch center
+                              BoxSide::Z_NEG                          // bottom wall
             );
+        }
+
             // Create straight line path
             path = StraightLinePath(ChVector3d(0, 0, vehicle_init_height),
                                     ChVector3d(terrain_length, 0, vehicle_init_height), 1);
@@ -357,7 +367,7 @@ int main(int argc, char* argv[]) {
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
-        visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
+        //visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
 
         // Wheeled vehicle VSG visual system (attach visFSI as plugin)
         auto visVSG = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
@@ -533,6 +543,8 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(const ChCoordsys<>& init_pos, bool
                 if (std::dynamic_pointer_cast<ChDeformableTire>(ancf_tire))
                     fea_tires = true;
             }
+
+            
         }
     }
 

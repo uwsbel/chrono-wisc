@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
     bool verbose = true;
     bool output = false;
     double output_fps = 20;
-    bool render = false;
+    bool render = true;
     double render_fps = 400;
     bool snapshots = false;
     int ps_freq = 1;
@@ -124,7 +124,6 @@ int main(int argc, char* argv[]) {
                          boundary_type, viscosity_type)) {
         return 1;
     }
-    render = false;
 
     // Create the Chrono system and associated collision system
     ChSystemSMC sysMBS;
