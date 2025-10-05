@@ -16,7 +16,15 @@ from ax.adapter.registry import Generators
 
 from botorch.acquisition.logei import qLogExpectedImprovement
 
-from PullTest_sim import Params, sim
+"""
+Parallel trial execution notes
+ - We avoid importing PullTest_sim at module import time to ensure each worker
+   process can set CUDA_VISIBLE_DEVICES before any CUDA context is created.
+ - Workers import PullTest_sim lazily after selecting their assigned GPU.
+"""
+
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def compute_int_bounds(lower_m, upper_m, spacing):
@@ -117,6 +125,9 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
 
 
 def map_params_to_sim(param_dict, particle_spacing):
+    # Lazy import so workers can set CUDA environment before any CUDA init
+    from PullTest_sim import Params
+
     p = Params()
     p.particle_spacing = particle_spacing
     p.rad = int(param_dict["rad"])  # multiples of spacing
@@ -125,10 +136,55 @@ def map_params_to_sim(param_dict, particle_spacing):
     p.g_width = int(param_dict["g_width"])  # multiples of spacing
     p.g_density = int(param_dict["g_density"])  # count
     p.grouser_type = int(param_dict["grouser_type"])  # 0: straight, 1: semi_circle
-    # fan_theta_deg is used only when grouser_type == 0 (straight); otherwise dummy
     p.fan_theta_deg = int(param_dict.get("fan_theta_deg", 0)) if p.grouser_type == 0 else int(param_dict.get("fan_theta_deg", 0))
-    # cp_deviation not optimized; keep default from class if present
     return p
+
+
+def _worker_run_trial(trial_index, param_dict, particle_spacing, assigned_gpu, failed_log):
+    """
+    Execute a single simulation in an isolated process on a specific GPU.
+    Returns: (trial_index, total_time_to_reach, sim_failed, error_message)
+    """
+    try:
+        # Restrict this process to the assigned GPU (single device id)
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+
+        # Import after setting device visibility so CUDA contexts are created on the right GPU
+        from PullTest_sim import sim  # noqa: WPS433 (intentional local import)
+
+        params_for_sim = map_params_to_sim(param_dict, particle_spacing)
+        total_time_to_reach, sim_failed = sim(params_for_sim)
+        return trial_index, total_time_to_reach, bool(sim_failed), None
+    except Exception as e:
+        # Persist failure detail here as well (workers have isolated memory)
+        try:
+            with open(failed_log, "a") as flog:
+                flog.write(json.dumps({
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "trial_index": trial_index,
+                    "parameters": param_dict,
+                    "error": str(e),
+                }) + "\n")
+        except Exception:
+            pass
+        return trial_index, None, True, str(e)
+
+
+def _discover_gpus(user_gpus_arg=None):
+    """Return a list of GPU ids to use.
+    Priority: explicit CLI list -> CUDA_VISIBLE_DEVICES -> [0]
+    """
+    if user_gpus_arg:
+        return [int(x) for x in user_gpus_arg.split(",")]
+
+    cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if cvd:
+        # CUDA_VISIBLE_DEVICES may be a comma-separated map of physical ids; use index order
+        try:
+            return [int(x) for x in cvd.split(",") if x.strip() != ""]
+        except Exception:
+            pass
+    return [0]
 
 
 def ensure_dir(path):
@@ -144,6 +200,8 @@ def main():
     parser.add_argument("--out_dir", type=str, default=os.path.join(os.getcwd(), "ARTcar_PullTest_BO"), help="Output directory for logs and state")
     parser.add_argument("--state_path", type=str, default=None, help="Path to save/load Ax state JSON (defaults to out_dir/ax_state.json)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing Ax state JSON if present")
+    parser.add_argument("--per_gpu_concurrency", type=int, default=4, help="Max concurrent sims per GPU")
+    parser.add_argument("--gpus", type=str, default=None, help="Comma-separated GPU ids to use (default: respect CUDA_VISIBLE_DEVICES or [0])")
     args = parser.parse_args()
 
     particle_spacing = args.particle_spacing
@@ -171,42 +229,54 @@ def main():
                 "timestamp,trial_index,total_time_to_reach,rad,width,g_height,g_width,g_density,grouser_type,fan_theta_deg,particle_spacing\n"
             )
 
+    # Ensure clean worker processes without inheriting CUDA contexts
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pass
+
+    gpu_ids = _discover_gpus(args.gpus)
+    per_gpu_conc = max(1, int(args.per_gpu_concurrency))
+
     for batch_idx in range(batches):
         suggestions, is_available = ax_client.get_next_trials(max_trials=q)
-        for trial_index, param_dict in suggestions.items():
-            params_for_sim = map_params_to_sim(param_dict, particle_spacing)
-            try:
-                total_time_to_reach, sim_failed = sim(params_for_sim)
-            except Exception as e:
-                sim_failed = True
-                total_time_to_reach = None
-                # Log exception as failed trial
-                with open(failed_log, "a") as flog:
-                    flog.write(json.dumps({
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "trial_index": trial_index,
-                        "parameters": param_dict,
-                        "error": str(e),
-                    }) + "\n")
 
-            if sim_failed or total_time_to_reach is None:
-                ax_client.abandon_trial(trial_index=trial_index)
-                # Also log parameters that led to failure
-                with open(failed_log, "a") as flog:
-                    flog.write(json.dumps({
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "trial_index": trial_index,
-                        "parameters": param_dict,
-                        "error": "sim_failed",
-                    }) + "\n")
-                continue
+        # Build assignments: round-robin GPUs, respecting per-GPU concurrency
+        trial_items = list(suggestions.items())
+        total_workers = min(len(trial_items), len(gpu_ids) * per_gpu_conc)
+        if total_workers < len(trial_items):
+            # We still queue all tasks; the executor will limit concurrent workers to q
+            pass
 
-            ax_client.complete_trial(trial_index=trial_index, raw_data={"total_time_to_reach": float(total_time_to_reach)})
+        # Assign GPU for each trial deterministically
+        assignments = []  # list of tuples for worker args
+        for idx, (trial_index, param_dict) in enumerate(trial_items):
+            assigned_gpu = gpu_ids[(idx // 1) % len(gpu_ids)]  # repeated round-robin
+            assignments.append((trial_index, param_dict, particle_spacing, assigned_gpu, failed_log))
 
-            with open(trials_csv, "a") as f:
-                f.write(
-                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{total_time_to_reach},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{particle_spacing}\n"
-                )
+        # Execute in parallel
+        with ProcessPoolExecutor(max_workers=min(q, len(gpu_ids) * per_gpu_conc), mp_context=mp.get_context("spawn")) as ex:
+            futures = [ex.submit(_worker_run_trial, *args_tuple) for args_tuple in assignments]
+            for fut in as_completed(futures):
+                trial_index, total_time_to_reach, sim_failed, err = fut.result()
+                param_dict = suggestions[trial_index]
+
+                if sim_failed or total_time_to_reach is None:
+                    ax_client.abandon_trial(trial_index=trial_index)
+                    with open(failed_log, "a") as flog:
+                        flog.write(json.dumps({
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                            "trial_index": trial_index,
+                            "parameters": param_dict,
+                            "error": err or "sim_failed",
+                        }) + "\n")
+                    continue
+
+                ax_client.complete_trial(trial_index=trial_index, raw_data={"total_time_to_reach": float(total_time_to_reach)})
+                with open(trials_csv, "a") as f:
+                    f.write(
+                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{total_time_to_reach},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{particle_spacing}\n"
+                    )
 
         # Persist Ax state after each batch
         ax_client.save_to_json_file(filepath=state_path)
