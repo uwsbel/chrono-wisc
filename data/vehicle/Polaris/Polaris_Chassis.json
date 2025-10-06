@@ -6,11 +6,11 @@
   "Components": [
     {
       "Centroidal Frame": {
-        "Location": [ -1.6399537, 0, 0.7667115704 ],
+        "Location": [ 0.824, 0, 0.547 ],
         "Orientation": [ 1, 0, 0, 0 ]
       },
-      "Mass": 1105.5,
-      "Moments of Inertia": [ 275.6945599, 853.4464526, 1200 ],
+      "Mass": 1045.0,
+      "Moments of Inertia": [ 925,1814,1944 ],
       "Products of Inertia": [ 0, 0, 0 ],
       "Void": false
     }
@@ -18,11 +18,11 @@
   ],
 
   "Driver Position": {
-    "Location": [ -0.6, 0, 1 ],
+    "Location": [ 0.2, 0, 0.5 ],
     "Orientation": [ 1, 0, 0, 0 ]
   },
 
   "Visualization": {
-    "Mesh": "Polaris/meshes/3.obj"
+    "Mesh": "Polaris/meshes/ltv.obj"
   }
-}
+} 
