@@ -355,7 +355,14 @@ def sim(Params):
         
     while time < tend:
         veh_loc = artCar.GetVehicle().GetPos()
-        
+        veh_z_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).z
+
+        if(veh_z_vel > 15):
+            # This means vehicle is flying
+            sim_failed = True
+            total_time_to_reach = tend + 1
+            break
+            
         # Get driver inputs from path follower
         driver_inputs = driver.GetInputs()
         
@@ -444,5 +451,16 @@ def sim(Params):
     return total_time_to_reach, sim_failed
 
 if __name__ == "__main__":
+    Params = Params()
+    Params.rad = 12
+    Params.width = 5
+    Params.g_height = 8
+    Params.g_width = 5
+    Params.g_density = 7
+    Params.particle_spacing = 0.01
+    Params.grouser_type = 0
+    Params.fan_theta_deg = 63
+    Params.cp_deviation = 0
+    
     total_time_to_reach, sim_failed = sim(Params)
     print(f"Total time to reach: {total_time_to_reach}")

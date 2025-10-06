@@ -95,6 +95,9 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
         
     if resume and os.path.isfile(state_path):
         ax_client = AxClient.load_from_json_file(filepath=state_path)
+        best_params, best_vals = ax_client.get_best_parameters()
+        print(f"Best params: {best_params}")
+        print(f"Best total_time_to_reach: {best_vals}")
         return ax_client
 
     ax_client = AxClient(generation_strategy=gs)
