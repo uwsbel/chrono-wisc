@@ -68,6 +68,7 @@ PatchType patch_type = PatchType::HEIGHT_MAP;
 
 enum class TireType { ANCF_TOROIDAL, ANCF_AIRLESS };
 TireType tire_type = TireType::ANCF_AIRLESS;
+ //TireType tire_type = TireType::ANCF_TOROIDAL;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
 double terrain_length = 20;
@@ -103,7 +104,7 @@ int main(int argc, char* argv[]) {
     bool verbose = true;
 
     // Visualization settings
-    bool render = true;                    // use run-time visualization
+    bool render = false;                    // use run-time visualization
     double render_fps = 10;                // rendering FPS
     bool visualization_sph = true;         // render SPH particles
     bool visualization_bndry_bce = false;  // render boundary BCE markers
@@ -403,7 +404,7 @@ int main(int argc, char* argv[]) {
 
     while (time < tend) {
         const auto& veh_loc = vehicle->GetPos();
-
+        std::cout << "veh_loc, " << veh_loc.x() << ", " << veh_loc.y() << ", " << veh_loc.z() << std::endl;
         // Set current driver inputs
         auto driver_inputs = driver.GetInputs();
 
@@ -446,15 +447,20 @@ int main(int argc, char* argv[]) {
 
         // Synchronize systems
         driver.Synchronize(time);
-        vis->Synchronize(time, driver_inputs);
-        terrain.Synchronize(time);
+
+        terrain.Synchronize(time);        
+        if (render) {
+            vis->Synchronize(time, driver_inputs);
+        }
+
         vehicle->Synchronize(time, driver_inputs, terrain);
         if (add_trailer)
             trailer->Synchronize(time, driver_inputs, terrain);
 
         // Advance system state
         driver.Advance(step_size);
-        vis->Advance(step_size);
+        if (render)
+            vis->Advance(step_size);
         // Coupled FSI problem (CRM terrain + vehicle)
         terrain.Advance(step_size);
         // th.join();

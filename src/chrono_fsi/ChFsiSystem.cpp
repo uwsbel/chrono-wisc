@@ -255,9 +255,10 @@ void ChFsiSystem::DoStepDynamics(double step) {
     //   2. Advance the dynamics of the fluid system (in the main thread)
     //   3. Wait for the MBS thread to finish execution.
     m_timer_step.start();
-    std::thread th(&ChFsiSystem::AdvanceMBS, this, step, threshold_MBD);
+    //std::thread th(&ChFsiSystem::AdvanceMBS, this, step, threshold_MBD);
+    AdvanceMBS(step, threshold_MBD);
     AdvanceCFD(step, threshold_CFD);
-    th.join();
+    //th.join();
     m_timer_step.stop();
 
     // Data exchange between phases:
