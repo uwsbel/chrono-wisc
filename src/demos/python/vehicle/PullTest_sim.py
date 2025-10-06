@@ -76,6 +76,7 @@ def CreateFSIWheels(vehicle, terrain, Params):
     Returns:
         List of FsiBody objects for BCE_MARKERS type, empty list otherwise
     """
+    fsi_bodies = []
     for axle in vehicle.GetVehicle().GetAxles():
         for wheel in axle.GetWheels():
             sysFSI = terrain.GetFsiSystemSPH()
@@ -96,8 +97,11 @@ def CreateFSIWheels(vehicle, terrain, Params):
             BCE_wheel = numpy_to_ChVector3d(BCE_wheel)
 
             sysFSI = terrain.GetFsiSystemSPH()
-            sysFSI.AddFsiBody(wheel.GetSpindle(), BCE_wheel, 
+            fsi_body = sysFSI.AddFsiBody(wheel.GetSpindle(), BCE_wheel, 
                                         chrono.ChFramed(chrono.VNULL, chrono.Q_ROTATE_Z_TO_Y), False)
+            fsi_bodies.append(fsi_body)
+    
+    return fsi_bodies
     
 
 
@@ -171,7 +175,7 @@ def sim(Params):
     
     # Create the CRM terrain
     terrain = veh.CRMTerrain(sysMBS, spacing)
-    sysFSI = terrain.GetFsiSystemSPH()
+    # sysFSI = terrain.GetFsiSystemSPH()
     terrain.SetVerbose(verbose)
     terrain.SetGravitationalAcceleration(chrono.ChVector3d(0, 0, -9.81))
     terrain.SetStepSizeCFD(1e-4)
@@ -212,7 +216,7 @@ def sim(Params):
     terrain.SetOutputLevel(fsi.OutputLevel_STATE)
     
     # Add vehicle wheels as FSI solids
-    CreateFSIWheels(artCar, terrain, Params)
+    fsi_bodies = CreateFSIWheels(artCar, terrain, Params)
     terrain.SetActiveDomain(chrono.ChVector3d(active_box_dim))
     terrain.SetActiveDomainDelay(settling_time)
     
@@ -413,7 +417,7 @@ def sim(Params):
             # Catch all exceptions including C++ wrapped exceptions
             print(f"Simulation error at time {time:.3f}s: {type(e).__name__}: {e}")
             sim_failed = True
-            total_time_to_reach = tend + 1 
+            total_time_to_reach = tend + 1
             break
             
         time += step_size
@@ -441,8 +445,22 @@ def sim(Params):
         print(f"Simulation failed")
     else:
         print(f"Total time to reach: {total_time_to_reach}")
+
+    import gc; gc.collect()
     return total_time_to_reach, sim_failed
 
+
 if __name__ == "__main__":
+    Params = Params()
+    Params.rad = 50
+    Params.width = 40
+    Params.g_height = 10
+    Params.g_width = 2
+    Params.g_density = 8
+    Params.particle_spacing = 0.01
+    Params.grouser_type = 0
+    Params.fan_theta_deg = 60.0
+    Params.cp_deviation = 0
+    
     total_time_to_reach, sim_failed = sim(Params)
     print(f"Total time to reach: {total_time_to_reach}")

@@ -93,11 +93,11 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
         nodes=[center_node, sobol_node, botorch_node],
     )
         
-    ax_client = AxClient(generation_strategy=gs)
-
     if resume and os.path.isfile(state_path):
-        ax_client.load_from_json_file(filepath=state_path)
+        ax_client = AxClient.load_from_json_file(filepath=state_path)
         return ax_client
+
+    ax_client = AxClient(generation_strategy=gs)
 
     # Integer bounds derived from physical limits (meters) and particle spacing
     rad_lb, rad_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
