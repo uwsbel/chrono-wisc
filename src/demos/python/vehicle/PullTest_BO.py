@@ -105,7 +105,7 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
     # Integer bounds derived from physical limits (meters) and particle spacing
     rad_lb, rad_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
     width_lb, width_ub = compute_int_bounds(0.05, 0.15, particle_spacing)
-    gh_lb, gh_ub = compute_int_bounds(0.02, 0.08, particle_spacing)
+    gh_lb, gh_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
     gw_lb, gw_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
 
     ax_client.create_experiment(

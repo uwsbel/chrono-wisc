@@ -361,9 +361,20 @@ def sim(Params):
         veh_loc = artCar.GetVehicle().GetPos()
 
         veh_z_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).z
+        veh_roll_rate = artCar.GetChassis().GetRollRate()
+        veh_pitch_rate = artCar.GetChassis().GetPitchRate()
+        veh_yaw_rate = artCar.GetChassis().GetYawRate()
+
+        print(f"Veh roll rate: {veh_roll_rate}, Veh pitch rate: {veh_pitch_rate}, Veh yaw rate: {veh_yaw_rate}")
 
         if(veh_z_vel > 15):
             # This means vehicle is flying
+            sim_failed = True
+            total_time_to_reach = tend + 1
+            break
+        
+        # If any of the roll, pitch and yaw rate go above 10, it means the sim has crashed
+        if(time > 0.3 and (veh_roll_rate > 10 or veh_pitch_rate > 10 or veh_yaw_rate > 10)):
             sim_failed = True
             total_time_to_reach = tend + 1
             break
@@ -448,6 +459,10 @@ def sim(Params):
     print(f"  grouser_type: {Params.grouser_type}")
     print(f"  fan_theta_deg: {Params.fan_theta_deg}")
     print(f"  cp_deviation: {Params.cp_deviation}")
+    if(total_time_to_reach < 1):
+        print(f"Total time to reach is less than 1 second")
+        sim_failed = True
+        total_time_to_reach = tend + 1
     
     if(sim_failed):
         print(f"Simulation failed")
@@ -460,14 +475,14 @@ def sim(Params):
 
 if __name__ == "__main__":
     Params = Params()
-    Params.rad = 12
-    Params.width = 5
-    Params.g_height = 8
-    Params.g_width = 2
-    Params.g_density = 11
+    Params.rad = 7
+    Params.width = 17
+    Params.g_height = 3
+    Params.g_width = 5
+    Params.g_density = 16
     Params.particle_spacing = 0.01
     Params.grouser_type = 0
-    Params.fan_theta_deg = 45.0
+    Params.fan_theta_deg = 61
     Params.cp_deviation = 0
     
     total_time_to_reach, sim_failed = sim(Params)

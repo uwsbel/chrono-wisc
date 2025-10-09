@@ -111,14 +111,14 @@ def sim(Params):
     
     # Visualization settings
     render = True
-    render_fps = 200
+    render_fps = 100
     visualization_sph = True
     visualization_bndry_bce = False
-    visualization_rigid_bce = False
+    visualization_rigid_bce = True
     
     # CRM material properties
     density = 1700
-    cohesion = 1e3
+    cohesion = 0
     friction = 0.8
     youngs_modulus = 1e6
     poisson_ratio = 0.3
@@ -301,6 +301,8 @@ def sim(Params):
     out_dir = chrono.GetChronoOutputPath() + "ARTcar_PullTest/"
     os.makedirs(out_dir, exist_ok=True)
     out_file = os.path.join(out_dir, "results.txt")
+    snap_dir = os.path.join(os.curdir, "ARTcar_PullTest_0.005_0_3_0.8_snapshots")
+    os.makedirs(snap_dir, exist_ok=True)
     
     # Prepare per-tire CSV writers
     num_axles = artCar.GetVehicle().GetNumberAxles()
@@ -337,7 +339,7 @@ def sim(Params):
         visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
         visVSG.SetCameraAngleDeg(40)
         visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, 2, 0.5))
         
         visVSG.Initialize()
         vis = visVSG
@@ -356,16 +358,25 @@ def sim(Params):
     while time < tend:
         veh_loc = artCar.GetVehicle().GetPos()
         veh_z_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).z
+        veh_roll_rate = artCar.GetChassis().GetRollRate()
+        veh_pitch_rate = artCar.GetChassis().GetPitchRate()
+        veh_yaw_rate = artCar.GetChassis().GetYawRate()
 
         if(veh_z_vel > 15):
             # This means vehicle is flying
             sim_failed = True
             total_time_to_reach = tend + 1
             break
+        
+        # If any of the roll, pitch and yaw rate go above 10, it means the sim has crashed
+        if(time > 0.3 and (veh_roll_rate > 10 or veh_pitch_rate > 10 or veh_yaw_rate > 10)):
+            sim_failed = True
+            total_time_to_reach = tend + 1
+            break
+        
             
         # Get driver inputs from path follower
         driver_inputs = driver.GetInputs()
-        
         # Override throttle control with custom logic
         if time < zero_force_duration - 0.1:
             driver_inputs.m_throttle = 0
@@ -387,7 +398,11 @@ def sim(Params):
             if not vis.Run():
                 break
             vis.Render()
+            if snapshots:
+                print(f"Snapshot frame {render_frame} written to {os.path.join(snap_dir, f'img_{render_frame}.png')}")
+                vis.WriteImageToFile(os.path.join(snap_dir, f"img_{render_frame}.png"))
             render_frame += 1
+
         try:
             # Synchronize systems
             driver.Synchronize(time)
@@ -443,7 +458,11 @@ def sim(Params):
     print(f"  grouser_type: {Params.grouser_type}")
     print(f"  fan_theta_deg: {Params.fan_theta_deg}")
     print(f"  cp_deviation: {Params.cp_deviation}")
-    
+    if(total_time_to_reach < 1):
+        print(f"Total time to reach is less than 1 second")
+        sim_failed = True
+        total_time_to_reach = tend + 1
+
     if(sim_failed):
         print(f"Simulation failed")
     else:
@@ -452,15 +471,16 @@ def sim(Params):
 
 if __name__ == "__main__":
     Params = Params()
-    Params.rad = 12
-    Params.width = 5
-    Params.g_height = 8
-    Params.g_width = 5
-    Params.g_density = 7
-    Params.particle_spacing = 0.01
+    Params.rad = 15
+    Params.width = 30
+    Params.g_height = 5
+    Params.g_width = 4
+    Params.g_density = 10
+    Params.particle_spacing = 0.005
     Params.grouser_type = 0
-    Params.fan_theta_deg = 63
+    Params.fan_theta_deg = 61
     Params.cp_deviation = 0
+    snapshots = True
     
     total_time_to_reach, sim_failed = sim(Params)
     print(f"Total time to reach: {total_time_to_reach}")

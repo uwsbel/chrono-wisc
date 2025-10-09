@@ -5,9 +5,9 @@ import sys
 from simple_wheel_gen import GenSimpleWheelPointCloud
 
 # === Step 1: Parse args ===
-# Usage: python top_10_wheels.py <folder>
+# Usage: python bottom_10_wheels.py <folder>
 if len(sys.argv) < 2:
-    raise SystemExit("Usage: python top_10_wheels.py <folder>")
+    raise SystemExit("Usage: python bottom_10_wheels.py <folder>")
 
 folder = sys.argv[1]
 
@@ -25,40 +25,42 @@ if time_col not in df.columns:
     )
 
 # === Step 5: Clean and filter times ===
-# Coerce to numeric, drop NaN/Inf, and remove unstable runs (< 1.0 s)
+# Coerce to numeric, drop NaN/Inf, and remove unstable runs (< threshold s)
 df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
 df = df[df[time_col].notna()]
 df = df[np.isfinite(df[time_col])]
+
+# Match the same stability cutoff used in top_10_wheels.py
 df = df[df[time_col] >= 1.5]
 df = df[df[time_col] <= 10.0]
 
-# === Step 6: Sort by best (lowest) times ===
-df_sorted = df.sort_values(by=time_col, ascending=True)
+# === Step 6: Sort by worst (highest) times ===
+df_sorted = df.sort_values(by=time_col, ascending=False)
 
-# === Step 7: Select the top 10 runs ===
-top_10 = df_sorted.head(10)
+# === Step 7: Select the bottom 10 runs ===
+bottom_10 = df_sorted.head(10)
 
 # === Step 8: Display the parameters for these runs ===
-print("\nTop 10 Best (Lowest) Times and Corresponding Parameters:")
-for rank, (orig_idx, row) in enumerate(top_10.iterrows(), start=1):
+print("\nBottom 10 Worst (Highest) Times and Corresponding Parameters:")
+for rank, (orig_idx, row) in enumerate(bottom_10.iterrows(), start=1):
     print(f"\nRank {rank}:")
-    for col in top_10.columns:
+    for col in bottom_10.columns:
         print(f"  {col}: {row[col]}")
 
 # === Step 9: Save ranked table next to input ===
-output_path = folder + "/top_10_best_times.csv"
-top_10.to_csv(output_path, index=False)
+output_path = folder + "/bottom_10_worst_times.csv"
+bottom_10.to_csv(output_path, index=False)
 print(f"\nResults saved to '{output_path}'")
 
 
-# === Step 10: Generate wheel CSVs for top 10 into {folder}_top10 ===
-out_wheels_dir = f"{folder}_top10"
+# === Step 10: Generate wheel CSVs for bottom 10 into {folder}_bottom10 ===
+out_wheels_dir = f"{folder}_bottom10"
 os.makedirs(out_wheels_dir, exist_ok=True)
 
 def _get_value(row, key, default=None):
     return row[key] if key in row and pd.notna(row[key]) else default
 
-for rank, (orig_idx, row) in enumerate(top_10.iterrows(), start=1):
+for rank, (orig_idx, row) in enumerate(bottom_10.iterrows(), start=1):
     # Required fields with safe casting
     spacing = float(_get_value(row, 'particle_spacing', 0.01))
     rad_units = float(_get_value(row, 'rad', 0.0))
@@ -108,4 +110,5 @@ for rank, (orig_idx, row) in enumerate(top_10.iterrows(), start=1):
     wheel_csv_path = os.path.join(out_wheels_dir, f"rank_{rank}_idx_{orig_idx}.csv")
     pts_df.to_csv(wheel_csv_path, index=False)
     print(f"Saved wheel CSV: {wheel_csv_path}")
+
 
