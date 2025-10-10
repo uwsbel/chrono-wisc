@@ -156,7 +156,7 @@ def map_params_to_sim(param_dict, particle_spacing):
 def _worker_run_trial(trial_index, param_dict, particle_spacing, assigned_gpu, failed_log):
     """
     Execute a single simulation in an isolated process on a specific GPU.
-    Returns: (trial_index, total_time_to_reach, sim_failed, error_message)
+    Returns: (trial_index, metric, t_elapsed, rms_error, sim_failed, error_message)
     """
     try:
         # Restrict this process to the assigned GPU (single device id)
@@ -167,8 +167,7 @@ def _worker_run_trial(trial_index, param_dict, particle_spacing, assigned_gpu, f
 
         params_for_sim = map_params_to_sim(param_dict, particle_spacing)
         metric, t_elapsed, rms_error, sim_failed = sim(params_for_sim)
-        # Return negative metric since we want to minimize (lower metric = better performance)
-        return trial_index, -metric, bool(sim_failed), None
+        return trial_index, metric, t_elapsed, rms_error, bool(sim_failed), None
     except Exception as e:
         # Persist failure detail here as well (workers have isolated memory)
         try:
@@ -181,7 +180,7 @@ def _worker_run_trial(trial_index, param_dict, particle_spacing, assigned_gpu, f
                 }) + "\n")
         except Exception:
             pass
-        return trial_index, None, True, str(e)
+        return trial_index, None, None, None, True, str(e)
 
 
 def _discover_gpus(user_gpus_arg=None):
@@ -240,7 +239,7 @@ def main():
     if not os.path.isfile(trials_csv):
         with open(trials_csv, "w") as f:
             f.write(
-                "timestamp,trial_index,composite_metric,rad,width,g_height,g_width,g_density,grouser_type,fan_theta_deg,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
+                "timestamp,trial_index,composite_metric,t_elapsed,rms_error,rad,width,g_height,g_width,g_density,grouser_type,fan_theta_deg,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
             )
 
     # Ensure clean worker processes without inheriting CUDA contexts
@@ -272,10 +271,10 @@ def main():
         with ProcessPoolExecutor(max_workers=min(q, len(gpu_ids) * per_gpu_conc), mp_context=mp.get_context("spawn")) as ex:
             futures = [ex.submit(_worker_run_trial, *args_tuple) for args_tuple in assignments]
             for fut in as_completed(futures):
-                trial_index, total_time_to_reach, sim_failed, err = fut.result()
+                trial_index, metric, t_elapsed, rms_error, sim_failed, err = fut.result()
                 param_dict = suggestions[trial_index]
 
-                if sim_failed or total_time_to_reach is None:
+                if sim_failed or metric is None:
                     ax_client.abandon_trial(trial_index=trial_index)
                     with open(failed_log, "a") as flog:
                         flog.write(json.dumps({
@@ -286,10 +285,10 @@ def main():
                         }) + "\n")
                     continue
 
-                ax_client.complete_trial(trial_index=trial_index, raw_data={"composite_metric": float(total_time_to_reach)})
+                ax_client.complete_trial(trial_index=trial_index, raw_data={"composite_metric": float(metric)})
                 with open(trials_csv, "a") as f:
                     f.write(
-                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{total_time_to_reach},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
+                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
                     )
 
         # Persist Ax state after each batch
