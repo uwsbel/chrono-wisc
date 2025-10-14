@@ -186,7 +186,7 @@ def _compute_cross_track_error_xy(vehicle_xy, path_points_xy):
     return best if best is not None else 0.0
 
 
-def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
+def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=200):
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
@@ -480,6 +480,8 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     
     initial_x_position =  artCar.GetVehicle().GetPos().x
     min_speed = 0.15
+    net_power = 0
+    power_count = 0
     while time < tend:
         veh_loc = artCar.GetVehicle().GetPos()
         current_x_position = veh_loc.x
@@ -490,7 +492,12 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
         veh_yaw_rate = artCar.GetChassis().GetYawRate()
         veh_z_pos = veh_loc.z
 
-
+        engine_speed = artCar.GetVehicle().GetEngine().GetMotorSpeed()
+        engine_torque = artCar.GetVehicle().GetEngine().GetOutputMotorshaftTorque()
+        
+        if(time > 0.5):
+            net_power += engine_torque * engine_speed
+            power_count += 1
 
         # If Z vel is crazy high, break
         if(veh_z_vel > 15):
@@ -629,8 +636,24 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     ideal_time = path_length / max(1e-6, target_speed)
 
     r_t = min(10.0, max(0.5, t_elapsed / max(1e-9, ideal_time)))
-    # Composite metric (speed-focused by default)
-    metric = weight_speed * r_t + (1.0 - weight_speed) * e_norm_score
+    
+    # Power metrics
+    if power_count > 0:
+        average_power = net_power / power_count
+    else:
+        average_power = 0.0
+    
+    # Normalize power (assuming reasonable power range 0-1000W, penalize high power)
+    ideal_power = 50.0  # Target average power in watts
+    power_ratio = max(0.1, average_power / max(1e-6, ideal_power))
+    power_score = min(10.0, power_ratio)  # Higher power = higher score (worse)
+    
+    # Composite metric with three components: speed, tracking, and power
+    # Ensure weights sum to 1.0
+    weight_tracking = 1.0 - weight_speed - weight_power
+    weight_tracking = max(0.0, weight_tracking)  # Ensure non-negative
+    
+    metric = weight_speed * r_t + weight_tracking * e_norm_score + weight_power * power_score
 
     if(sim_failed):
         print(f"Simulation failed")
@@ -639,9 +662,11 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
 
     print(f"Metric components:")
     print(f"  path_length: {path_length:.4f} m, ideal_time@5m/s: {ideal_time:.4f} s")
-    print(f"  elapsed_time: {t_elapsed:.4f} s, time_ratio: {r_t:.4f}")
-    print(f"  rms_cross_track_error: {rms_error:.4f} m, error_norm: {e_norm:.4f}")
-    print(f"  weight_speed: {weight_speed:.3f}, composite_metric: {metric:.4f}")
+    print(f"  elapsed_time: {t_elapsed:.4f} s, ideal_time: {ideal_time:.4f} s, time_ratio_score: {r_t:.4f}")
+    print(f"  rms_cross_track_error: {rms_error:.4f} m, ideal_error_norm: {ideal_e_norm:.4f}, error_norm_score: {e_norm_score:.4f}")
+    print(f"  average_power: {average_power:.2f} W, ideal_power: {ideal_power:.2f} W, power_score: {power_score:.4f}")
+    print(f"  weights: speed={weight_speed:.3f}, tracking={weight_tracking:.3f}, power={weight_power:.3f}")
+    print(f"  composite_metric: {metric:.4f}")
 
     # CRITICAL: Proper cleanup to prevent memory leaks and CUDA context accumulation
     try:
@@ -684,12 +709,13 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
         print(f"Cleanup error: {cleanup_error}")
         sim_failed = True
     
-    return metric, t_elapsed, rms_error, sim_failed
+    return metric, t_elapsed, rms_error, average_power, sim_failed
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--weight_speed", type=float, default=0.7)
+    parser.add_argument("--weight_power", type=float, default=0.1)
     parser.add_argument("--slalom_y", type=float, default=0.4)
     parser.add_argument("--num_samples", type=int, default=200)
     parser.add_argument("--steering_kp", type=float, default=10)
@@ -713,5 +739,5 @@ if __name__ == "__main__":
     Params.speed_kp = 1.557757
     Params.speed_kd = 0.02518
    
-    metric, t_elapsed, rms_error, sim_failed = sim(Params, weight_speed=args.weight_speed, slalom_y=args.slalom_y, num_samples=args.num_samples)
-    print(f"Composite metric: {metric:.4f}, elapsed: {t_elapsed:.4f} s, rms_error: {rms_error:.4f} m, failed: {sim_failed}")
+    metric, t_elapsed, rms_error, average_power, sim_failed = sim(Params, weight_speed=args.weight_speed, weight_power=args.weight_power, slalom_y=args.slalom_y, num_samples=args.num_samples)
+    print(f"Composite metric: {metric:.4f}, elapsed: {t_elapsed:.4f} s, rms_error: {rms_error:.4f} m, avg_power: {average_power:.2f} W, failed: {sim_failed}")

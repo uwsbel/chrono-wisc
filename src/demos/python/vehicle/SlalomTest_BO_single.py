@@ -148,7 +148,7 @@ def map_params_to_sim(param_dict, particle_spacing):
     return p
 
 
-def run_trial(trial_index, param_dict, particle_spacing, failed_log):
+def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_power, failed_log):
     """
     Execute a single simulation on the specified GPU.
     Returns: (trial_index, metric, t_elapsed, rms_error, sim_failed, error_message)
@@ -163,12 +163,12 @@ def run_trial(trial_index, param_dict, particle_spacing, failed_log):
 
         params_for_sim = map_params_to_sim(param_dict, particle_spacing)
         try:
-            metric, t_elapsed, rms_error, sim_failed = sim(params_for_sim)
+            metric, t_elapsed, rms_error, average_power, sim_failed = sim(params_for_sim, weight_speed=weight_speed, weight_power=weight_power)
         except Exception as e:
             print(f"Simulation error at trial {trial_index}: {type(e).__name__}: {e}")
             sim_failed = True
             metric = 50  # Penalty for simulation errors
-            return trial_index, metric, t_elapsed, rms_error, bool(sim_failed), str(e)
+            return trial_index, metric, t_elapsed, rms_error, 0.0, bool(sim_failed), str(e)
         
         # CRITICAL: Check for CUDA errors after simulation
         error_occurred, error_message = check_cuda_error()
@@ -180,7 +180,7 @@ def run_trial(trial_index, param_dict, particle_spacing, failed_log):
             else:
                 metric = -50  # Initialization failed which is weird and the sim should be discarded
         
-        return trial_index, metric, t_elapsed, rms_error, bool(sim_failed), error_message if error_occurred else None
+        return trial_index, metric, t_elapsed, rms_error, average_power, bool(sim_failed), error_message if error_occurred else None
         
     except Exception as e:
         # Log failure detail
@@ -192,7 +192,7 @@ def run_trial(trial_index, param_dict, particle_spacing, failed_log):
                 "error": str(e),
             }) + "\n")
 
-        return trial_index, 50, None, None, True, str(e)
+        return trial_index, 50, None, None, 0.0, True, str(e)
 
 
 def ensure_dir(path):
@@ -205,6 +205,8 @@ def main():
     parser.add_argument("--batches", type=int, default=500, help="Number of outer iterations (batches)")    
     parser.add_argument("--q", type=int, default=1, help="Batch size per iteration (number of sequential suggestions)")
     parser.add_argument("--sobol", type=int, default=64, help="Number of Sobol warmup trials before BO")
+    parser.add_argument("--weight_speed", type=float, default=0.5, help="Weight for speed component in composite metric")
+    parser.add_argument("--weight_power", type=float, default=0.25, help="Weight for power component in composite metric")
     parser.add_argument("--out_dir", type=str, default=os.path.join(os.getcwd(), "ARTcar_SlalomTest_BO_single"), help="Output directory for logs and state")
     parser.add_argument("--state_path", type=str, default=None, help="Path to save/load Ax state JSON (defaults to out_dir/ax_state.json)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing Ax state JSON if present")
@@ -233,7 +235,7 @@ def main():
     if not os.path.isfile(trials_csv):
         with open(trials_csv, "w") as f:
             f.write(
-                "timestamp,trial_index,composite_metric,t_elapsed,rms_error,rad,width,g_height,g_width,g_density,grouser_type,fan_theta_deg,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
+                "timestamp,trial_index,composite_metric,t_elapsed,rms_error,average_power,rad,width,g_height,g_width,g_density,grouser_type,fan_theta_deg,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
             )
 
     for batch_idx in range(batches):
@@ -243,8 +245,8 @@ def main():
         # Execute trials sequentially
         for trial_index, param_dict in suggestions.items():
             print(f"  Running trial {trial_index}...")
-            trial_index, metric, t_elapsed, rms_error, sim_failed, err = run_trial(
-                trial_index, param_dict, particle_spacing, failed_log
+            trial_index, metric, t_elapsed, rms_error, average_power, sim_failed, err = run_trial(
+                trial_index, param_dict, particle_spacing, args.weight_speed, args.weight_power, failed_log
             )
 
             if sim_failed:
@@ -271,9 +273,9 @@ def main():
             ax_client.complete_trial(trial_index=trial_index, raw_data={"composite_metric": float(metric)})
             with open(trials_csv, "a") as f:
                 f.write(
-                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
+                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{average_power},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_width']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
                 )
-            print(f"    Trial {trial_index} completed: metric={metric:.4f}, time={t_elapsed:.2f}s")
+            print(f"    Trial {trial_index} completed: metric={metric:.4f}, time={t_elapsed:.2f}s, power={average_power:.2f}W")
 
         # Persist Ax state after each batch
         ax_client.save_to_json_file(filepath=state_path)
