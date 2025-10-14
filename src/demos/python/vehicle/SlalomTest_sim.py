@@ -24,16 +24,10 @@ import os
 import math
 import argparse
 from simple_wheel_gen import GenSimpleWheelPointCloud
-from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize
+from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize, safe_initialize
 
 # Global flag for signal handling
 simulation_error = None
-# CRM material properties
-density = 1700
-cohesion = 1e3
-friction = 0.8
-youngs_modulus = 1e6
-poisson_ratio = 0.3
 class Params:
     rad=50, # Radius is 50 * particle_spacing
     width=40, # Width is 40 * particle_spacing
@@ -41,7 +35,7 @@ class Params:
     g_height=10, # Grouser height is 10 * particle_spacing
     g_width=2, # Grouser width is 2 * particle_spacing
     g_density=8, # Number of grousers per revolution
-    particle_spacing=0.005, # Particle spacing
+    particle_spacing=0.01, # Particle spacing
     grouser_type=0 # 0 for Straight, 1 for Semi-Circle
     fan_theta_deg=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
     # Controller gains for joint optimization
@@ -59,7 +53,16 @@ class Params:
 terrain_length = 5.0
 terrain_width = 2
 terrain_height = 0.10
-
+# Problem settings
+tend = 15
+# CRM material properties
+density = 1700
+cohesion = 0
+friction = 0.6
+youngs_modulus = 1e6
+poisson_ratio = 0.3
+# Driver controls both steering and throttle to target 5 m/s along slalom
+target_speed = 3.0
 wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv"
 # Pull force is constant
 class PullForceFunctor(chrono.ForceFunctor):
@@ -120,9 +123,7 @@ def CreateFSIWheels(vehicle, terrain, Params):
 def _build_slalom_waypoints(lateral_amplitude_y, vehicle_init_height, start_x, end_x):
     # Simple single lane change within [start_x, end_x]
     # Start at y=0, gentle turn to +Y, hold, and return to 0 by end_x
-    # Choose internal points relative to the segment length
     length = max(0.1, end_x - start_x)
-    # Fractions along the segment for center points
     f1 = 0.30
     f2 = 0.70
     x0 = start_x
@@ -189,8 +190,7 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
-    # Problem settings
-    tend = 10
+
     verbose = False
     
     # Visualization settings
@@ -255,7 +255,7 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     terrain.SetVerbose(verbose)
     terrain.SetGravitationalAcceleration(chrono.ChVector3d(0, 0, -9.81))
     terrain.SetStepSizeCFD(1e-4)
-    terrain.GetFluidSystemSPH().EnableCudaErrorCheck(False)
+    terrain.GetFluidSystemSPH().EnableCudaErrorCheck(True)  # CRITICAL: Enable CUDA error checking
     
     # Register the vehicle with the CRM terrain
     terrain.RegisterVehicle(artCar.GetVehicle())
@@ -304,7 +304,13 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
                       (fsi.BoxSide_ALL & ~fsi.BoxSide_Z_POS))
     
     # Initialize the terrain system
-    terrain.Initialize()
+    success, error_msg = safe_initialize(terrain)
+    if not success:
+        print(f"Terrain initialization failed: {error_msg}")
+        sim_failed = True
+        total_time_to_reach = tend + 1
+        # -50 because this needs to discarded
+        return -50, 0, 0, True
     
     aabb = terrain.GetSPHBoundingBox()
     # print(f"  SPH particles:     {terrain.GetNumSPHParticles()}")
@@ -317,7 +323,8 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     # Create a gentle slalom path (Bezier from waypoints)
     # Build waypoints and simple Bezier control vectors based on local tangents
     # Start the path slightly ahead of the vehicle so it has a short run-up
-    start_x = vehicle_x + 0.1
+    start_offset = vehicle_x + 0.1
+    start_x = start_offset
     end_x = x_max
     waypoints = _build_slalom_waypoints(slalom_y, vehicle_init_height, start_x, end_x)
     in_cvs = []
@@ -347,8 +354,7 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
 
     bezier_path = chrono.ChBezierCurve(waypoints, in_cvs, out_cvs)
 
-    # Driver controls both steering and throttle to target 5 m/s along slalom
-    target_speed = 5.0
+
     driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), bezier_path, "slalom_path", target_speed)
     driver.GetSteeringController().SetLookAheadDistance(0.2)
     driver.GetSteeringController().SetGains(Params.steering_kp, 0.0, Params.steering_kd)
@@ -411,6 +417,8 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     out_dir = chrono.GetChronoOutputPath() + "ARTcar_SlalomTest/"
     os.makedirs(out_dir, exist_ok=True)
     out_file = os.path.join(out_dir, "results.txt")
+    snap_dir = os.path.join(os.curdir, "ARTcar_SlalomTest_snapshots")
+    os.makedirs(snap_dir, exist_ok=True)
     
     # Prepare per-tire CSV writers
     num_axles = artCar.GetVehicle().GetNumberAxles()
@@ -447,7 +455,7 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     #     visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
     #     visVSG.SetCameraAngleDeg(40)
     #     visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-    #     visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+    #     visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, 0, 2.5))
         
     #     visVSG.Initialize()
     #     vis = visVSG
@@ -470,34 +478,56 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     # print("Start simulation...")
     total_time_to_reach = tend + 1
     
-        
+    initial_x_position =  artCar.GetVehicle().GetPos().x
+    min_speed = 0.15
     while time < tend:
         veh_loc = artCar.GetVehicle().GetPos()
+        current_x_position = veh_loc.x
 
         veh_z_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).z
         veh_roll_rate = artCar.GetChassis().GetRollRate()
         veh_pitch_rate = artCar.GetChassis().GetPitchRate()
         veh_yaw_rate = artCar.GetChassis().GetYawRate()
+        veh_z_pos = veh_loc.z
 
 
+
+        # If Z vel is crazy high, break
         if(veh_z_vel > 15):
+            print(f"Veh Z vel is crazy high: {veh_z_vel}")
             # This means vehicle is flying
             sim_failed = True
-            total_time_to_reach = tend + 1
+            total_time_to_reach = tend*2
+            break
+
+        # If Z position is too high after 0.3 seconds, break
+        if(time > 0.3 and veh_z_pos > 0.8):
+            print(f"Veh Z pos is too high: {veh_z_pos}")
+            sim_failed = True
+            total_time_to_reach = tend*2
             break
         
         # If any of the roll, pitch and yaw rate go above 10, it means the sim has crashed
-        if(time > 0.3 and (veh_roll_rate > 15 or veh_pitch_rate > 15 or veh_yaw_rate > 15)):
+        if(time > 0.3 and (veh_roll_rate > 10 or veh_pitch_rate > 10 or veh_yaw_rate > 10)):
+            print(f"Veh roll rate is too high: {veh_roll_rate}, Veh pitch rate is too high: {veh_pitch_rate}, Veh yaw rate is too high: {veh_yaw_rate}")
             sim_failed = True
-            total_time_to_reach = tend + 1
+            total_time_to_reach = tend*2
+            break
+
+        # After 3 seconds check if any meaningful progress has been made
+        # If no, then break
+        if(time > 3 and current_x_position - initial_x_position < min_speed * 2):
+            print(f"No meaningful progress has been made: {current_x_position - initial_x_position}")
+            sim_failed = True
+            total_time_to_reach = tend*2
             break
         
-        # Get driver inputs from path follower (no manual overrides) after delay
+        # Get driver inputs from path follower after delay
         if time < control_delay:
             driver_inputs = veh.DriverInputs()
             driver_inputs.m_throttle = 0.0
             driver_inputs.m_steering = 0.0
-            driver_inputs.m_braking = 1.0
+            driver_inputs.m_braking = 0.0
         else:
             driver_inputs = driver.GetInputs()
         
@@ -516,6 +546,9 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
         #     if not vis.Run():
         #         break
         #     vis.Render()
+        #     if snapshots:
+        #         print(f"Snapshot frame {render_frame} written to {os.path.join(snap_dir, f'img_{render_frame}.png')}")
+        #         vis.WriteImageToFile(os.path.join(snap_dir, f"img_{render_frame}.png"))
         #     render_frame += 1
         try:
             # Synchronize systems
@@ -579,7 +612,7 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     if(total_time_to_reach < 1):
         print(f"Total time to reach is less than 1 second")
         sim_failed = True
-        total_time_to_reach = tend + 1
+        total_time_to_reach = tend*2
     
     # Compute metrics
     if error_samples > 0:
@@ -587,21 +620,22 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     else:
         rms_error = float('inf')
 
-    # Normalize tracking error by slalom amplitude
-    e_norm = min(2.0, rms_error / max(1e-6, slalom_y))
-
-    # Time metrics (exclude initial settle/control delay)
+    e_norm = rms_error
+    ideal_e_norm = 0.01
+    e_norm_score = min(10, e_norm / ideal_e_norm)
+    # Time metrics (exclude initial control delay)
     t_elapsed = max(0.0, total_time_to_reach - control_delay)
 
     ideal_time = path_length / max(1e-6, target_speed)
-    r_t = min(10.0, max(0.5, t_elapsed / max(1e-9, ideal_time)))
 
+    r_t = min(10.0, max(0.5, t_elapsed / max(1e-9, ideal_time)))
     # Composite metric (speed-focused by default)
-    metric = weight_speed * r_t + (1.0 - weight_speed) * e_norm
+    metric = weight_speed * r_t + (1.0 - weight_speed) * e_norm_score
 
     if(sim_failed):
         print(f"Simulation failed")
-        metric = 5.0
+        metric = 50
+
 
     print(f"Metric components:")
     print(f"  path_length: {path_length:.4f} m, ideal_time@5m/s: {ideal_time:.4f} s")
@@ -609,14 +643,54 @@ def sim(Params, weight_speed=0.7, slalom_y=0.2, num_samples=200):
     print(f"  rms_cross_track_error: {rms_error:.4f} m, error_norm: {e_norm:.4f}")
     print(f"  weight_speed: {weight_speed:.3f}, composite_metric: {metric:.4f}")
 
-    import gc; gc.collect()
+    # CRITICAL: Proper cleanup to prevent memory leaks and CUDA context accumulation
+    try:
+        # Clear CUDA errors before cleanup
+        clear_cuda_error()
+        
+        # Clean up FSI bodies
+        if 'fsi_bodies' in locals():
+            for fsi_body in fsi_bodies:
+                try:
+                    del fsi_body
+                except:
+                    pass
+        
+        # Clean up terrain and vehicle
+        try:
+            del terrain
+        except:
+            pass
+        try:
+            del artCar
+        except:
+            pass
+        try:
+            del sysMBS
+        except:
+            pass
+        
+        # Force garbage collection
+        import gc
+        gc.collect()
+        
+        # Final CUDA error check
+        error_occurred, error_message = check_cuda_error()
+        if error_occurred:
+            print(f"CUDA error during cleanup: {error_message}")
+            sim_failed = True
+            
+    except Exception as cleanup_error:
+        print(f"Cleanup error: {cleanup_error}")
+        sim_failed = True
+    
     return metric, t_elapsed, rms_error, sim_failed
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--weight_speed", type=float, default=0.7)
-    parser.add_argument("--slalom_y", type=float, default=0.2)
+    parser.add_argument("--slalom_y", type=float, default=0.4)
     parser.add_argument("--num_samples", type=int, default=200)
     parser.add_argument("--steering_kp", type=float, default=10)
     parser.add_argument("--steering_kd", type=float, default=0.0)
@@ -625,19 +699,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     Params = Params()
-    Params.rad = 7
-    Params.width = 17
-    Params.g_height = 3
-    Params.g_width = 5
-    Params.g_density = 16
+    Params.rad = 12
+    Params.width = 8
+    Params.g_height = 4
+    Params.g_width = 4
+    Params.g_density = 6
     Params.particle_spacing = 0.01
-    Params.grouser_type = 0
-    Params.fan_theta_deg = 61
+    Params.grouser_type = 1
+    Params.fan_theta_deg = 108
     Params.cp_deviation = 0
-    Params.steering_kp = args.steering_kp
-    Params.steering_kd = args.steering_kd
-    Params.speed_kp = args.speed_kp
-    Params.speed_kd = args.speed_kd
-    
+    Params.steering_kp = 11.538847
+    Params.steering_kd = 1.795085
+    Params.speed_kp = 1.557757
+    Params.speed_kd = 0.02518
+   
     metric, t_elapsed, rms_error, sim_failed = sim(Params, weight_speed=args.weight_speed, slalom_y=args.slalom_y, num_samples=args.num_samples)
     print(f"Composite metric: {metric:.4f}, elapsed: {t_elapsed:.4f} s, rms_error: {rms_error:.4f} m, failed: {sim_failed}")

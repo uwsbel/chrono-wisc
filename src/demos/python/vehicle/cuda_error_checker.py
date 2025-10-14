@@ -97,3 +97,31 @@ def safe_synchronize(vehicle, time, driver_inputs, terrain):
             
     except Exception as e:
         return False, f"Exception during vehicle sync: {e}"
+
+def safe_initialize(terrain):
+    """
+    Safely initialize the terrain system, checking for CUDA errors.
+    
+    Args:
+        terrain: The CRM terrain object
+        
+    Returns:
+        tuple: (success: bool, error_message: str)
+    """
+    try:
+        # Clear any previous errors
+        clear_cuda_error()
+        
+        # Initialize the terrain
+        terrain.Initialize()
+        
+        # Check for errors after initialization
+        error_occurred, error_message = check_cuda_error()
+        
+        if error_occurred:
+            return False, error_message
+        else:
+            return True, ""
+            
+    except Exception as e:
+        return False, f"Exception during terrain initialization: {e}"
