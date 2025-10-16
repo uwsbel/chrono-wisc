@@ -440,13 +440,17 @@ int main(int argc, char* argv[]) {
     csv_file << "time,x,y,z,roll,pitch,yaw,vx,vy,vz\n";
 
 
+    ChVector3d vehicle_pos;
+    ChQuaternion<> vehicle_rot;
+    ChVector3d vehicle_vel;
+
     while (time < tend) {
         // write outputs every 10 frames 
         if (sim_frame % 10 == 0) {
         
-            ChVector3d vehicle_pos = vehicle->GetPos();
-            ChQuaternion<> vehicle_rot = vehicle->GetRot();
-            ChVector3d vehicle_vel = vehicle->GetChassisBody()->GetPosDt();
+            vehicle_pos = vehicle->GetPos();
+            vehicle_rot = vehicle->GetRot();
+            vehicle_vel = vehicle->GetChassisBody()->GetPosDt();
 
             // Vehicle orientation in Euler angles (roll, pitch, yaw)
             ChVector3d euler_angles = vehicle_rot.GetRotVec();
@@ -457,6 +461,10 @@ int main(int argc, char* argv[]) {
             csv_file << std::fixed << std::setprecision(6) << time << "," 
                      << vehicle_pos.x() << "," << vehicle_pos.y() << "," << vehicle_pos.z() << "," << roll << "," << pitch << "," << yaw << ","
                      << vehicle_vel.x() << "," << vehicle_vel.y() << "," << vehicle_vel.z() << "\n";        
+
+            std::cout << time << ", " << vehicle_pos.z() << std::endl;
+
+
         }
 
 
@@ -496,9 +504,6 @@ int main(int argc, char* argv[]) {
                 vis->WriteImageToFile(filename.str());
             }
             render_frame++;
-        }
-        if (!render) {
-            std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
         }
 
         // Synchronize systems
