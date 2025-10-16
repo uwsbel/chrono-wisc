@@ -95,28 +95,46 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 // ===================================================================================================================
 
 int main(int argc, char* argv[]) {
+
+    if (argc != 4) {
+        std::cout << "need to define slope angle, gravity (moon - 0, mars - 1) and friction ceofficient" << std::endl;
+        return 0;
+    }
+
+    double slope_angle = atof(argv[1]);
+    bool use_mars_grav = atoi(argv[2]);
+    double friction = atof(argv[3]);
+
+
     // ----------------
     // Problem settings
     // ----------------
-    double slope_angle = 30;
-    double target_speed = 1.0;
+    double target_speed = 0.5;
     double tend = 30;
     bool verbose = true;
 
     // Visualization settings
-    bool render = false;                    // use run-time visualization
+    bool render = true;                    // use run-time visualization
     double render_fps = 10;                // rendering FPS
     bool visualization_sph = true;         // render SPH particles
-    bool visualization_bndry_bce = false;  // render boundary BCE markers
+    bool visualization_bndry_bce = true;  // render boundary BCE markers
     bool visualization_rigid_bce = true;   // render wheel BCE markers
 
+    double density, cohesion, youngs_modulus, poisson_ratio;
+
     // CRM material properties
-    double density = 1700;
-    //double cohesion = 5e3;
-    double cohesion = 500;
-    double friction = 0.9;
-    double youngs_modulus = 1e6;
-    double poisson_ratio = 0.3;
+    if (use_mars_grav) {
+        density = 1700;
+        cohesion = 500;
+        youngs_modulus = 1e6;
+        poisson_ratio = 0.3;    
+    
+    } else {
+        density = 1700;
+        cohesion = 500;
+        youngs_modulus = 1e6;
+        poisson_ratio = 0.3;    
+    }
 
     // CRM (moving) active box dimension
     double active_box_hdim = 0.4;
@@ -124,7 +142,6 @@ int main(int argc, char* argv[]) {
 
     // Set SPH spacing
     double spacing = (patch_type == PatchType::MARKER_DATA) ? 0.02 : 0.04;
-
     bool add_trailer = false;
 
     auto trailer_model = UT_Model();
@@ -224,7 +241,16 @@ int main(int argc, char* argv[]) {
 
     // Set collision system
     sysMBS->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
-    sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -3.73));
+
+    if (use_mars_grav) {
+        sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -3.73));
+        std::cout << "USE mars gravity!! " << std::endl;
+    } else {
+        sysMBS->SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
+        std::cout << "USE moon gravity!! " << std::endl;
+    
+    }
+
 
     // ----------------------
     // Create the CRM terrain
@@ -263,7 +289,6 @@ int main(int argc, char* argv[]) {
     sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
     sph_params.boundary_type = BoundaryType::ADAMI;
     terrain.SetSPHParameters(sph_params);
-
     // Set output level from SPH simulation
     terrain.SetOutputLevel(OutputLevel::STATE);
 
@@ -303,6 +328,7 @@ int main(int argc, char* argv[]) {
                               ChVector3d(terrain_length / 2, 0, 0),   // patch center
                               BoxSide::Z_NEG                          // bottom wall
             );
+
         }
 
             // Create straight line path
@@ -321,7 +347,13 @@ int main(int argc, char* argv[]) {
 
     // Initialize the terrain system
     terrain.Initialize();
-    std::string out_dir = GetChronoOutputPath() + "CRMTerrain_WheeledVehicle/";
+
+    std::string out_dir;
+    if (use_mars_grav)
+        out_dir = GetChronoOutputPath() + "mars_grav_slope_" + argv[1] + "_mu_" + argv[3];
+    else 
+        out_dir = GetChronoOutputPath() + "moon_grav_slope_" + argv[1] + "_mu_" + argv[3];
+
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
@@ -368,6 +400,7 @@ int main(int argc, char* argv[]) {
         visFSI->EnableFluidMarkers(visualization_sph);
         visFSI->EnableBoundaryMarkers(visualization_bndry_bce);
         visFSI->EnableRigidBodyMarkers(visualization_rigid_bce);
+        visFSI->SetColorFluidMarkers(ChColor(1, 0.7, 0.7));
         //visFSI->SetSPHColorCallback(chrono_types::make_shared<ParticleHeightColorCallback>(ChColor(0.10f, 0.40f, 0.65f), aabb.min.z(), aabb.max.z()));
 
         // Wheeled vehicle VSG visual system (attach visFSI as plugin)
@@ -398,13 +431,36 @@ int main(int argc, char* argv[]) {
     double time = 0;
     int sim_frame = 0;
     int render_frame = 0;
+    int output_frame = 50; // write output every 100 time steps
     bool braking = false;
 
     cout << "Start simulation..." << endl;
 
+    std::ofstream csv_file(out_dir + "/simulation_data.csv");
+    csv_file << "time,x,y,z,roll,pitch,yaw,vx,vy,vz\n";
+
+
     while (time < tend) {
+        // write outputs every 10 frames 
+        if (sim_frame % 10 == 0) {
+        
+            ChVector3d vehicle_pos = vehicle->GetPos();
+            ChQuaternion<> vehicle_rot = vehicle->GetRot();
+            ChVector3d vehicle_vel = vehicle->GetChassisBody()->GetPosDt();
+
+            // Vehicle orientation in Euler angles (roll, pitch, yaw)
+            ChVector3d euler_angles = vehicle_rot.GetRotVec();
+            double roll = euler_angles.x();
+            double pitch = euler_angles.y();
+            double yaw = euler_angles.z();
+
+            csv_file << std::fixed << std::setprecision(6) << time << "," 
+                     << vehicle_pos.x() << "," << vehicle_pos.y() << "," << vehicle_pos.z() << "," << roll << "," << pitch << "," << yaw << ","
+                     << vehicle_vel.x() << "," << vehicle_vel.y() << "," << vehicle_vel.z() << "\n";        
+        }
+
+
         const auto& veh_loc = vehicle->GetPos();
-        std::cout << "veh_loc, " << veh_loc.x() << ", " << veh_loc.y() << ", " << veh_loc.z() << std::endl;
         // Set current driver inputs
         auto driver_inputs = driver.GetInputs();
 
@@ -472,8 +528,8 @@ int main(int argc, char* argv[]) {
         time += step_size;
         sim_frame++;
     }
-
-    csv.WriteToFile(out_file);
+    csv_file.close();
+    //csv.WriteToFile(out_file);
 
 #ifdef CHRONO_POSTPROCESS
     postprocess::ChGnuPlot gplot(out_dir + "/height.gpl");
