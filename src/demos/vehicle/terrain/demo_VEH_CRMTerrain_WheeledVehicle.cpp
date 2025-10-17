@@ -250,16 +250,19 @@ int main(int argc, char* argv[]) {
         std::cout << "USE moon gravity!! " << std::endl;
     
     }
-
-
     // ----------------------
     // Create the CRM terrain
     // ----------------------
-
     CRMTerrain terrain(*sysMBS, spacing);
     ChFsiSystemSPH& sysFSI = terrain.GetSystemFSI();
     terrain.SetVerbose(verbose);
-    terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
+
+    if (use_mars_grav) {
+        terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -3.73));    
+    } else {
+        terrain.SetGravitationalAcceleration(ChVector3d(0, 0, -1.62));
+    }
+
     terrain.SetStepSizeCFD(step_size);
 
     // Register the vehicle with the CRM terrain
