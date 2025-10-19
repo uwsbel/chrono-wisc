@@ -57,12 +57,12 @@ terrain_height = 0.10
 tend = 15
 # CRM material properties
 density = 1700
-cohesion = 0
-friction = 0.6
+cohesion = 1e3
+friction = 0.8
 youngs_modulus = 1e6
 poisson_ratio = 0.3
 # Driver controls both steering and throttle to target 5 m/s along slalom
-target_speed = 3.0
+target_speed = 5.0
 wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv"
 # Pull force is constant
 class PullForceFunctor(chrono.ForceFunctor):
@@ -214,7 +214,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     
     # Create vehicle
     # print("Create vehicle...")
-    vehicle_init_height = 0.5
+    vehicle_init_height = 0.3
     
     artCar = veh.ARTcar()
     artCar.SetContactMethod(chrono.ChContactMethod_SMC)
@@ -222,7 +222,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     vehicle_x = 0.5
     artCar.SetInitPosition(chrono.ChCoordsysd(chrono.ChVector3d(vehicle_x, 0, vehicle_init_height), chrono.QUNIT))
     artCar.SetTireType(veh.TireModelType_RIGID)
-    artCar.SetMaxMotorVoltageRatio(0.16)
+    artCar.SetMaxMotorVoltageRatio(0.32)
     artCar.SetStallTorque(3)
     artCar.SetTireRollingResistance(0)
     artCar.Initialize()
@@ -629,24 +629,24 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
 
     e_norm = rms_error
     ideal_e_norm = 0.01
-    e_norm_score = min(10, e_norm / ideal_e_norm)
+    e_norm_score = (e_norm / ideal_e_norm) * 10
     # Time metrics (exclude initial control delay)
-    t_elapsed = max(0.0, total_time_to_reach - control_delay)
+    t_elapsed = total_time_to_reach - control_delay
 
-    ideal_time = path_length / max(1e-6, target_speed)
+    ideal_time = path_length / target_speed
 
-    r_t = min(10.0, max(0.5, t_elapsed / max(1e-9, ideal_time)))
+    r_t = (t_elapsed / ideal_time) * 10
     
     # Power metrics
     if power_count > 0:
         average_power = net_power / power_count
     else:
-        average_power = 0.0
+        # This basically means things have failed
+        average_power = float('inf')
     
     # Normalize power (assuming reasonable power range 0-1000W, penalize high power)
-    ideal_power = 50.0  # Target average power in watts
-    power_ratio = max(0.1, average_power / max(1e-6, ideal_power))
-    power_score = min(10.0, power_ratio)  # Higher power = higher score (worse)
+    ideal_power = 20.0  # Target average power in watts
+    power_score = (average_power / ideal_power) * 10
     
     # Composite metric with three components: speed, tracking, and power
     # Ensure weights sum to 1.0

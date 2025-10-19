@@ -201,7 +201,7 @@ def main():
     if args.snapshots and not snapshot_dir_already_set:
         base_output_dir.mkdir(parents=True, exist_ok=True)
 
-    for idx, row in enumerate(rows[1:10], start=1):
+    for idx, row in enumerate(rows[:10], start=1):
         params = {key: _clean_value(key, row) for key in PARAM_KEYS}
         sim_cmd = [args.python, str(sim_script)]
         for key in PARAM_KEYS:

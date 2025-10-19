@@ -99,19 +99,32 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
     ax_client = AxClient(generation_strategy=gs)
 
     # Integer bounds derived from physical limits (meters) and particle spacing
-    rad_lb, rad_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
-    width_lb, width_ub = compute_int_bounds(0.05, 0.12, particle_spacing)
-    gh_lb, gh_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
+    rad_front_lb, rad_front_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
+    width_front_lb, width_front_ub = compute_int_bounds(0.05, 0.10, particle_spacing)
+    gh_front_lb, gh_front_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
+
+    rad_rear_lb, rad_rear_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
+    # Rear wheel can have more width because more space
+    width_rear_lb, width_rear_ub = compute_int_bounds(0.05, 0.14, particle_spacing)
+    gh_rear_lb, gh_rear_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
 
     ax_client.create_experiment(
         name="slalom_wheel_controller_optimization",
         parameters=[
-            {"name": "rad", "type": "range", "bounds": [rad_lb, rad_ub], "value_type": "int"},
-            {"name": "width", "type": "range", "bounds": [width_lb, width_ub], "value_type": "int"},
-            {"name": "g_height", "type": "range", "bounds": [gh_lb, gh_ub], "value_type": "int"},
-            {"name": "g_density", "type": "range", "bounds": [2, 16], "value_type": "int"},
-            {"name": "grouser_type", "type": "choice", "values": [0, 1], "value_type": "int", "is_ordered": True, "sort_values": True},
-            {"name": "fan_theta_deg", "type": "range", "bounds": [45, 135], "value_type": "int"},
+            # Front wheel parameters
+            {"name": "rad_front", "type": "range", "bounds": [rad_front_lb, rad_front_ub], "value_type": "int"},
+            {"name": "width_front", "type": "range", "bounds": [width_front_lb, width_front_ub], "value_type": "int"},
+            {"name": "g_height_front", "type": "range", "bounds": [gh_front_lb, gh_front_ub], "value_type": "int"},
+            {"name": "g_density_front", "type": "range", "bounds": [2, 16], "value_type": "int"},
+            {"name": "grouser_type_front", "type": "choice", "values": [0, 1], "value_type": "int", "is_ordered": True, "sort_values": True},
+            {"name": "fan_theta_deg_front", "type": "range", "bounds": [45, 135], "value_type": "int"},
+            # Rear wheel parameters
+            {"name": "rad_rear", "type": "range", "bounds": [rad_rear_lb, rad_rear_ub], "value_type": "int"},
+            {"name": "width_rear", "type": "range", "bounds": [width_rear_lb, width_rear_ub], "value_type": "int"},
+            {"name": "g_height_rear", "type": "range", "bounds": [gh_rear_lb, gh_rear_ub], "value_type": "int"},
+            {"name": "g_density_rear", "type": "range", "bounds": [2, 16], "value_type": "int"},
+            {"name": "grouser_type_rear", "type": "choice", "values": [0, 1], "value_type": "int", "is_ordered": True, "sort_values": True},
+            {"name": "fan_theta_deg_rear", "type": "range", "bounds": [45, 135], "value_type": "int"},
             # Controller parameters
             {"name": "steering_kp", "type": "range", "bounds": [0.1, 20.0], "value_type": "float"},
             {"name": "steering_kd", "type": "range", "bounds": [0.0, 5.0], "value_type": "float"},
@@ -127,17 +140,29 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
 
 
 def map_params_to_sim(param_dict, particle_spacing):
-    from SlalomTest_sim import Params
+    from SlalomTest_double_sim import Params
 
     p = Params()
     p.particle_spacing = particle_spacing
-    p.rad = int(param_dict["rad"])  # multiples of spacing
-    p.width = int(param_dict["width"])  # multiples of spacing
-    p.g_height = int(param_dict["g_height"])  # multiples of spacing
-    p.g_width = 2  # constant value - multiples of spacing
-    p.g_density = int(param_dict["g_density"])  # count
-    p.grouser_type = int(param_dict["grouser_type"])  # 0: straight, 1: semi_circle
-    p.fan_theta_deg = int(param_dict.get("fan_theta_deg", 0)) if p.grouser_type == 0 else int(param_dict.get("fan_theta_deg", 0))
+    
+    # Front wheel parameters
+    p.rad_front = int(param_dict["rad_front"])  # multiples of spacing
+    p.width_front = int(param_dict["width_front"])  # multiples of spacing
+    p.g_height_front = int(param_dict["g_height_front"])  # multiples of spacing
+    p.g_width_front = 2  # constant value - multiples of spacing
+    p.g_density_front = int(param_dict["g_density_front"])  # count
+    p.grouser_type_front = int(param_dict["grouser_type_front"])  # 0: straight, 1: semi_circle
+    p.fan_theta_deg_front = int(param_dict.get("fan_theta_deg_front", 0)) if p.grouser_type_front == 0 else int(param_dict.get("fan_theta_deg_front", 0))
+    
+    # Rear wheel parameters
+    p.rad_rear = int(param_dict["rad_rear"])  # multiples of spacing
+    p.width_rear = int(param_dict["width_rear"])  # multiples of spacing
+    p.g_height_rear = int(param_dict["g_height_rear"])  # multiples of spacing
+    p.g_width_rear = 2  # constant value - multiples of spacing
+    p.g_density_rear = int(param_dict["g_density_rear"])  # count
+    p.grouser_type_rear = int(param_dict["grouser_type_rear"])  # 0: straight, 1: semi_circle
+    p.fan_theta_deg_rear = int(param_dict.get("fan_theta_deg_rear", 0)) if p.grouser_type_rear == 0 else int(param_dict.get("fan_theta_deg_rear", 0))
+    
     # Controller parameters
     p.steering_kp = float(param_dict["steering_kp"])
     p.steering_kd = float(param_dict["steering_kd"])
@@ -157,7 +182,7 @@ def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_po
         clear_cuda_error()
         
         # Import simulation module
-        from SlalomTest_sim import sim
+        from SlalomTest_double_sim import sim
 
         params_for_sim = map_params_to_sim(param_dict, particle_spacing)
         try:
@@ -205,7 +230,7 @@ def main():
     parser.add_argument("--sobol", type=int, default=64, help="Number of Sobol warmup trials before BO")
     parser.add_argument("--weight_speed", type=float, default=0.5, help="Weight for speed component in composite metric")
     parser.add_argument("--weight_power", type=float, default=0.25, help="Weight for power component in composite metric")
-    parser.add_argument("--out_dir", type=str, default=os.path.join(os.getcwd(), "ARTcar_SlalomTest_BO_single"), help="Output directory for logs and state")
+    parser.add_argument("--out_dir", type=str, default=os.path.join(os.getcwd(), "ARTcar_SlalomTest_BO_double"), help="Output directory for logs and state")
     parser.add_argument("--state_path", type=str, default=None, help="Path to save/load Ax state JSON (defaults to out_dir/ax_state.json)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing Ax state JSON if present")
     parser.add_argument("--gpu", type=int, default=0, help="GPU id to use (default: 0)")
@@ -233,7 +258,7 @@ def main():
     if not os.path.isfile(trials_csv):
         with open(trials_csv, "w") as f:
             f.write(
-                "timestamp,trial_index,composite_metric,t_elapsed,rms_error,average_power,rad,width,g_height,g_density,grouser_type,fan_theta_deg,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
+                "timestamp,trial_index,composite_metric,t_elapsed,rms_error,average_power,rad_front,width_front,g_height_front,g_density_front,grouser_type_front,fan_theta_deg_front,rad_rear,width_rear,g_height_rear,g_density_rear,grouser_type_rear,fan_theta_deg_rear,steering_kp,steering_kd,speed_kp,speed_kd,particle_spacing\n"
             )
 
     for batch_idx in range(batches):
@@ -271,7 +296,7 @@ def main():
             ax_client.complete_trial(trial_index=trial_index, raw_data={"composite_metric": float(metric)})
             with open(trials_csv, "a") as f:
                 f.write(
-                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{average_power},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},2,{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
+                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric if metric is not None else 'N/A'},{t_elapsed if t_elapsed is not None else 'N/A'},{rms_error if rms_error is not None else 'N/A'},{average_power if average_power is not None else 'N/A'},{param_dict['rad_front']},{param_dict['width_front']},{param_dict['g_height_front']},{param_dict['g_density_front']},{param_dict['grouser_type_front']},{param_dict['fan_theta_deg_front']},{param_dict['rad_rear']},{param_dict['width_rear']},{param_dict['g_height_rear']},{param_dict['g_density_rear']},{param_dict['grouser_type_rear']},{param_dict['fan_theta_deg_rear']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
                 )
             print(f"    Trial {trial_index} completed: metric={metric:.4f}, time={t_elapsed:.2f}s, power={average_power:.2f}W")
 

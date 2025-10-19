@@ -29,15 +29,26 @@ from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance,
 # Global flag for signal handling
 simulation_error = None
 class Params:
-    rad=50, # Radius is 50 * particle_spacing
-    width=40, # Width is 40 * particle_spacing
-    cp_deviation=0, 
-    g_height=10, # Grouser height is 10 * particle_spacing
-    g_width=2, # Grouser width is 2 * particle_spacing
-    g_density=8, # Number of grousers per revolution
+    # Front Wheels
+    rad_front=50, # Radius is 50 * particle_spacing
+    width_front=40, # Width is 40 * particle_spacing
+    g_height_front=10, # Grouser height is 10 * particle_spacing
+    g_density_front=8, # Number of grousers per revolution
+    grouser_type_front=0 # 0 for Straight, 1 for Semi-Circle
+    fan_theta_deg_front=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
+    # Rear Wheels
+    rad_rear=50, # Radius is 50 * particle_spacing
+    width_rear=40, # Width is 40 * particle_spacing
+    g_height_rear=10, # Grouser height is 10 * particle_spacing
+    g_density_rear=8, # Number of grousers per revolution
+    grouser_type_rear=0 # 0 for Straight, 1 for Semi-Circle
+    fan_theta_deg_rear=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
+
+    # Things not touched at the moment
+    cp_deviation=0,
+    g_width_front=2, # Grouser width is 2 * particle_spacing 
+    g_width_rear=2, # Grouser width is 2 * particle_spacing 
     particle_spacing=0.01, # Particle spacing
-    grouser_type=0 # 0 for Straight, 1 for Semi-Circle
-    fan_theta_deg=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
     # Controller gains for joint optimization
     steering_kp=0.8, # Steering proportional gain
     steering_kd=0.0, # Steering derivative gain
@@ -63,7 +74,6 @@ youngs_modulus = 1e6
 poisson_ratio = 0.3
 # Driver controls both steering and throttle to target 5 m/s along slalom
 target_speed = 5.0
-
 wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv"
 # Pull force is constant
 class PullForceFunctor(chrono.ForceFunctor):
@@ -93,19 +103,33 @@ def CreateFSIWheels(vehicle, terrain, Params):
         List of FsiBody objects for BCE_MARKERS type, empty list otherwise
     """
     fsi_bodies = []
-    for axle in vehicle.GetVehicle().GetAxles():
+    for axle_idx, axle in enumerate(vehicle.GetVehicle().GetAxles()):
         for wheel in axle.GetWheels():
             sysFSI = terrain.GetFsiSystemSPH()
 
+            # Check if we are at the front axle (index 0)
+            is_front_axle = (axle_idx == 0)
+            
             # Convert the optimization variables into actual values
             # Everything is scaled by initial spacing
-            grouser_type = "straight" if Params.grouser_type == 0 else "semi_circle"
-            radius = Params.rad * Params.particle_spacing
-            width = Params.width * Params.particle_spacing
-            g_height = Params.g_height * Params.particle_spacing
-            g_width = Params.g_width * Params.particle_spacing
-            g_density = Params.g_density
-            fan_theta_deg = Params.fan_theta_deg
+            if is_front_axle:
+                # Use front wheel parameters
+                grouser_type = "straight" if Params.grouser_type_front == 0 else "semi_circle"
+                radius = Params.rad_front * Params.particle_spacing
+                width = Params.width_front * Params.particle_spacing
+                g_height = Params.g_height_front * Params.particle_spacing
+                g_width = Params.g_width_front * Params.particle_spacing
+                g_density = Params.g_density_front
+                fan_theta_deg = Params.fan_theta_deg_front
+            else:
+                # Use rear wheel parameters
+                grouser_type = "straight" if Params.grouser_type_rear == 0 else "semi_circle"
+                radius = Params.rad_rear * Params.particle_spacing
+                width = Params.width_rear * Params.particle_spacing
+                g_height = Params.g_height_rear * Params.particle_spacing
+                g_width = Params.g_width_rear * Params.particle_spacing
+                g_density = Params.g_density_rear
+                fan_theta_deg = Params.fan_theta_deg_rear
             
             BCE_wheel = GenSimpleWheelPointCloud(rad = radius, width = width, cp_deviation = Params.cp_deviation, g_height = g_height, g_width = g_width, g_density = g_density, particle_spacing = Params.particle_spacing, grouser_type = grouser_type, fan_theta_deg = fan_theta_deg)
 
@@ -191,8 +215,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
-    # Problem settings
-    tend = 10
+
     verbose = False
     
     # Visualization settings
@@ -202,6 +225,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     visualization_bndry_bce = False
     visualization_rigid_bce = False
     
+
     
     # CRM active box dimension
     active_box_dim = 0.4
@@ -256,7 +280,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     terrain.SetVerbose(verbose)
     terrain.SetGravitationalAcceleration(chrono.ChVector3d(0, 0, -9.81))
     terrain.SetStepSizeCFD(1e-4)
-    terrain.GetFluidSystemSPH().EnableCudaErrorCheck(True)
+    terrain.GetFluidSystemSPH().EnableCudaErrorCheck(True)  # CRITICAL: Enable CUDA error checking
     
     # Register the vehicle with the CRM terrain
     terrain.RegisterVehicle(artCar.GetVehicle())
@@ -310,6 +334,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
         print(f"Terrain initialization failed: {error_msg}")
         sim_failed = True
         total_time_to_reach = tend + 1
+        # -50 because this needs to discarded
         return -50, 0, 0, True
     
     aabb = terrain.GetSPHBoundingBox()
@@ -414,7 +439,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     tsda.AddVisualShape(chrono.ChVisualShapeSpring(0.1, 80, 15))
     
     # Set up output
-    out_dir = chrono.GetChronoOutputPath() + "ARTcar_SlalomTest/"
+    out_dir = chrono.GetChronoOutputPath() + "ARTcar_SlalomTest_double/"
     os.makedirs(out_dir, exist_ok=True)
     out_file = os.path.join(out_dir, "results.txt")
     if snapshot_dir is not None:
@@ -437,7 +462,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
             tire_file = os.path.join(out_dir, f"tire_ax{ia}_{'L' if is_side == 0 else 'R'}.csv")
             tire_writers[ia][is_side] = open(tire_file, 'w', newline='')
     
-    # Viz
+    # Create run-time visualization
     vis = None
     if render:
         # FSI plugin
@@ -504,9 +529,6 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
             net_power += engine_torque * engine_speed
             power_count += 1
 
-
-
-
         # If Z vel is crazy high, break
         if(veh_z_vel > 15):
             print(f"Veh Z vel is crazy high: {veh_z_vel}")
@@ -562,9 +584,8 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
                 break
             vis.Render()
             if snapshots_enabled:
-                frame_path = os.path.join(snap_dir, f"img_{render_frame:05d}.png")
-                print(f"Snapshot frame {render_frame} written to {frame_path}")
-                vis.WriteImageToFile(frame_path)
+                print(f"Snapshot frame {render_frame} written to {os.path.join(snap_dir, f'img_{render_frame}.png')}")
+                vis.WriteImageToFile(os.path.join(snap_dir, f"img_{render_frame}.png"))
             render_frame += 1
         try:
             # Synchronize systems
@@ -612,14 +633,24 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
         total_time_to_reach = tend + 1
     
     print(f"Parameters used:")
-    print(f"  rad: {Params.rad}")
-    print(f"  width: {Params.width}")
-    print(f"  g_height: {Params.g_height}")
-    print(f"  g_width: {Params.g_width}")
-    print(f"  g_density: {Params.g_density}")
+    print(f"Front wheel parameters:")
+    print(f"  rad_front: {Params.rad_front}")
+    print(f"  width_front: {Params.width_front}")
+    print(f"  g_height_front: {Params.g_height_front}")
+    print(f"  g_width_front: {Params.g_width_front}")
+    print(f"  g_density_front: {Params.g_density_front}")
+    print(f"  grouser_type_front: {Params.grouser_type_front}")
+    print(f"  fan_theta_deg_front: {Params.fan_theta_deg_front}")
+    print(f"Rear wheel parameters:")
+    print(f"  rad_rear: {Params.rad_rear}")
+    print(f"  width_rear: {Params.width_rear}")
+    print(f"  g_height_rear: {Params.g_height_rear}")
+    print(f"  g_width_rear: {Params.g_width_rear}")
+    print(f"  g_density_rear: {Params.g_density_rear}")
+    print(f"  grouser_type_rear: {Params.grouser_type_rear}")
+    print(f"  fan_theta_deg_rear: {Params.fan_theta_deg_rear}")
+    print(f"Other parameters:")
     print(f"  particle_spacing: {Params.particle_spacing}")
-    print(f"  grouser_type: {Params.grouser_type}")
-    print(f"  fan_theta_deg: {Params.fan_theta_deg}")
     print(f"  cp_deviation: {Params.cp_deviation}")
     print(f"  steering_kp: {Params.steering_kp}")
     print(f"  steering_kd: {Params.steering_kd}")
@@ -663,13 +694,11 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     weight_tracking = max(0.0, weight_tracking)  # Ensure non-negative
     
     metric = weight_speed * r_t + weight_tracking * e_norm_score + weight_power * power_score
-    print(f"E norm score: {e_norm_score}")
-    print(f"r_t: {r_t}")
-    print(f"metric: {metric}")
 
     if(sim_failed):
         print(f"Simulation failed")
         metric = 50
+
 
     print(f"Metric components:")
     print(f"  path_length: {path_length:.4f} m, ideal_time@5m/s: {ideal_time:.4f} s")
@@ -679,48 +708,60 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     print(f"  weights: speed={weight_speed:.3f}, tracking={weight_tracking:.3f}, power={weight_power:.3f}")
     print(f"  composite_metric: {metric:.4f}")
 
-    import gc; gc.collect()
+    # CRITICAL: Proper cleanup to prevent memory leaks and CUDA context accumulation
+    try:
+        # Clear CUDA errors before cleanup
+        clear_cuda_error()
+        
+        # Clean up FSI bodies
+        if 'fsi_bodies' in locals():
+            for fsi_body in fsi_bodies:
+                try:
+                    del fsi_body
+                except:
+                    pass
+        
+        # Clean up terrain and vehicle
+        try:
+            del terrain
+        except:
+            pass
+        try:
+            del artCar
+        except:
+            pass
+        try:
+            del sysMBS
+        except:
+            pass
+        
+        # Force garbage collection
+        import gc
+        gc.collect()
+        
+        # Final CUDA error check
+        error_occurred, error_message = check_cuda_error()
+        if error_occurred:
+            print(f"CUDA error during cleanup: {error_message}")
+            sim_failed = True
+            
+    except Exception as cleanup_error:
+        print(f"Cleanup error: {cleanup_error}")
+        sim_failed = True
+    
     return metric, t_elapsed, rms_error, average_power, sim_failed
 
 
-def _normalize_grouser_type(value):
-    """Convert CLI/group data values into the expected numeric encoding."""
-    if value is None:
-        return 1
-    if isinstance(value, str):
-        v = value.strip().lower()
-        if v in ("0", "straight"):
-            return 0
-        if v in ("1", "semi_circle", "semi", "semicircle"):
-            return 1
-        try:
-            return int(float(v))
-        except ValueError as exc:
-            raise ValueError(f"Unsupported grouser type '{value}'") from exc
-    return int(value)
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run the ART car slalom test with optional wheel and controller parameters."
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument("--weight_speed", type=float, default=0.7)
     parser.add_argument("--weight_power", type=float, default=0.1)
     parser.add_argument("--slalom_y", type=float, default=0.4)
     parser.add_argument("--num_samples", type=int, default=200)
-    parser.add_argument("--steering_kp", type=float, default=11.538847)
-    parser.add_argument("--steering_kd", type=float, default=1.795085)
-    parser.add_argument("--speed_kp", type=float, default=1.557757)
-    parser.add_argument("--speed_kd", type=float, default=0.02518)
-    parser.add_argument("--rad", type=float, default=12)
-    parser.add_argument("--width", type=float, default=8)
-    parser.add_argument("--g_height", type=float, default=4)
-    parser.add_argument("--g_width", type=float, default=4)
-    parser.add_argument("--g_density", type=float, default=6)
-    parser.add_argument("--particle_spacing", type=float, default=0.01)
-    parser.add_argument("--grouser_type", type=str, default="1")
-    parser.add_argument("--fan_theta_deg", type=float, default=108)
-    parser.add_argument("--cp_deviation", type=float, default=0)
+    parser.add_argument("--steering_kp", type=float, default=10)
+    parser.add_argument("--steering_kd", type=float, default=0.0)
+    parser.add_argument("--speed_kp", type=float, default=0.6)
+    parser.add_argument("--speed_kd", type=float, default=0.05)
     parser.add_argument(
         "--snapshots",
         action="store_true",
@@ -733,32 +774,35 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    params = Params()
-    params.rad = args.rad
-    params.width = args.width
-    params.g_height = args.g_height
-    params.g_width = args.g_width
-    params.g_density = int(round(args.g_density))
-    params.particle_spacing = args.particle_spacing
-    params.grouser_type = _normalize_grouser_type(args.grouser_type)
-    params.fan_theta_deg = args.fan_theta_deg
-    params.cp_deviation = args.cp_deviation
-    params.steering_kp = args.steering_kp
-    params.steering_kd = args.steering_kd
-    params.speed_kp = args.speed_kp
-    params.speed_kd = args.speed_kd
-   
+    Params = Params()
+    Params.rad_front = 12
+    Params.width_front = 8
+    Params.g_height_front = 4
+    Params.g_density_front = 6
+    Params.grouser_type_front = 1
+    Params.fan_theta_deg_front = 108
+
+    Params.rad_rear = 12
+    Params.width_rear = 8
+    Params.g_height_rear = 4
+    Params.g_density_rear = 6
+    Params.grouser_type_rear = 1
+    Params.fan_theta_deg_rear = 108
+
+
+    Params.cp_deviation = 0
+    Params.particle_spacing = 0.01
+    Params.g_width_front = 4
+    Params.g_width_rear = 4
+
+    Params.steering_kp = 11.538847
+    Params.steering_kd = 1.795085
+    Params.speed_kp = 1.557757
+    Params.speed_kd = 0.02518
+    
     snapshot_dir = args.snapshots_dir
     enable_snapshots = args.snapshots or snapshot_dir is not None
     if enable_snapshots and snapshot_dir is None:
         snapshot_dir = os.path.join(os.getcwd(), "ARTcar_SlalomTest_snapshots")
-
-    metric, t_elapsed, rms_error, average_power, sim_failed = sim(
-        params,
-        weight_speed=args.weight_speed,
-        weight_power=args.weight_power,
-        slalom_y=args.slalom_y,
-        num_samples=args.num_samples,
-        snapshot_dir=snapshot_dir if enable_snapshots else None,
-    )
+    metric, t_elapsed, rms_error, average_power, sim_failed = sim(Params, weight_speed=args.weight_speed, weight_power=args.weight_power, slalom_y=args.slalom_y, num_samples=args.num_samples, snapshot_dir=snapshot_dir if enable_snapshots else None)
     print(f"Composite metric: {metric:.4f}, elapsed: {t_elapsed:.4f} s, rms_error: {rms_error:.4f} m, avg_power: {average_power:.2f} W, failed: {sim_failed}")
