@@ -50,22 +50,11 @@ def safe_advance(terrain, step_size):
         tuple: (success: bool, error_message: str)
     """
     try:
-        # Clear any previous errors
-        clear_cuda_error()
-        
-        # Advance the simulation
         terrain.Advance(step_size)
-        
-        # Check for errors after the step
-        error_occurred, error_message = check_cuda_error()
-        
-        if error_occurred:
-            return False, error_message
-        else:
-            return True, ""
-            
-    except Exception as e:
-        return False, f"Exception during terrain advance: {e}"
+        return True, ""
+
+    except RuntimeError as e:
+        return False, f"A CUDA error occurred during terrain advance: {e}"
 
 def safe_synchronize(vehicle, time, driver_inputs, terrain):
     """
@@ -81,21 +70,9 @@ def safe_synchronize(vehicle, time, driver_inputs, terrain):
         tuple: (success: bool, error_message: str)
     """
     try:
-        # Clear any previous errors
-        clear_cuda_error()
-        
-        # Synchronize the vehicle
         vehicle.Synchronize(time, driver_inputs, terrain)
-        
-        # Check for errors after synchronization
-        error_occurred, error_message = check_cuda_error()
-        
-        if error_occurred:
-            return False, error_message
-        else:
-            return True, ""
-            
-    except Exception as e:
+        return True, ""
+    except RuntimeError as e:
         return False, f"Exception during vehicle sync: {e}"
 
 def safe_initialize(terrain):
@@ -109,19 +86,7 @@ def safe_initialize(terrain):
         tuple: (success: bool, error_message: str)
     """
     try:
-        # Clear any previous errors
-        clear_cuda_error()
-        
-        # Initialize the terrain
         terrain.Initialize()
-        
-        # Check for errors after initialization
-        error_occurred, error_message = check_cuda_error()
-        
-        if error_occurred:
-            return False, error_message
-        else:
-            return True, ""
-            
-    except Exception as e:
+        return True, ""
+    except RuntimeError as e:
         return False, f"Exception during terrain initialization: {e}"

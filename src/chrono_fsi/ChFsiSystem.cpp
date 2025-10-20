@@ -275,8 +275,21 @@ void ChFsiSystem::DoStepDynamics(double step) {
     //   3. Wait for the MBS thread to finish execution.
     m_timer_step.start();
     std::thread th(&ChFsiSystem::AdvanceMBS, this, step, threshold_MBD);
-    AdvanceCFD(step, threshold_CFD);
-    th.join();
+    // RAII guard to ensure join is called
+    struct ThreadJoinGuard {
+        std::thread& thread;
+        ~ThreadJoinGuard() {
+            if (thread.joinable())
+                thread.join();
+        }
+    } guard{th};
+
+    try {
+        AdvanceCFD(step, threshold_CFD);
+    } catch (const std::runtime_error& e) {
+        cout << "ERROR: CUDA error occurred during CFD advance: " << e.what() << endl;
+        throw std::runtime_error("CUDA error occurred during CFD advance: " + std::string(e.what()));
+    }
     m_timer_step.stop();
 
     // Data exchange between phases:

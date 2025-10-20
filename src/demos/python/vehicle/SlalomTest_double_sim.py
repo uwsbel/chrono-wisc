@@ -707,29 +707,6 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     try:
         # Clear CUDA errors before cleanup
         clear_cuda_error()
-        
-        # Clean up FSI bodies
-        if 'fsi_bodies' in locals():
-            for fsi_body in fsi_bodies:
-                try:
-                    del fsi_body
-                except:
-                    pass
-        
-        # Clean up terrain and vehicle
-        try:
-            del terrain
-        except:
-            pass
-        try:
-            del artCar
-        except:
-            pass
-        try:
-            del sysMBS
-        except:
-            pass
-        
         # Force garbage collection
         import gc
         gc.collect()

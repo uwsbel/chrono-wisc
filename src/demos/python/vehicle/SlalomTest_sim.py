@@ -668,32 +668,9 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     print(f"  weights: speed={weight_speed:.3f}, tracking={weight_tracking:.3f}, power={weight_power:.3f}")
     print(f"  composite_metric: {metric:.4f}")
 
-    # CRITICAL: Proper cleanup to prevent memory leaks and CUDA context accumulation
     try:
         # Clear CUDA errors before cleanup
         clear_cuda_error()
-        
-        # Clean up FSI bodies
-        if 'fsi_bodies' in locals():
-            for fsi_body in fsi_bodies:
-                try:
-                    del fsi_body
-                except:
-                    pass
-        
-        # Clean up terrain and vehicle
-        try:
-            del terrain
-        except:
-            pass
-        try:
-            del artCar
-        except:
-            pass
-        try:
-            del sysMBS
-        except:
-            pass
         
         # Force garbage collection
         import gc

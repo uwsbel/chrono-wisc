@@ -120,7 +120,7 @@ namespace sph {
             g_cuda_error_occurred = true;                                                                    \
             strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
             g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
-            return;                                                                                          \
+            throw std::runtime_error(std::string(buffer));                                                   \
         }                                                                                                    \
         cudaError_t e = cudaGetLastError();                                                                  \
         if (e != cudaSuccess) {                                                                              \
@@ -130,7 +130,7 @@ namespace sph {
             g_cuda_error_occurred = true;                                                                    \
             strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
             g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
-            return;                                                                                          \
+            throw std::runtime_error(std::string(buffer));                                                   \
         }                                                                                                    \
     }
 
@@ -145,7 +145,7 @@ namespace sph {
             g_cuda_error_occurred = true;                                                                    \
             strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);                         \
             g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                                   \
-            return;                                                                                          \
+            throw std::runtime_error(std::string(buffer));                                                   \
         }                                                                                                    \
     }
 
@@ -157,7 +157,7 @@ namespace sph {
         g_cuda_error_occurred = true;                                                      \
         strncpy(g_cuda_error_message, buffer, sizeof(g_cuda_error_message) - 1);           \
         g_cuda_error_message[sizeof(g_cuda_error_message) - 1] = '\0';                     \
-        return;                                                                            \
+        throw std::runtime_error(std::string(buffer));                                     \
     }
 
 // ----------------------------------------------------------------------------
