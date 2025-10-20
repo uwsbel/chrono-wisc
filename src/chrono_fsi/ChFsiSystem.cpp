@@ -289,6 +289,9 @@ void ChFsiSystem::DoStepDynamics(double step) {
     } catch (const std::runtime_error& e) {
         cout << "ERROR: CUDA error occurred during CFD advance: " << e.what() << endl;
         throw std::runtime_error("CUDA error occurred during CFD advance: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        cout << "ERROR: Unexpected exception during CFD advance: " << e.what() << endl;
+        throw std::runtime_error("Unexpected exception during CFD advance: " + std::string(e.what()));
     }
     m_timer_step.stop();
 
