@@ -20,7 +20,7 @@
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChLinkLock.h"
 #include "chrono/physics/ChLinkRSDA.h"
-#include "chrono/physics/ChLinkMotorRotationAngle.h"
+#include "chrono/physics/ChLinkMotorRotationTorque.h"
 #include "chrono/assets/ChVisualSystem.h"
 
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
@@ -51,11 +51,7 @@ double t_end = 10.0;
 double initial_spacing = 0.01;
 
 // Position and dimensions of WEC device
-// ChVector3d wec_pos(-2.9875, 0, -0.1);
-ChVector3d wec_pos(-1.5, 0, 0.0);
-
-ChVector3d wec_size(0.076, 0.4, 0.56);
-double wec_density = 500;
+ChVector3d wec_pos(-1.5, 0, 0.33);
 
 // Container dimensions
 ChVector3d csize(5.0, 1.2, 0.6);  // original size????
@@ -69,12 +65,12 @@ double pto_damping = 0;
 // double depth = 1.3;
 
 // this is for testing wec deivce
-double depth = 0.5;
+double depth = 0.44;
 
 // Output frequency
 bool output = true;
 double output_fps = 5;
-bool save_csv = true;
+bool save_csv = false;
 
 // write info frequency
 double csv_fps = 100;
@@ -143,92 +139,7 @@ class WaveFunctionDecay : public ChFunction {
     double omega;  // period
 };
 
-// -----------------------------------------------------------------------------
-
-// Wave tank profile for a beach represented as a 4th order Bezier curve.
-class WaveTankBezierBeach : public ChFsiProblemWavetank::Profile {
-  public:
-    WaveTankBezierBeach(double x_start) : x_start(x_start), last_t(1e-2) {
-        const double in2m = 0.0254;
-        P0 = in2m * ChVector2d(0, 0);
-        P1 = in2m * ChVector2d(0, 28.77);
-        P2 = in2m * ChVector2d(62.04, 50.83);
-        P3 = in2m * ChVector2d(90.28, 59.26);
-        P4 = in2m * ChVector2d(197.63, 61.19);
-
-        Q0 = 4.0 * (P1 - P0);
-        Q1 = 4.0 * (P2 - P1);
-        Q2 = 4.0 * (P3 - P2);
-        Q3 = 4.0 * (P4 - P3);
-    }
-
-    virtual double operator()(double x) {
-        if (x <= x_start)
-            return 0;
-
-        double xx = x - x_start;
-        if (xx >= P4.x())
-            return P4.y();
-
-        // Find t such that P(t).x = xx (Newton)
-        int N = 10;
-        double tol = 1e-5;
-        double t = last_t;
-        for (int i = 0; i < N; i++) {
-            double f = eval(t, 0) - xx;
-            if (std::abs(f) < tol)
-                break;
-            double fp = eval_der(t, 0);
-            assert(std::abs(fp) > tol);
-            t -= f / fp;
-        }
-        last_t = t;
-
-        // Return h = P(t).y
-        return eval(t, 1);
-    }
-
-  private:
-    // Evaluate Bezier curve at given parameter 0 <= t <= 1 and return specified coordinate.
-    double eval(double t, int i) {
-        double omt = 1 - t;
-        double t2 = t * t;
-        double t3 = t * t2;
-        double t4 = t2 * t2;
-        double omt2 = omt * omt;
-        double omt3 = omt2 * omt;
-        double omt4 = omt2 * omt2;
-        return omt4 * P0[i] + 4 * t * omt3 * P1[i] + 6 * t2 * omt2 * P2[i] + 4 * t3 * omt * P3[i] + t4 * P4[i];
-    }
-
-    // Evaluate Bezier curve derivative at given parameter 0 <= t <= 1 and return specified coordinate.
-    double eval_der(double t, int i) {
-        double omt = 1 - t;
-        double t2 = t * t;
-        double t3 = t * t2;
-        double omt2 = omt * omt;
-        double omt3 = omt2 * omt;
-        return omt3 * Q0[i] + 3 * t * omt2 * Q1[i] + 3 * t2 * omt * Q2[i] + t3 * Q3[i];
-    }
-
-    ChVector2d P0;
-    ChVector2d P1;
-    ChVector2d P2;
-    ChVector2d P3;
-    ChVector2d P4;
-
-    ChVector2d Q0;
-    ChVector2d Q1;
-    ChVector2d Q2;
-    ChVector2d Q3;
-
-    double x_start;
-    double last_t;
-};
-
-// -----------------------------------------------------------------------------
-
-std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, double prescribed_angle) {
+std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, double prescribed_torque) {
     ChSystem& sysMBS = fsi.GetMultibodySystem();
 
     // Common contact material and geometry
@@ -245,13 +156,13 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
     //     utils::ChBodyGeometry::BoxShape(ChVector3d(0, 0, 0.5 * wec_size.z()), QUNIT, wec_size, 0));
 
     double door_thickness = 0.14;
-    double door_height = 0.48;
+    double door_height = 0.46;
     double door_width = 0.853;
 
 
     ChVector3d box_size(door_thickness, door_width, door_height);
     // location of front box -y
-    ChVector3d box_pos(0, 0, door_height / 2);
+    ChVector3d box_pos(0, 0, 0);
     geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box_pos, QUNIT, box_size, 0));
     std::cout << "Add front box at location " << box_pos << ", size of : " << box_size
               << " and initial spacing of: " << initial_spacing << std::endl;
@@ -263,11 +174,6 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
     flap->SetPos(wec_pos);
     flap->SetRot(QUNIT);
     flap->SetFixed(false);
-
-    /////////////////////////////////////////////////////////
-    // is there a way to compute inertia automatically???? //
-    //////////////////////////////////////////////////////////
-    double wec_volume = wec_size.x() * wec_size.y() * wec_size.z();
 
     double wec_mass = 24.5;
     flap->SetMass(wec_mass);
@@ -283,26 +189,24 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
     // add ground
     auto ground = chrono_types::make_shared<ChBody>();
 
-    // I'm going to attach a geometry to the ground as well
-    // it should be a cylinder
-    double cyl_rad = 0.08;
-    double cyl_length = 1.4;
-    auto geometry_cyl = chrono_types::make_shared<utils::ChBodyGeometry>();
-    geometry_cyl->materials.push_back(cmat);
-    ChVector3d cyl_pos = wec_pos;
-
-    geometry_cyl->coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(cyl_pos, Q_ROTATE_Z_TO_Y, cyl_rad, cyl_length));
-    fsi.AddRigidBody(ground, geometry_cyl, true, true);
-
-
-
     ground->SetFixed(true);
     sysMBS.AddBody(ground);
 
+    ChVector3d joint_pos(-1.5, 0, 0.0);
+
     // add motor to the body
-    auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
-    motor->Initialize(ground, flap, ChFrame<>(wec_pos, Q_ROTATE_Z_TO_Y));
-    motor->SetAngleFunction(chrono_types::make_shared<ChFunctionConst>(-prescribed_angle));
+    auto motor = chrono_types::make_shared<ChLinkMotorRotationTorque>();
+    motor->Initialize(ground, flap, ChFrame<>(joint_pos, Q_ROTATE_Z_TO_Y));
+
+    auto f_segment = chrono_types::make_shared<ChFunctionSequence>();
+    f_segment->InsertFunct(chrono_types::make_shared<ChFunctionRamp>(0, prescribed_torque), 1);   // 0.0 -> 0.6
+    f_segment->InsertFunct(chrono_types::make_shared<ChFunctionConst>(prescribed_torque), t_end);  // 0.0
+
+
+
+
+
+    motor->SetTorqueFunction(f_segment);
     sysMBS.AddLink(motor);
 
     return motor;
@@ -311,12 +215,11 @@ std::shared_ptr<ChLinkMotorRotationAngle> CreateFlap(ChFsiProblemSPH& fsi, doubl
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 5e-5;  // used to be 5e-5!
+    double step_size = 1e-4;  // used to be 5e-5!
     bool verbose = true;
-    double t_end = 10;
 
     // take input of prescribed angle from 0.1 all the way to 0.6
-    double prescribed_angle = atof(argv[1]);
+    double prescribed_torque = atof(argv[1]);
 
     // Create the Chrono system and associated collision system
     ChSystemNSC sysMBS;
@@ -357,13 +260,13 @@ int main(int argc, char* argv[]) {
     sph_params.use_delta_sph = true;
     sph_params.delta_sph_coefficient = 0.1;
 
-    sph_params.num_bce_layers = 5;
+    sph_params.num_bce_layers = 3;
     fsi.SetSPHParameters(sph_params);
     fsi.SetStepSizeCFD(step_size);
     fsi.SetStepsizeMBD(step_size);
 
     // Create WEC device
-    std::shared_ptr<ChLinkMotorRotationAngle> revolute = CreateFlap(fsi, prescribed_angle);
+    std::shared_ptr<ChLinkMotorRotationTorque> revolute = CreateFlap(fsi, -prescribed_torque);
 
     // Enable depth-based initial pressure for SPH particles
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
@@ -386,7 +289,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Buoyance_Angle_" + std::to_string(int(prescribed_angle * 10)) + "e-1/";
+        GetChronoOutputPath() + "Flap_Buoyance_Torque_" + argv[1] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
@@ -495,8 +398,8 @@ int main(int argc, char* argv[]) {
             flap_pos = sysMBS.GetBodies()[1]->GetPos();
             flap_quat = sysMBS.GetBodies()[1]->GetRot();
 
-            ofile << "time, " << time << "," << motor_torque << ","
-                      << revolute->GetMotorAngle() << std::endl;
+            ofile << "time, " << time << "," << -motor_torque << ","
+                      << -revolute->GetMotorAngle() << std::endl;
 
             csv_frame++;
         }
