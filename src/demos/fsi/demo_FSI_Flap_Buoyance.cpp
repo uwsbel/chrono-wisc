@@ -22,7 +22,7 @@
 #include "chrono/physics/ChLinkRSDA.h"
 #include "chrono/physics/ChLinkMotorRotationTorque.h"
 #include "chrono/assets/ChVisualSystem.h"
-
+#include "chrono/geometry/ChTriangleMeshConnected.h"
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
 #ifdef CHRONO_VSG
@@ -58,6 +58,7 @@ ChVector3d csize(5.0, 1.2, 0.6);  // original size????
 
 // Beach start location
 double x_start = csize.x() / 2;
+std::string mesh_obj_filename = GetChronoDataFile("models/flap_round.obj");
 
 double pto_damping = 0;
 
@@ -70,7 +71,7 @@ double depth = 0.44;
 // Output frequency
 bool output = true;
 double output_fps = 5;
-bool save_csv = false;
+bool save_csv = true;
 
 // write info frequency
 double csv_fps = 100;
@@ -139,7 +140,7 @@ class WaveFunctionDecay : public ChFunction {
     double omega;  // period
 };
 
-std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, double prescribed_torque) {
+std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, double prescribed_torque, bool use_bce) {
     ChSystem& sysMBS = fsi.GetMultibodySystem();
 
     // Common contact material and geometry
@@ -163,9 +164,18 @@ std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, doub
     ChVector3d box_size(door_thickness, door_width, door_height);
     // location of front box -y
     ChVector3d box_pos(0, 0, 0);
-    geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box_pos, QUNIT, box_size, 0));
-    std::cout << "Add front box at location " << box_pos << ", size of : " << box_size
-              << " and initial spacing of: " << initial_spacing << std::endl;
+
+    if (use_bce) {
+        auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(mesh_obj_filename, true, false);
+        geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, -Q_ROTATE_Z_TO_Y, mesh_obj_filename, VNULL, 1.0, 0.01, 0));
+    }
+
+    else {
+        geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(box_pos, QUNIT, box_size, 0));
+            std::cout << "Add front box at location " << box_pos << ", size of : " << box_size
+                      << " and initial spacing of: " << initial_spacing << std::endl;
+    }
+
 
 
 
@@ -201,10 +211,6 @@ std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, doub
     auto f_segment = chrono_types::make_shared<ChFunctionSequence>();
     f_segment->InsertFunct(chrono_types::make_shared<ChFunctionRamp>(0, prescribed_torque), 1);   // 0.0 -> 0.6
     f_segment->InsertFunct(chrono_types::make_shared<ChFunctionConst>(prescribed_torque), t_end);  // 0.0
-
-
-
-
 
     motor->SetTorqueFunction(f_segment);
     sysMBS.AddLink(motor);
@@ -257,8 +263,8 @@ int main(int argc, char* argv[]) {
     sph_params.boundary_method = BoundaryMethod::ADAMI;
     sph_params.artificial_viscosity = 0.02;
     sph_params.eos_type = EosType::TAIT;
-    sph_params.use_delta_sph = false;
-    //sph_params.delta_sph_coefficient = 0.1;
+    sph_params.use_delta_sph = true;
+    sph_params.delta_sph_coefficient = 0.1;
 
     sph_params.num_bce_layers = 5;
     fsi.SetSPHParameters(sph_params);
@@ -266,7 +272,7 @@ int main(int argc, char* argv[]) {
     fsi.SetStepsizeMBD(step_size);
 
     // Create WEC device
-    std::shared_ptr<ChLinkMotorRotationTorque> revolute = CreateFlap(fsi, -prescribed_torque);
+    std::shared_ptr<ChLinkMotorRotationTorque> revolute = CreateFlap(fsi, -prescribed_torque, true);
 
     // Enable depth-based initial pressure for SPH particles
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
@@ -289,7 +295,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Buoyance_no_density_diff_torque_" + argv[1] + "/";
+        GetChronoOutputPath() + "Flap_Buoyance_torque_" + argv[1] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
