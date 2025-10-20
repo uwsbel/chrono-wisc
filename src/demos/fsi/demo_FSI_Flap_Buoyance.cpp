@@ -257,10 +257,10 @@ int main(int argc, char* argv[]) {
     sph_params.boundary_method = BoundaryMethod::ADAMI;
     sph_params.artificial_viscosity = 0.02;
     sph_params.eos_type = EosType::TAIT;
-    sph_params.use_delta_sph = true;
-    sph_params.delta_sph_coefficient = 0.1;
+    sph_params.use_delta_sph = false;
+    //sph_params.delta_sph_coefficient = 0.1;
 
-    sph_params.num_bce_layers = 3;
+    sph_params.num_bce_layers = 5;
     fsi.SetSPHParameters(sph_params);
     fsi.SetStepSizeCFD(step_size);
     fsi.SetStepsizeMBD(step_size);
@@ -289,7 +289,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Buoyance_Torque_" + argv[1] + "/";
+        GetChronoOutputPath() + "Flap_Buoyance_no_density_diff_torque_" + argv[1] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
