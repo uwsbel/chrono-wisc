@@ -167,7 +167,7 @@ std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, doub
 
     if (use_bce) {
         auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(mesh_obj_filename, true, false);
-        geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, -Q_ROTATE_Z_TO_Y, mesh_obj_filename, VNULL, 1.0, 0.01, 0));
+        geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, Q_ROTATE_Y_TO_Z, mesh_obj_filename, VNULL, 1.0, 0.01, 0));
     }
 
     else {
