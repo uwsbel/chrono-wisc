@@ -299,10 +299,10 @@ void ChFsiSystem::DoStepDynamics(double step) {
     //   1. [CFD -> MBS] Apply fluid forces and torques on FSI solids
     //   2. [MBS -> CFD] Load new solid phase states
     m_timer_FSI.start();
-    m_sysCFD->OnExchangeSolidForces();
-    m_fsi_interface->ExchangeSolidForces();
     m_fsi_interface->ExchangeSolidStates();
     m_sysCFD->OnExchangeSolidStates();
+    m_sysCFD->OnExchangeSolidForces();
+    m_fsi_interface->ExchangeSolidForces();
     m_timer_FSI.stop();
 
     // Calculate RTF and MBD/CFD timer ratio
