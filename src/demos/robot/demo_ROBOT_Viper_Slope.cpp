@@ -38,8 +38,9 @@
 #include <filesystem>
 #include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
-
-#include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
+#ifdef CHRONO_VSG
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
+#endif
 
 using namespace chrono;
 using namespace chrono::fsi;
@@ -293,7 +294,8 @@ int main(int argc, char* argv[]) {
     cout << "  Bndry BCE markers: " << terrain.GetNumBoundaryBCEMarkers() << endl;
     cout << "  SPH AABB:          " << aabb.min << "   " << aabb.max << endl;
 
-    // Create run-time visualization
+// Create run-time visualization
+#ifdef CHRONO_VSG
     std::shared_ptr<ChVisualSystem> vis;
     if (render) {
         // FSI plugin
@@ -319,6 +321,7 @@ int main(int argc, char* argv[]) {
         visVSG->Initialize();
         vis = visVSG;
     }
+#endif
 
     // Create output directory
     std::string output_dir = "viper_slope_tests";
@@ -354,15 +357,14 @@ int main(int argc, char* argv[]) {
                       << "," << vel.z() << std::endl;
 
         // Run-time visualization
+#ifdef CHRONO_VSG
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
             vis->Render();
             render_frame++;
         }
-        if (!render) {
-            std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
-        }
+#endif
 
         // Advance dynamics of multibody and fluid systems concurrently
         terrain.DoStepDynamics(exchange_info);
