@@ -147,8 +147,8 @@ int main(int argc, char* argv[]) {
         std::cout << "  Rigid BCE: " << (visualization_rigid_bce ? "enabled" : "disabled") << std::endl;
     }
 
-    double tend = 5;
-    double step_size = 5e-4;
+    double tend = 7;
+    double step_size = 2e-4;
     ChVector3d active_box_dim(0.6, 0.6, 0.6);
 
     bool verbose = true;
@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
     // Set constant angular velocity for all wheels (rad/s)
     // This replaces the DC motor control with a simple constant speed control
     double wheel_angular_velocity = 10;  // Approx 2 m/s
-    double ramp_time = 0.5;              // 0.5 second ramp-up time to avoid sudden starts
+    double ramp_time = 2.0;              // 0.5 second ramp-up time to avoid sudden starts
 
     auto driver = chrono_types::make_shared<ViperSpeedDriver>(ramp_time, wheel_angular_velocity);
     auto rover = chrono_types::make_shared<Viper>(&sys, wheel_type);

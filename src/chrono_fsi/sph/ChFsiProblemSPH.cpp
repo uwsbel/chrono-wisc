@@ -293,6 +293,7 @@ void ChFsiProblemSPH::Initialize() {
     } else {
         // Calculate computational domain based on actual AABB of all markers
         int bce_layers = m_sysSPH->GetNumBCELayers();
+        aabb.max.z() += 0.25;
         m_domain_aabb = ChAABB(aabb.min - bce_layers * m_spacing, aabb.max + bce_layers * m_spacing);
         m_sysSPH->SetComputationalDomain(m_domain_aabb, BC_NONE);
     }
