@@ -36,6 +36,8 @@
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 
 #include <filesystem>
+#include <iomanip>
+#include <sstream>
 #include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 #ifdef CHRONO_VSG
@@ -73,6 +75,8 @@ bool GetProblemSpecs(int argc,
                      bool& visualization_sph,
                      bool& visualization_bndry_bce,
                      bool& visualization_rigid_bce,
+                     bool& snapshots,
+                     bool& camera_follow,
                      double& density,
                      double& cohesion,
                      double& friction,
@@ -90,6 +94,9 @@ bool GetProblemSpecs(int argc,
                         std::to_string(visualization_bndry_bce));
     cli.AddOption<bool>("Visualization", "rigid_bce", "Render wheel BCE markers",
                         std::to_string(visualization_rigid_bce));
+    cli.AddOption<bool>("Visualization", "snapshots", "Enable writing snapshot image files", std::to_string(snapshots));
+    cli.AddOption<bool>("Visualization", "camera_follow", "Enable camera following the rover",
+                        std::to_string(camera_follow));
 
     cli.AddOption<double>("Physics", "density", "Density", std::to_string(density));
     cli.AddOption<double>("Physics", "cohesion", "Cohesion", std::to_string(cohesion));
@@ -108,6 +115,8 @@ bool GetProblemSpecs(int argc,
     visualization_sph = cli.GetAsType<bool>("sph");
     visualization_bndry_bce = cli.GetAsType<bool>("bndry_bce");
     visualization_rigid_bce = cli.GetAsType<bool>("rigid_bce");
+    snapshots = cli.GetAsType<bool>("snapshots");
+    camera_follow = cli.GetAsType<bool>("camera_follow");
     density = cli.GetAsType<double>("density");
     cohesion = cli.GetAsType<double>("cohesion");
     friction = cli.GetAsType<double>("friction");
@@ -125,6 +134,8 @@ int main(int argc, char* argv[]) {
     bool visualization_sph = true;
     bool visualization_bndry_bce = false;
     bool visualization_rigid_bce = false;
+    bool snapshots = true;
+    bool camera_follow = false;
     double density = 1700;
     double cohesion = 5e3;
     double friction = 0.7;
@@ -134,8 +145,8 @@ int main(int argc, char* argv[]) {
 
     // Parse command line arguments
     if (!GetProblemSpecs(argc, argv, slope_angle, render, render_fps, visualization_sph, visualization_bndry_bce,
-                         visualization_rigid_bce, density, cohesion, friction, youngs_modulus, poisson_ratio,
-                         gravity)) {
+                         visualization_rigid_bce, snapshots, camera_follow, density, cohesion, friction, youngs_modulus,
+                         poisson_ratio, gravity)) {
         return 1;
     }
 
@@ -146,6 +157,8 @@ int main(int argc, char* argv[]) {
         std::cout << "  SPH particles: " << (visualization_sph ? "enabled" : "disabled") << std::endl;
         std::cout << "  Boundary BCE: " << (visualization_bndry_bce ? "enabled" : "disabled") << std::endl;
         std::cout << "  Rigid BCE: " << (visualization_rigid_bce ? "enabled" : "disabled") << std::endl;
+        std::cout << "  Snapshots: " << (snapshots ? "enabled" : "disabled") << std::endl;
+        std::cout << "  Camera follow: " << (camera_follow ? "enabled" : "disabled") << std::endl;
     }
 
     double tend = 7;
@@ -315,7 +328,10 @@ int main(int argc, char* argv[]) {
             ("Viper rover on CRM deformable terrain - Slope: " + std::to_string((int)slope_angle) + "°").c_str());
         visVSG->SetWindowSize(1280, 800);
         visVSG->SetWindowPosition(100, 100);
-        visVSG->AddCamera(init_loc + ChVector3d(0, 6, 0.5), init_loc);
+
+        // Set initial camera position
+        ChVector3d camera_offset = camera_follow ? ChVector3d(0, 6, 0.5) : ChVector3d(0, 6, 0.5);
+        visVSG->AddCamera(init_loc + camera_offset, init_loc);
         visVSG->SetLightIntensity(0.9f);
 
         visVSG->Initialize();
@@ -333,6 +349,17 @@ int main(int argc, char* argv[]) {
     std::string filename = output_dir + "/viper_data_d" + std::to_string((int)density) + "_f" +
                            std::to_string((int)(friction * 10)) + "_c" + std::to_string((int)(cohesion / 100)) + "_g" +
                            std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope_angle) + ".csv";
+
+    // Create snapshots directory if snapshots are enabled
+    std::string snapshots_dir;
+    if (snapshots) {
+        snapshots_dir = output_dir + "/snapshots_d" + std::to_string((int)density) + "_f" +
+                        std::to_string((int)(friction * 10)) + "_c" + std::to_string((int)(cohesion / 100)) + "_g" +
+                        std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope_angle);
+        if (!std::filesystem::exists(snapshots_dir)) {
+            std::filesystem::create_directory(snapshots_dir);
+        }
+    }
 
     // Start the simulation
     double time = 0;
@@ -352,6 +379,14 @@ int main(int argc, char* argv[]) {
         ChVector3d pos = rover->GetChassis()->GetPos();
         ChVector3d vel = rover->GetChassis()->GetLinVel();
 
+        // Check if rover has reached the end of the terrain
+        double terrain_end_x = terrain_length - 0.8;
+        if (pos.x() >= terrain_end_x) {
+            std::cout << "Rover has reached the end of the terrain at x = " << pos.x() << " m" << std::endl;
+            std::cout << "Simulation stopped at time = " << time << " s" << std::endl;
+            break;
+        }
+
         // Write position and velocity data to CSV file
         position_file << time << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << vel.x() << "," << vel.y()
                       << "," << vel.z() << std::endl;
@@ -361,7 +396,25 @@ int main(int argc, char* argv[]) {
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
+
+            // Update camera position to follow rover if enabled
+            if (camera_follow) {
+                ChVector3d rover_pos = rover->GetChassis()->GetPos();
+                ChVector3d camera_pos = rover_pos + ChVector3d(0, 6, 0.5);
+                vis->SetCameraPosition(camera_pos);
+                vis->SetCameraTarget(rover_pos);
+            }
+
             vis->Render();
+
+            // Save snapshots if enabled
+            if (snapshots) {
+                std::cout << "-------- Snapshot" << std::endl;
+                std::ostringstream snapshot_filename;
+                snapshot_filename << snapshots_dir << "/" << std::setw(5) << std::setfill('0') << render_frame
+                                  << ".jpg";
+                vis->WriteImageToFile(snapshot_filename.str());
+            }
             render_frame++;
         }
 #endif
