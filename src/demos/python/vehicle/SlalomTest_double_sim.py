@@ -135,7 +135,7 @@ def CreateFSIWheels(vehicle, terrain, Params):
 
             # Convert BCE Wheel array into ChVector3d
             BCE_wheel = numpy_to_ChVector3d(BCE_wheel)
-
+            print(f"Number of BCE_wheel points: {len(BCE_wheel)}")
             sysFSI = terrain.GetFsiSystemSPH()
             fsi_body = sysFSI.AddFsiBody(wheel.GetSpindle(), BCE_wheel, 
                                         chrono.ChFramed(chrono.VNULL, chrono.Q_ROTATE_Z_TO_Y), False)
@@ -692,7 +692,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
 
     if(sim_failed):
         print(f"Simulation failed")
-        metric = 50
+        metric = 500
 
 
     print(f"Metric components:")

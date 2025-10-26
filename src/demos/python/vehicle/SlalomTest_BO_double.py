@@ -190,7 +190,7 @@ def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_po
         except Exception as e:
             print(f"Simulation error at trial {trial_index}: {type(e).__name__}: {e}")
             sim_failed = True
-            metric = 50  # Penalty for simulation errors
+            metric = 500  # Penalty for simulation errors
             return trial_index, metric, t_elapsed, rms_error, 0.0, bool(sim_failed), str(e)
         
         # CRITICAL: Check for CUDA errors after simulation
@@ -199,7 +199,7 @@ def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_po
             print(f"CUDA error detected after trial {trial_index}: {error_message}")
             sim_failed = True
             if metric > 0:
-                metric = 50  # Penalty for CUDA errors
+                metric = 500  # Penalty for CUDA errors
             else:
                 metric = -50  # Initialization failed which is weird and the sim should be discarded
         

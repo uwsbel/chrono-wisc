@@ -202,7 +202,7 @@ FsiDataManager::FsiDataManager(std::shared_ptr<ChFsiParamsSPH> params) : paramsH
     m_max_extended_particles = 0;
     m_resize_counter = 0;
     GROWTH_FACTOR = 1.2f;
-    SHRINK_THRESHOLD = 0.75f;
+    SHRINK_THRESHOLD = 0.1f;
     SHRINK_INTERVAL = 50;
 }
 

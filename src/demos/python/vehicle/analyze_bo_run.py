@@ -59,7 +59,10 @@ def compute_convergence(df: pd.DataFrame, metric: str, out_dir: str):
     if metric not in df.columns:
         raise ValueError(f"Metric '{metric}' not found in trials.csv")
     # Exclude NaNs
+    print(metric)
+    print(df.columns)
     s = df[metric].astype(float)
+    print(s)
     x = df['trial_index'].astype(int)
     best_so_far = moving_min(s)
 
@@ -192,6 +195,7 @@ def analyze_trends(df: pd.DataFrame, metric: str, param_cols: List[str], out_dir
         ax.set_title(p)
         ax.set_xlabel(p)
         ax.set_ylabel(metric)
+        ax.set_ylim(40, 80)
         ax.grid(True, alpha=0.2)
     # Hide extra axes
     for j in range(i+1, len(axes)):
@@ -272,9 +276,9 @@ def analyze_identifiability(df: pd.DataFrame, metric: str, param_cols: List[str]
 
 def analyze_failures(df: pd.DataFrame, failed_df: pd.DataFrame, metric: str, out_dir: str):
     total_trials = len(df)
-    # Heuristics for failure: explicitly logged OR metric sentinel 50 OR NaN
+    # Heuristics for failure: explicitly logged OR metric sentinel 500 OR NaN
     failed_indices_logged = set(map(int, failed_df['trial_index'].dropna().astype(int).tolist())) if not failed_df.empty else set()
-    failed_metric_sentinel = set(df.loc[(df[metric] >= 50) | (~np.isfinite(df[metric])) | (pd.isna(df[metric])), 'trial_index'].astype(int).tolist())
+    failed_metric_sentinel = set(df.loc[(df[metric] >= 500) | (~np.isfinite(df[metric])) | (pd.isna(df[metric])), 'trial_index'].astype(int).tolist())
     failed_indices = sorted(failed_indices_logged.union(failed_metric_sentinel))
     n_failed = len(failed_indices)
     n_success = total_trials - n_failed
@@ -313,9 +317,9 @@ def _fit_surrogate_predictor(df: pd.DataFrame, metric: str, param_cols: List[str
     Returns a tuple (predict_fn, model_name), where predict_fn accepts an
     ndarray of shape (n_samples, n_features) and returns predictions of shape (n_samples,).
     """
-    # Use only successful trials (metric < 50 and finite)
+    # Use only successful trials (metric < 500 and finite)
     metric_vals = pd.to_numeric(df[metric], errors='coerce')
-    mask_ok = metric_vals.apply(np.isfinite) & (metric_vals < 50)
+    mask_ok = metric_vals.apply(np.isfinite) & (metric_vals < 500)
     X = df.loc[mask_ok, param_cols].astype(float).values
     y = metric_vals.loc[mask_ok].astype(float).values
     if len(y) < 5:
@@ -474,7 +478,8 @@ def write_summary_md(df: pd.DataFrame, metric: str, out_dir: str):
 
 
 def infer_param_columns(df: pd.DataFrame, metric: str) -> List[str]:
-    exclude = {'timestamp', 'trial_index', metric, 't_elapsed', 'rms_error', 'average_power'}
+    # exclude = {'timestamp', 'trial_index', metric, 't_elapsed', 'rms_error', 'average_power', 'grouser_width', 'g_width', 'particle_spacing'}
+    exclude = {'timestamp', 'trial_index', metric, 't_elapsed', 'rms_error', 'average_power', 'g_width', 'particle_spacing'}
     # Parameters are the remaining numeric columns
     param_cols = []
     for c in df.columns:
@@ -486,12 +491,12 @@ def infer_param_columns(df: pd.DataFrame, metric: str) -> List[str]:
 
 
 def filter_successful(df: pd.DataFrame, metric: str) -> pd.DataFrame:
-    """Return only successful trials: finite metric and metric < 50.
+    """Return only successful trials: finite metric and metric < 500.
 
     This removes failed/sentinel trials so analyses aren't dominated by them.
     """
     metric_vals = pd.to_numeric(df[metric], errors='coerce')
-    mask_ok = metric_vals.apply(np.isfinite) & (metric_vals < 50)
+    mask_ok = metric_vals.apply(np.isfinite) & (metric_vals < 500)
     return df.loc[mask_ok].copy()
 
 
@@ -519,7 +524,7 @@ def evaluate_gp_like_quality(df: pd.DataFrame, metric: str, param_cols: List[str
     X_full = df[param_cols].astype(float).values
     y_full = df[metric].astype(float).values
     # Filter out failed/sentinel trials and NaNs
-    mask_ok = np.isfinite(y_full) & (y_full < 50)
+    mask_ok = np.isfinite(y_full) & (y_full < 500)
     X = X_full[mask_ok]
     y = y_full[mask_ok]
     # Downsample for speed if very large
@@ -674,7 +679,7 @@ def main():
     df_ok = filter_successful(df, args.metric)
     with open(os.path.join(out_dir, 'filtering_summary.txt'), 'w') as f:
         f.write(f"Total trials (raw): {len(df)}\n")
-        f.write(f"Successful trials used (metric < 50 & finite): {len(df_ok)}\n")
+        f.write(f"Successful trials used (metric < 500 & finite): {len(df_ok)}\n")
         f.write(f"Filtered out: {len(df) - len(df_ok)}\n")
 
     # Analyses (successful trials only)

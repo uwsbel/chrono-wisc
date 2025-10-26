@@ -165,7 +165,7 @@ def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_po
         except Exception as e:
             print(f"Simulation error at trial {trial_index}: {type(e).__name__}: {e}")
             sim_failed = True
-            metric = 50  # Penalty for simulation errors
+            metric = 500  # Penalty for simulation errors
             return trial_index, metric, t_elapsed, rms_error, 0.0, bool(sim_failed), str(e)
         
         # CRITICAL: Check for CUDA errors after simulation
@@ -174,7 +174,7 @@ def run_trial(trial_index, param_dict, particle_spacing, weight_speed, weight_po
             print(f"CUDA error detected after trial {trial_index}: {error_message}")
             sim_failed = True
             if metric > 0:
-                metric = 50  # Penalty for CUDA errors
+                metric = 500  # Penalty for CUDA errors
             else:
                 metric = -50  # Initialization failed which is weird and the sim should be discarded
         
@@ -271,7 +271,7 @@ def main():
             ax_client.complete_trial(trial_index=trial_index, raw_data={"composite_metric": float(metric)})
             with open(trials_csv, "a") as f:
                 f.write(
-                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{average_power},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},2,{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
+                    f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric},{t_elapsed},{rms_error},{average_power},{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_density']},{param_dict['grouser_type']},{param_dict['fan_theta_deg']},{param_dict['steering_kp']},{param_dict['steering_kd']},{param_dict['speed_kp']},{param_dict['speed_kd']},{particle_spacing}\n"
                 )
             print(f"    Trial {trial_index} completed: metric={metric:.4f}, time={t_elapsed:.2f}s, power={average_power:.2f}W")
 

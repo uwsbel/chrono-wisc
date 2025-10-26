@@ -298,10 +298,11 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     terrain.SetActiveDomainDelay(settling_time)
     
     # Construct the terrain
-    # print("Create terrain...")
+    print("Create terrain...")
     terrain.Construct(chrono.ChVector3d(terrain_length, terrain_width, terrain_height),
                       chrono.ChVector3d(terrain_length / 2, 0, 0),
                       (fsi.BoxSide_ALL & ~fsi.BoxSide_Z_POS))
+    print(f"Finished constructing terrain")
     
     # Initialize the terrain system
     success, error_msg = safe_initialize(terrain)
@@ -482,6 +483,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     min_speed = 0.15
     net_power = 0
     power_count = 0
+    print(f"Starting simulation")
     while time < tend:
         veh_loc = artCar.GetVehicle().GetPos()
         current_x_position = veh_loc.x
@@ -657,7 +659,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
 
     if(sim_failed):
         print(f"Simulation failed")
-        metric = 50
+        metric = 500
 
 
     print(f"Metric components:")
@@ -673,8 +675,8 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
         clear_cuda_error()
         
         # Force garbage collection
-        import gc
-        gc.collect()
+        #import gc
+        #gc.collect()
         
         # Final CUDA error check
         error_occurred, error_message = check_cuda_error()
@@ -685,7 +687,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
     except Exception as cleanup_error:
         print(f"Cleanup error: {cleanup_error}")
         sim_failed = True
-    
+    print(f"We have returned") 
     return metric, t_elapsed, rms_error, average_power, sim_failed
 
 
