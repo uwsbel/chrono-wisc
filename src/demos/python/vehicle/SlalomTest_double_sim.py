@@ -335,7 +335,7 @@ def sim(Params, weight_speed=0.5, weight_power=0.25, slalom_y=0.2, num_samples=2
         sim_failed = True
         total_time_to_reach = tend + 1
         # -50 because this needs to discarded
-        return -50, 0, 0, True
+        return -50, 0, 0, 0, True
     
     aabb = terrain.GetSPHBoundingBox()
     # print(f"  SPH particles:     {terrain.GetNumSPHParticles()}")
