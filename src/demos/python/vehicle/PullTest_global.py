@@ -148,6 +148,8 @@ def main():
     parser.add_argument("--friction", type=float, default=0.8, help="Material friction coefficient")
     parser.add_argument("--max_force", type=float, default=20, help="Maximum pulling force")
     parser.add_argument("--target_speed", type=float, default=2.0, help="Target vehicle speed")
+    parser.add_argument("--resume", action="store_true", help="Skip trials already recorded in out_dir/trials.csv (and optionally failures)")
+    parser.add_argument("--retry_failed", action="store_true", help="When used with --resume, also retry trials listed in failed_trials.jsonl")
     args = parser.parse_args()
 
     particle_spacing = args.particle_spacing
@@ -165,6 +167,47 @@ def main():
 
     # Prepare Sobol samples
     param_dicts = generate_sobol_param_dicts(n_samples, particle_spacing)
+
+    # If resuming, detect which indices are already done/failed
+    remaining_indices = list(range(n_samples))
+    if args.resume:
+        done = set()
+        failed = set()
+        if os.path.isfile(trials_csv):
+            try:
+                with open(trials_csv, "r") as f:
+                    for i, line in enumerate(f):
+                        if i == 0:
+                            continue  # header
+                        parts = line.strip().split(",")
+                        if len(parts) >= 3:
+                            try:
+                                done.add(int(parts[1]))
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+        if os.path.isfile(failed_log):
+            try:
+                with open(failed_log, "r") as f:
+                    for line in f:
+                        try:
+                            rec = json.loads(line)
+                            if "trial_index" in rec:
+                                failed.add(int(rec["trial_index"]))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        if args.retry_failed:
+            remaining_indices = [i for i in remaining_indices if i not in done]
+        else:
+            remaining_indices = [i for i in remaining_indices if i not in done and i not in failed]
+
+        if not remaining_indices:
+            print("Nothing to do: all requested Sobol samples already processed.")
+            return
 
     # Parallel execution configuration
     try:
@@ -184,7 +227,9 @@ def main():
 
     # Assign each sample to a GPU in round-robin fashion
     assignments = []
-    for idx, param_dict in enumerate(param_dicts):
+    # Preserve original trial indices so CSV lines remain consistent
+    for idx in remaining_indices:
+        param_dict = param_dicts[idx]
         assigned_gpu = gpu_ids[idx % len(gpu_ids)]
         assignments.append((idx, param_dict, particle_spacing, assigned_gpu, failed_log,
                             density, cohesion, friction, max_force, target_speed))
@@ -221,4 +266,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
