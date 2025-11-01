@@ -87,9 +87,9 @@ const ChVector3d ARTcar_DoubleWishboneRear::m_uprightInertiaProducts(0.0, 0.0, -
 
 const double ARTcar_DoubleWishboneRear::m_axleInertia = 0.00000016;
 
-const double ARTcar_DoubleWishboneRear::m_springCoefficient = 8000;  // TODO
-const double ARTcar_DoubleWishboneRear::m_dampingCoefficient = 450;  // TODO
-const double ARTcar_DoubleWishboneRear::m_springRestLength = .1363;  // TODO
+const double ARTcar_DoubleWishboneRear::m_springCoefficient = 16000;  // TODO
+const double ARTcar_DoubleWishboneRear::m_dampingCoefficient = 450;   // TODO
+const double ARTcar_DoubleWishboneRear::m_springRestLength = .1363;   // TODO
 
 // -----------------------------------------------------------------------------
 // ARTcar shock functor class - implements a nonlinear damper
@@ -181,8 +181,9 @@ double ARTcar_ShockForce::evaluate(double time, double rest_length, double lengt
 // Constructors
 // -----------------------------------------------------------------------------
 ARTcar_DoubleWishboneFront::ARTcar_DoubleWishboneFront(const std::string& name) : ChDoubleWishbone(name) {
-    m_springForceCB = chrono_types::make_shared<utils::LinearSpringForce>(m_springCoefficient  // coefficient for linear spring
-    );
+    m_springForceCB =
+        chrono_types::make_shared<utils::LinearSpringForce>(m_springCoefficient  // coefficient for linear spring
+        );
     m_shockForceCB =
         chrono_types::make_shared<utils::LinearDamperForce>(m_dampingCoefficient  // coefficient for linear damping
         );
@@ -202,8 +203,9 @@ ARTcar_DoubleWishboneFront::ARTcar_DoubleWishboneFront(const std::string& name) 
 }
 
 ARTcar_DoubleWishboneRear::ARTcar_DoubleWishboneRear(const std::string& name) : ChDoubleWishbone(name) {
-    m_springForceCB = chrono_types::make_shared<utils::LinearSpringForce>(m_springCoefficient  // coefficient for linear spring
-    );
+    m_springForceCB =
+        chrono_types::make_shared<utils::LinearSpringForce>(m_springCoefficient  // coefficient for linear spring
+        );
     m_shockForceCB =
         chrono_types::make_shared<utils::LinearDamperForce>(m_dampingCoefficient  // coefficient for linear damping
         );

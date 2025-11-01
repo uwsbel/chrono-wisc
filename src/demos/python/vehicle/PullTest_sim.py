@@ -32,9 +32,8 @@ from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance,
 simulation_error = None
 
 class Params:
-    rad=50, # Radius is 50 * particle_spacing
+    rad=50, # Radius is 50 * particle_spacing (inner/body radius)
     width=40, # Width is 40 * particle_spacing
-    cp_deviation=0, 
     g_height=10, # Grouser height is 10 * particle_spacing
     g_density=8, # Number of grousers per revolution
     particle_spacing=0.005, # Particle spacing
@@ -109,7 +108,7 @@ def CreateFSIWheels(vehicle, terrain, Params):
             g_density = Params.g_density
             fan_theta_deg = Params.fan_theta_deg
             
-            BCE_wheel = GenSimpleWheelPointCloud(rad = radius, width = width, cp_deviation = Params.cp_deviation, g_height = g_height, g_width = g_width, g_density = g_density, particle_spacing = Params.particle_spacing, grouser_type = grouser_type, fan_theta_deg = fan_theta_deg)
+            BCE_wheel = GenSimpleWheelPointCloud(rad = radius, width = width, cp_deviation = 0.0, g_height = g_height, g_width = g_width, g_density = g_density, particle_spacing = Params.particle_spacing, grouser_type = grouser_type, fan_theta_deg = fan_theta_deg)
 
             # Convert BCE Wheel array into ChVector3d
             BCE_wheel = numpy_to_ChVector3d(BCE_wheel)
@@ -135,7 +134,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     render_fps = 200
     visualization_sph = True
     visualization_bndry_bce = False
-    visualization_rigid_bce = False
+    visualization_rigid_bce = True
     
     # CRM material properties
     density = SimParams.density
@@ -145,7 +144,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     poisson_ratio = 0.3
     
     # CRM active box dimension
-    active_box_dim = 0.3
+    active_box_dim = 0.4
     settling_time = 0
     
     # SPH spacing - Needs to be same for the wheel generated
@@ -162,7 +161,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     artCar.SetInitPosition(chrono.ChCoordsysd(chrono.ChVector3d(vehicle_x, 0, vehicle_init_height), chrono.QUNIT))
     artCar.SetTireType(veh.TireModelType_RIGID)
     artCar.SetMaxMotorVoltageRatio(1.0)
-    artCar.SetStallTorque(7)
+    artCar.SetStallTorque(5)
     artCar.SetTireRollingResistance(0)
     artCar.Initialize()
 
@@ -172,7 +171,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     artCar.SetSuspensionVisualizationType(chrono.VisualizationType_PRIMITIVES)
     artCar.SetSteeringVisualizationType(chrono.VisualizationType_PRIMITIVES)
     artCar.SetWheelVisualizationType(chrono.VisualizationType_MESH)
-    artCar.SetTireVisualizationType(chrono.VisualizationType_MESH)
+    artCar.SetTireVisualizationType(chrono.VisualizationType_NONE)
     
 
     solver_type = chrono.ChSolver.Type_BARZILAIBORWEIN
@@ -256,7 +255,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     # print(f"  SPH AABB:          {aabb.min}   {aabb.max}")
     
     # Set maximum vehicle X location
-    x_max = aabb.max.x - 0.5
+    x_max = aabb.max.x - 1.0
     
     # Create the path-following driver
     # print("Create path...")
@@ -266,16 +265,16 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
 
     driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), path, "straight_path", SimParams.target_speed, 0.5, 2.0)
     driver.GetSteeringController().SetLookAheadDistance(0.5)
-    driver.GetSteeringController().SetGains(1.0, 0, 0)
-    driver.GetSpeedController().SetGains(0.8, 0.2, 0.5)
+    driver.GetSteeringController().SetGains(5, 0, 1)
+    driver.GetSpeedController().SetGains(0.8, 0.2, 0.3)
     driver.Initialize()
     
     # Set up TSDA to apply pulling force
     # print("Create pulling force...")
     tsda = chrono.ChLinkTSDA()
     max_force = SimParams.max_force
-    zero_force_duration = vehicle_init_time + 0.1
-    fast_step_to_max_force_duration = 0.01
+    zero_force_duration = vehicle_init_time + 0.5
+    fast_step_to_max_force_duration = 0.1
     max_force_duration = tend - zero_force_duration - fast_step_to_max_force_duration
     
     # Create force sequence
@@ -298,7 +297,11 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     sysMBS.AddBody(spring_box)
     
     # Initialize TSDA between chassis and spring box
-    tsda.Initialize(spring_box, chassis_body, True, chrono.ChVector3d(0, 0, 0), chrono.ChVector3d(0, 0, 0))
+    # Attachment point on chassis: rear wheel x-position, CG y and z positions
+    rear_wheel_x = -0.32264 - 0.05  # Rear wheel spindle x-position relative to chassis reference
+    cg_y = -0.0014  # CG y-position (essentially 0)
+    cg_z = -0.048 + 0.1   # CG z-position
+    tsda.Initialize(spring_box, chassis_body, True, chrono.ChVector3d(0, 0, 0), chrono.ChVector3d(rear_wheel_x, cg_y, cg_z))
     tsda.SetSpringCoefficient(0)
     tsda.SetDampingCoefficient(0)
     
@@ -309,10 +312,10 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     sysMBS.AddLink(tsda)
     
     # Add visualization
-    # Red sphere on vehicle attachment point
+    # Red sphere on vehicle attachment point (same location as TSDA attachment)
     vis_sphere = chrono.ChVisualShapeSphere(0.05)
     vis_sphere.SetColor(chrono.ChColor(1.0, 0.0, 0.0))
-    chassis_body.AddVisualShape(vis_sphere, chrono.ChFramed(chrono.ChVector3d(0, 0, 0)))
+    chassis_body.AddVisualShape(vis_sphere, chrono.ChFramed(chrono.ChVector3d(rear_wheel_x, cg_y, cg_z)))
     
     # Spring box visualization
     vis_box = chrono.ChVisualShapeBox(0.1, 0.1, 0.1)
@@ -424,6 +427,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
             driver_inputs.m_braking = 0.0
         else:
             driver_inputs = driver.GetInputs()
+            driver_inputs.m_braking = 0.0
         # Stop vehicle before reaching end of terrain patch
         if veh_loc.x >= x_max:
             total_time_to_reach = t_sim
@@ -489,23 +493,19 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     print(f"  g_density: {Params.g_density}")
     print(f"  particle_spacing: {Params.particle_spacing}")
     print(f"  fan_theta_deg: {Params.fan_theta_deg}")
-    print(f"  cp_deviation: {Params.cp_deviation}")
     if(total_time_to_reach < 1):
         print(f"Total time to reach is less than 1 second")
         sim_failed = True
         total_time_to_reach = tend*2
     
-    if(sim_failed):
-        print(f"Simulation failed")
-    else:
-        print(f"Total time to reach: {total_time_to_reach}")
+
 
     
     # Compute metrics
     ideal_time = terrain_length / SimParams.target_speed
     time_cost_score  = (total_time_to_reach / ideal_time) * 10
 
-    ideal_power = 20.0
+    ideal_power = 100.0
     # Power metrics
     average_power = 0
     if power_count > 0:
@@ -523,7 +523,13 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     print(f"Power score: {power_score}")
     print(f"Weight speed: {weight_speed}")
     print(f"Weight power: {weight_power}")
-    metric = weight_speed * time_cost_score + weight_power * power_score
+    if(sim_failed):
+        print(f"Simulation failed")
+        metric = 500
+    else:
+        print(f"Total time to reach: {total_time_to_reach}")
+        metric = weight_speed * time_cost_score + weight_power * power_score
+
     print(f"Metric: {metric}")
     return metric, total_time_to_reach, 0, average_power, sim_failed
 
@@ -536,7 +542,6 @@ if __name__ == "__main__":
     Params.g_density = 6
     Params.particle_spacing = 0.005
     Params.fan_theta_deg = 132
-    Params.cp_deviation = 0
     
     SimParams = SimParams()
     SimParams.density = 1700

@@ -83,16 +83,15 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
 
     ax_client = AxClient(generation_strategy=gs)
 
-    rad_lb, rad_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
-    width_lb, width_ub = compute_int_bounds(0.05, 0.15, particle_spacing)
-    gh_lb, gh_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
+    # Outer radius (including grousers) bounds in meters
+    rad_lb, rad_ub = compute_int_bounds(0.05, 0.14, particle_spacing)
 
     ax_client.create_experiment(
         name="wheel_optimization",
         parameters=[
             {"name": "rad", "type": "range", "bounds": [rad_lb, rad_ub], "value_type": "int"},
-            {"name": "width", "type": "range", "bounds": [width_lb, width_ub], "value_type": "int"},
-            {"name": "g_height", "type": "range", "bounds": [gh_lb, gh_ub], "value_type": "int"},
+            {"name": "w_by_r", "type": "range", "bounds": [0.7, 1.3], "value_type": "float"},
+            {"name": "what_percent_is_grouser", "type": "range", "bounds": [0.0, 0.3], "value_type": "float"},
             {"name": "g_density", "type": "range", "bounds": [2, 16], "value_type": "int"},
             {"name": "fan_theta_deg", "type": "range", "bounds": [45, 135], "value_type": "int"},
         ],
@@ -109,9 +108,20 @@ def map_params_to_sim(param_dict, particle_spacing, density, cohesion, friction,
 
     p = Params()
     p.particle_spacing = particle_spacing
-    p.rad = int(param_dict["rad"])
-    p.width = int(param_dict["width"])
-    p.g_height = int(param_dict["g_height"])
+    # New parametrization inputs
+    rad_outer = int(param_dict["rad"])  # in multiples of particle spacing
+    w_by_r = float(param_dict["w_by_r"])
+    pct_g = float(param_dict["what_percent_is_grouser"])
+
+    # Derived discrete geometry (in multiples of particle spacing)
+    g_height_int = int(round(rad_outer * pct_g))
+    g_height_int = max(0, g_height_int)
+    rad_inner_int = int(rad_outer - g_height_int)
+    width_int = int(round(w_by_r * rad_outer))
+
+    p.rad = rad_inner_int
+    p.width = width_int
+    p.g_height = g_height_int
     p.g_density = int(param_dict["g_density"])
     p.fan_theta_deg = int(param_dict.get("fan_theta_deg", 0))
     
@@ -210,7 +220,7 @@ def main():
 
     if not os.path.isfile(trials_csv):
         with open(trials_csv, "w") as f:
-            f.write("timestamp,trial_index,metric,total_time_to_reach,average_power,rad,width,g_height,g_density,fan_theta_deg,particle_spacing\n")
+            f.write("timestamp,trial_index,metric,total_time_to_reach,average_power,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing\n")
 
     try:
         mp.set_start_method("spawn", force=True)
@@ -256,9 +266,11 @@ def main():
 
                 ax_client.complete_trial(trial_index=trial_index, raw_data={"metric": float(metric)})
                 with open(trials_csv, "a") as f:
-                    f.write(f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric:.4f},{total_time_to_reach:.4f},{average_power:.2f},"
-                            f"{param_dict['rad']},{param_dict['width']},{param_dict['g_height']},{param_dict['g_density']},"
-                            f"{param_dict['fan_theta_deg']},{particle_spacing}\n")
+                    f.write(
+                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric:.4f},{total_time_to_reach:.4f},{average_power:.2f},"
+                        f"{param_dict['rad']},{param_dict['w_by_r']:.6f},{param_dict['what_percent_is_grouser']:.6f},{param_dict['g_density']},"
+                        f"{param_dict['fan_theta_deg']},{particle_spacing}\n"
+                    )
                 print(f"  Trial {trial_index}: metric={metric:.4f}, time={total_time_to_reach:.4f}s, power={average_power:.2f}W")
 
         ax_client.save_to_json_file(filepath=state_path)

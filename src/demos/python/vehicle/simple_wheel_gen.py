@@ -47,9 +47,10 @@ def validate_thickness_constraints(rad, width, cp_deviation, g_height, g_width, 
         return False
     
     # Check grouser height
+    # Allow zero/small grousers: below threshold we will skip generating grousers
+    # rather than failing the wheel generation. Do not return False here.
     if g_height < min_thickness:
-        print(f"ERROR: Grouser height ({g_height:.4f}m) is less than minimum required thickness ({min_thickness:.4f}m)")
-        return False
+        pass
     
     # Check if wheel width can accommodate particles
     if width < min_thickness:
@@ -380,15 +381,17 @@ def GenSimpleWheelPointCloud(rad=0.25, width=0.2, cp_deviation=0., g_height=0.02
         'fan_theta_deg': fan_theta_deg
     }
     
+    # Skip grousers if height is below 2 * particle_spacing
     all_grouser_particles = []
-    for g_num in range(g_density):
-        # Route to appropriate grouser generator based on type
-        if grouser_type == 'straight':
-            grouser_particles = generate_grouser_layers(grouser_params, g_angle, g_num, particle_spacing)
-        elif grouser_type == 'semi_circle':
-            grouser_particles = generate_grouser_semicircle_layers(grouser_params, g_angle, g_num, particle_spacing)
-        
-        all_grouser_particles.extend(grouser_particles)
+    min_grouser_height = 2.0 * particle_spacing
+    if g_height >= min_grouser_height and g_density > 0:
+        for g_num in range(g_density):
+            # Route to appropriate grouser generator based on type
+            if grouser_type == 'straight':
+                grouser_particles = generate_grouser_layers(grouser_params, g_angle, g_num, particle_spacing)
+            elif grouser_type == 'semi_circle':
+                grouser_particles = generate_grouser_semicircle_layers(grouser_params, g_angle, g_num, particle_spacing)
+            all_grouser_particles.extend(grouser_particles)
     
     # Combine all particles
     particles = wheel_particles + all_grouser_particles
@@ -453,4 +456,3 @@ if __name__ == "__main__":
     
     
     print("\n=== All point clouds generated successfully! ===")
-

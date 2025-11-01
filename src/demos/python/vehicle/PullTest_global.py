@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import os
+import sys
 from datetime import datetime
 
 import multiprocessing as mp
@@ -235,9 +236,16 @@ def main():
                             density, cohesion, friction, max_force, target_speed))
 
     # Submit all tasks; executor enforces concurrency <= max_workers
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context("spawn")) as ex:
-        futures = [ex.submit(_worker_run_trial, *args_tuple) for args_tuple in assignments]
+    executor = None
+    pending_futures = set()
+    executor_shutdown = False
+    try:
+        executor = ProcessPoolExecutor(max_workers=max_workers, mp_context=mp.get_context("spawn"))
+        futures = [executor.submit(_worker_run_trial, *args_tuple) for args_tuple in assignments]
+        pending_futures = set(futures)
+        
         for fut in as_completed(futures):
+            pending_futures.discard(fut)
             trial_index, metric, total_time_to_reach, average_power, sim_failed, err = fut.result()
             param_dict = param_dicts[trial_index]
 
@@ -262,6 +270,30 @@ def main():
             print(
                 f"Trial {trial_index}: metric={metric:.4f}, time={total_time_to_reach:.4f}s, power={average_power:.2f}W"
             )
+    except KeyboardInterrupt:
+        print("\n\nKeyboard interrupt received. Shutting down...")
+        if executor is not None and not executor_shutdown:
+            # Cancel all pending futures
+            cancelled = 0
+            for fut in pending_futures:
+                if fut.cancel():
+                    cancelled += 1
+            if cancelled > 0:
+                print(f"Cancelled {cancelled} pending trials.")
+            # Force shutdown without waiting for running tasks
+            try:
+                # Python 3.9+ supports cancel_futures parameter
+                executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                # Fallback for older Python versions
+                executor.shutdown(wait=False)
+            executor_shutdown = True
+            print("Forcing shutdown of worker processes...")
+        sys.exit(1)
+    finally:
+        # Ensure executor is properly closed
+        if executor is not None and not executor_shutdown:
+            executor.shutdown(wait=False)
 
 
 if __name__ == "__main__":

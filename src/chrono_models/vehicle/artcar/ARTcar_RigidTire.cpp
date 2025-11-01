@@ -35,7 +35,7 @@ namespace artcar {
 static const double in2m = 0.0254;
 static const double lb2kg = 0.453592;
 
-const double ARTcar_RigidTire::m_radius = .170 / 2;
+const double ARTcar_RigidTire::m_radius = .160 / 2;
 const double ARTcar_RigidTire::m_width = .0855;
 
 const double ARTcar_RigidTire::m_mass = .200;
