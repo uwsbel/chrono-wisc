@@ -460,7 +460,7 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
-
+    double x_max = params.length - 0.7;
     while (time < sim_time_max) {
         time = sys->GetChTime();
 
@@ -474,6 +474,11 @@ int main(int argc, char* argv[]) {
         ChVector3d pos = rig.GetPos();
         ChVector3d vel = carrier_body ? carrier_body->GetLinVel() : ChVector3d(0, 0, 0);
 
+        // Leave if end of terrain reached
+        if (pos.x() > x_max) {
+            std::cout << "End of terrain reached" << std::endl;
+            break;
+        }
         // Write position and velocity data to CSV file
         if (time >= time_offset) {
             position_file << time << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << vel.x() << ","
