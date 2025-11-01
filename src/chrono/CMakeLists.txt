@@ -410,8 +410,10 @@ set(Chrono_fea_elements_SOURCES
     fea/ChElementBeamANCF_3243.cpp
     fea/ChElementBeamANCF_3333.cpp
     fea/ChElementShellANCF_3423.cpp
+    fea/ChElementShellANCF_3423T.cpp
     fea/ChElementShellANCF_3833.cpp
     fea/ChElementShellANCF_3443.cpp
+    fea/ChElementShellANCF_3443B.cpp
     fea/ChElementShellBST.cpp
     fea/ChElementShellReissner4.cpp
     )
@@ -441,7 +443,9 @@ set(Chrono_fea_elements_HEADERS
     fea/ChElementHexaANCF_3843.h
     fea/ChElementShell.h
     fea/ChElementShellANCF_3423.h
+    fea/ChElementShellANCF_3423T.h
     fea/ChElementShellANCF_3443.h
+    fea/ChElementShellANCF_3443B.h
     fea/ChElementShellANCF_3833.h
     fea/ChElementShellReissner4.h
     fea/ChElementShellBST.h

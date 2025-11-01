@@ -21,6 +21,7 @@
 //// in particular, check how the tire FEA mesh is attached to the rim.
 
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
+#include "chrono_vehicle/wheeled_vehicle/tire/ANCFAirlessTire3443B.h"
 
 namespace chrono {
 namespace vehicle {
@@ -86,7 +87,26 @@ void ChDeformableTire::Initialize(std::shared_ptr<ChWheel> wheel) {
         // Let the derived class create the contact surface and add it to the mesh.
         CreateContactMaterial();
         assert(m_contact_mat && m_contact_mat->GetContactMethod() == ChContactMethod::SMC);
-        CreateContactSurface();
+
+        // Check if this is an ANCFAirlessTire3443B
+        auto airlessTire = std::dynamic_pointer_cast<ANCFAirlessTire3443B>(shared_from_this());
+        if (airlessTire) {
+            // If it is, get the number of outer ring elements and pass it to CreateContactSurface
+            int numOuterRingElems = airlessTire->GetNumOuterRingElems();
+            std::cout << "Detected ANCFAirlessTire3443B with " << numOuterRingElems << " outer ring elements"
+                      << std::endl;
+            // Cast to ChANCFTire to call the specialized method
+            auto ancfTire = std::dynamic_pointer_cast<ChANCFTire>(shared_from_this());
+            if (ancfTire) {
+                ancfTire->CreateContactSurfaceWithOuterRingElements(numOuterRingElems);
+            } else {
+                // Fallback to standard method if casting fails
+                CreateContactSurface();
+            }
+        } else {
+            // Otherwise, call the original CreateContactSurface method
+            CreateContactSurface();
+        }
     }
 
     // Enable tire connection to rim
@@ -108,9 +128,7 @@ void ChDeformableTire::AddVisualizationAssets(VisualizationType vis) {
 
     // If no FEA visualization shape was provided, create a single one with speed coloring
     if (m_visFEA.empty()) {
-
-
-      std::cout << "CREATE DEF TIRE VISUALIZATION" << std::endl;
+        std::cout << "CREATE DEF TIRE VISUALIZATION" << std::endl;
 
         auto visFEA = chrono_types::make_shared<ChVisualShapeFEA>();
         visFEA->SetFEMdataType(ChVisualShapeFEA::DataType::NODE_SPEED_NORM);

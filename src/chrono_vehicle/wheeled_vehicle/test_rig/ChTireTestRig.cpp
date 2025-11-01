@@ -27,6 +27,8 @@
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 #include "chrono_vehicle/terrain/GranularTerrain.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
+#include "chrono_thirdparty/filesystem/path.h"
 
 #ifdef CHRONO_FSI
     #include "chrono_vehicle/terrain/CRMTerrain.h"
@@ -59,6 +61,8 @@ ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel, std::shared_ptr<ChT
       m_terrain_offset(0),
       m_terrain_height(0),
       m_tire_step(1e-3),
+      m_is_it_sloped(false),
+      m_slope_angle_degrees(0),
       m_tire_vis(VisualizationType::PRIMITIVES) {
     // Default motion function for slip angle control
     m_sa_fun = chrono_types::make_shared<ChFunctionConst>(0);
@@ -181,6 +185,7 @@ void ChTireTestRig::SetTerrainGranular(double radius,
 void ChTireTestRig::SetTerrainCRM(double radius,
                                   double density,
                                   double cohesion,
+                                  double friction,
                                   double terrain_length,
                                   double terrain_width,
                                   double terrain_depth) {
@@ -195,6 +200,7 @@ void ChTireTestRig::SetTerrainCRM(double radius,
     m_params_crm.radius = radius;
     m_params_crm.density = density;
     m_params_crm.cohesion = cohesion;
+    m_params_crm.friction = friction;
     m_params_crm.length = terrain_length;
     m_params_crm.width = terrain_width;
     m_params_crm.depth = terrain_depth;
@@ -317,7 +323,7 @@ void ChTireTestRig::Advance(double step) {
 // -----------------------------------------------------------------------------
 
 void ChTireTestRig::CreateMechanism(Mode mode) {
-    m_system->SetGravitationalAcceleration(ChVector3d(0, 0, -m_grav));
+    m_system->SetGravitationalAcceleration(m_grav);
 
     // Create bodies.
     // Rig bodies are constructed with mass and inertia commensurate with those of the wheel-tire system.
@@ -451,8 +457,8 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_tire->SetVisualizationType(m_tire_vis);
 
     // Update chassis mass to satisfy requested normal load
-    if (m_grav > 0) {
-        m_total_mass = m_normal_load / m_grav;
+    if (m_grav.z() > 0) {
+        m_total_mass = m_normal_load / m_grav.z();
         double other_mass = m_slip_body->GetMass() + m_spindle->GetMass() + m_wheel->GetMass() + m_tire->GetMass();
         double chassis_mass = m_total_mass - other_mass;
         if (chassis_mass > mass) {
@@ -585,7 +591,7 @@ void ChTireTestRig::CreateTerrainCRM() {
     std::shared_ptr<CRMTerrain> terrain = chrono_types::make_shared<CRMTerrain>(*m_system, initSpace0);
 
     terrain->SetOutputLevel(OutputLevel::STATE);
-    terrain->SetGravitationalAcceleration(ChVector3d(0, 0, -m_grav));
+    terrain->SetGravitationalAcceleration(m_grav);
 
     terrain->SetStepSizeCFD(m_tire_step);
 
@@ -595,8 +601,8 @@ void ChTireTestRig::CreateTerrainCRM() {
     mat_props.Young_modulus = 2e6;
     mat_props.Poisson_ratio = 0.3;
     mat_props.mu_I0 = 0.03;
-    mat_props.mu_fric_s = 0.7;
-    mat_props.mu_fric_2 = 0.7;
+    mat_props.mu_fric_s = m_params_crm.friction;
+    mat_props.mu_fric_2 = m_params_crm.friction;
     mat_props.average_diam = 0.0614;
     mat_props.cohesion_coeff = m_params_crm.cohesion;
 
@@ -621,8 +627,42 @@ void ChTireTestRig::CreateTerrainCRM() {
 
     double loc_z = m_terrain_height - m_params_crm.depth;
     ChVector3d location(m_params_crm.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, loc_z);
-    terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
-                       BoxSide::ALL & ~BoxSide::Z_POS);
+    if (m_is_it_sloped) {
+        // Create a patch from a height field map image
+        // Generate filename for slope heightmap
+        std::string heightmap_filename =
+            "terrain/height_maps/slope_" + std::to_string((int)m_slope_angle_degrees) + "deg.bmp";
+        // "terrain/height_maps/slope.bmp";
+        std::string full_path = GetVehicleDataFile(heightmap_filename);
+
+        // Check if heightmap file exists
+        auto path = filesystem::path(full_path);
+        if (!path.exists() || !path.is_file()) {
+            std::cerr << "Error: Heightmap file not found: " << full_path << std::endl;
+            std::cerr << "Please generate the heightmap first using:" << std::endl;
+            std::cerr << "  python data/vehicle/terrain/height_maps/generate_slope_heightmap.py "
+                      << (int)m_slope_angle_degrees << std::endl;
+            return;
+        }
+        double slope_angle_deg = (int)m_slope_angle_degrees;
+
+        double min_height = m_params_crm.depth;
+        double max_height = min_height + (m_params_crm.length - 5) * std::tan(slope_angle_deg * CH_DEG_TO_RAD);
+
+        std::cout << "Loading heightmap: " << heightmap_filename << std::endl;
+
+        terrain->Construct(full_path.c_str(),                        // height map image file
+                           m_params_crm.length, m_params_crm.width,  // length (X) and width (Y)
+                           {min_height, max_height},                 // height range
+                           m_params_crm.depth,                       // depth
+                           true,                                     // uniform depth
+                           location,                                 // patch center
+                           //    BoxSide::ALL & ~BoxSide::Z_POS);
+                           BoxSide::Z_NEG);
+    } else {
+        terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
+                           BoxSide::ALL & ~BoxSide::Z_POS);
+    }
 
     // Guesstimate of reasonable active domain size
     terrain->SetActiveDomain(ChVector3d(4 * m_tire->GetRadius(), 4 * m_tire->GetWidth(), 4 * m_tire->GetRadius()));

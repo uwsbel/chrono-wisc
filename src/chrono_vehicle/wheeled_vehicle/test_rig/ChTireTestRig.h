@@ -87,6 +87,7 @@ class CH_VEHICLE_API ChTireTestRig {
         double radius;    ///< particle radius
         double density;   ///< Terrain bulk density (kg/m3)
         double cohesion;  ///< Terrain artificial cohesion (Pa)
+        double friction;  ///< Terrain artificial friction (Pa)
         double length;    ///< patch length
         double width;     ///< patch width
         double depth;     ///< patch depth
@@ -101,7 +102,8 @@ class CH_VEHICLE_API ChTireTestRig {
     ~ChTireTestRig();
 
     /// Set gravitational acceleration (default: 9.81 m/s2).
-    void SetGravitationalAcceleration(double grav) { m_grav = grav; }
+    void SetGravitationalAcceleration(ChVector3d grav) { m_grav = grav; }
+    void SetGravitationalAcceleration(double grav) { m_grav = ChVector3d(0, 0, -grav); }
 
     /// Set desired normal load (default: 1000 N).
     void SetNormalLoad(double load) { m_normal_load = load; }
@@ -194,9 +196,15 @@ class CH_VEHICLE_API ChTireTestRig {
     void SetTerrainCRM(double radius,
                        double density,
                        double cohesion,
+                       double friction,
                        double terrain_length = 10,
                        double terrain_width = 1,
                        double terrain_depth = 0.2);
+
+    void SetSlope(double slope_angle_degrees) {
+        m_is_it_sloped = true;
+        m_slope_angle_degrees = slope_angle_degrees;
+    }
 
     /// Set time delay before applying motion functions (default: 0 s).
     void SetTimeDelay(double delay) { m_time_delay = delay; }
@@ -251,7 +259,7 @@ class CH_VEHICLE_API ChTireTestRig {
     double m_tire_step;                    ///< step size for tire integration
     double m_camber_angle;                 ///< camber angle
 
-    double m_grav;         ///< gravitational acceleration
+    ChVector3d m_grav;     ///< gravitational acceleration
     double m_normal_load;  ///< desired normal load
     double m_total_mass;   ///< total sprung mass
     double m_time_delay;   ///< time delay before applying external load
@@ -283,6 +291,9 @@ class CH_VEHICLE_API ChTireTestRig {
     std::shared_ptr<ChLinkMotorLinearSpeed> m_lin_motor;    ///< carrier actuator
     std::shared_ptr<ChLinkMotorRotationSpeed> m_rot_motor;  ///< wheel actuator
     std::shared_ptr<ChLinkLockLock> m_slip_lock;            ///< slip angle actuator
+
+    bool m_is_it_sloped;           ///< Bool indicating whether the terrain is sloped
+    double m_slope_angle_degrees;  ///< Slope angle in degrees
 };
 
 /// @} vehicle_wheeled_test_rig

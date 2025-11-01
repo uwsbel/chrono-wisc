@@ -41,7 +41,7 @@ namespace vehicle {
 /// @{
 
 /// Base class for a deformable tire model.
-class CH_VEHICLE_API ChDeformableTire : public ChTire {
+class CH_VEHICLE_API ChDeformableTire : public ChTire, public std::enable_shared_from_this<ChDeformableTire> {
   public:
     /// Construct a deformable tire with the specified name.
     ChDeformableTire(const std::string& name);
