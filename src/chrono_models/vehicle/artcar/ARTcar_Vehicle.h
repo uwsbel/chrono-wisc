@@ -34,6 +34,7 @@
 #include "chrono_models/vehicle/artcar/ARTcar_Chassis.h"
 #include "chrono_models/vehicle/artcar/ARTcar_DoubleWishbone.h"
 #include "chrono_models/vehicle/artcar/ARTcar_Driveline4WD.h"
+#include "chrono_models/vehicle/artcar/ARTcar_Driveline4WD_simple.h"
 #include "chrono_models/vehicle/artcar/ARTcar_PitmanArm.h"
 #include "chrono_models/vehicle/artcar/ARTcar_Wheel.h"
 

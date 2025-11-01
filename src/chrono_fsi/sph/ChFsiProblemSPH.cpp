@@ -683,6 +683,71 @@ void ChFsiProblemCartesian::Construct(const std::string& sph_file, const std::st
     m_offset_bce = m_offset_sph;
 }
 
+void ChFsiProblemCartesian::Construct(const std::string& sph_file,
+                                      const std::string& bce_file,
+                                      const ChVector3d& pos,
+                                      bool use_grid_coordinates) {
+    if (m_verbose) {
+        cout << "Construct ChFsiProblemSPH from data files" << endl;
+    }
+
+    std::string line;
+
+    std::ifstream sph(sph_file, std::ios_base::in);
+    while (std::getline(sph, line)) {
+        // Replace commas with spaces for CSV format
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+
+        if (use_grid_coordinates) {
+            // Read integer grid coordinates directly
+            int x, y, z;
+            if (iss >> x >> y >> z) {
+                m_sph.insert(ChVector3i(x, y, z));
+            }
+        } else {
+            // Read physical positions and convert to grid coordinates
+            double x, y, z;
+            if (iss >> x >> y >> z) {
+                ChVector3i grid_pos((int)std::round(x / m_spacing), (int)std::round(y / m_spacing),
+                                    (int)std::round(z / m_spacing));
+                m_sph.insert(grid_pos);
+            }
+        }
+    }
+
+    std::ifstream bce(bce_file, std::ios_base::in);
+    while (std::getline(bce, line)) {
+        // Replace commas with spaces for CSV format
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+
+        if (use_grid_coordinates) {
+            // Read integer grid coordinates directly
+            int x, y, z;
+            if (iss >> x >> y >> z) {
+                m_bce.insert(ChVector3i(x, y, z));
+            }
+        } else {
+            // Read physical positions and convert to grid coordinates
+            double x, y, z;
+            if (iss >> x >> y >> z) {
+                ChVector3i grid_pos((int)std::round(x / m_spacing), (int)std::round(y / m_spacing),
+                                    (int)std::round(z / m_spacing));
+                m_bce.insert(grid_pos);
+            }
+        }
+    }
+
+    if (m_verbose) {
+        cout << "  SPH particles filename: " << sph_file << "  [" << m_sph.size() << "]" << endl;
+        cout << "  BCE markers filename: " << bce_file << "  [" << m_bce.size() << "]" << endl;
+    }
+
+    m_offset_sph = pos;
+    m_offset_bce = m_offset_sph;
+}
+
 void ChFsiProblemCartesian::Construct(const ChVector3d& box_size, const ChVector3d& pos, int side_flags) {
     // Number of points in each direction
     int Nx = std::round(box_size.x() / m_spacing) + 1;

@@ -71,6 +71,7 @@ void ARTcar_Vehicle::Create(bool fixed, CollisionType chassis_collision_type) {
 
     // Create the driveline
     m_driveline = chrono_types::make_shared<ARTcar_Driveline4WD>("Driveline");
+    // m_driveline = chrono_types::make_shared<ARTcar_Driveline4WD_simple>("Driveline");
 }
 
 ARTcar_Vehicle::~ARTcar_Vehicle() {}

@@ -69,7 +69,7 @@ using std::endl;
 
 // ===================================================================================================================
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
-double terrain_length = 2.5;
+double terrain_length = 5.0;
 double terrain_width = 1;
 double terrain_height = 0.10;
 
@@ -221,12 +221,16 @@ int main(int argc, char* argv[]) {
 
     // Construct the terrain
     cout << "Create terrain..." << endl;
+    std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
     // Create a rectangular terrain patch
-    terrain.Construct({terrain_length, terrain_width, terrain_height},  // length X width X height
-                      ChVector3d(terrain_length / 2, 0, 0),             // patch center
-                      BoxSide::ALL & ~BoxSide::Z_POS                    // all boundaries, except top
-    );
-
+    // terrain.Construct({terrain_length, terrain_width, terrain_height},  // length X width X height
+    //                   ChVector3d(terrain_length / 2, 0, 0),             // patch center
+    //                   BoxSide::ALL & ~BoxSide::Z_POS                    // all boundaries, except top
+    // );
+    terrain.Construct("sph_5_1_0.1_0.005_xyz.csv", "boundary_5_1_0.1_0.005_xyz.csv", ChVector3d(0, 0, 0), false);
+    std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    cout << "Terrain construction time: " << duration.count() << " seconds" << endl;
     // Initialize the terrain system
     terrain.Initialize();
 
@@ -319,6 +323,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Create particles directory
+    std::string particles_dir = out_dir + "/particles";
+    if (!filesystem::create_directory(filesystem::path(particles_dir))) {
+        cerr << "Error creating directory " << particles_dir << endl;
+        return 1;
+    }
+
     std::string out_file = out_dir + "/results.txt";
     utils::ChWriterCSV csv(" ");
 
@@ -382,6 +393,9 @@ int main(int argc, char* argv[]) {
     cout << "Start simulation..." << endl;
 
     while (time < tend) {
+        if (time < step_size) {
+            terrain.GetFsiSystemSPH()->GetFluidSystemSPH().SaveParticleData(out_dir + "/particles");
+        }
         const auto& veh_loc = artCar->GetVehicle().GetPos();
 
         // Get driver inputs from path follower (for steering control)

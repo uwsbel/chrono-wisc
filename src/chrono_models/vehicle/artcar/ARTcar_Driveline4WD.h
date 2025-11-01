@@ -52,6 +52,11 @@ class CH_MODELS_API ARTcar_Driveline4WD : public ChShaftsDriveline4WD {
     virtual double GetAxleDifferentialLockingLimit() const override { return m_axle_differential_locking_limit; }
     virtual double GetCentralDifferentialLockingLimit() const override { return m_central_differential_locking_limit; }
 
+    /// Override Initialize to enable limited-slip differentials by default
+    virtual void Initialize(std::shared_ptr<ChChassis> chassis,
+                            const ChAxleList& axles,
+                            const std::vector<int>& driven_axles) override;
+
   private:
     // Shaft inertias.
     static const double m_central_differentialbox_inertia;

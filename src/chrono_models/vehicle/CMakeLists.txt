@@ -937,6 +937,8 @@ set(CVM_ARTCAR_FILES
     artcar/ARTcar_DoubleWishbone.h
     artcar/ARTcar_Driveline4WD.cpp
     artcar/ARTcar_Driveline4WD.h
+    artcar/ARTcar_Driveline4WD_simple.cpp
+    artcar/ARTcar_Driveline4WD_simple.h
     artcar/ARTcar_PitmanArm.cpp
     artcar/ARTcar_PitmanArm.h
     artcar/ARTcar_RigidTire.cpp

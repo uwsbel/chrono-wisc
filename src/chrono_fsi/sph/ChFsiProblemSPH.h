@@ -337,6 +337,15 @@ class CH_FSI_API ChFsiProblemCartesian : public ChFsiProblemSPH {
                    const ChVector3d& pos         ///< reference position
     );
 
+    /// Construct using information from the specified files with optional position conversion.
+    /// If use_grid_coordinates is true, reads integer grid coordinates directly.
+    /// If false, reads physical positions (doubles) and converts to grid coordinates.
+    void Construct(const std::string& sph_file,  ///< filename with SPH particle positions
+                   const std::string& bce_file,  ///< filename with BCE marker positions
+                   const ChVector3d& pos,        ///< reference position
+                   bool use_grid_coordinates  ///< true if file contains grid coordinates, false if physical positions
+    );
+
     /// Construct SPH particles and optionally BCE markers in a box of given dimensions.
     /// The reference position is the center of the bottom face of the box; in other words, SPH particles are generated
     /// above this location and BCE markers for the bottom boundary are generated below this location.
