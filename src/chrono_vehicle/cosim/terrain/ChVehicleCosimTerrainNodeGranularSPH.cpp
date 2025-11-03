@@ -29,13 +29,13 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/assets/ChVisualShapeTriangleMesh.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeGranularSPH.h"
 
-#include "chrono_fsi/sph/utils/UtilsPrintSph.cuh"
+#include "chrono_fsi/sph/utils/SphUtilsPrint.cuh"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 using std::cout;
@@ -160,9 +160,9 @@ void ChVehicleCosimTerrainNodeGranularSPH::SetFromSpecfile(const std::string& sp
         auto sph_filename = d["Patch data files"]["SPH particles file"].GetString();
         auto bce_filename = d["Patch data files"]["BCE markers file"].GetString();
         auto path_filename = d["Patch data files"]["Path file"].GetString();
-        m_sph_filename = vehicle::GetDataFile(sph_filename);
-        m_bce_filename = vehicle::GetDataFile(bce_filename);
-        m_path_points = SetPathFromSpecfile(vehicle::GetDataFile(path_filename));
+        m_sph_filename = GetVehicleDataFile(sph_filename);
+        m_bce_filename = GetVehicleDataFile(bce_filename);
+        m_path_points = SetPathFromSpecfile(GetVehicleDataFile(path_filename));
         m_depth = 0;
         m_terrain_type = ConstructionMethod::FILES;
     } else {
@@ -216,23 +216,22 @@ void ChVehicleCosimTerrainNodeGranularSPH::Construct() {
     double initSpace0 = 2 * m_radius;
     m_terrain = new CRMTerrain(*m_system, initSpace0);
     //////m_terrain->SetVerbose(true);
-    ChFsiSystemSPH& sysFSI = m_terrain->GetSystemFSI();
-    ChFsiFluidSystemSPH& sysSPH = m_terrain->GetFluidSystemSPH();
+    auto sysFSI = m_terrain->GetFsiSystemSPH();
+    auto sysSPH = m_terrain->GetFluidSystemSPH();
 
     // Let the FSI system read its parameters
-    if (!m_specfile.empty())
-        sysSPH.ReadParametersFromFile(m_specfile);
+    //// TODO - use YAML specification files
 
     // Reload simulation parameters to FSI system
-    sysFSI.SetStepSizeCFD(m_step_size);
-    sysFSI.SetStepsizeMBD(m_step_size);
+    sysFSI->SetStepSizeCFD(m_step_size);
+    sysFSI->SetStepsizeMBD(m_step_size);
 
-    sysSPH.SetSPHMethod(SPHMethod::WCSPH);
-    sysSPH.SetConsistentDerivativeDiscretization(false, false);
-    sysSPH.SetOutputLevel(OutputLevel::STATE);
-    sysSPH.SetGravitationalAcceleration(ChVector3d(0, 0, m_gacc));
-    sysSPH.SetDensity(m_density);
-    sysSPH.SetCohesionForce(m_cohesion);
+    sysSPH->SetIntegrationScheme(IntegrationScheme::RK2);
+    sysSPH->SetConsistentDerivativeDiscretization(false, false);
+    sysSPH->SetOutputLevel(OutputLevel::STATE);
+    sysSPH->SetGravitationalAcceleration(ChVector3d(0, 0, m_gacc));
+    sysSPH->SetDensity(m_density);
+    sysSPH->SetCohesionForce(m_cohesion);
 
     // Construct the CRMTerrain (generate SPH boundary BCE points)
     switch (m_terrain_type) {
@@ -267,14 +266,14 @@ void ChVehicleCosimTerrainNodeGranularSPH::Construct() {
 
         // Set obstacle geometry
         double thickness = 0.01;
-        utils::ChBodyGeometry geometry;
-        geometry.materials.push_back(b.m_contact_mat);
-        geometry.coll_meshes.push_back(
-            utils::ChBodyGeometry::TrimeshShape(VNULL, GetChronoDataFile(b.m_mesh_filename), VNULL, 1.0, thickness, 0));
+        auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+        geometry->materials.push_back(b.m_contact_mat);
+        geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(
+            VNULL, QUNIT, GetChronoDataFile(b.m_mesh_filename), VNULL, 1.0, thickness, 0));
 
         // Create visualization and collision shapes
-        geometry.CreateVisualizationAssets(body, VisualizationType::COLLISION);
-        geometry.CreateCollisionShapes(body, 2, m_method);
+        geometry->CreateVisualizationAssets(body, VisualizationType::COLLISION);
+        geometry->CreateCollisionShapes(body, 2, m_method);
 
         // Add the obstacle body to the underlying Chrono and FSI systems (obstacles may be embedded)
         m_system->AddBody(body);
@@ -309,15 +308,15 @@ void ChVehicleCosimTerrainNodeGranularSPH::CreateRigidProxy(unsigned int i) {
 
     // Create visualization asset (use collision shapes)
     if (m_show_geometry) {
-        m_geometry[i_shape].CreateVisualizationAssets(body, VisualizationType::COLLISION);
+        m_geometry[i_shape]->CreateVisualizationAssets(body, VisualizationType::COLLISION);
     }
 
     // Create collision shapes (only if obstacles are present)
     auto num_obstacles = m_obstacles.size();
     if (num_obstacles > 0) {
-        for (auto& mesh : m_geometry[i_shape].coll_meshes)
+        for (auto& mesh : m_geometry[i_shape]->coll_meshes)
             mesh.radius = m_radius;
-        m_geometry[i_shape].CreateCollisionShapes(body, 1, m_method);
+        m_geometry[i_shape]->CreateCollisionShapes(body, 1, m_method);
         body->EnableCollision(true);
         body->GetCollisionModel()->SetFamily(1);
         body->GetCollisionModel()->DisallowCollisionsWith(1);
@@ -373,9 +372,9 @@ void ChVehicleCosimTerrainNodeGranularSPH::CreateMeshProxy(unsigned int i) {
     auto proxy = chrono_types::make_shared<ProxyMesh>();
 
     // Note: it is assumed that there is one and only one mesh defined!
-    const auto& trimesh_shape = m_geometry[i_shape].coll_meshes[0];
+    const auto& trimesh_shape = m_geometry[i_shape]->coll_meshes[0];
     const auto& trimesh = trimesh_shape.trimesh;
-    auto material = m_geometry[i_shape].materials[trimesh_shape.matID].CreateMaterial(m_method);
+    auto material = m_geometry[i_shape]->materials[trimesh_shape.matID].CreateMaterial(m_method);
 
     // Create a contact surface mesh constructed from the provided trimesh
     auto surface = chrono_types::make_shared<fea::ChContactSurfaceMesh>(material);
@@ -466,19 +465,19 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
 
     // Initialize run-time visualization
     if (m_renderRT) {
-        ChFsiSystemSPH& sysFSI = m_terrain->GetSystemFSI();
+        auto sysFSI = m_terrain->GetFsiSystemSPH();
 #ifdef CHRONO_VSG
         // FSI plugin
         const auto& aabb_particles = m_terrain->GetSPHBoundingBox();
-        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(
-            ChColor(0.10f, 0.40f, 0.65f), aabb_particles.min.z(), aabb_particles.max.z());
+        auto col_callback =
+            chrono_types::make_shared<ParticleHeightColorCallback>(aabb_particles.min.z(), aabb_particles.max.z());
 
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(m_show_bce);
         visFSI->EnableFlexBodyMarkers(m_show_bce);
-        visFSI->SetSPHColorCallback(col_callback);
+        visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::BROWN);
 
         // VSG visual system (attach visFSI as plugin)
         m_vsys = chrono_types::make_shared<vsg3d::ChVisualSystemVSG>();
@@ -488,7 +487,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
         m_vsys->SetVerbose(false);
         m_vsys->SetWindowSize(1280, 720);
         m_vsys->AddCamera(m_cam_pos, ChVector3d(0, 0, 0));
-        m_vsys->SetClearColor(ChColor(0.455f, 0.525f, 0.640f));
+        m_vsys->SetBackgroundColor(ChColor(0.455f, 0.525f, 0.640f));
         m_vsys->SetImageOutputDirectory(m_node_out_dir + "/images");
         m_vsys->SetImageOutput(m_writeRT);
         m_vsys->Initialize();
@@ -502,7 +501,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnAdvance(double step_size) {
     double t = 0;
     while (t < step_size) {
         double h = std::min<>(m_step_size, step_size - t);
-        m_terrain->GetSystemFSI().DoStepDynamics(h);
+        m_terrain->GetFsiSystemSPH()->DoStepDynamics(h);
         t += h;
     }
 }
@@ -526,12 +525,12 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnRender() {
 
 void ChVehicleCosimTerrainNodeGranularSPH::OnOutputData(int frame) {
     // Save SPH and BCE particles' information into CSV files
-    m_terrain->GetSystemFSI().GetFluidSystemSPH().SaveParticleData(m_node_out_dir + "/simulation");
+    m_terrain->GetFluidSystemSPH()->SaveParticleData(m_node_out_dir + "/simulation");
 }
 
 void ChVehicleCosimTerrainNodeGranularSPH::OutputVisualizationData(int frame) {
     auto filename = OutputFilename(m_node_out_dir + "/visualization", "vis", "csv", frame, 5);
-    m_terrain->GetSystemFSI().GetFluidSystemSPH().WriteParticleFile(filename);
+    m_terrain->GetFluidSystemSPH()->WriteParticleFile(filename);
     if (m_obstacles.size() > 0) {
         filename = OutputFilename(m_node_out_dir + "/visualization", "vis", "dat", frame, 5);
         // Include only obstacle bodies

@@ -7,26 +7,16 @@
 option(CH_ENABLE_MODULE_FSI "Enable the Chrono FSI module" OFF)
 
 if(NOT CH_ENABLE_MODULE_FSI)
-  mark_as_advanced(FORCE CH_USE_FSI_DOUBLE)
   return()
-else()
-  mark_as_advanced(CLEAR CH_USE_FSI_DOUBLE)
 endif()
 
 message(STATUS "\n==== Chrono FSI module ====\n")
 
+#-------------------------------------------------------------------------------
+# List files in the generic FSI interface library
+#-------------------------------------------------------------------------------
+
 message(STATUS "Generic Chrono::FSI interface library")
-
-# Additional options for this module
-option(CH_USE_FSI_DOUBLE "Compile Chrono::FSI with double precision math" OFF)
-if(CH_USE_FSI_DOUBLE)
-  set(CHRONO_FSI_USE_DOUBLE "#define CHRONO_FSI_USE_DOUBLE")
-endif()
-
-message(STATUS "  Use double precision? ${CH_USE_FSI_DOUBLE}")
-
-#-----------------------------------------------------------------------------
-# Create the generic FSI interface library
 
 set(FSI_FILES
     ChApiFsi.h
@@ -41,14 +31,24 @@ set(FSI_FILES
 )
 source_group("" FILES ${FSI_FILES})
 
+# The generic FSI library has no dependencies on other Chrono modules
+set(DEPENDENCIES_FSI "")
+
+set(DEPENDENCIES_FSI ${DEPENDENCIES_FSI} PARENT_SCOPE)
+
+#-----------------------------------------------------------------------------
+# Create the Chrono_fsi library
+#-----------------------------------------------------------------------------
+
 message(STATUS "  Add Chrono_fsi library")
 
 add_library(Chrono_fsi
     ${FSI_FILES}
     ${FSI_UTILS_FILES}
-    
 )
 add_library(Chrono::fsi ALIAS Chrono_fsi)
+
+set_target_properties(Chrono_fsi PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
 
 if (CH_STATIC)
   set_target_properties(Chrono_fsi PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -70,19 +70,19 @@ install(TARGETS Chrono_fsi
         ARCHIVE DESTINATION lib
         INCLUDES DESTINATION include/chrono_fsi)
 
-#-----------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Configure submodules
+#-------------------------------------------------------------------------------
 
 add_subdirectory(sph)
+add_subdirectory(tdpf)
 
-#-----------------------------------------------------------------------------
-# Generate and install configuration file
+set(DEPENDENCIES_FSI_SPH  ${DEPENDENCIES_FSI_SPH}  PARENT_SCOPE)
+set(DEPENDENCIES_FSI_TDPF ${DEPENDENCIES_FSI_TDPF} PARENT_SCOPE)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ChConfigFsi.h.in
-               ${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFsi.h)
-
-install(FILES "${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFsi.h"
-        DESTINATION include/chrono_fsi)
+#-------------------------------------------------------------------------------
+# Install files
+#-------------------------------------------------------------------------------
 
 # Old way (install all Chrono::FSI headers preserving directory structure)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/

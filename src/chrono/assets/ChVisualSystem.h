@@ -47,6 +47,9 @@ class ChApi ChVisualSystem {
     /// Enable/disable information terminal output during initialization (default: false).
     void SetVerbose(bool verbose) { m_verbose = verbose; }
 
+    /// Indicate whether the visual system was initialized or not.
+    bool IsInitialized() const { return m_initialized; }
+
     /// Attach a Chrono system to this visualization system.
     virtual void AttachSystem(ChSystem* sys);
 
@@ -81,6 +84,9 @@ class ChApi ChVisualSystem {
                          ChCoordsys<> pos = CSYSNORM,             ///< grid reference frame
                          ChColor col = ChColor(0.1f, 0.1f, 0.1f)  ///< grid line color
     ) {}
+
+    /// Set window background color.
+    void SetBackgroundColor(const ChColor& color);
 
     /// Set the location of the specified camera.
     virtual void SetCameraPosition(int id, const ChVector3d& pos) {}
@@ -150,7 +156,7 @@ class ChApi ChVisualSystem {
     virtual void EndScene() {}
 
     /// Get the list of associated Chrono systems.
-    std::vector<ChSystem*> GetSystems() const { return m_systems; }
+    std::vector<ChSystem*>& GetSystems() { return m_systems; }
 
     /// Get the specified associated Chrono system.
     ChSystem& GetSystem(int i) const { return *m_systems[i]; }
@@ -220,10 +226,11 @@ class ChApi ChVisualSystem {
     /// Called by an associated ChSystem.
     virtual void OnClear(ChSystem* sys) {}
 
-    bool m_verbose;      ///< terminal output
-    bool m_initialized;  ///< visual system initialized
-    ChTimer m_timer;     ///< timer for evaluating RTF
-    double m_rtf;        ///< overall real time factor
+    bool m_verbose;              ///< terminal output
+    bool m_initialized;          ///< visual system initialized
+    ChColor m_background_color;  ///< window background color
+    ChTimer m_timer;             ///< timer for evaluating RTF
+    double m_rtf;                ///< overall real time factor
 
     std::vector<ChSystem*> m_systems;  ///< associated Chrono system(s)
 

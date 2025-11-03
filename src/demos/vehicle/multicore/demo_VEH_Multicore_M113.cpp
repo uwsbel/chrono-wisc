@@ -38,7 +38,7 @@ using namespace chrono::vsg3d;
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChDataDriver.h"
 
 #include "chrono_models/vehicle/m113/M113.h"
@@ -345,7 +345,7 @@ int main(int argc, char* argv[]) {
     ///(~TrackCollide::SPROCKET_RIGHT));
 
     // Create the driver sys
-    ChDataDriver driver(m113.GetVehicle(), vehicle::GetDataFile("M113/driver/Acceleration.txt"));
+    ChDataDriver driver(m113.GetVehicle(), GetVehicleDataFile("M113/driver/Acceleration.txt"));
     driver.Initialize();
 
     // ---------------
@@ -359,7 +359,7 @@ int main(int argc, char* argv[]) {
     vis->SetCameraVertical(CameraVerticalDir::Z);
     vis->AddCamera(ChVector3d(0, -10, 0), ChVector3d(0, 0, 0));
     vis->SetWindowSize(1280, 720);
-    vis->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+    vis->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
     vis->EnableSkyBox();
     vis->SetCameraAngleDeg(40.0);
     vis->SetLightIntensity(1.0f);

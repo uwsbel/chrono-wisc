@@ -26,9 +26,43 @@ endif("${isSystemDir}" STREQUAL "-1")
 # For simplicity and consistency, we enable here MACOSX_BUNDLE for all subsequent programs.
 
 if(APPLE)
-    set(CMAKE_MACOSX_BUNDLE ON)
+    set(CMAKE_MACOSX_BUNDLE OFF)
     set(MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in")
 endif()
+
+#--------------------------------------------------------------
+
+# Convenience function to build and install demos from a list
+function(build_demos DEMOS LIBS)
+    
+    # Get optional list of additional files
+    if(${ARGC} GREATER 2)
+      set(EXTRA_FILES ${ARGV2})
+    else()
+      set(EXTRA_FILES "")
+    endif()
+    
+    # Build all demos in the list DEMOS, linking to LIBS
+    foreach(PROGRAM ${DEMOS})
+        add_executable(${PROGRAM} ${PROGRAM}.cpp ${EXTRA_FILES})
+        source_group(""  FILES ${PROGRAM}.cpp ${EXTRA_FILES})
+    
+        set_target_properties(${PROGRAM} PROPERTIES FOLDER demos)
+        if(APPLE)
+          set_target_properties(${PROGRAM} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_INFO_PLIST})
+        endif()
+        if(MSVC)
+          set_target_properties(${PROGRAM} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
+          set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
+        endif()
+
+        target_include_directories(${PROGRAM} PRIVATE "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty")
+        target_link_libraries(${PROGRAM} ${LIBS})
+        
+        install(TARGETS ${PROGRAM} CONFIGURATIONS Release DESTINATION ${CH_INSTALL_DEMO})
+    endforeach()
+
+endfunction()
 
 #--------------------------------------------------------------
 
@@ -70,6 +104,7 @@ if(CH_ENABLE_MODULE_PARSERS)
     option(BUILD_DEMOS_PARSERS "Build demo programs for Parsers module" TRUE)
     mark_as_advanced(FORCE BUILD_DEMOS_PARSERS)
     if(BUILD_DEMOS_PARSERS)
+      add_subdirectory(yaml)
       add_subdirectory(parsers)
     endif()    
 endif()
@@ -114,11 +149,11 @@ if(CH_ENABLE_MODULE_CASCADE)
     endif()
 endif()
 
-if(CH_ENABLE_MODULE_GPU)
-    option(BUILD_DEMOS_GPU "Build demo programs for Gpu module" TRUE)
-    mark_as_advanced(FORCE BUILD_DEMOS_GPU)
-    if(BUILD_DEMOS_GPU)
-        add_subdirectory(gpu)
+if(CH_ENABLE_MODULE_DEM)
+    option(BUILD_DEMOS_DEM "Build demo programs for DEM module" TRUE)
+    mark_as_advanced(FORCE BUILD_DEMOS_DEM)
+    if(BUILD_DEMOS_DEM)
+        add_subdirectory(dem)
     endif()
 endif()
 
@@ -199,5 +234,13 @@ if(CH_ENABLE_MODULE_FMI)
     mark_as_advanced(FORCE BUILD_DEMOS_FMI)
     if(BUILD_DEMOS_FMI)
       add_subdirectory(fmi)
+    endif()
+endif()
+
+if(CH_ENABLE_MODULE_PERIDYNAMICS)
+    option(BUILD_DEMOS_PERIDYNAMICS "Build demo programs for Peridynamics module" TRUE)
+    mark_as_advanced(FORCE BUILD_DEMOS_PERIDYNAMICS)
+    if(BUILD_DEMOS_PERIDYNAMICS)
+        add_subdirectory(peridynamics)
     endif()
 endif()

@@ -355,7 +355,7 @@ void ChToeBarLeafspringAxle::UpdateInertiaProperties() {
     ChMatrix33<> inertiaSpindle(getSpindleInertia());
     ChMatrix33<> inertiaKnuckle(getKnuckleInertia());
 
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_spindle[LEFT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_spindle[RIGHT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_axleTube->GetFrameCOMToAbs(), getAxleTubeMass(), ChMatrix33<>(getAxleTubeInertia()));
@@ -578,7 +578,7 @@ void ChToeBarLeafspringAxle::ExportComponentList(rapidjson::Document& jsonDocume
     ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChToeBarLeafspringAxle::Output(ChVehicleOutput& database) const {
+void ChToeBarLeafspringAxle::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

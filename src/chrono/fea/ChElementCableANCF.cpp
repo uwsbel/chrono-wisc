@@ -47,7 +47,7 @@ void ChElementCableANCF::ShapeFunctions(ShapeVector& N, double xi) {
     N(1) = l * (xi - 2 * std::pow(xi, 2) + std::pow(xi, 3));
     N(2) = 3 * std::pow(xi, 2) - 2 * std::pow(xi, 3);
     N(3) = l * (-std::pow(xi, 2) + std::pow(xi, 3));
-};
+}
 
 void ChElementCableANCF::ShapeFunctionsDerivatives(ShapeVector& Nd, double xi) {
     double l = GetRestLength();
@@ -56,7 +56,7 @@ void ChElementCableANCF::ShapeFunctionsDerivatives(ShapeVector& Nd, double xi) {
     Nd(1) = 1.0 - 4.0 * xi + 3.0 * std::pow(xi, 2.0);
     Nd(2) = -(6.0 * std::pow(xi, 2.0) - 6.0 * xi) / l;
     Nd(3) = -2.0 * xi + 3.0 * std::pow(xi, 2.0);
-};
+}
 
 void ChElementCableANCF::ShapeFunctionsDerivatives2(ShapeVector& Ndd, double xi) {
     double l = GetRestLength();
@@ -64,12 +64,12 @@ void ChElementCableANCF::ShapeFunctionsDerivatives2(ShapeVector& Ndd, double xi)
     Ndd(1) = (-4 + 6 * xi) / l;
     Ndd(2) = (6 - 12 * xi) / std::pow(l, 2);
     Ndd(3) = (-2 + 6 * xi) / l;
-};
+}
 
 void ChElementCableANCF::Update() {
     // parent class update:
     ChElementGeneric::Update();
-};
+}
 
 void ChElementCableANCF::GetStateBlock(ChVectorDynamic<>& mD) {
     mD.resize(12);
@@ -534,8 +534,6 @@ void ChElementCableANCF::ComputeInternalForces_Impl(const ChVector3d& pA,
     );
     Faxial *= -E * Area * length;
 
-    Fi = Faxial;
-
     // 2)
     // Integrate   (k_e'*k_e)
 
@@ -623,8 +621,8 @@ void ChElementCableANCF::ComputeInternalForces_Impl(const ChVector3d& pA,
                                                      3               // order of integration
     );
 
-    // Also subtract contribution of initial configuration
-    Fi -= (E * I * length) * Fcurv + m_GenForceVec0;
+    // Calculate total internal forces (also subtract contribution of initial configuration)
+    Fi = Faxial - (E * I * length) * Fcurv - m_GenForceVec0;
 }
 
 // Compute the generalized force vector due to gravity using the efficient ANCF specific method
@@ -779,7 +777,7 @@ void ChElementCableANCF::LoadableGetVariables(std::vector<ChVariables*>& mvars) 
     mvars.push_back(&m_nodes[0]->VariablesSlope1());
     mvars.push_back(&m_nodes[1]->Variables());
     mvars.push_back(&m_nodes[1]->VariablesSlope1());
-};
+}
 
 // Evaluate N'*F , where N is some type of shape function evaluated at U,V coordinates of the surface,
 // each ranging in -1..+1

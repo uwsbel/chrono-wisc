@@ -18,14 +18,11 @@ import errno
 import os
 
 
+# Set output root directory
+chrono.SetChronoOutputPath("../DEMO_OUTPUT/")
+
 # Output directory
-out_dir = chrono.GetChronoOutputPath() + "FEA_SHELLS_BST"
-
-# The path to the Chrono data directory containing various assets (meshes, textures, data files)
-# is automatically set, relative to the default location of this demo.
-# If running from a different directory, you must change the path to the data directory with: 
-#chrono.SetChronoDataPath('path/to/data')
-
+out_dir = chrono.GetChronoOutputPath() + "FEA_Shells_BST/"
 
 # Create (if needed) output directory
 try:
@@ -301,7 +298,7 @@ vis.AttachSystem(sys)
 vis.SetWindowSize(1024, 768)
 vis.SetWindowTitle('Shells FEA test: triangle BST elements')
 vis.Initialize()
-vis.AddLogo(chrono.GetChronoDataFile('logo_pychrono_alpha.png'))
+vis.AddLogo(chrono.GetChronoDataFile('logo_chrono_alpha.png'))
 vis.AddSkyBox()
 vis.AddCamera(chrono.ChVector3d(1, .3, 1.3), chrono.ChVector3d(.5, -.3, .5))
 vis.AddTypicalLights()

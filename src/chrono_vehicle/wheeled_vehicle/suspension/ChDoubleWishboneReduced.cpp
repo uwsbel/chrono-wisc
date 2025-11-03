@@ -188,7 +188,7 @@ void ChDoubleWishboneReduced::UpdateInertiaProperties() {
     ChMatrix33<> inertiaSpindle(getSpindleInertia());
     ChMatrix33<> inertiaUpright(getUprightInertia());
 
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_spindle[LEFT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_spindle[RIGHT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_upright[LEFT]->GetFrameCOMToAbs(), getUprightMass(), inertiaUpright);
@@ -378,7 +378,7 @@ void ChDoubleWishboneReduced::ExportComponentList(rapidjson::Document& jsonDocum
     ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChDoubleWishboneReduced::Output(ChVehicleOutput& database) const {
+void ChDoubleWishboneReduced::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

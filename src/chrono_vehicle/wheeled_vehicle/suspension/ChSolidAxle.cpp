@@ -449,7 +449,7 @@ void ChSolidAxle::UpdateInertiaProperties() {
     ChMatrix33<> inertiaUL(getULInertia());
     ChMatrix33<> inertiaLL(getLLInertia());
 
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_spindle[LEFT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_spindle[RIGHT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
 
@@ -797,7 +797,7 @@ void ChSolidAxle::ExportComponentList(rapidjson::Document& jsonDocument) const {
     ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChSolidAxle::Output(ChVehicleOutput& database) const {
+void ChSolidAxle::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

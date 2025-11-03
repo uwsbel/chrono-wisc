@@ -23,7 +23,7 @@ project(vehicle_cosim)
 #	                OPTIONAL_COMPONENTS opt_module1 opt_module2 ...
 #                 CONFIG)
 # The following Chrono modules can be requested (case insensitive):
-#   Cascade, CSharp, FMI, FSI, GPU, Irrlicht, OpenGL, VSG, Matlab,
+#   Cascade, CSharp, FMI, FSI, DEM, Irrlicht, OpenGL, VSG, Matlab,
 #   Modal, Multicore, PardisoMKL, Parsers, Postprocess, Sensor,
 #   Synchrono, Vehicle, VehicleCosim.
 # A component can be requested either as required or optional
@@ -80,4 +80,4 @@ target_link_libraries(vehicle_cosim PRIVATE MPI::MPI_CXX)
 #--------------------------------------------------------------
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
-add_DLL_copy_command()
+add_CHRONO_DLLS_copy_command()

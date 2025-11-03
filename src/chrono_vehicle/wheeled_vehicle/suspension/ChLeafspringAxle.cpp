@@ -212,7 +212,7 @@ void ChLeafspringAxle::UpdateInertiaProperties() {
     // Calculate COM and inertia expressed in global frame
     ChMatrix33<> inertiaSpindle(getSpindleInertia());
 
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_spindle[LEFT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_spindle[RIGHT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_axleTube->GetFrameCOMToAbs(), getAxleTubeMass(), ChMatrix33<>(getAxleInertia()));
@@ -341,7 +341,7 @@ void ChLeafspringAxle::ExportComponentList(rapidjson::Document& jsonDocument) co
     ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChLeafspringAxle::Output(ChVehicleOutput& database) const {
+void ChLeafspringAxle::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

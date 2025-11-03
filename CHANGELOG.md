@@ -5,6 +5,12 @@ Change Log
 ==========
 
 - [Unreleased (development branch)](#unreleased-development-branch)
+  - [\[Changed\] Upgrade of 3rd-party dependencies](#changed-upgrade-of-3rd-party-dependencies)
+  - [\[Added\] YAML parsers for Chrono models and simulations](#added-yaml-parsers-for-chrono-models-and-simulations) 
+  - [\[Changed\] Refactoring of Chrono::FSI and Chrono fluid solvers](#changed-refactoring-of-chronofsi-and-chrono-fluid-solvers)
+  - [\[Added\] Chrono::Peridynamics module](#added-chronoperidynamics-module) 
+  - [\[Added\] Chrono::VSG plugins for FSI and granular dynamics visualization](#added-chronovsg-plugins-for-fsi-and-granular-dynamics-visualization)
+  - [\[Added\] New Chrono::VSG features and capabilities](#added-new-chronovsg-features-and-capabilities)
   - [\[Changed\] Refactoring of Chrono CMake build system](#changed-refactoring-of-chrono-cmake-build-system) 
   - [\[Added\] Support for modeling components with internal dynamics (DAE)](#added-support-for-modeling-components-with-internal-dynamics-dae)
   - [\[Changed\] Eigensolvers refactoring](#eigensolvers-refactoring)
@@ -113,6 +119,71 @@ Change Log
 - [Release 4.0.0 (2019-02-22)](#release-400-2019-02-22)
 
 # Unreleased (development branch)
+
+## [Changed] Upgrade of 3rd-party dependencies
+
+- Chrono now supports both Eigen3 version 5.0, as well as the older 3.* versions.
+  <br>
+  Priority is given to Eigen3 5.0, with fallback on Eigen3 3.3 or 3.4.
+- Chrono::VSG now requires newer versions of the VSG libraries.
+  <br>
+  See the Chrono::VSG [installation instructions](https://api.projectchrono.org/module_vsg_installation.html).
+- Chrono::Cascade was updated to use OCCT version 7.9.2
+  <br>
+  Older versions are **not** supported anymore.
+- Chrono was also tested with the current latest Intel oneAPI release, version 2025.3 (for MKL support, as well as optional MPI).
+
+## [Added] YAML parsers for Chrono models and simulations
+
+A first set of YAML parsers were added to the Chrono::Parsers module to allow full specification of Chrono models and simulations through YAML specification files.
+
+Currently, we provide support for:
+
+- Rigid multibody systems with support for a limited set of joints.
+- SPH-based FSI problems.
+- Chrono::Vehicle models.
+- Simulation settings for multibodyy dynamics and for SPH-based FSI problems.
+
+See the Chrono::parsers [manual](https://api.projectchrono.org/manual_parsers.html) for more details, including schemas of the YAML specification files.
+
+## [Changed] Refactoring of Chrono::FSI and Chrono fluid solvers
+
+The Chrono::FSI module was redesigned in order to:
+- separate the interface between the multibody solver and a fluid solver; 
+- redesign the Chrono SPH solver to seamlessly support different equations of motion (Navier-Stokes for fluid dynamics and continuous representation of granular dynamics);
+- enhance accuracy, robustness, and performance of the Chrono::SPH dolver;
+- extend the Chrono::SPH FSI interface to improve its modeling, visualization, and post-processing capabilities.
+
+Enabling the Chrono::FSI module, now creates the generic FSI interface library, which allows coupling Chrono rigid and flexible multibody systems to an arbitrary hydrodynamics solver.
+Two separate FSI-aware fluid solver libraries can be built:
+1. Chrono::SPH, which provides SPH capabilities for modeling incompressible Navier-Stokes fluid systems, as well as homogeneized granular systems (CRM for deformable soil);
+2. Chrono::TDPF, which provides a Time-Dependent Potential Flow fluid solver.
+
+
+**TODO**
+
+## [Added] Chrono::Peridynamics module
+
+The new Chrono::Peridynamics module allows the simulation of meshless materials within the peridynamics approach. The peridynamics formulation is especially useful when simulating fractures in brittle materials. 
+
+This initial release of the peridyamics module offers the following types of materials: 
+- bond-based:
+  - the ChMatterPeriBB material: computational efficient, elasticity but with fixed Poisson (0.25), supports fracturing. 
+  - the ChMatterPeriBBimplicit material: as ChMatterPeriBB but more efficient for quasi static analysis.
+- state-based:
+  - the ChMatterPeriLinearElastic material: elasticity with generic Poisson, supports fracturing.
+  
+In the future more material models might be added, for instance the implicit version of ChMatterPeriLinearElastic, the correspondence material class, fluids, plasticity etc.  
+
+
+
+## [Added] Chrono::VSG plugins for FSI and granular dynamics visualization
+
+**TODO**
+
+## [Added] New Chrono::VSG features and capabilities
+
+**TODO**
 
 ## [Changed] Refactoring of Chrono CMake build system
 
@@ -1834,7 +1905,7 @@ The Functional Mock-up Interface is an open (tool-independent) standard for exch
 
 FMI support in Chrono is provided via (1) `fmu-tools`, a general-purpose, stand-alone library for exporting and importing FMUs and (2) `Chrono::FMI`, a module with Chrono-specific extensions to facilitate working with FMU variables wrapping Chrono types.
 
-At this time, only the FMI 2.0 standard is supported (with FMI 3.0 support coming later). The stand-alone `fmu_tools` library provides support for exporting and importing both *Co-Simulation* and *Model Exchange* FMUs.  Currently, `Chrono:FMI` focuses only on Co-Simulation FMUs. 
+At this time, only the FMI 2.0 standard is supported (with FMI 3.0 support coming later). The stand-alone `fmu-forge` library provides support for exporting and importing both *Co-Simulation* and *Model Exchange* FMUs.  Currently, `Chrono:FMI` focuses only on Co-Simulation FMUs. 
 
 ## [Added] Chrono::Sensor features and updates
 

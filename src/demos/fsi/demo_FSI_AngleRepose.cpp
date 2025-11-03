@@ -27,7 +27,7 @@
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -39,17 +39,13 @@ using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
 
-// Truths from Wei Paper -
+// Data from Wei Paper -
 // https://www.sciencedirect.com/science/article/pii/S0045782521003534?ref=pdf_download&fr=RR-2&rr=8c4472d7d99222ff
 
 double bulk_density = 1500;
 double mu_s = 0.3819;
-double granular_particle_diameter = 0.002;  // Set in JSON - Not overwritten
-double youngs_modulus = 2e6;                // Set in JSON - Not overwritten
-
-// Global arguments
-
-std::string inputJson = GetChronoDataFile("fsi/input_json/demo_FSI_Angle_Repose_Granular.json");
+double granular_particle_diameter = 0.002;
+double youngs_modulus = 2e6;
 
 // Function to handle CLI arguments
 bool GetProblemSpecs(int argc,
@@ -106,6 +102,7 @@ int main(int argc, char* argv[]) {
     double init_spacing = 0.01;
     bool render = true;
     double render_fps = 100;
+    double step_size = 1e-4;
     // Parse command-line arguments
     if (!GetProblemSpecs(argc, argv, t_end, verbose, output, output_fps, snapshots, ps_freq, cylinder_radius,
                          cylinder_height, init_spacing, render)) {
@@ -114,25 +111,39 @@ int main(int argc, char* argv[]) {
 
     ChSystemSMC sysMBS;
     ChFsiFluidSystemSPH sysSPH;
-    ChFsiSystemSPH sysFSI(sysMBS, sysSPH);
-
+    ChFsiSystemSPH sysFSI(&sysMBS, &sysSPH);
+    sysFSI.SetStepSizeCFD(step_size);
+    sysFSI.SetStepsizeMBD(step_size);
     sysFSI.SetVerbose(verbose);
-    sysSPH.ReadParametersFromFile(inputJson);
-    sysSPH.SetNumProximitySearchSteps(ps_freq);
+    sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    sysFSI.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    // Set soil propertiees
+    ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
+    mat_props.density = bulk_density;
+    mat_props.Young_modulus = youngs_modulus;
+    mat_props.Poisson_ratio = 0.3;
+    mat_props.mu_I0 = 0.03;
+    mat_props.mu_fric_s = mu_s;
+    mat_props.mu_fric_2 = mu_s;
+    mat_props.average_diam = granular_particle_diameter;
+    sysSPH.SetElasticSPH(mat_props);
 
-    // Modify based on command line
-    sysSPH.SetInitialSpacing(init_spacing);
-
-    // Set SPH kernel length.
-    sysSPH.SetKernelMultiplier(1.2);
-
-    sysSPH.SetShiftingMethod(ShiftingMethod::PPST_XSPH);
-
-    sysSPH.SetShiftingPPSTParameters(3.0, 0.0);
-    sysSPH.SetShiftingXSPHParameters(0.25);
-
-    // Set density
-    sysSPH.SetDensity(bulk_density);
+    ChFsiFluidSystemSPH::SPHParameters sph_params;
+    sph_params.integration_scheme = IntegrationScheme::RK2;
+    sph_params.initial_spacing = init_spacing;
+    sph_params.d0_multiplier = 1.2;
+    sph_params.artificial_viscosity = 0.5;
+    sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
+    sph_params.shifting_xsph_eps = 0.25;
+    sph_params.shifting_ppst_pull = 1.0;
+    sph_params.shifting_ppst_push = 3.0;
+    sph_params.free_surface_threshold = 0.8;
+    sph_params.num_proximity_search_steps = ps_freq;
+    sph_params.use_variable_time_step = false;
+    sph_params.kernel_type = KernelType::CUBIC_SPLINE;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sysSPH.SetSPHParameters(sph_params);
 
     // Dimension of the space domain
     double bxDim = 10 * cylinder_radius;
@@ -144,7 +155,7 @@ int main(int argc, char* argv[]) {
     ChVector3d cMin(-bxDim / 2 - 3 * initSpace0 / 2.0, -byDim / 2 - 3 * initSpace0 / 2.0,
                     -1.0 * bzDim - 3 * initSpace0);
     ChVector3d cMax(bxDim / 2 + 3 * initSpace0 / 2.0, byDim / 2 + 3 * initSpace0 / 2.0, 2.0 * bzDim + 3 * initSpace0);
-    sysSPH.SetComputationalBoundaries(cMin, cMax, PeriodicSide::NONE);
+    sysSPH.SetComputationalDomain(ChAABB(cMin, cMax), BC_NONE);
     sysSPH.SetOutputLevel(OutputLevel::CRM_FULL);
 
     // Create SPH particle locations using a sampler
@@ -184,10 +195,8 @@ int main(int argc, char* argv[]) {
     box->EnableCollision(false);
 
     // Add BCE particles attached on the walls into FSI system
-    sysSPH.AddBoxContainerBCE(box,                                    //
-                              ChFrame<>(ChVector3d(0, 0, 0), QUNIT),  //
-                              ChVector3d(bxDim, byDim, bzDim),        //
-                              ChVector3i(0, 0, -1));
+    auto box_bce = sysSPH.CreatePointsBoxContainer(ChVector3d(bxDim, byDim, bzDim), {0, 0, -1});
+    sysFSI.AddFsiBody(box, box_bce, ChFrame<>(ChVector3d(0, 0, 0), QUNIT), false);
 
     sysFSI.Initialize();
 
@@ -240,7 +249,7 @@ int main(int argc, char* argv[]) {
 #ifdef CHRONO_VSG
     if (render) {
         // FSI plugin
-        auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&sysFSI);
+        auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(&sysFSI);
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(true);
         visFSI->EnableRigidBodyMarkers(false);
@@ -263,7 +272,6 @@ int main(int argc, char* argv[]) {
     render = false;
 #endif
 
-
     // Start the simulation
     double time = 0.0;
     int sim_frame = 0;
@@ -280,6 +288,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Render SPH particles
+#ifdef CHRONO_VSG
         if (render && time >= render_frame / render_fps) {
             if (!vis->Run())
                 break;
@@ -295,6 +304,7 @@ int main(int argc, char* argv[]) {
 
             render_frame++;
         }
+#endif
 
         if (sim_frame % 1000 == 0) {
             std::cout << "step: " << sim_frame << "\ttime: " << time << "\tRTF: " << sysFSI.GetRtf() << std::endl;

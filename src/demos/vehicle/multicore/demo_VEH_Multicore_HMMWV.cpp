@@ -34,7 +34,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/utils/ChUtils.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/ChDriver.h"
 #include "chrono_vehicle/utils/ChSteeringController.h"
 #include "chrono_vehicle/terrain/GranularTerrain.h"
@@ -388,7 +388,7 @@ int main(int argc, char* argv[]) {
         vis->SetCameraVertical(CameraVerticalDir::Z);
         vis->AddCamera(ChVector3d(-horizontal_pos, -5, 0), ChVector3d(-horizontal_pos, 0, 0));
         vis->SetWindowSize(1280, 720);
-        vis->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+        vis->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
         vis->EnableSkyBox();
         vis->SetCameraAngleDeg(40.0);
         vis->SetLightIntensity(1.0f);

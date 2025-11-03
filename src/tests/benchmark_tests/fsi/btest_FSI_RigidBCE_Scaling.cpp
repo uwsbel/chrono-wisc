@@ -31,7 +31,7 @@
 #include "chrono_fsi/ChFsiBenchmark.h"
 
 #ifdef CHRONO_VSG
-    #include "chrono_fsi/sph/visualization/ChFsiVisualizationVSG.h"
+    #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -79,7 +79,7 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     m_boxes_per_layer = 100;
     m_sysMBS = std::make_unique<ChSystemSMC>();
     m_sysSPH = std::make_unique<ChFsiFluidSystemSPH>();
-    m_sysFSI = std::make_unique<ChFsiSystemSPH>(*m_sysMBS, *m_sysSPH);
+    m_sysFSI = std::make_unique<ChFsiSystemSPH>(m_sysMBS.get(), m_sysSPH.get());
 
     m_sysMBS->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     m_sysFSI->SetVerbose(false);
@@ -99,7 +99,7 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     m_sysSPH->SetElasticSPH(material);
 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
-    sph_params.sph_method = SPHMethod::WCSPH;
+    sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = 0.02;  // 2 cm
     sph_params.d0_multiplier = 1.2;
     sph_params.artificial_viscosity = 0.5;
@@ -107,11 +107,11 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     sph_params.shifting_xsph_eps = 0.5;
     sph_params.shifting_ppst_pull = 1.0;
     sph_params.shifting_ppst_push = 3.0;
-    sph_params.kernel_threshold = 0.8;
+    sph_params.free_surface_threshold = 0.8;
     sph_params.max_velocity = 1.0;
     sph_params.num_proximity_search_steps = 1;
-    sph_params.boundary_type = BoundaryType::ADAMI;
-    sph_params.viscosity_type = ViscosityType::ARTIFICIAL_BILATERAL;
+    sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
 
     m_sysSPH->SetSPHParameters(sph_params);
 
@@ -133,13 +133,12 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
         ChVector3d(m_box_size.x() * box_multiplier, m_box_size.y() * box_multiplier, m_box_size.z()));
     m_sysSPH->SetConsistentDerivativeDiscretization(false, false);  // No consistent discertization
 
-    // Set domain boundaries - This depends on how many of 50 boxes are there since for each hundred added, we add it
-    // along z
+    // Set domain boundaries, based on actual number of boxes (added in layers in the Z direction)
     ChVector3d cMin(-m_box_size.x() / 2, -m_box_size.y() / 2,
-                    -(box_multiplier * m_box_size.z()) * (m_num_boxes / m_boxes_per_layer + 1));
-    ChVector3d cMax(m_box_size.x() / 2, m_box_size.y() / 2,
-                    (box_multiplier * m_box_size.z()) * (m_num_boxes / m_boxes_per_layer + 1));
-    m_sysSPH->SetComputationalBoundaries(cMin, cMax, PeriodicSide::ALL);
+                    -box_multiplier * m_box_size.z() * (m_num_boxes / m_boxes_per_layer + 1));
+    ChVector3d cMax(+m_box_size.x() / 2, +m_box_size.y() / 2,
+                    +box_multiplier * m_box_size.z() * (m_num_boxes / m_boxes_per_layer + 1));
+    m_sysSPH->SetComputationalDomain(ChAABB(cMin, cMax), BC_ALL_PERIODIC);
 
     chrono::utils::ChGridSampler<> sampler(sph_params.initial_spacing);
     ChVector3d boxCenter(0.0, 0.0, 0.0);
@@ -182,11 +181,9 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
     ground->EnableCollision(true);
 
     // Add BCE particles attached on the walls into FSI system
-    m_sysSPH->AddBoxContainerBCE(ground,                                    //
-                                 ChFrame<>(ChVector3d(0., 0., 0.), QUNIT),  //
-                                 ChVector3d(box_multiplier * m_box_size.x(), box_multiplier * m_box_size.y(),
-                                            m_box_size.z()),  //
-                                 ChVector3i(0, 0, -1));
+    auto ground_bce = m_sysSPH->CreatePointsBoxContainer(
+        ChVector3d(box_multiplier * m_box_size.x(), box_multiplier * m_box_size.y(), m_box_size.z()), {0, 0, -1});
+    m_sysFSI->AddFsiBody(ground, ground_bce, ChFrame<>(ChVector3d(0., 0., 0.), QUNIT), false);
 
     // =========================================================================
     // Create rigid bodies
@@ -202,8 +199,9 @@ FsiRigidBceScalingTest<num_boxes>::FsiRigidBceScalingTest() {
         box->SetFixed(false);
         box->AddVisualShape(chrono_types::make_shared<ChVisualShapeBox>(box_size), ChFrame<>());
         m_sysMBS->AddBody(box);
-        m_sysFSI->AddFsiBody(box);
-        m_sysSPH->AddBoxBCE(box, ChFrame<>(), box_size, true);
+
+        auto box_points = m_sysSPH->CreatePointsBoxInterior(box_size);
+        m_sysFSI->AddFsiBody(box, box_points, ChFrame<>(), false);
     }
 
     m_sysFSI->Initialize();
@@ -242,7 +240,7 @@ template <unsigned int num_boxes>
 void FsiRigidBceScalingTest<num_boxes>::SimulateVis() {
 #ifdef CHRONO_VSG
     // FSI plugin
-    auto visFSI = chrono_types::make_shared<ChFsiVisualizationVSG>(&m_sysFSI->GetFluidSystemSPH());
+    auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(&m_sysFSI->GetFluidSystemSPH());
     visFSI->EnableFluidMarkers(true);
     visFSI->EnableBoundaryMarkers(true);
     visFSI->EnableRigidBodyMarkers(false);

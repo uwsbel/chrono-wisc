@@ -21,7 +21,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) {
     auto patch_mat = minfo.CreateMaterial(ChContactMethod::SMC);
     auto patch = terrain.AddPatch(patch_mat, CSYSNORM, 100.0, 100.0);
     patch->SetColor(ChColor(0.5f, 0.8f, 0.5f));
-    patch->SetTexture(vehicle::GetDataFile("terrain/textures/tile4.jpg"), 200, 200);
+    patch->SetTexture(GetVehicleDataFile("terrain/textures/tile4.jpg"), 200, 200);
     terrain.Initialize();
 
     // -------------------------------------------
@@ -327,7 +327,7 @@ int main(int argc, char* argv[]) {
     // Set up vehicle output
     ////vehicle.SetChassisOutput(true);
     ////vehicle.SetTrackAssemblyOutput(VehicleSide::LEFT, true);
-    vehicle.SetOutput(ChVehicleOutput::ASCII, out_dir, "vehicle_output", 0.1);
+    vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "vehicle_output", 0.1);
 
     // Generate JSON information with available output channels
     ////vehicle.ExportComponentList(out_dir + "/component_list.json");
@@ -552,7 +552,7 @@ void AddFixedObstacles(ChSystem* system) {
 
     // Visualization
     auto vis_shape = chrono_types::make_shared<ChVisualShapeCylinder>(radius, length);
-    vis_shape->SetTexture(vehicle::GetDataFile("terrain/textures/tile4.jpg"), 10, 10);
+    vis_shape->SetTexture(GetVehicleDataFile("terrain/textures/tile4.jpg"), 10, 10);
     obstacle->AddVisualShape(vis_shape, ChFrame<>(VNULL, QuatFromAngleX(CH_PI_2)));
 
     // Contact

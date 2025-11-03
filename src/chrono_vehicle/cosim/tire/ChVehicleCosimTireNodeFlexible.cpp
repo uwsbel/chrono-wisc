@@ -154,7 +154,7 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
 
     // Tire geometry and contact material
     auto cmat = m_tire_def->GetContactMaterial();
-    m_geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, trimesh, 0.0, 0));
+    m_geometry.coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, trimesh, 1.0, 0.0, 0));
     m_geometry.materials.push_back(ChContactMaterialData(cmat->GetSlidingFriction(), cmat->GetRestitution(),
                                                          cmat->GetYoungModulus(), cmat->GetPoissonRatio(),
                                                          cmat->GetKn(), cmat->GetGn(), cmat->GetKt(), cmat->GetGt()));
@@ -187,7 +187,7 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
         vsys_vsg->SetWindowTitle(title);
         vsys_vsg->SetWindowSize(ChVector2i(1280, 720));
         vsys_vsg->SetWindowPosition(ChVector2i(100, 100));
-        vsys_vsg->SetClearColor(ChColor(0.455f, 0.525f, 0.640f));
+        vsys_vsg->SetBackgroundColor(ChColor(0.455f, 0.525f, 0.640f));
         vsys_vsg->AddCamera(m_cam_pos, ChVector3d(0, 0, 0));
         vsys_vsg->SetCameraAngleDeg(40);
         vsys_vsg->SetLightIntensity(1.0f);

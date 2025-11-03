@@ -22,7 +22,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 
 #include "chrono_vehicle/ChConfigVehicle.h"
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef USE_JSON
     // Create the terrain from JSON specification file
-    RigidTerrain terrain(hmmwv.GetSystem(), vehicle::GetDataFile("terrain/RigidPatches.json"), true);
+    RigidTerrain terrain(hmmwv.GetSystem(), GetVehicleDataFile("terrain/RigidPatches.json"), true);
 #else
     // Create the terrain patches programatically
     RigidTerrain terrain(hmmwv.GetSystem());
@@ -92,39 +92,39 @@ int main(int argc, char* argv[]) {
         auto patch1_mat = chrono_types::make_shared<ChContactMaterialNSC>();
         patch1_mat->SetFriction(0.9f);
         patch1_mat->SetRestitution(0.01f);
-        auto patch1 = terrain.AddPatch(patch1_mat, ChCoordsys<>(ChVector3d(-16, 0, 0), QUNIT), 32, 20);
+        auto patch1 = terrain.AddPatch(patch1_mat, ChCoordsys<>(ChVector3d(-16, 0, 0.08), QUNIT), 32, 20);
         patch1->SetColor(ChColor(0.8f, 0.8f, 0.5f));
-        patch1->SetTexture(vehicle::GetDataFile("terrain/textures/tile4.jpg"), 20, 20);
+        patch1->SetTexture(GetVehicleDataFile("terrain/textures/tile4.jpg"), 20, 20);
 
         auto patch2_mat = chrono_types::make_shared<ChContactMaterialNSC>();
         patch2_mat->SetFriction(0.9f);
         patch2_mat->SetRestitution(0.01f);
         auto patch2 = terrain.AddPatch(patch1_mat, ChCoordsys<>(ChVector3d(16, 0, 0.08), QUNIT), 32, 20);
         patch2->SetColor(ChColor(1.0f, 0.5f, 0.5f));
-        patch2->SetTexture(vehicle::GetDataFile("terrain/textures/concrete.jpg"), 20, 20);
+        patch2->SetTexture(GetVehicleDataFile("terrain/textures/concrete.jpg"), 20, 20);
 
         auto patch3_mat = chrono_types::make_shared<ChContactMaterialNSC>();
         patch3_mat->SetFriction(0.9f);
         patch3_mat->SetRestitution(0.01f);
         auto patch3 = terrain.AddPatch(patch3_mat, ChCoordsys<>(ChVector3d(0, -42, 0), QUNIT),
-                                       vehicle::GetDataFile("terrain/meshes/bump.obj"));
+                                       GetVehicleDataFile("terrain/meshes/bump.obj"));
         patch3->SetColor(ChColor(0.5f, 0.5f, 0.8f));
-        patch3->SetTexture(vehicle::GetDataFile("terrain/textures/dirt.jpg"), 6.0f, 6.0f);
+        patch3->SetTexture(GetVehicleDataFile("terrain/textures/dirt.jpg"), 6.0f, 6.0f);
 
         auto patch4_mat = chrono_types::make_shared<ChContactMaterialNSC>();
         patch4_mat->SetFriction(0.9f);
         patch4_mat->SetRestitution(0.01f);
-        auto patch4 = terrain.AddPatch(patch4_mat, ChCoordsys<>(ChVector3d(0, 42, 0), QUNIT),
-                                       vehicle::GetDataFile("terrain/height_maps/bump64.bmp"), 64.0, 64.0, 0.0, 3.0);
-        patch4->SetTexture(vehicle::GetDataFile("terrain/textures/grass.jpg"), 6.0f, 6.0f);
+        auto patch4 = terrain.AddPatch(patch4_mat, ChCoordsys<>(ChVector3d(0, 42, 0), QuatFromAngleZ(CH_PI_2)),
+                                       GetVehicleDataFile("terrain/height_maps/convex64.bmp"), 64.0, 64.0, 0.0, 3.0);
+        patch4->SetTexture(GetVehicleDataFile("terrain/textures/grass.jpg"), 6.0f, 6.0f);
     }
-
+    
     if (false) {
         auto patch_mat = chrono_types::make_shared<ChContactMaterialNSC>();
         patch_mat->SetFriction(0.9f);
         patch_mat->SetRestitution(0.01f);
         auto patch = terrain.AddPatch(patch_mat, ChCoordsys<>(ChVector3d(0, 0, 10), QUNIT),
-                                      vehicle::GetDataFile("terrain/multilayer/multilayer-terrain.obj"));
+                                      GetVehicleDataFile("terrain/multilayer/multilayer-terrain.obj"));
     }
 
     terrain.Initialize();
@@ -186,6 +186,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->AttachTerrain(&terrain);
             vis_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
             vis_vsg->EnableShadows();
+            vis_vsg->EnableSkyBox();
             vis_vsg->Initialize();
 
             vis = vis_vsg;

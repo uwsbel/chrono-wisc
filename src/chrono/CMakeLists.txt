@@ -29,7 +29,7 @@ set(Chrono_core_SOURCES
     core/ChBezierCurve.cpp
     core/ChCubicSpline.cpp
     core/ChRandom.cpp
-    core/ChGlobal.cpp
+    core/ChDataPath.cpp
     )
 set(Chrono_core_HEADERS
     core/ChApiCE.h
@@ -57,7 +57,7 @@ set(Chrono_core_HEADERS
     core/ChTemplateExpressions.h
     core/ChBezierCurve.h
     core/ChCubicSpline.h
-    core/ChGlobal.h
+    core/ChDataPath.h
     core/ChTypes.h
     core/ChTensors.h
     )
@@ -71,7 +71,7 @@ set(Chrono_serialization_SOURCES
     serialization/ChObjectExplorer.cpp
     serialization/ChArchiveJSON.cpp
     serialization/ChArchiveXML.cpp
-    serialization/ChOutputASCII.cpp
+    serialization/ChArchiveASCII.cpp
     )
 set(Chrono_serialization_HEADERS
     serialization/ChArchive.h
@@ -79,7 +79,7 @@ set(Chrono_serialization_HEADERS
     serialization/ChObjectExplorer.h
     serialization/ChArchiveJSON.h
     serialization/ChArchiveXML.h
-    serialization/ChOutputASCII.h
+    serialization/ChArchiveASCII.h
     )
 source_group(serialization FILES ${Chrono_serialization_SOURCES} ${Chrono_serialization_HEADERS})
 
@@ -108,6 +108,7 @@ set(Chrono_physics_SOURCES
     physics/ChExternalDynamicsODE.cpp
     physics/ChExternalDynamicsDAE.cpp
     physics/ChAssembly.cpp
+    physics/ChMassProperties.cpp
     )
 set(Chrono_physics_HEADERS
     physics/ChBodyFrame.h
@@ -132,7 +133,7 @@ set(Chrono_physics_HEADERS
     physics/ChExternalDynamicsODE.h
     physics/ChExternalDynamicsDAE.h
     physics/ChAssembly.h
-    physics/ChInertiaUtils.h
+    physics/ChMassProperties.h
     )
 source_group(physics FILES ${Chrono_physics_SOURCES} ${Chrono_physics_HEADERS})
 
@@ -143,6 +144,10 @@ set(Chrono_physics_contact_SOURCES
     physics/ChContactContainerNSC.cpp
     physics/ChContactContainerSMC.cpp
     physics/ChContactable.cpp
+    physics/ChContact.cpp
+    physics/ChContactSMC.cpp
+    physics/ChContactNSC.cpp
+    physics/ChContactNSCrolling.cpp
     physics/ChContactMaterial.cpp
     physics/ChContactMaterialSMC.cpp
     physics/ChContactMaterialNSC.cpp
@@ -152,7 +157,7 @@ set(Chrono_physics_contact_HEADERS
     physics/ChContactContainerNSC.h
     physics/ChContactContainerSMC.h
     physics/ChContactable.h
-    physics/ChContactTuple.h
+    physics/ChContact.h
     physics/ChContactSMC.h
     physics/ChContactNSC.h
     physics/ChContactNSCrolling.h
@@ -199,6 +204,7 @@ set(Chrono_physics_links_SOURCES
     physics/ChLinkMotorLinearForce.cpp
     physics/ChLinkMotorLinearDriveline.cpp
     physics/ChLinkMotionImposed.cpp
+    physics/ChJoint.cpp
     )
 set(Chrono_physics_links_HEADERS
     physics/ChLinkLimit.h
@@ -239,6 +245,7 @@ set(Chrono_physics_links_HEADERS
     physics/ChLinkMotorLinearDriveline.h
     physics/ChLinkMotionImposed.h
     physics/ChLinkMotorAll.h
+    physics/ChJoint.h
     )
 source_group(physics\\links FILES ${Chrono_physics_links_SOURCES} ${Chrono_physics_links_HEADERS})
 
@@ -566,6 +573,7 @@ set(Chrono_assets_SOURCES
     assets/ChTexture.cpp
     assets/ChCamera.cpp
     assets/ChColor.cpp
+    assets/ChColormap.cpp
     assets/ChGlyphs.cpp
     assets/ChVisualSystem.cpp
     assets/ChVisualModel.cpp
@@ -592,6 +600,7 @@ set(Chrono_assets_HEADERS
     assets/ChTexture.h
     assets/ChCamera.h
     assets/ChColor.h
+    assets/ChColormap.h
     assets/ChGlyphs.h
     assets/ChVisualSystem.h
     assets/ChVisualModel.h
@@ -645,7 +654,7 @@ if (CHRONO_THRUST_FOUND)
         multicore_math/utility.h
     )
     source_group(multicore_math FILES ${Chrono_MulticoreMath_SOURCES} ${Chrono_MulticoreMath_HEADERS})
-elseif()
+else()
     set(Chrono_MulticoreMath_SOURCES "")
     set(Chrono_MulticoreMath_HEADERS "")
 endif()
@@ -1045,6 +1054,11 @@ set(Chrono_solver_constraints_SOURCES
     solver/ChConstraintThreeGeneric.cpp
     solver/ChConstraintThreeBBShaft.cpp
     solver/ChConstraintNgeneric.cpp
+    solver/ChConstraintTwoTuples.cpp
+    solver/ChConstraintContactNormal.cpp
+    solver/ChConstraintContactTangential.cpp
+    solver/ChConstraintRollingNormal.cpp
+    solver/ChConstraintRollingTangential.cpp
 )
 set(Chrono_solver_constraints_HEADERS
     solver/ChConstraint.h
@@ -1055,13 +1069,13 @@ set(Chrono_solver_constraints_HEADERS
     solver/ChConstraintTwoBodies.h
     solver/ChConstraintTwoGeneric.h
     solver/ChConstraintTwoGenericBoxed.h
+    solver/ChConstraintNgeneric.h
     solver/ChConstraintTuple.h
     solver/ChConstraintTwoTuples.h
-    solver/ChConstraintTwoTuplesContactN.h
-    solver/ChConstraintTwoTuplesFrictionT.h
-    solver/ChConstraintTwoTuplesRollingN.h
-    solver/ChConstraintTwoTuplesRollingT.h
-    solver/ChConstraintNgeneric.h
+    solver/ChConstraintContactNormal.h
+    solver/ChConstraintContactTangential.h
+    solver/ChConstraintRollingNormal.h
+    solver/ChConstraintRollingTangential.h
 )
 source_group(solver\\constraints FILES ${Chrono_solver_constraints_SOURCES} ${Chrono_solver_constraints_HEADERS})
 
@@ -1078,9 +1092,9 @@ set(Chrono_utils_SOURCES
     utils/ChProfiler.cpp
     utils/ChControllers.cpp
     utils/ChFilters.cpp
-    utils/ChCompositeInertia.cpp
     utils/ChConvexHull.cpp
     utils/ChBodyGeometry.cpp
+    utils/ChForceFunctors.cpp
     utils/ChSocket.cpp
     utils/ChSocketCommunication.cpp
     )
@@ -1098,9 +1112,9 @@ set(Chrono_utils_HEADERS
     utils/ChProfiler.h
     utils/ChControllers.h
     utils/ChFilters.h
-    utils/ChCompositeInertia.h
     utils/ChConvexHull.h
     utils/ChBodyGeometry.h
+    utils/ChForceFunctors.h
     utils/ChSocket.h
     utils/ChSocketCommunication.h
 )
@@ -1108,6 +1122,25 @@ if(BUILD_BENCHMARKING)
     set(Chrono_utils_HEADERS ${Chrono_utils_HEADERS} utils/ChBenchmark.h)
 endif()
 source_group(utils FILES ${Chrono_utils_SOURCES} ${Chrono_utils_HEADERS})
+
+# Output group
+
+set(Chrono_output_HEADERS
+    output/ChOutput.h
+    output/ChOutputASCII.h
+)
+set(Chrono_output_SOURCES
+    output/ChOutputASCII.cpp
+)
+if (HDF5_FOUND)
+    set(Chrono_output_HEADERS ${Chrono_output_HEADERS}
+        output/ChOutputHDF5.h
+    )
+    set(Chrono_output_SOURCES ${Chrono_output_SOURCES}
+        output/ChOutputHDF5.cpp
+    )
+endif()
+source_group(output FILES ${Chrono_output_SOURCES} ${Chrono_output_HEADERS})
 
 # -------------------------------------------------------------------------------------------------
 # Third-party files
@@ -1222,6 +1255,11 @@ set(Chrono_libstl_FILES
 )
 source_group(utils\\libstl FILES ${Chrono_libstl_FILES})
 
+# Chrono configuration and version files
+set(Chrono_CONFIG_FILE ${PROJECT_BINARY_DIR}/chrono/ChConfig.h)
+set(Chrono_VERSION_FILE ${PROJECT_BINARY_DIR}/chrono/ChVersion.h)
+source_group("" FILES ${Chrono_CONFIG_FILE} ${Chrono_VERSION_FILE})
+
 # -------------------------------------------------------------------------------------------------
 # Collect all source and header files for the Chrono core library
 # -------------------------------------------------------------------------------------------------
@@ -1254,6 +1292,7 @@ set(Chrono_SOURCES
     ${Chrono_collision_multicore_SOURCES}
     ${Chrono_collision_bullet_SOURCES}
     ${Chrono_utils_SOURCES}
+    ${Chrono_output_SOURCES}
 )
 
 set(Chrono_HEADERS
@@ -1285,6 +1324,7 @@ set(Chrono_HEADERS
     ${Chrono_collision_multicore_HEADERS}
     ${Chrono_collision_bullet_HEADERS}
     ${Chrono_utils_HEADERS}
+    ${Chrono_output_HEADERS}
 )
 
 set(Chrono_thirdparty_FILES
@@ -1299,6 +1339,8 @@ set(Chrono_FILES
     ${Chrono_SOURCES}
     ${Chrono_HEADERS}
     ${Chrono_thirdparty_FILES}
+    ${Chrono_CONFIG_FILE}
+    ${Chrono_VERSION_FILE}
 )
 
 # -------------------------------------------------------------------------------------------------
@@ -1331,6 +1373,8 @@ endif()
 
 add_library(Chrono_core ${Chrono_FILES})
 add_library(Chrono::core ALIAS Chrono_core)
+
+set_target_properties(Chrono_core PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
 
 if(CH_WHOLE_PROG_OPT)
   set_target_properties(Chrono_core PROPERTIES COMPILE_FLAGS "/GL")
@@ -1385,6 +1429,32 @@ endif()
 
 if(UNIX)
   target_link_libraries(Chrono_core PUBLIC pthread)
+endif()
+
+if(HDF5_FOUND)
+    if(TARGET hdf5-static)
+      message(STATUS "Linking static libraries hdf5-static")
+      target_link_libraries(Chrono_core PUBLIC hdf5-static)
+      target_link_libraries(Chrono_core PUBLIC hdf5_cpp-static)
+      target_link_libraries(Chrono_core PUBLIC hdf5_hl-static)
+      target_link_libraries(Chrono_core PUBLIC hdf5_hl_cpp-static)
+      target_link_libraries(Chrono_core PUBLIC hdf5_tools-static)
+    elseif(TARGET hdf5-shared)
+      message(STATUS "Linking shared libraries hdf5-shared")
+      target_link_libraries(Chrono_core PUBLIC hdf5-shared)
+      target_link_libraries(Chrono_core PUBLIC hdf5_cpp-shared)
+      target_link_libraries(Chrono_core PUBLIC hdf5_hl-shared)
+      target_link_libraries(Chrono_core PUBLIC hdf5_hl_cpp-shared)
+      target_link_libraries(Chrono_core PUBLIC hdf5_tools-shared)
+    elseif(TARGET HDF5::HDF5)
+      message(STATUS "Linking HDF5::HDF5")
+      target_link_libraries(Chrono_core PUBLIC HDF5::HDF5)
+    else()
+      message(STATUS "No HDF5 target found")
+      target_compile_definitions(Chrono_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${HDF5_COMPILE_DEFS}>)
+      target_include_directories(Chrono_core PUBLIC ${HDF5_INCLUDE_DIRS})
+      target_link_libraries(Chrono_core PUBLIC ${HDF5_CXX_LIBRARIES})
+    endif()
 endif()
 
 # Add the 'socket' library to the linking, depending on platform.
@@ -1596,5 +1666,9 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/rapidjson
         FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/rapidxml
+        DESTINATION include/chrono_thirdparty
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/yaml-cpp
         DESTINATION include/chrono_thirdparty
         FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")

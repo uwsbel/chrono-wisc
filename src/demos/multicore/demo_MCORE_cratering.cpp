@@ -113,12 +113,13 @@ class ContactReporter : public ChContactContainer::ReportContactCallback {
     virtual bool OnReportContact(const ChVector3d& pA,
                                  const ChVector3d& pB,
                                  const ChMatrix33<>& plane_coord,
-                                 const double& distance,
-                                 const double& eff_radius,
+                                 double distance,
+                                 double eff_radius,
                                  const ChVector3d& cforce,
                                  const ChVector3d& ctorque,
                                  ChContactable* modA,
-                                 ChContactable* modB) override {
+                                 ChContactable* modB,
+                                 int constraint_offset) override {
         auto bodyA = static_cast<ChBody*>(modA);
         auto bodyB = static_cast<ChBody*>(modB);
 
@@ -329,7 +330,7 @@ std::shared_ptr<ChBody> CreateFallingBall(ChSystemMulticore* system, double z, d
 
 // -----------------------------------------------------------------------------
 // Find the height of the highest and lowest, respectively, sphere in the
-// granular mix, respectively.  We only look at bodies whith stricty positive
+// granular mix, respectively.  We only look at bodies with stricty positive
 // identifiers (to exclude the containing bin).
 // -----------------------------------------------------------------------------
 double FindHighest(ChSystem* sys) {
@@ -497,7 +498,7 @@ int main(int argc, char* argv[]) {
     vis->SetCameraVertical(CameraVerticalDir::Z);
     vis->AddCamera(ChVector3d(0, -5 * sizeY, sizeZ / 2), ChVector3d(0, 0, sizeZ / 2));
     vis->SetCameraAngleDeg(40.0);
-    vis->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+    vis->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
     vis->EnableSkyBox();
     vis->SetLightIntensity(1.0f);
     vis->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);

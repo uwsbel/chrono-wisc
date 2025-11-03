@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
     // Timed events
     // ------------
 
-    double duration_pose = 0.5;            // Interval to assume initial pose
+    double duration_pose = 0.05;           // Interval to assume initial pose
     double duration_settle_terrain = 1.0;  // Interval to allow granular material settling
     double duration_settle_robot = 0.5;    // Interval to allow robot settling on terrain
     double duration_hold = duration_settle_terrain + duration_settle_robot;
@@ -328,7 +328,7 @@ int main(int argc, char* argv[]) {
         vis->SetCameraVertical(CameraVerticalDir::Z);
         vis->AddCamera(ChVector3d(2.7, -2.7, 0), ChVector3d(0, 0, 0));
         vis->SetWindowSize(1280, 720);
-        vis->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+        vis->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
         vis->EnableSkyBox();
         vis->SetCameraAngleDeg(40.0);
         vis->SetLightIntensity(1.0f);

@@ -140,7 +140,7 @@ void ChAntirollBarRSD::UpdateInertiaProperties() {
     m_xform = m_parent->GetTransform().TransformLocalToParent(ChFrame<>(m_rel_loc, QUNIT));
 
     // Calculate COM and inertia expressed in global frame
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_arm_left->GetFrameCOMToAbs(), m_arm_left->GetMass(), m_arm_left->GetInertia());
     composite.AddComponent(m_arm_right->GetFrameCOMToAbs(), m_arm_right->GetMass(), m_arm_right->GetInertia());
 
@@ -216,7 +216,7 @@ void ChAntirollBarRSD::ExportComponentList(rapidjson::Document& jsonDocument) co
     ExportJointList(jsonDocument, joints);
 }
 
-void ChAntirollBarRSD::Output(ChVehicleOutput& database) const {
+void ChAntirollBarRSD::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

@@ -45,16 +45,24 @@ class CH_FSI_API ChFsiInterface {
 
     void SetVerbose(bool verbose) { m_verbose = verbose; }
 
+    void AttachMultibodySystem(ChSystem* sys);
+
     // ------------
 
     /// Add a rigid body.
-    FsiBody& AddFsiBody(std::shared_ptr<ChBody> body);
+    /// The fluid-solid interaction is based on the provided rigid geometry.
+    /// If geometry=nullptr, it is assumed that the interaction geometry is provided separately.
+    std::shared_ptr<FsiBody> AddFsiBody(std::shared_ptr<ChBody> body,
+                                        std::shared_ptr<utils::ChBodyGeometry> geometry,
+                                        bool check_embedded);
 
     /// Add a flexible solid with segment set contact to the FSI system.
-    FsiMesh1D& AddFsiMesh1D(std::shared_ptr<fea::ChContactSurfaceSegmentSet> surface);
+    std::shared_ptr<FsiMesh1D> AddFsiMesh1D(std::shared_ptr<fea::ChContactSurfaceSegmentSet> surface,
+                                            bool check_embedded);
 
     /// Add a flexible solid with surface mesh contact to the FSI system.
-    FsiMesh2D& AddFsiMesh2D(std::shared_ptr<fea::ChContactSurfaceMesh> surface);
+    std::shared_ptr<FsiMesh2D> AddFsiMesh2D(std::shared_ptr<fea::ChContactSurfaceMesh> surface,
+                                            bool check_embedded);
 
     /// Initialize the FSI interface.
     virtual void Initialize();
@@ -84,6 +92,17 @@ class CH_FSI_API ChFsiInterface {
 
     // ------------
 
+    /// Get the set of bodies added to the FSI interface.
+    const std::vector<std::shared_ptr<FsiBody>>& GetBodies() const { return m_fsi_bodies; }
+    
+    /// Get the set of 1D meshes added to the FSI interface.
+    const std::vector<std::shared_ptr<FsiMesh1D>>& GetMeshes1D() const { return m_fsi_meshes1D; }
+    
+    /// Get the set of 2D meshes added to the FSI interface.
+    const std::vector<std::shared_ptr<FsiMesh2D>>& GetMeshes2D() const { return m_fsi_meshes2D; }
+
+    // ------------
+
     /// Return the FSI applied force on the body with specified index.
     /// The force is applied at the body COM and is expressed in the absolute frame.
     const ChVector3d& GetFsiBodyForce(size_t i) const;
@@ -94,11 +113,8 @@ class CH_FSI_API ChFsiInterface {
 
     // ------------
 
-    /// Enable calculation and communication of node directions for FSI meshes. Default: false.
-    void EnableNodeDirections(bool val);
-
-    /// Indicate whether or not node directions are being used.
-    bool UseNodeDirections() const { return m_use_node_directions; }
+    /// Enable use and set method of obtaining FEA node directions. Default: NodeDirectionsMode::NONE.
+    void UseNodeDirections(NodeDirectionsMode mode) { m_node_directions_mode = mode; }
 
     /// Utility function to allocate state vectors.
     /// If use of node directions is enabled, also resize the vectors of node directions for FSI meshes.
@@ -149,25 +165,17 @@ class CH_FSI_API ChFsiInterface {
     virtual void ExchangeSolidForces() = 0;
 
   protected:
-    ChFsiInterface(ChSystem& sysMBS, ChFsiFluidSystem& sysCFD);
-
-    /// Utility function to calculate direction vectors at the flexible 1-D mesh nodes.
-    /// For 1-D meshes, these are averages of the segment direction vectors of adjacent segments.
-    void CalculateDirectionsMesh1D(const FsiMesh1D& mesh, FsiMeshState& states);
-
-    /// Utility function to calculate direction vectors at the flexible 2-D mesh nodes.
-    /// For 2-D meshes, these are averages of the face normals of adjacent faces.
-    void CalculateDirectionsMesh2D(const FsiMesh2D& mesh, FsiMeshState& states);
+    ChFsiInterface(ChSystem* sysMBS, ChFsiFluidSystem* sysCFD);
 
     bool m_verbose;
     bool m_initialized;
-    bool m_use_node_directions;
-    ChSystem& m_sysMBS;
-    ChFsiFluidSystem& m_sysCFD;
+    NodeDirectionsMode m_node_directions_mode;
+    ChSystem* m_sysMBS;
+    ChFsiFluidSystem* m_sysCFD;
 
-    std::vector<FsiBody> m_fsi_bodies;      ///< rigid bodies exposed to the FSI system
-    std::vector<FsiMesh1D> m_fsi_meshes1D;  ///< FEA meshes with 1-D segments exposed to the FSI system
-    std::vector<FsiMesh2D> m_fsi_meshes2D;  ///< FEA meshes with 2-D faces exposed to the FSI system
+    std::vector<std::shared_ptr<FsiBody>> m_fsi_bodies;      ///< rigid bodies exposed to the FSI system
+    std::vector<std::shared_ptr<FsiMesh1D>> m_fsi_meshes1D;  ///< FEA meshes with 1-D segments exposed to the FSI system
+    std::vector<std::shared_ptr<FsiMesh2D>> m_fsi_meshes2D;  ///< FEA meshes with 2-D faces exposed to the FSI system
 };
 
 // =============================================================================
@@ -176,7 +184,7 @@ class CH_FSI_API ChFsiInterface {
 /// This implementation relies on copying data to intermediate buffers.
 class CH_FSI_API ChFsiInterfaceGeneric : public ChFsiInterface {
   public:
-    ChFsiInterfaceGeneric(ChSystem& sysMBS, ChFsiFluidSystem& sysCFD);
+    ChFsiInterfaceGeneric(ChSystem* sysMBS, ChFsiFluidSystem* sysCFD);
     ~ChFsiInterfaceGeneric();
 
     /// Initialize the generic FSI interface.

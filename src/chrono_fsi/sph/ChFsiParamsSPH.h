@@ -37,12 +37,12 @@ namespace sph {
 
 /// Structure with FSI simulation parameters.
 struct ChFsiParamsSPH {
-    SPHMethod sph_method;            ///< SPH method (WCSPH or I2SPH)
-    EosType eos_type;                ///< Equation of state type (Tait or isothermal)
-    ViscosityType viscosity_type;    ///< Viscosity treatment type (physics-based laminar flow or artificial)
-    BoundaryType boundary_type;      ///< Boundary type (Adami or Holmes)
-    KernelType kernel_type;          ///< Kernel type (Quadratic, cubic spline, quintinc spline, quintic Wendland)
-    ShiftingMethod shifting_method;  ///< Shifting method (NONE, PPST, XSPH, PPST_XSPH)
+    IntegrationScheme integration_scheme;  ///< Integration scheme
+    EosType eos_type;                      ///< Equation of state type (Tait or isothermal)
+    ViscosityMethod viscosity_method;      ///< Viscosity treatment type (physics-based laminar flow or artificial)
+    BoundaryMethod boundary_method;        ///< Boundary type (Adami or Holmes)
+    KernelType kernel_type;                ///< Kernel type (Quadratic, cubic spline, quintinc spline, quintic Wendland)
+    ShiftingMethod shifting_method;        ///< Shifting method (NONE, PPST, XSPH, PPST_XSPH)
 
     bool elastic_SPH;  ///< Set physics problem: CFD (false) or CRM granular (true)
 
@@ -98,8 +98,6 @@ struct ChFsiParamsSPH {
     Real kdT;      ///< Implicit integration parameter
     Real gammaBB;  ///< Equation of state parameter
 
-    int periodic_sides;  ///< Periodic boundary condition sides for the defined computational domain - Takes values
-                         ///< NONE, X, Y, Z, All (can also be combined using binary OR and bitwise AND). (default: NONE)
     bool use_default_limits;  ///< true if cMin and cMax are not user-provided (default: true)
     bool use_init_pressure;   ///< true if pressure set based on height (default: false)
 
@@ -111,20 +109,20 @@ struct ChFsiParamsSPH {
 
     double pressure_height;  ///< height for pressure initialization
 
-    int densityReinit;  ///< Reinitialize density after densityReinit steps. Note that doing this more frequently helps
-                        /// in getting more accurate incompressible fluid, but more stable solution is obtained for
-                        /// larger densityReinit
+    // Note: more frequent re-initialization helps in getting more accurate incompressible fluid, 
+    // but more stable solution is obtained for larger values of density_reinit_steps
+    int density_reinit_steps;  ///< reinitialize density after density_reinit_steps steps
 
-    bool Conservative_Form;  ///< Whether conservative or consistent discretization should be used
+    bool Conservative_Form;  ///< use conservative or consistent discretization
     int gradient_type;       ///< Type of the gradient operator
     int laplacian_type;      ///< Type of the laplacian operator
 
-    bool USE_Consistent_G;  ///< Use consistent discretization for gradient operator
-    bool USE_Consistent_L;  ///< Use consistent discretization for laplacian operator
-    bool USE_Delta_SPH;     ///< Use delta SPH
-    Real density_delta;     ///< Parameter for delta SPH
+    bool use_consistent_gradient_discretization;                         ///< use consistent discretization for gradient operator
+    bool use_consistent_laplacian_discretization;  ///< use consistent discretization for laplacian operator
+    bool use_delta_sph;                            ///< use delta SPH
+    Real density_delta;                            ///< parameter for delta SPH
 
-    bool DensityBaseProjection;  ///< Set true to use density based projetion scheme in ISPH solver
+    bool use_density_based_projection;  ///< Set true to use density based projetion scheme in ISPH solver
 
     bool Pressure_Constraint;  ///< Whether the singularity of the pressure equation should be fixed
     SolverType LinearSolver;   ///< Type of the linear solver
@@ -166,18 +164,18 @@ struct ChFsiParamsSPH {
     Real INV_G_shear;   ///< 1.0 / G_shear
     Real K_bulk;        ///< Bulk modulus
     Real Nu_poisson;    ///< Poisson's ratio
-    Real Ar_vis_alpha;  ///< Artifical viscosity coefficient
+    Real artificial_viscosity;  ///< Artifical viscosity coefficient
     Real Coh_coeff;     ///< Cohesion coefficient
-    Real C_Wi;          ///< Threshold of the integration of the kernel function
+    Real free_surface_threshold;          ///< Threshold of the integration of the kernel function
 
     Real boxDimX;  ///< Dimension of the space domain - X
     Real boxDimY;  ///< Dimension of the space domain - Y
     Real boxDimZ;  ///< Dimension of the space domain - Z
 
-    // Bools for whether a side is a periodic side or not
-    bool x_periodic;
-    bool y_periodic;
-    bool z_periodic;
+    BoundaryConditions bc_type;  ///< boundary condition types in the 3 domain directions
+    bool x_periodic;             ///< periodic boundary conditions in x direction?
+    bool y_periodic;             ///< periodic boundary conditions in y direction?
+    bool z_periodic;             ///< periodic boundary conditions in z direction?
 
     int3 minBounds;  ///< Lower limit point of the grid (in grid index)
     int3 maxBounds;  ///< Upper limit point of the grid (in grid index)
@@ -193,6 +191,7 @@ struct ChFsiParamsSPH {
     Real settlingTime;       ///< Time for the granular to settle down
 
     int num_proximity_search_steps;  ///< Number of steps between updates to neighbor lists
+    bool use_variable_time_step;     ///< use variable time step (default: false)
 };
 
 /// @} fsisph

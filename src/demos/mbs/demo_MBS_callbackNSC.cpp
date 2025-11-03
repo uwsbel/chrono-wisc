@@ -50,12 +50,13 @@ class ContactReporter : public ChContactContainer::ReportContactCallback {
     virtual bool OnReportContact(const ChVector3d& pA,
                                  const ChVector3d& pB,
                                  const ChMatrix33<>& plane_coord,
-                                 const double& distance,
-                                 const double& eff_radius,
+                                 double distance,
+                                 double eff_radius,
                                  const ChVector3d& cforce,
                                  const ChVector3d& ctorque,
                                  ChContactable* modA,
-                                 ChContactable* modB) override {
+                                 ChContactable* modB,
+                                 int constraint_offset) override {
         // Check if contact involves box1
         if (modA == m_box1.get()) {
             printf("  A contact on Box 1 at pos: %7.3f  %7.3f  %7.3f", pA.x(), pA.y(), pA.z());
@@ -214,7 +215,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->AddCamera(ChVector3d(8, 8, -12));
             vis_vsg->SetWindowSize(1280, 800);
             vis_vsg->SetWindowPosition(100, 100);
-            vis_vsg->SetClearColor(ChColor(0.8f, 0.85f, 0.9f));
+            vis_vsg->SetBackgroundColor(ChColor(0.8f, 0.85f, 0.9f));
             vis_vsg->EnableSkyBox();
             vis_vsg->SetCameraVertical(CameraVerticalDir::Y);
             vis_vsg->SetCameraAngleDeg(40.0);

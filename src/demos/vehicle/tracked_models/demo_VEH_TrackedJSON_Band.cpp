@@ -24,7 +24,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
     // -----------------------------
 
     // Create the vehicle system
-    TrackedVehicle vehicle(vehicle::GetDataFile(vehicle_file), ChContactMethod::SMC);
+    TrackedVehicle vehicle(GetVehicleDataFile(vehicle_file), ChContactMethod::SMC);
 
     // Disable gravity in this simulation
     ////vehicle.GetSystem()->SetGravitationalAcceleration(ChVector3d(0, 0, 0));
@@ -178,15 +178,15 @@ int main(int argc, char* argv[]) {
     // Create the terrain
     // ------------------
 
-    RigidTerrain terrain(vehicle.GetSystem(), vehicle::GetDataFile(rigidterrain_file));
+    RigidTerrain terrain(vehicle.GetSystem(), GetVehicleDataFile(rigidterrain_file));
     terrain.Initialize();
 
     // ----------------------------
     // Create the powertrain system
     // ----------------------------
 
-    auto engine = ReadEngineJSON(vehicle::GetDataFile(engine_file));
-    auto transmission = ReadTransmissionJSON(vehicle::GetDataFile(transmission_file));
+    auto engine = ReadEngineJSON(GetVehicleDataFile(engine_file));
+    auto transmission = ReadTransmissionJSON(GetVehicleDataFile(transmission_file));
     auto powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
     vehicle.InitializePowertrain(powertrain);
 
@@ -262,7 +262,7 @@ int main(int argc, char* argv[]) {
     // Set up vehicle output
     ////vehicle.SetChassisOutput(true);
     ////vehicle.SetTrackAssemblyOutput(VehicleSide::LEFT, true);
-    vehicle.SetOutput(ChVehicleOutput::ASCII, out_dir, "output", 0.1);
+    vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", 0.1);
 
     // Generate JSON information with available output channels
     ////vehicle.ExportComponentList(out_dir + "/component_list.json");

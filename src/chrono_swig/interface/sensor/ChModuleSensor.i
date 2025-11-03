@@ -123,7 +123,9 @@ using namespace chrono::sensor;
 %include "typemaps.i"
 %include "wchar.i"
 %include "python/cwstring.i"
+#ifdef SWIGPYTHON   // --------------------------------------------------------------------- PYTHON
 %include "cstring.i"
+#endif              // --------------------------------------------------------------------- PYTHON
 %include "stdint.i"
 %include "numpy.i"
 %include "cpointer.i"
@@ -275,8 +277,10 @@ using namespace chrono::sensor;
 %import(module = "pychrono.core")  "chrono_swig/interface/core/ChSystem.i"
 %import(module = "pychrono.core")  "chrono_swig/interface/core/ChFrame.i"
 %import(module = "pychrono.core")  "chrono_swig/interface/core/ChBody.i"
+%import(module = "pychrono.core")  "chrono_swig/interface/core/ChVector2.i"
 %import(module = "pychrono.core")  "chrono_swig/interface/core/ChVector3.i"
 %import(module = "pychrono.core")  "chrono_swig/interface/core/ChColor.i"
+%import(module = "pychrono.core")  "chrono_swig/interface/core/ChColormap.i"
 %import(module = "pychrono.core") "chrono/assets/ChVisualShapeTriangleMesh.h"
 
 %template(vector_ChFramed) std::vector< chrono::ChFrame<double> >;

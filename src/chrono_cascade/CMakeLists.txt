@@ -75,7 +75,7 @@ TKFillet
 TKGeomAlgo
 TKGeomBase
 TKHLR
-TKIGES
+TKDEIGES
 TKLCAF
 TKMath
 TKMesh
@@ -84,15 +84,10 @@ TKPrim
 TKShHealing
 TKStd
 TKStdL
-TKSTEP
-TKSTEP209
-TKSTEPAttr
-TKSTEPBase
-TKSTL
+TKDESTEP
+TKDESTL
 TKTObj
 TKTopAlgo
-TKXDEIGES
-TKXDESTEP
 TKXMesh
 TKXml
 TKXmlL
@@ -118,6 +113,8 @@ set(DEPENDENCIES_CASCADE ${DEPENDENCIES_CASCADE} PARENT_SCOPE)
 
 add_library(Chrono_cascade ${Chrono_CASCADE_SOURCES} ${Chrono_CASCADE_HEADERS})
 add_library(Chrono::cascade ALIAS Chrono_cascade)
+
+set_target_properties(Chrono_cascade PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
 
 if(CH_WHOLE_PROG_OPT)
   set_target_properties(Chrono_cascade PROPERTIES COMPILE_FLAGS "/GL")

@@ -19,14 +19,14 @@
 #include <sstream>
 
 #include "chrono/utils/ChUtilsInputOutput.h"
+#include "chrono/output/ChOutputASCII.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChDataDriver.h"
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
-#include "chrono_vehicle/output/ChVehicleOutputASCII.h"
 
 #include "chrono_models/vehicle/m113/M113.h"
 
@@ -396,7 +396,7 @@ int main(int argc, char* argv[]) {
     auto patch_mat = minfo.CreateMaterial(contact_method);
     auto patch = terrain.AddPatch(patch_mat, CSYSNORM, terrainLength, terrainWidth);
     patch->SetColor(ChColor(0.5f, 0.8f, 0.5f));
-    patch->SetTexture(vehicle::GetDataFile("terrain/textures/grass.jpg"), 20, 20);
+    patch->SetTexture(GetVehicleDataFile("terrain/textures/grass.jpg"), 20, 20);
     terrain.Initialize();
 
     // --------------------------------
@@ -425,7 +425,7 @@ int main(int argc, char* argv[]) {
             break;
         }
         case DriverMode::DATAFILE: {
-            auto data_driver = chrono_types::make_shared<ChDataDriver>(vehicle, vehicle::GetDataFile(driver_file));
+            auto data_driver = chrono_types::make_shared<ChDataDriver>(vehicle, GetVehicleDataFile(driver_file));
             driver = data_driver;
             break;
         }
@@ -524,7 +524,7 @@ int main(int argc, char* argv[]) {
     // Set up vehicle output
     ////vehicle.SetChassisOutput(true);
     ////vehicle.SetTrackAssemblyOutput(VehicleSide::LEFT, true);
-    ////vehicle.SetOutput(ChVehicleOutput::ASCII, out_dir, "output", 0.1);
+    ////vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", 0.1);
 
     // Generate JSON information with available output channels
     ////vehicle.ExportComponentList(out_dir + "/component_list.json");
@@ -687,7 +687,7 @@ void AddFixedObstacles(ChSystem* system) {
 
     // Visualization
     auto shape = chrono_types::make_shared<ChVisualShapeCylinder>(radius, length);
-    shape->SetTexture(vehicle::GetDataFile("terrain/textures/tile4.jpg"), 10, 10);
+    shape->SetTexture(GetVehicleDataFile("terrain/textures/tile4.jpg"), 10, 10);
     obstacle->AddVisualShape(shape, ChFrame<>(VNULL, QuatFromAngleX(CH_PI_2)));
 
     // Contact

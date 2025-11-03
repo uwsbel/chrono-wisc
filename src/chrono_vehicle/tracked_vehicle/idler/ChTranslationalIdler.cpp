@@ -105,7 +105,7 @@ void ChTranslationalIdler::UpdateInertiaProperties() {
     m_xform = m_parent->GetTransform().TransformLocalToParent(ChFrame<>(m_rel_loc, QUNIT));
 
     // Calculate COM and inertia expressed in global frame
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_carrier->GetFrameCOMToAbs(), m_carrier->GetMass(), m_carrier->GetInertia());
     composite.AddComponent(m_idler_wheel->GetBody()->GetFrameCOMToAbs(), m_idler_wheel->GetBody()->GetMass(),
                            m_idler_wheel->GetBody()->GetInertia());
@@ -175,7 +175,7 @@ void ChTranslationalIdler::ExportComponentList(rapidjson::Document& jsonDocument
     ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChTranslationalIdler::Output(ChVehicleOutput& database) const {
+void ChTranslationalIdler::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

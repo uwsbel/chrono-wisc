@@ -33,8 +33,12 @@ class ChFunctionMyFun (chrono.ChFunction):
         else:
             return -chrono.CH_PI * (1.0 - m.cos(chrono.CH_PI * x / 0.4)) / 2.0
 
+
+# Set output root directory
+chrono.SetChronoOutputPath("../DEMO_OUTPUT/")
+
 # Output directory
-out_dir = chrono.GetChronoOutputPath() + "BEAM_BUCKLING"
+out_dir = chrono.GetChronoOutputPath() + "FEA_Beams_Buckling/"
 
 print( "Copyright (c) 2017 projectchrono.org \n")
 
@@ -202,7 +206,7 @@ sys.Add(mesh)
 
 mvisualizebeamA = chrono.ChVisualShapeFEA()
 mvisualizebeamA.SetFEMdataType(chrono.ChVisualShapeFEA.DataType_ELEM_BEAM_MX)
-mvisualizebeamA.SetColorscaleMinMax(-500, 500)
+mvisualizebeamA.SetColormapRange(-500, 500)
 mvisualizebeamA.SetSmoothFaces(True)
 mvisualizebeamA.SetWireframe(False)
 mesh.AddVisualShapeFEA(mvisualizebeamA)
@@ -221,7 +225,7 @@ vis.AttachSystem(sys)
 vis.SetWindowSize(1024,768)
 vis.SetWindowTitle('Beams and constraints')
 vis.Initialize()
-vis.AddLogo(chrono.GetChronoDataFile('logo_pychrono_alpha.png'))
+vis.AddLogo(chrono.GetChronoDataFile('logo_chrono_alpha.png'))
 vis.AddSkyBox()
 vis.AddCamera(chrono.ChVector3d(0.0, 0.6, -1.0))
 vis.AddTypicalLights()

@@ -27,7 +27,7 @@
 
 #include "chrono/utils/ChUtilsInputOutput.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/ChDriver.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
@@ -46,6 +46,7 @@ using namespace chrono::irrlicht;
 #endif
 
 #ifdef CHRONO_VSG
+    #include "chrono_vehicle/visualization/ChScmVisualizationVSG.h"
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
 using namespace chrono::vsg3d;
 #endif
@@ -127,7 +128,7 @@ void CreateLuggedGeometry(std::shared_ptr<ChBody> wheel_body, std::shared_ptr<Ch
     std::string lugged_file("hmmwv/lugged_wheel_section.obj");
     ChTriangleMeshConnected lugged_mesh;
     ChConvexDecompositionHACDv2 lugged_convex;
-    chrono::utils::LoadConvexMesh(vehicle::GetDataFile(lugged_file), lugged_mesh, lugged_convex);
+    chrono::utils::LoadConvexMesh(GetVehicleDataFile(lugged_file), lugged_mesh, lugged_convex);
     int num_hulls = lugged_convex.GetHullCount();
 
     // Assemble the tire contact from 15 segments, properly offset.
@@ -148,7 +149,7 @@ void CreateLuggedGeometry(std::shared_ptr<ChBody> wheel_body, std::shared_ptr<Ch
 
     // Visualization
     auto trimesh =
-        ChTriangleMeshConnected::CreateFromWavefrontFile(vehicle::GetDataFile("hmmwv/lugged_wheel.obj"), false, false);
+        ChTriangleMeshConnected::CreateFromWavefrontFile(GetVehicleDataFile("hmmwv/lugged_wheel.obj"), false, false);
 
     auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
     trimesh_shape->SetMesh(trimesh);
@@ -163,7 +164,7 @@ void CreateLuggedGeometry(std::shared_ptr<ChBody> wheel_body, std::shared_ptr<Ch
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
-    // Set terain patch size and initial vehicle location
+    // Set terrain patch size and initial vehicle location
     ChVector3d init_loc;
     ChVector2d patch_size;
     ChAABB patch_aabb;
@@ -209,7 +210,9 @@ int main(int argc, char* argv[]) {
     }
     hmmwv.Initialize();
 
-    hmmwv.SetChassisVisualizationType(VisualizationType::NONE);
+    hmmwv.SetChassisVisualizationType(VisualizationType::MESH);
+    hmmwv.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
+    hmmwv.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
 
     ChSystem* sys = hmmwv.GetSystem();
 
@@ -226,6 +229,7 @@ int main(int argc, char* argv[]) {
 
     switch (tire_type) {
         case TireType::CYLINDRICAL:
+        case TireType::FEA:
             hmmwv.SetTireVisualizationType(VisualizationType::MESH);
             break;
         case TireType::LUGGED:
@@ -266,24 +270,29 @@ int main(int argc, char* argv[]) {
     ////                                5,    // number of erosion refinements per timestep
     ////                                10);  // number of concentric vertex selections subject to erosion
 
-    // Optionally, enable moving patch feature (single patch around vehicle chassis)
-    terrain.AddMovingPatch(hmmwv.GetChassisBody(), ChVector3d(0, 0, 0), ChVector3d(5, 3, 1));
+    // SCM active domains
+    //  0. default (AABB of collision shapes)
+    //  1. vehicle level
+    //  2. wheel level
 
-    // Optionally, enable moving patch feature (multiple patches around each wheel)
-    ////for (auto& axle : hmmwv.GetVehicle().GetAxles()) {
-    ////    terrain.AddMovingPatch(axle->m_wheels[0]->GetSpindle(), ChVector3d(0, 0, 0), ChVector3d(1, 0.5, 1));
-    ////    terrain.AddMovingPatch(axle->m_wheels[1]->GetSpindle(), ChVector3d(0, 0, 0), ChVector3d(1, 0.5, 1));
-    ////}
+    // 1. vehicle level: single domain around vehicle chassis
+    ////terrain.AddActiveDomain(hmmwv.GetChassisBody(), ChVector3d(0, 0, 0), ChVector3d(5, 3, 1));
+
+    // 2. wheel level: one domain around each wheel
+    for (auto& axle : hmmwv.GetVehicle().GetAxles()) {
+        terrain.AddActiveDomain(axle->m_wheels[0]->GetSpindle(), ChVector3d(0, 0, 0), ChVector3d(1, 0.5, 1));
+        terrain.AddActiveDomain(axle->m_wheels[1]->GetSpindle(), ChVector3d(0, 0, 0), ChVector3d(1, 0.5, 1));
+    }
 
     switch (patch_type) {
         case PatchType::FLAT:
             terrain.Initialize(patch_size.x(), patch_size.y(), delta);
             break;
         case PatchType::MESH:
-            terrain.Initialize(vehicle::GetDataFile("terrain/meshes/bump.obj"), delta);
+            terrain.Initialize(GetVehicleDataFile("terrain/meshes/bump.obj"), delta);
             break;
         case PatchType::HEIGHMAP:
-            terrain.Initialize(vehicle::GetDataFile("terrain/height_maps/bump64.bmp"), patch_size.x(), patch_size.y(),
+            terrain.Initialize(GetVehicleDataFile("terrain/height_maps/bump64.bmp"), patch_size.x(), patch_size.y(),
                                0.0, 1.0, delta);
             break;
     }
@@ -292,11 +301,12 @@ int main(int argc, char* argv[]) {
     terrain.GetMesh()->SetWireframe(render_wireframe);
 
     if (apply_texture)
-        terrain.GetMesh()->SetTexture(vehicle::GetDataFile("terrain/textures/dirt.jpg"));
+        terrain.GetMesh()->SetTexture(GetVehicleDataFile("terrain/textures/dirt.jpg"));
 
     if (render_sinkage) {
-        terrain.SetPlotType(vehicle::SCMTerrain::PLOT_SINKAGE, 0, 0.1);
-        ////terrain.SetPlotType(vehicle::SCMTerrain::PLOT_PRESSURE_YELD, 0, 30000.2);
+        terrain.SetColormap(ChColormap::Type::FAST);
+        terrain.SetPlotType(vehicle::SCMTerrain::PLOT_SINKAGE, 0, 0.08);
+        ////terrain.SetPlotType(vehicle::SCMTerrain::PLOT_PRESSURE_YIELD, 0, 150000);
     }
 
     // -------------------------------------------
@@ -332,17 +342,20 @@ int main(int argc, char* argv[]) {
         default:
         case ChVisualSystem::Type::VSG: {
 #ifdef CHRONO_VSG
+            // SCM plugin
+            auto visSCM = chrono_types::make_shared<ChScmVisualizationVSG>(&terrain);
+
             auto vis_vsg = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
             vis_vsg->SetWindowTitle("Wheeled vehicle on SCM deformable terrain");
             vis_vsg->SetWindowSize(1280, 800);
             vis_vsg->SetWindowPosition(100, 100);
-            vis_vsg->EnableSkyBox();
+            //vis_vsg->EnableSkyBox();
             vis_vsg->SetCameraAngleDeg(40);
             vis_vsg->SetLightIntensity(1.0f);
             vis_vsg->SetChaseCamera(ChVector3d(0.0, 0.0, 1.75), 10.0, 0.5);
             vis_vsg->AttachVehicle(&hmmwv.GetVehicle());
             vis_vsg->AttachTerrain(&terrain);
-            vis_vsg->AddGuiColorbar("Sinkage (m)", 0.0, 0.1);
+            vis_vsg->AttachPlugin(visSCM);
             vis_vsg->Initialize();
 
             vis = vis_vsg;

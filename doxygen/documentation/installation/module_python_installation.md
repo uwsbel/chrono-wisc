@@ -34,7 +34,7 @@ This module consists of *two* build targets:
 
 - To **run** applications based on this module:
     - you must have [Python3](http://www.python.org) installed. On the Mac load the actual Python distribution from https://www.python.org and install it. Set the appropriate environment variable. Don't use the python installed by homebrew.
-    - to use the *pychrono.cascade* module you must also build and install the [pythonocc-core](https://github.com/tpaviot/pythonocc-core) package. For consistency with OpenCASCADE 7.4.0 (required to build Chrono::Cascade), make sure to use **pythonocc-core version 7.4.1**.
+    - to use the *pychrono.cascade* module you must also build and install the [pythonocc-core](https://github.com/tpaviot/pythonocc-core) package. For consistency with OpenCASCADE 7.9.2 (required to build Chrono::Cascade), make sure to use **pythonocc-core version 7.9.0**.
     
 - To **build** this module:
     - you must have [Python3](http://www.python.org) installed.
@@ -44,7 +44,7 @@ This module consists of *two* build targets:
 Building PyChrono requires SWIG version **4.0.0** or newer.
 - On Windows, use a [SWIGWIN](https://sourceforge.net/projects/swig/files/swigwin) distribution which includes a pre-built executable. SWIG versions 4.0.2, 4.1.0, and 4.2.1 have been tested.
 - On Linux, many distributions include packages of SWIG. Consult your package management application.
-- On MacOS, SWIG can be installed with homebrew (<tt>brew install swig</tt>).
+- On MacOS, don't install SWIG with homebrew. You would get SWIG 4.3.1 which generates source files with syntax bugs. Build SWIG 4.1.1 or 4.2.1 from sources. 
 </div>
 
 ## Building instructions

@@ -22,7 +22,7 @@
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 
-#include "chrono_vehicle/ChVehicleModelData.h"
+#include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
@@ -37,6 +37,7 @@
 using namespace chrono::irrlicht;
 #endif
 #ifdef CHRONO_VSG
+    #include "chrono_vehicle/visualization/ChScmVisualizationVSG.h"
     #include "chrono_vsg/ChVisualSystemVSG.h"
 using namespace chrono::vsg3d;
 #endif
@@ -57,11 +58,11 @@ double mesh_resolution = 0.02;
 // Enable/disable bulldozing effects
 bool enable_bulldozing = true;
 
-// Enable/disable moving patch feature
-bool enable_moving_patch = true;
+// Enable/disable active domains feature
+bool enable_active_domains = true;
 
 // If true, use provided callback to change soil properties based on location
-bool var_params = true;
+bool var_params = false;
 
 // Define Viper rover wheel type
 ViperWheelType wheel_type = ViperWheelType::RealWheel;
@@ -138,8 +139,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2017 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
     // Global parameter for moving patch size:
-    double wheel_range = 0.5;
-    ////double body_range = 1.2;
+    double wheel_diameter = 0.75;
+    double wheel_width = 0.4;
 
     // Create a Chrono physical system and associated collision system
     ChSystemSMC sys;
@@ -181,11 +182,10 @@ int main(int argc, char* argv[]) {
     // Create the 'deformable terrain' object
     vehicle::SCMTerrain terrain(&sys);
 
-    // Displace/rotate the terrain reference plane.
+    // Displace/rotate the terrain reference frame.
     // Note that SCMTerrain uses a default ISO reference frame (Z up). Since the mechanism is modeled here in
-    // a Y-up global frame, we rotate the terrain plane by -90 degrees about the X axis.
-    // Note: Irrlicht uses a Y-up frame
-    terrain.SetPlane(ChCoordsys<>(ChVector3d(0, 0, -0.5)));
+    // a Y-up global frame, we rotate the terrain frame by -90 degrees about the X axis.
+    terrain.SetReferenceFrame(ChCoordsys<>(ChVector3d(0, 0, -0.5)));
 
     // Use a regular grid:
     double length = 14;
@@ -199,14 +199,14 @@ int main(int argc, char* argv[]) {
         terrain.RegisterSoilParametersCallback(my_params);
     } else {
         // If var_params is set to be false, these parameters will be used
-        terrain.SetSoilParameters(0.2e6,  // Bekker Kphi
-                                  0,      // Bekker Kc
-                                  1.1,    // Bekker n exponent
-                                  0,      // Mohr cohesive limit (Pa)
-                                  30,     // Mohr friction limit (degrees)
-                                  0.01,   // Janosi shear coefficient (m)
-                                  4e7,    // Elastic stiffness (Pa/m), before plastic yield, must be > Kphi
-                                  3e4     // Damping (Pa s/m), proportional to negative vertical speed (optional)
+        terrain.SetSoilParameters(2e6,   // Bekker Kphi
+                                  0,     // Bekker Kc
+                                  1.1,   // Bekker n exponent
+                                  0,     // Mohr cohesive limit (Pa)
+                                  30,    // Mohr friction limit (degrees)
+                                  0.01,  // Janosi shear coefficient (m)
+                                  2e8,   // Elastic stiffness (Pa/m), before plastic yield, must be > Kphi
+                                  3e4    // Damping (Pa s/m), proportional to negative vertical speed (optional)
         );
     }
 
@@ -220,13 +220,12 @@ int main(int argc, char* argv[]) {
             6);  // number of concentric vertex selections subject to erosion
     }
 
-    // We need to add a moving patch under every wheel
-    // Or we can define a large moving patch at the pos of the rover body
-    if (enable_moving_patch) {
-        terrain.AddMovingPatch(Wheel_1, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        terrain.AddMovingPatch(Wheel_2, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        terrain.AddMovingPatch(Wheel_3, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        terrain.AddMovingPatch(Wheel_4, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
+    // Add an active domains for every wheel
+    if (enable_active_domains) {
+        terrain.AddActiveDomain(Wheel_1, ChVector3d(0, 0, 0), ChVector3d(1.25 * wheel_diameter, wheel_width, 1.25 * wheel_diameter));
+        terrain.AddActiveDomain(Wheel_2, ChVector3d(0, 0, 0), ChVector3d(1.25 * wheel_diameter, wheel_width, 1.25 * wheel_diameter));
+        terrain.AddActiveDomain(Wheel_3, ChVector3d(0, 0, 0), ChVector3d(1.25 * wheel_diameter, wheel_width, 1.25 * wheel_diameter));
+        terrain.AddActiveDomain(Wheel_4, ChVector3d(0, 0, 0), ChVector3d(1.25 * wheel_diameter, wheel_width, 1.25 * wheel_diameter));
     }
 
     // Set some visualization parameters: either with a texture, or with falsecolor plot, etc.
@@ -256,7 +255,7 @@ int main(int argc, char* argv[]) {
             vis_irr->Initialize();
             vis_irr->AddLogo();
             vis_irr->AddSkyBox();
-            vis_irr->AddCamera(ChVector3d(1.0, 2.0, 1.4), ChVector3d(0, 0, wheel_range));
+            vis_irr->AddCamera(ChVector3d(1.0, 2.0, 1.4), ChVector3d(0, 0, wheel_diameter));
             vis_irr->AddTypicalLights();
             vis_irr->AddLightWithShadow(ChVector3d(-5.0, -0.5, 8.0), ChVector3d(-1, 0, 0), 100, 1, 35, 85, 512,
                                         ChColor(0.8f, 0.8f, 0.8f));
@@ -269,11 +268,15 @@ int main(int argc, char* argv[]) {
         default:
         case ChVisualSystem::Type::VSG: {
 #ifdef CHRONO_VSG
+            // SCM plugin
+            auto visSCM = chrono_types::make_shared<vehicle::ChScmVisualizationVSG>(&terrain);
+
             auto vis_vsg = chrono_types::make_shared<ChVisualSystemVSG>();
             vis_vsg->AttachSystem(&sys);
+            vis_vsg->AttachPlugin(visSCM);
             vis_vsg->SetWindowSize(1280, 800);
             vis_vsg->SetWindowTitle("Viper Rover on SCM");
-            vis_vsg->AddCamera(ChVector3d(1.0, 2.0, 1.4), ChVector3d(0, 0, wheel_range));
+            vis_vsg->AddCamera(ChVector3d(1.0, 2.0, 1.4), ChVector3d(0, 0, wheel_diameter));
             vis_vsg->Initialize();
 
             vis = vis_vsg;
@@ -283,13 +286,10 @@ int main(int argc, char* argv[]) {
     }
 
     while (vis->Run()) {
-#if defined(CHRONO_IRRLICHT) || defined(CHRONO_VSG)
         vis->BeginScene();
         vis->SetCameraTarget(Body_1->GetPos());
         vis->Render();
-        ////tools::drawColorbar(vis.get(), 0, 20000, "Pressure yield [Pa]", 1180);
         vis->EndScene();
-#endif
 
         if (output) {
             // write drive torques of all four wheels into file

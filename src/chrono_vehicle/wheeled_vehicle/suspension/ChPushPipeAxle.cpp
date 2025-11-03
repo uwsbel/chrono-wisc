@@ -242,7 +242,7 @@ void ChPushPipeAxle::UpdateInertiaProperties() {
     // Calculate COM and inertia expressed in global frame
     ChMatrix33<> inertiaSpindle(getSpindleInertia());
 
-    utils::CompositeInertia composite;
+    CompositeInertia composite;
     composite.AddComponent(m_spindle[LEFT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_spindle[RIGHT]->GetFrameCOMToAbs(), getSpindleMass(), inertiaSpindle);
     composite.AddComponent(m_axleTube->GetFrameCOMToAbs(), getAxleTubeMass(), ChMatrix33<>(getAxleInertia()));
@@ -384,7 +384,7 @@ void ChPushPipeAxle::ExportComponentList(rapidjson::Document& jsonDocument) cons
     ChPart::ExportLinSpringList(jsonDocument, springs);
 }
 
-void ChPushPipeAxle::Output(ChVehicleOutput& database) const {
+void ChPushPipeAxle::Output(ChOutput& database) const {
     if (!m_output)
         return;
 

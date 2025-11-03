@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21) # fmu_tools requires a more recent version of CMake
+cmake_minimum_required(VERSION 3.21) # fmu-forge requires a more recent version of CMake
 cmake_policy(SET CMP0091 NEW)
 
 project(template_project_fmu)
@@ -28,22 +28,22 @@ if(APPLE)
 endif()
 
 # ===============
-# Fetch fmu_tools
+# Fetch fmu-forge
 # ===============
 
-message(STATUS "\nFetch fmu_tools...")
+message(STATUS "\nFetch fmu-forge...")
 include(FetchContent)
 
 set(FMU_MODEL_IDENTIFIER "FmuComponentChrono" CACHE STRING "Set the FMU model identifier (name).")
 set(FMU_RESOURCES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/fmu_resources" CACHE PATH "Path to FMU resources directory.")
-set(FMU_DEPENDENCIES "${CHRONO_DEPENDENCY_DLLS}")
+# set(FMU_DEPENDENCIES "${CHRONO_DEPENDENCY_DLLS}") # Set your own dependencies here if needed
 set(BUILD_TESTING ON CACHE BOOL "Enable testing.")
 set(BUILD_FMU_HOST ON CACHE BOOL "Build fmi_host executable to run FMUs.")
 set(FMU_MSG_PREFIX "   ")
 
 FetchContent_Declare(
     ${FMU_MODEL_IDENTIFIER}
-    SOURCE_DIR ${CHRONO_FMU_TOOLS_DIR}/fmi2
+    SOURCE_DIR ${CHRONO_FMU_FORGE_DIR}/fmi2
 )
 
 FetchContent_MakeAvailable(${FMU_MODEL_IDENTIFIER})
@@ -91,7 +91,7 @@ source_group("" FILES ${DEMO_SOURCES})
 
 add_executable(${DEMO} ${DEMO_SOURCES})
 
-target_include_directories(${DEMO} PRIVATE ${CHRONO_FMU_TOOLS_DIR})
+target_include_directories(${DEMO} PRIVATE ${CHRONO_FMU_FORGE_DIR})
 target_compile_definitions(${DEMO} PUBLIC FMU_UNPACK_DIRECTORY="${FMU_DIRECTORY}/tmp_unpack")
 target_compile_definitions(${DEMO} PUBLIC FMU_DIRECTORY="${FMU_DIRECTORY}")
 target_compile_definitions(${DEMO} PUBLIC FMU_FILENAME="${FMU_FILENAME}")

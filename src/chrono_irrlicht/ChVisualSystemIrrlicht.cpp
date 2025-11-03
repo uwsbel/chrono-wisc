@@ -51,6 +51,7 @@ ChVisualSystemIrrlicht::ChVisualSystemIrrlicht()
       m_container(nullptr),
       m_win_title(""),
       m_yup(true),
+      m_draw_colorbar(false),
       m_use_effects(false),
       m_quality(0) {
     // Set default device parameter values
@@ -82,6 +83,10 @@ ChVisualSystemIrrlicht::ChVisualSystemIrrlicht()
         capsuleMesh->grab();
     if (coneMesh)
         coneMesh->grab();
+
+    // Create default colormap (for colorbar display)
+    m_colormap_type = ChColormap::Type::JET;
+    m_colormap = chrono_types::make_unique<ChColormap>(m_colormap_type);
 }
 
 ChVisualSystemIrrlicht::ChVisualSystemIrrlicht(ChSystem* sys,
@@ -171,7 +176,7 @@ void ChVisualSystemIrrlicht::AttachSystem(ChSystem* sys) {
         m_gui->Initialize(this);
 
         // Parse the mechanical assembly and create a ChIrrNodeModel for each physics item with a visual model.
-        // This is a recursive call to accomodate any existing sub-assemblies.
+        // This is a recursive call to accommodate any existing sub-assemblies.
         BindAll();
     }
 }
@@ -231,7 +236,7 @@ void ChVisualSystemIrrlicht::Initialize() {
         m_gui->Initialize(this);
 
         // Parse the mechanical assembly and create a ChIrrNodeModel for each physics item with a visual model.
-        // This is a recursive call to accomodate any existing sub-assemblies.
+        // This is a recursive call to accommodate any existing sub-assemblies.
         BindAll();
     }
 
@@ -305,6 +310,25 @@ int ChVisualSystemIrrlicht::AddCamera(const ChVector3d& pos, ChVector3d targ) {
 
     m_cameras.push_back(camera);
     return (int)m_cameras.size() - 1;
+}
+
+void ChVisualSystemIrrlicht::AddGuiColorbar(const std::string& title,  // title
+                                            const ChVector2d& range,   // data range
+                                            ChColormap::Type type,     // colormap type
+                                            bool bimodal,              // negative/positive
+                                            const ChVector2i& pos,     // position of top-left colorbar corner
+                                            const ChVector2i& size     // colorbar size
+) {
+    m_draw_colorbar = true;
+    m_colorbar_title = title;
+    m_colorbar_range = range;
+    if (type != m_colormap_type) {
+        m_colormap_type = type;
+        m_colormap->Load(type);
+    }
+    m_colormap_bimodal = bimodal;
+    m_colorbar_pos = pos;
+    m_colorbar_size = size;
 }
 
 void ChVisualSystemIrrlicht::AddGrid(double x_step, double y_step, int nx, int ny, ChCoordsys<> pos, ChColor col) {
@@ -541,17 +565,17 @@ void ChVisualSystemIrrlicht::ShowConvergencePlot(bool val) {
 // Clean canvas at beginning of scene.
 
 void ChVisualSystemIrrlicht::BeginScene() {
-    BeginScene(true, true, ChColor(0, 0, 0));
+    BeginScene(true, true);
 }
 
-void ChVisualSystemIrrlicht::BeginScene(bool backBuffer, bool zBuffer, ChColor color) {
+void ChVisualSystemIrrlicht::BeginScene(bool backBuffer, bool zBuffer) {
     assert(!m_systems.empty());
 
     utils::ChProfileManager::Reset();
     utils::ChProfileManager::Start_Profile("Irrlicht loop");
     utils::ChProfileManager::Increment_Frame_Counter();
 
-    GetVideoDriver()->beginScene(backBuffer, zBuffer, tools::ToIrrlichtSColor(color));
+    GetVideoDriver()->beginScene(backBuffer, zBuffer, tools::ToIrrlichtSColor(m_background_color));
 
     m_gui->BeginScene();
 }
@@ -580,6 +604,15 @@ void ChVisualSystemIrrlicht::Render() {
     }
 
     m_gui->Render();
+
+    if (m_draw_colorbar) {
+        tools::drawColorbar(this,                                       //
+                            *m_colormap,                                //
+                            m_colorbar_range[0], m_colorbar_range[1],   //
+                            m_colorbar_title,                           //
+                            m_colorbar_pos.x(), m_colorbar_pos.y(),     //
+                            m_colorbar_size.x(), m_colorbar_size.y());  //
+    }
 
     ChVisualSystem::Render();
 }
@@ -778,29 +811,35 @@ void ChVisualSystemIrrlicht::PopulateIrrNode(ISceneNode* node,
             continue;
 
         if (auto obj = std::dynamic_pointer_cast<ChVisualShapeModelFile>(shape)) {
-            bool irrmesh_already_loaded = false;
-            if (GetSceneManager()->getMeshCache()->getMeshByName(obj->GetFilename().c_str()))
-                irrmesh_already_loaded = true;
-            IAnimatedMesh* genericMesh = GetSceneManager()->getMesh(obj->GetFilename().c_str());
-            if (genericMesh) {
-                ISceneNode* mproxynode = new ChIrrNodeShape(obj, node);
-                ISceneNode* mchildnode = GetSceneManager()->addAnimatedMeshSceneNode(genericMesh, mproxynode);
-                mproxynode->drop();
+            auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(obj->GetFilename(), true, true);
+            auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
+            trimesh_shape->SetMesh(trimesh);
+            trimesh_shape->SetMutable(false);
 
-                // mchildnode->setMaterialFlag(video::EMF_NORMALIZE_NORMALS, false);
-
-                // Note: the Irrlicht loader of .OBJ files flips the X to correct its left-handed nature, but
-                // this goes wrong with our assemblies and links. Restore the X flipping of the mesh.
-                if (!irrmesh_already_loaded)
-                    mflipSurfacesOnX(((IAnimatedMeshSceneNode*)mchildnode)->getMesh());
-
-                mchildnode->setPosition(shape_m4.getTranslation());
-                mchildnode->setRotation(shape_m4.getRotationDegrees());
-                mchildnode->setScale(core::vector3dfCH(obj->GetScale()));
-
-                SetVisualMaterial(mchildnode, shape);
-                mchildnode->setMaterialFlag(video::EMF_BACK_FACE_CULLING, true);
+            // Create a number of Irrlicht mesh buffers equal to the number of materials.
+            // If no materials defined, create a single mesh buffer.
+            SMesh* smesh = new SMesh;
+            int nbuffers = (int)trimesh_shape->GetNumMaterials();
+            nbuffers = std::max(nbuffers, 1);
+            for (int ibuffer = 0; ibuffer < nbuffers; ibuffer++) {
+                CDynamicMeshBuffer* buffer = new CDynamicMeshBuffer(video::EVT_STANDARD, video::EIT_32BIT);
+                smesh->addMeshBuffer(buffer);
+                buffer->drop();
             }
+
+            ChIrrNodeShape* mproxynode = new ChIrrNodeShape(trimesh_shape, node);
+            ISceneNode* mchildnode = GetSceneManager()->addMeshSceneNode(smesh, mproxynode);
+            smesh->drop();
+
+            mchildnode->setPosition(shape_m4.getTranslation());
+            mchildnode->setRotation(shape_m4.getRotationDegrees());
+
+            mproxynode->Update();  // force syncing of triangle positions & face indexes
+            mproxynode->drop();
+
+            SetVisualMaterial(mchildnode, shape);
+            mchildnode->setMaterialFlag(video::EMF_WIREFRAME, trimesh_shape->IsWireframe());
+            mchildnode->setMaterialFlag(video::EMF_BACK_FACE_CULLING, trimesh_shape->IsBackfaceCull());
         } else if (auto trimesh = std::dynamic_pointer_cast<ChVisualShapeTriangleMesh>(shape)) {
             // Create a number of Irrlicht mesh buffers equal to the number of materials.
             // If no materials defined, create a single mesh buffer.
@@ -978,7 +1017,7 @@ void ChVisualSystemIrrlicht::PopulateIrrNode(ISceneNode* node,
                 double rad = cone->GetRadius();
                 double height = cone->GetHeight();
 
-                core::vector3df irrsize((irr::f32)rad, (irr::f32)rad, (irr::f32)height);
+                core::vector3df irrsize((irr::f32)rad, (irr::f32)rad, (irr::f32)(height / 2));
                 mchildnode->setScale(irrsize);
                 mchildnode->setPosition(shape_m4.getTranslation());
                 mchildnode->setRotation(shape_m4.getRotationDegrees());
