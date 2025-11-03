@@ -3,26 +3,28 @@
 # These example programs require Irrlicht run-time visualization.
 #=============================================================================
 
-if(NOT CH_ENABLE_MODULE_IRRLICHT AND NOT CH_ENABLE_MODULE_VSG)
-    return()
-endif()
+# if(NOT CH_ENABLE_MODULE_IRRLICHT AND NOT CH_ENABLE_MODULE_VSG)
+#     return()
+# endif()
 
 #--------------------------------------------------------------
 # List all demos
 
-set(DEMOS
-    demo_VEH_TireTestRig
-    demo_VEH_SuspensionTestRig
-    demo_VEH_TrackTestRig
-)
-
-if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_VSG)
+if(CH_ENABLE_MODULE_FSI)
     set(DEMOS ${DEMOS} demo_VEH_TireTestRig_CRM)
 endif()
 
-if (CH_ENABLE_MODULE_PARDISO_MKL OR CH_ENABLE_MODULE_MUMPS)
+if(CH_ENABLE_MODULE_VSG)
+    set(DEMOS ${DEMOS} demo_VEH_TireTestRig)
+    set(DEMOS ${DEMOS} demo_VEH_SuspensionTestRig)
+    set(DEMOS ${DEMOS} demo_VEH_TrackTestRig)
+
+    endif()
+
+if((CH_ENABLE_MODULE_PARDISO_MKL OR CH_ENABLE_MODULE_MUMPS) AND CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS} demo_VEH_TrackTestRig_Band)
 endif()
+
 
 #--------------------------------------------------------------
 

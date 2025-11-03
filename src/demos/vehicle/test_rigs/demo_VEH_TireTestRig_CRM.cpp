@@ -71,7 +71,7 @@ std::string wheel_json = "Polaris/Polaris_Wheel.json";
 
 double render_fps = 100;
 bool debug_output = false;
-bool gnuplot_output = true;
+bool gnuplot_output = false;
 bool blender_output = false;
 
 bool set_longitudinal_speed = false;
@@ -88,7 +88,7 @@ bool set_str_spk = true;
 bool snapshots = false;
 
 double input_time_delay = 0.5;
-bool render = true;
+bool render = false;
 
 // -----------------------------------------------------------------------------
 
@@ -381,9 +381,8 @@ int main(int argc, char* argv[]) {
     // Create the run-time visualization
     // ---------------------------------
 
-    std::shared_ptr<ChVisualSystem> vis;
-
 #ifdef CHRONO_VSG
+    std::shared_ptr<ChVisualSystem> vis = nullptr;
     if (render) {
         // FSI plugin
         auto sysFSI = std::dynamic_pointer_cast<CRMTerrain>(rig.GetTerrain())->GetFsiSystemSPH();
@@ -485,7 +484,8 @@ int main(int argc, char* argv[]) {
                           << vel.y() << "," << vel.z() << std::endl;
         }
 
-        if (time >= render_frame / render_fps) {
+#ifdef CHRONO_VSG
+        if (render && vis && time >= render_frame / render_fps) {
             auto& loc = rig.GetPos();
             vis->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
 
@@ -500,13 +500,14 @@ int main(int argc, char* argv[]) {
 #endif
 
             // Save snapshots if enabled
-            if (render && snapshots) {
+            if (snapshots) {
                 std::ostringstream snapshot_filename;
                 snapshot_filename << snapshots_dir << "/" << std::setw(5) << std::setfill('0') << render_frame
                                   << ".jpg";
                 vis->WriteImageToFile(snapshot_filename.str());
             }
         }
+#endif
 
         rig.Advance(step_size);
         sim_time += sys->GetTimerStep();

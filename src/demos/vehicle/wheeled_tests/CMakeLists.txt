@@ -11,7 +11,6 @@ set(DEMOS
     demo_VEH_Test_ISO2631_Shock
     demo_VEH_Test_Accel
     demo_VEH_Test_FMTV_Ride
-    demo_VEH_Test_TireFEA
 )
 
 if(HAVE_OPENCRG)
@@ -21,6 +20,12 @@ if(HAVE_OPENCRG)
           demo_VEH_Test_Cornering
    )
    endif()
+endif()
+
+if(CH_ENABLE_MODULE_VSG)
+   set(DEMOS ${DEMOS}
+       demo_VEH_Test_TireFEA
+   )
 endif()
 
 #--------------------------------------------------------------
