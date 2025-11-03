@@ -20,6 +20,7 @@ import pychrono.core as chrono
 import pychrono.vehicle as veh
 import pychrono.fsi as fsi
 import time
+import math
 # Visualization settings
 render = True
 if render:
@@ -38,6 +39,10 @@ class Params:
     g_density=8, # Number of grousers per revolution
     particle_spacing=0.005, # Particle spacing
     fan_theta_deg=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
+    steering_kp=5.0 # Steering gain
+    steering_kd=0.5 # Steering derivative gain
+    speed_kp=0.5 # Speed gain
+    speed_kd=0.1 # Speed derivative gain
 
 
 class SimParams:
@@ -46,6 +51,7 @@ class SimParams:
     friction=0.8 # Material friction coefficient
     max_force=20 # Maximum pulling force
     target_speed=2.0 # Target vehicle speed
+    terrain_length=10.0 # Terrain length
 
 
 # =============================================================================
@@ -53,7 +59,6 @@ class SimParams:
 # =============================================================================
 
 # Terrain dimensions
-terrain_length = 5.0
 terrain_width = 1
 terrain_height = 0.10
 # Vehicle drop height
@@ -63,6 +68,8 @@ vehicle_x = 0.5
 vehicle_init_time = 0.5
 # Step size for the simulation
 step_size = 2e-4
+# Control input frequency (100 Hz = 1e-2 s period)
+control_period = 1e-2
 
 
 wheel_BCE_csvfile = "vehicle/artcar/wheel_straight.csv"
@@ -119,10 +126,70 @@ def CreateFSIWheels(vehicle, terrain, Params):
             fsi_bodies.append(fsi_body)
     
     return fsi_bodies
-    
 
 
-def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
+def buildSineWaypoints(lateral_amplitude_y, vehicle_init_height, start_x, end_x, num_periods=2):
+    # Create sine wave path within [start_x, end_x]
+    # num_periods controls how many sine wave oscillations
+    length = max(0.1, end_x - start_x)
+    num_points = 20  # Number of waypoints for smooth sine curve
+    pts = []
+    for i in range(num_points + 1):
+        x = start_x + (i / num_points) * length
+        y = lateral_amplitude_y * math.sin(num_periods * math.pi * (x - start_x) / length)
+        pts.append(chrono.ChVector3d(x, y, vehicle_init_height))
+    return pts
+
+
+def estimatePolylineLength(points):
+    length = 0.0
+    for i in range(1, len(points)):
+        dx = points[i].x - points[i - 1].x
+        dy = points[i].y - points[i - 1].y
+        dz = points[i].z - points[i - 1].z
+        length += math.sqrt(dx * dx + dy * dy + dz * dz)
+    return length
+
+
+def nearestPointDistanceXY(point_xy, seg_start_xy, seg_end_xy):
+    # Compute distance from a 2D point to a 2D segment
+    vx = seg_end_xy[0] - seg_start_xy[0]
+    vy = seg_end_xy[1] - seg_start_xy[1]
+    wx = point_xy[0] - seg_start_xy[0]
+    wy = point_xy[1] - seg_start_xy[1]
+    seg_len2 = vx * vx + vy * vy
+    if seg_len2 <= 0.0:
+        dx = point_xy[0] - seg_start_xy[0]
+        dy = point_xy[1] - seg_start_xy[1]
+        return math.sqrt(dx * dx + dy * dy)
+    t = (wx * vx + wy * vy) / seg_len2
+    if t < 0.0:
+        closest_x = seg_start_xy[0]
+        closest_y = seg_start_xy[1]
+    elif t > 1.0:
+        closest_x = seg_end_xy[0]
+        closest_y = seg_end_xy[1]
+    else:
+        closest_x = seg_start_xy[0] + t * vx
+        closest_y = seg_start_xy[1] + t * vy
+    dx = point_xy[0] - closest_x
+    dy = point_xy[1] - closest_y
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def computeCrossTrackErrorXY(vehicle_xy, path_points_xy):
+    # path_points_xy: list of (x,y) tuples
+    # Return nearest lateral distance to polyline
+    best = None
+    for i in range(1, len(path_points_xy)):
+        d = nearestPointDistanceXY(vehicle_xy, path_points_xy[i - 1], path_points_xy[i])
+        if best is None or d < best:
+            best = d
+    return best if best is not None else 0.0
+
+
+def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, sine_amplitude=0.28, num_periods=2):
+
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
@@ -233,6 +300,20 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     fsi_bodies = CreateFSIWheels(artCar, terrain, Params)
     terrain.SetActiveDomain(chrono.ChVector3d(active_box_dim))
     terrain.SetActiveDomainDelay(settling_time)
+    if(SimParams.terrain_length == 10.0):
+        sine_amplitude = 0.28
+        sph_file = f"sph_10_1_0.1_{spacing}_xyz.csv"
+        bce_file = f"boundary_10_1_0.1_{spacing}_xyz.csv"
+        ideal_e_norm = 0.05
+        ideal_power = 200.0
+    elif(SimParams.terrain_length == 5.0):
+        sine_amplitude = 0.2
+        sph_file = f"sph_5_1_0.1_{spacing}_xyz.csv"
+        bce_file = f"boundary_5_1_0.1_{spacing}_xyz.csv"
+        ideal_e_norm = 0.02
+        ideal_power = 100.0
+    else:
+        raise ValueError(f"Invalid terrain length: {SimParams.terrain_length}")
     
     # Construct the terrain
     # print("Create terrain...")
@@ -241,8 +322,6 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     #                   chrono.ChVector3d(terrain_length / 2, 0, 0),
     #                   (fsi.BoxSide_ALL & ~fsi.BoxSide_Z_POS))
     # Read SPH particles from file
-    sph_file = f"sph_5_1_0.1_{spacing}_xyz.csv"
-    bce_file = f"boundary_5_1_0.1_{spacing}_xyz.csv"
     terrain.Construct(sph_file, bce_file, chrono.ChVector3d(0, 0, 0), False)
     end_time = time.time()
     print(f"Terrain construction time: {end_time - start_time} seconds")
@@ -257,17 +336,47 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     # Set maximum vehicle X location
     x_max = aabb.max.x - 1.0
     
-    # Create the path-following driver
-    # print("Create path...")
-    path = veh.StraightLinePath(chrono.ChVector3d(0, 0, vehicle_init_height),
-                               chrono.ChVector3d(terrain_length, 0, vehicle_init_height), 1)
-    
+    # Create sine wave path (Bezier from waypoints)
+    start_x = vehicle_x + 0.1
+    end_x = x_max
+    waypoints = buildSineWaypoints(sine_amplitude, vehicle_init_height, start_x, end_x, num_periods)
+    in_cvs = []
+    out_cvs = []
+    cv_offset = 0.1  # control vector magnitude in meters
+    for i in range(len(waypoints)):
+        if i == 0:
+            dirx = waypoints[i + 1].x - waypoints[i].x
+            diry = waypoints[i + 1].y - waypoints[i].y
+        elif i == len(waypoints) - 1:
+            dirx = waypoints[i].x - waypoints[i - 1].x
+            diry = waypoints[i].y - waypoints[i - 1].y
+        else:
+            dirx = (waypoints[i + 1].x - waypoints[i - 1].x) * 0.5
+            diry = (waypoints[i + 1].y - waypoints[i - 1].y) * 0.5
+        norm = math.sqrt(dirx * dirx + diry * diry)
+        if norm > 1e-9:
+            dirx /= norm
+            diry /= norm
+        # In and out control points
+        in_cvs.append(chrono.ChVector3d(waypoints[i].x - dirx * cv_offset,
+                                        waypoints[i].y - diry * cv_offset,
+                                        waypoints[i].z))
+        out_cvs.append(chrono.ChVector3d(waypoints[i].x + dirx * cv_offset,
+                                         waypoints[i].y + diry * cv_offset,
+                                         waypoints[i].z))
 
-    driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), path, "straight_path", SimParams.target_speed, 0.5, 2.0)
+    bezier_path = chrono.ChBezierCurve(waypoints, in_cvs, out_cvs)
+
+    driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), bezier_path, "sine_path", SimParams.target_speed,vehicle_init_time, 2.0)
     driver.GetSteeringController().SetLookAheadDistance(0.5)
-    driver.GetSteeringController().SetGains(5, 0, 1)
-    driver.GetSpeedController().SetGains(0.8, 0.2, 0.3)
+    driver.GetSteeringController().SetGains(Params.steering_kp, 0, Params.steering_kd)
+    driver.GetSpeedController().SetGains(Params.speed_kp, 0.2, Params.speed_kd)
     driver.Initialize()
+    
+    # Prepare error metrics
+    # For cross-track error, use polyline interpolation of waypoints (XY only)
+    path_points_xy = [(wp.x, wp.y) for wp in waypoints]
+    path_length = estimatePolylineLength(waypoints)
     
     # Set up TSDA to apply pulling force
     # print("Create pulling force...")
@@ -354,7 +463,8 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
             visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
             visVSG.SetCameraAngleDeg(40)
             visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-            visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+            # visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+            visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, 0, 2.5))
             
             visVSG.Initialize()
             vis = visVSG
@@ -372,6 +482,16 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     power_count = 0
     render_frame = 0
     start_time = time.time()
+    
+    # Error tracking for cross-track error
+    sum_squared_error = 0.0
+    error_samples = 0
+    control_delay = vehicle_init_time
+    
+    # Control input timing
+    last_control_time = -control_period  # Initialize to allow first control at t=0
+    driver_inputs = veh.DriverInputs()
+    
     while t_sim < tend:
         veh_loc = artCar.GetVehicle().GetPos()
         current_x_position = veh_loc.x
@@ -419,15 +539,24 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
             total_time_to_reach = tend*2
             break
 
-        # Get driver inputs from path follower
-        if t_sim < vehicle_init_time:
-            driver_inputs = veh.DriverInputs()
-            driver_inputs.m_throttle = 0.0
-            driver_inputs.m_steering = 0.0
-            driver_inputs.m_braking = 0.0
-        else:
-            driver_inputs = driver.GetInputs()
-            driver_inputs.m_braking = 0.0
+        # Get driver inputs from path follower at control frequency
+        if t_sim >= last_control_time + control_period:
+            if t_sim < vehicle_init_time:
+                driver_inputs = veh.DriverInputs()
+                driver_inputs.m_throttle = 0.0
+                driver_inputs.m_steering = 0.0
+                driver_inputs.m_braking = 0.0
+            else:
+                driver_inputs = driver.GetInputs()
+                driver_inputs.m_braking = 0.0
+            last_control_time = t_sim
+        
+        # Accumulate cross-track error (XY) against sine path polyline
+        if t_sim >= control_delay:
+            e = computeCrossTrackErrorXY((veh_loc.x, veh_loc.y), path_points_xy)
+            sum_squared_error += e * e
+            error_samples += 1
+        
         # Stop vehicle before reaching end of terrain patch
         if veh_loc.x >= x_max:
             total_time_to_reach = t_sim
@@ -498,14 +627,25 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
         sim_failed = True
         total_time_to_reach = tend*2
     
-
+    
 
     
     # Compute metrics
-    ideal_time = terrain_length / SimParams.target_speed
-    time_cost_score  = (total_time_to_reach / ideal_time) * 10
+    # Compute RMS cross-track error
+    if error_samples > 0:
+        rms_error = math.sqrt(max(0.0, sum_squared_error) / error_samples)
+    else:
+        rms_error = float('inf')
 
-    ideal_power = 100.0
+    e_norm = rms_error
+
+    e_norm_score = (e_norm / ideal_e_norm) * 10
+    
+    # Time metrics (exclude initial control delay)
+    t_elapsed = total_time_to_reach - control_delay
+    ideal_time = path_length / SimParams.target_speed
+    time_cost_score = (t_elapsed / ideal_time) * 10
+
     # Power metrics
     average_power = 0
     if power_count > 0:
@@ -515,48 +655,57 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
         average_power = float('inf')
     power_score = (average_power / ideal_power) * 10
 
-    print(f"Ideal time: {ideal_time}")
-    print(f"Total time to reach: {total_time_to_reach}")
-    print(f"Time cost score: {time_cost_score:}")
-    print(f"Ideal power: {ideal_power}")
-    print(f"Average power: {average_power}")
-    print(f"Power score: {power_score}")
-    print(f"Weight speed: {weight_speed}")
-    print(f"Weight power: {weight_power}")
+    # Composite metric with three components: speed, tracking, and power
+    # Ensure weights sum to 1.0
+    weight_tracking = 1.0 - weight_speed - weight_power
+    weight_tracking = max(0.0, weight_tracking)  # Ensure non-negative
+    
     if(sim_failed):
         print(f"Simulation failed")
         metric = 500
     else:
-        print(f"Total time to reach: {total_time_to_reach}")
-        metric = weight_speed * time_cost_score + weight_power * power_score
+        metric = weight_speed * time_cost_score + weight_tracking * e_norm_score + weight_power * power_score
+
+    print(f"Metric components:")
+    print(f"  path_length: {path_length:.4f} m, ideal_time@{SimParams.target_speed}m/s: {ideal_time:.4f} s")
+    print(f"  elapsed_time: {t_elapsed:.4f} s, ideal_time: {ideal_time:.4f} s, time_ratio_score: {time_cost_score:.4f}")
+    print(f"  rms_cross_track_error: {rms_error:.4f} m, ideal_error_norm: {ideal_e_norm:.4f}, error_norm_score: {e_norm_score:.4f}")
+    print(f"  average_power: {average_power:.2f} W, ideal_power: {ideal_power:.2f} W, power_score: {power_score:.4f}")
+    print(f"  weights: speed={weight_speed:.3f}, tracking={weight_tracking:.3f}, power={weight_power:.3f}")
+    print(f"  composite_metric: {metric:.4f}")
 
     print(f"Metric: {metric}")
-    return metric, total_time_to_reach, 0, average_power, sim_failed
+    return metric, total_time_to_reach, rms_error, average_power, sim_failed
 
 
 if __name__ == "__main__":
     Params = Params()
-    rad_outer = 14
-    g_height_int = int(round(rad_outer * 0.22437779903411864))  # what_percent_is_grouser ratio
+    rad_outer = 13
+    g_height_int = int(round(rad_outer * 0.11972514688968658))  # what_percent_is_grouser ratio
     g_height_int = max(0, g_height_int)
     rad_inner_int = int(rad_outer - g_height_int)
-    width_int = int(round(1.0103665232658385 * rad_outer))  # w_by_r ratio
+    width_int = int(round(0.7479365646839141 * rad_outer))  # w_by_r ratio
     Params.rad = rad_inner_int
     Params.width = width_int
     Params.g_height = g_height_int
-    Params.g_density = 4
+    Params.g_density = 11
     Params.particle_spacing = 0.005
-    Params.fan_theta_deg = 116
+    Params.fan_theta_deg = 56
+    Params.steering_kp = 5.0
+    Params.steering_kd = 0.5
+    Params.speed_kp = 0.5
+    Params.speed_kd = 0.1
     
     SimParams = SimParams()
     SimParams.density = 1700
     SimParams.cohesion = 0
     SimParams.friction = 0.8
-    SimParams.max_force = 50
+    SimParams.max_force = 25
     SimParams.target_speed = 2.0
-    
-    metric, total_time_to_reach, _, average_power, sim_failed = sim(Params, SimParams)
+    SimParams.terrain_length = 5.0
+    metric, total_time_to_reach, rms_error, average_power, sim_failed = sim(Params, SimParams)
     print(f"Metric: {metric:.4f}")
     print(f"Total time to reach: {total_time_to_reach:.4f}")
+    print(f"RMS cross-track error: {rms_error:.4f} m")
     print(f"Average power: {average_power:.2f}W")
     print(f"Simulation failed: {sim_failed}")
