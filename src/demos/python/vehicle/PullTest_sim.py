@@ -20,10 +20,7 @@ import pychrono.core as chrono
 import pychrono.vehicle as veh
 import pychrono.fsi as fsi
 import time
-# Visualization settings
-render = True
-if render:
-    import pychrono.vsg3d as vsg
+import argparse
 import os
 from simple_wheel_gen import GenSimpleWheelPointCloud
 from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize
@@ -122,7 +119,7 @@ def CreateFSIWheels(vehicle, terrain, Params):
     
 
 
-def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
+def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None, visualize=False):
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
@@ -332,32 +329,35 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
     
     # Create run-time visualization
     vis = None
-    if(render):
-        if render:
-            # FSI plugin
-            col_callback = fsi.ParticleHeightColorCallback(aabb.min.z, aabb.max.z)
-            visFSI = fsi.ChSphVisualizationVSG(terrain.GetFsiSystemSPH())
-            visFSI.EnableFluidMarkers(visualization_sph)
-            visFSI.EnableBoundaryMarkers(visualization_bndry_bce)
-            visFSI.EnableRigidBodyMarkers(visualization_rigid_bce)
-            visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap.Type_BROWN)
-            
-            # Wheeled vehicle VSG visual system
-            visVSG = veh.ChWheeledVehicleVisualSystemVSG()
-            visVSG.AttachVehicle(artCar.GetVehicle())
-            visVSG.AttachPlugin(visFSI)
-            visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
-            visVSG.SetWindowSize(1280, 800)
-            visVSG.SetWindowPosition(100, 100)
-            visVSG.EnableSkyBox()
-            visVSG.SetLightIntensity(1.0)
-            visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
-            visVSG.SetCameraAngleDeg(40)
-            visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-            visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
-            
-            visVSG.Initialize()
-            vis = visVSG
+    if visualize:
+        try:
+            import pychrono.vsg3d as vsg  # noqa: F401
+        except Exception:
+            vsg = None
+        # FSI plugin
+        col_callback = fsi.ParticleHeightColorCallback(aabb.min.z, aabb.max.z)
+        visFSI = fsi.ChSphVisualizationVSG(terrain.GetFsiSystemSPH())
+        visFSI.EnableFluidMarkers(visualization_sph)
+        visFSI.EnableBoundaryMarkers(visualization_bndry_bce)
+        visFSI.EnableRigidBodyMarkers(visualization_rigid_bce)
+        visFSI.SetSPHColorCallback(col_callback, chrono.ChColormap.Type_BROWN)
+        
+        # Wheeled vehicle VSG visual system
+        visVSG = veh.ChWheeledVehicleVisualSystemVSG()
+        visVSG.AttachVehicle(artCar.GetVehicle())
+        visVSG.AttachPlugin(visFSI)
+        visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
+        visVSG.SetWindowSize(1280, 800)
+        visVSG.SetWindowPosition(100, 100)
+        visVSG.EnableSkyBox()
+        visVSG.SetLightIntensity(1.0)
+        visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
+        visVSG.SetCameraAngleDeg(40)
+        visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
+        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+        
+        visVSG.Initialize()
+        vis = visVSG
     
     # Simulation loop
     t_sim = 0
@@ -434,10 +434,17 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
             break
         
         # Run-time visualization
-        if render and t_sim >= render_frame / render_fps and vis is not None:
+        if visualize and t_sim >= render_frame / render_fps and vis is not None:
             if not vis.Run():
                 break
             vis.Render()
+            if snapshot_dir is not None:
+                try:
+                    os.makedirs(snapshot_dir, exist_ok=True)
+                    img_path = os.path.join(snapshot_dir, f"img_{render_frame:06d}.png")
+                    vis.WriteImageToFile(img_path)
+                except Exception:
+                    pass
             render_frame += 1
         try:
             # Synchronize systems
@@ -531,31 +538,76 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1):
         metric = weight_speed * time_cost_score + weight_power * power_score
 
     print(f"Metric: {metric}")
+    try:
+        # Clear CUDA errors before cleanup
+        clear_cuda_error()
+        
+        # Force garbage collection
+        #import gc
+        #gc.collect()
+        
+        # Final CUDA error check
+        error_occurred, error_message = check_cuda_error()
+        if error_occurred:
+            print(f"CUDA error during cleanup: {error_message}")
+            sim_failed = True
+            
+    except Exception as cleanup_error:
+        print(f"Cleanup error: {cleanup_error}")
+        sim_failed = True
     return metric, total_time_to_reach, 0, average_power, sim_failed
 
 
 if __name__ == "__main__":
-    Params = Params()
-    rad_outer = 14
-    g_height_int = int(round(rad_outer * 0.22437779903411864))  # what_percent_is_grouser ratio
-    g_height_int = max(0, g_height_int)
-    rad_inner_int = int(rad_outer - g_height_int)
-    width_int = int(round(1.0103665232658385 * rad_outer))  # w_by_r ratio
-    Params.rad = rad_inner_int
-    Params.width = width_int
-    Params.g_height = g_height_int
-    Params.g_density = 4
-    Params.particle_spacing = 0.005
-    Params.fan_theta_deg = 116
-    
-    SimParams = SimParams()
-    SimParams.density = 1700
-    SimParams.cohesion = 0
-    SimParams.friction = 0.8
-    SimParams.max_force = 50
-    SimParams.target_speed = 2.0
-    
-    metric, total_time_to_reach, _, average_power, sim_failed = sim(Params, SimParams)
+    parser = argparse.ArgumentParser(description="Pull test simulation runner")
+    parser.add_argument("--rad", type=int, help="Inner radius in multiples of particle_spacing", required=True)
+    parser.add_argument("--width", type=int, help="Width in multiples of particle_spacing", required=True)
+    parser.add_argument("--g_height", type=int, help="Grouser height in multiples of particle_spacing", required=True)
+    parser.add_argument("--g_density", type=int, required=True)
+    parser.add_argument("--particle_spacing", type=float, required=True)
+    parser.add_argument("--fan_theta_deg", type=float, default=60.0)
+    # Optional material and driver settings (defaults preserved)
+    parser.add_argument("--density", type=float, default=1700)
+    parser.add_argument("--cohesion", type=float, default=0.0)
+    parser.add_argument("--friction", type=float, default=0.8)
+    parser.add_argument("--max_force", type=float, default=20.0)
+    parser.add_argument("--target_speed", type=float, default=2.0)
+    # Visualization / snapshots
+    parser.add_argument("--visualize", action="store_true", help="Enable visualization")
+    parser.add_argument("--snapshots", action="store_true", help="Enable snapshot saving (implies visualize)")
+    parser.add_argument("--output-dir", type=str, default=None, help="Output directory for snapshots and logs")
+    # Weights (kept for completeness)
+    parser.add_argument("--weight_speed", type=float, default=0.9)
+    parser.add_argument("--weight_power", type=float, default=0.1)
+    args = parser.parse_args()
+
+    p = Params()
+    p.rad = int(args.rad)
+    p.width = int(args.width)
+    p.g_height = int(args.g_height)
+    p.g_density = int(args.g_density)
+    p.particle_spacing = float(args.particle_spacing)
+    p.fan_theta_deg = float(args.fan_theta_deg)
+
+    sp = SimParams()
+    sp.density = float(args.density)
+    sp.cohesion = float(args.cohesion)
+    sp.friction = float(args.friction)
+    sp.max_force = float(args.max_force)
+    sp.target_speed = float(args.target_speed)
+
+    visualize = args.visualize or args.snapshots
+    snapshot_dir = args.output_dir if args.snapshots else None
+    if snapshot_dir is not None:
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+    metric, total_time_to_reach, _, average_power, sim_failed = sim(
+        p, sp,
+        weight_speed=float(args.weight_speed),
+        weight_power=float(args.weight_power),
+        snapshot_dir=snapshot_dir,
+        visualize=visualize,
+    )
     print(f"Metric: {metric:.4f}")
     print(f"Total time to reach: {total_time_to_reach:.4f}")
     print(f"Average power: {average_power:.2f}W")

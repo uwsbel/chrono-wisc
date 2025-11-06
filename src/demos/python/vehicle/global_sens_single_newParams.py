@@ -195,6 +195,9 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--no-filter-penalties", action="store_true", help="Keep penalty trials (metric>=500 or time==12)")
     parser.add_argument("--plot", action="store_true", help="Save a bar plot of S1 and ST")
+    parser.add_argument("--ice", action="store_true", help="Generate ICE plots for each parameter using the fitted surrogate")
+    parser.add_argument("--ice-subsample", type=int, default=120, help="Number of data rows to use for ICE conditioning (lines)")
+    parser.add_argument("--ice-grid", type=int, default=30, help="Number of grid points per feature for ICE")
     parser.add_argument("--outdir", default=None, help="Output directory (default: <run_dir>/analysis)")
     parser.add_argument("--cv-folds", type=int, default=5, help="K-fold CV folds to evaluate surrogate quality")
     parser.add_argument("--model", choices=["rf", "xgb", "gp"], default="rf", help="Surrogate model to use")
@@ -346,6 +349,64 @@ def main():
             plt.savefig(out_png, dpi=200)
         except Exception as e:
             print(f"Plotting failed: {e}")
+
+    # ICE plots
+    if args.ice:
+        try:
+            import matplotlib.pyplot as plt
+
+            ice_dir = os.path.join(outdir, "ice")
+            os.makedirs(ice_dir, exist_ok=True)
+
+            # Subsample rows for ICE lines
+            rng = np.random.default_rng(args.seed)
+            n_rows = len(df)
+            m = min(n_rows, max(10, int(args.ice_subsample)))
+            idx = rng.choice(n_rows, size=m, replace=False) if m < n_rows else np.arange(n_rows)
+            X_ref = df[FEATURES_PULL_SINGLE].to_numpy(dtype=float)[idx]
+
+            # Grid and prediction for each feature
+            for j, spec in enumerate(specs):
+                name = spec.name
+                # Build grid across the domain bounds
+                if spec.kind == "int":
+                    lo, hi = int(spec.bounds[0]), int(spec.bounds[1])
+                    grid = np.arange(lo, hi + 1, max(1, (hi - lo) // max(5, args.ice_grid - 1)))
+                    grid = np.unique(np.clip(grid, lo, hi))
+                elif spec.kind == "float":
+                    lo, hi = float(spec.bounds[0]), float(spec.bounds[1])
+                    grid = np.linspace(lo, hi, num=max(5, args.ice_grid))
+                else:
+                    # categorical not used in this problem; skip if present
+                    continue
+
+                C = np.zeros((len(X_ref), len(grid)), dtype=float)
+                for i_row in range(len(X_ref)):
+                    X_tmp = np.tile(X_ref[i_row], (len(grid), 1))
+                    X_tmp[:, j] = grid
+                    try:
+                        preds = estimator.predict(X_tmp)
+                    except Exception:
+                        preds = np.full(len(grid), np.nan)
+                    C[i_row, :] = preds
+
+                # PDP mean
+                pdp = np.nanmean(C, axis=0)
+
+                plt.figure(figsize=(6, 4))
+                for k in range(C.shape[0]):
+                    plt.plot(grid, C[k, :], color='tab:blue', alpha=0.18, linewidth=1)
+                plt.plot(grid, pdp, color='tab:orange', linewidth=2.5, label='PDP (mean)')
+                plt.xlabel(name)
+                plt.ylabel(target_col)
+                plt.title(f'ICE for {name}')
+                plt.grid(True, alpha=0.25)
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(os.path.join(ice_dir, f'ice_{name}.png'), dpi=150)
+                plt.close()
+        except Exception as e:
+            print(f"ICE plotting failed: {e}")
 
     # Console summary
     print(f"Data points used: {len(df)} | spacing={spacing}")
