@@ -46,7 +46,7 @@ using std::endl;
 // -----------------------------------------------------------------------------
 
 // Final simulation time
-double t_end = 10.0;
+double t_end = 5.0;
 //double initial_spacing = 0.01;
 double initial_spacing = 0.01;
 
@@ -176,18 +176,17 @@ std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, doub
                       << " and initial spacing of: " << initial_spacing << std::endl;
     }
 
-
-
-
-    auto flap = chrono_types::make_shared<ChBody>();
+    auto flap = chrono_types::make_shared<ChBodyAuxRef>();
     flap->SetName("WEC flap");
     flap->SetPos(wec_pos);
     flap->SetRot(QUNIT);
     flap->SetFixed(false);
 
+
     double wec_mass = 24.5;
     flap->SetMass(wec_mass);
     flap->SetInertiaXX(ChVector3d(0.76, 0.76, 0.76));
+    flap->SetFrameCOMToRef(ChFrame<>(ChVector3d(0,0,-0.01), QUNIT));
 
     std::cout << "wec_inertia: " << std::endl << flap->GetInertiaXX() << std::endl;
     sysMBS.AddBody(flap);
@@ -208,8 +207,10 @@ std::shared_ptr<ChLinkMotorRotationTorque> CreateFlap(ChFsiProblemSPH& fsi, doub
     auto motor = chrono_types::make_shared<ChLinkMotorRotationTorque>();
     motor->Initialize(ground, flap, ChFrame<>(joint_pos, Q_ROTATE_Z_TO_Y));
 
+    double t_ramp = 2.0;  // time to reach prescribed torque
+
     auto f_segment = chrono_types::make_shared<ChFunctionSequence>();
-    f_segment->InsertFunct(chrono_types::make_shared<ChFunctionRamp>(0, prescribed_torque), 1);   // 0.0 -> 0.6
+    f_segment->InsertFunct(chrono_types::make_shared<ChFunctionRamp>(0, prescribed_torque/t_ramp), t_ramp);   // 0.0 -> 0.6
     f_segment->InsertFunct(chrono_types::make_shared<ChFunctionConst>(prescribed_torque), t_end);  // 0.0
 
     motor->SetTorqueFunction(f_segment);
@@ -406,7 +407,7 @@ int main(int argc, char* argv[]) {
 
             ofile << "time, " << time << "," << -motor_torque << ","
                       << -revolute->GetMotorAngle() << std::endl;
-
+            std::cout << "angle: " << revolute->GetMotorAngle() / 3.14 * 180 << std::endl;
             csv_frame++;
         }
 
