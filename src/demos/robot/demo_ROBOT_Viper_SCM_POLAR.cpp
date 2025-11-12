@@ -70,7 +70,7 @@ unsigned int front_camera_height = 1216; // [pixel], front camera height
 float viewer_fov = (float)CH_PI / 2.; // viewer's horizontal field of view (hFOV)
 float front_camera_fov = (float)((44.0 + 1.0/60) * CH_PI / 180.0); // [rad], front camera's horizontal field of view (hFOV)
 float lag = 0.0f; // [sec], lag between sensing and when data becomes accessible
-int alias_factor = 3;
+int alias_factor = 2;
 
 //// dynamic solver parameter setting ////
 float end_time = 40.f; // [sec], simulation end time
@@ -114,12 +114,12 @@ class MySoilParams : public vehicle::SCMTerrain::SoilParametersCallback {
                      double& Janosi_shear,
                      double& elastic_K,
                      double& damping_R) override {
-        Bekker_Kphi = 0.82e6 * 2;
-        Bekker_Kc = 0.14e4 * 2;
-        Bekker_n = 1.0 * 1.3;
-        Mohr_cohesion = 0.017e4 * 3;
-        Mohr_friction = 35.0 + 15.0;
-        Janosi_shear = 1.78e-2 * 1.00/1.78;
+        Bekker_Kphi = 0.82e6 / 5;
+        Bekker_Kc = 0.14e4 / 5;
+        Bekker_n = 1.0;
+        Mohr_cohesion = 0.017e4;
+        Mohr_friction = 35.0;
+        Janosi_shear = 1.78e-2;
         elastic_K = 2e8; // original 2e8
         damping_R = 3e4;
     }
@@ -555,7 +555,7 @@ int main(int argc, char* argv[]) {
             // ));
             
 
-            //ground.AddMovingPatch(rocks[i], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
+            //ground.AddActiveDomain(rocks[i], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
 
             printf("Rock %zu of Terrain %s added to system\n", rock_idx + 1, terrainID.c_str());
         }
@@ -602,7 +602,8 @@ int main(int argc, char* argv[]) {
 
     //// Create the deformable ground ////
     vehicle::SCMTerrain ground(&sys);
-    
+    // ground.SetReferenceFrame(ChCoordsys<>(ChVector3d(0, 0, 0.)));
+
     // load mesh from obj file
     // std::string ground_mesh_path = terrain_mesh_dir + "terrain" + terrainID + "_ground" + std::to_string(deform_ground_indices[ground_idx]+1) + ".obj";
     // std::string ground_mesh_path = terrain_mesh_dir + "big_ground_scale2.obj";
@@ -654,18 +655,16 @@ int main(int argc, char* argv[]) {
     // Or we can define a large moving patch at the pos of the rover body
     if (enable_active_domains) {
         // for VIPER moving on the ground
-        
-        ground.AddActiveDomain(wheel_LF, ChVector3d(0, 0, 0), ChVector3d(0.5, 1.5 * wheel_range, 1.5 * wheel_range));
-        ground.AddActiveDomain(wheel_RF, ChVector3d(0, 0, 0), ChVector3d(0.5, 1.5 * wheel_range, 1.5 * wheel_range));
-        ground.AddActiveDomain(wheel_LB, ChVector3d(0, 0, 0), ChVector3d(0.5, 1.5 * wheel_range, 1.5 * wheel_range));
-        ground.AddActiveDomain(wheel_RB, ChVector3d(0, 0, 0), ChVector3d(0.5, 1.5 * wheel_range, 1.5 * wheel_range));
-        
+        ground.AddActiveDomain(wheel_LF, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
+        ground.AddActiveDomain(wheel_RF, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
+        ground.AddActiveDomain(wheel_LB, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
+        ground.AddActiveDomain(wheel_RB, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));        
 
         // for obstacle rocks standing on the ground
         // for (int i = 0; i < 1; i++) {
-        //     ground.AddMovingPatch(rocks[i], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
+        //     ground.AddActiveDomain(rocks[i], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
         // }
-       // ground.AddMovingPatch(rock_bodies[0], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
+       // ground.AddActiveDomain(rock_bodies[0], ChVector3d(0, 0, 0), ChVector3d(0.5, 0.5, 0.5));
     }
     
 

@@ -112,7 +112,7 @@ class CH_SENSOR_API ChScene {
     // /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
     // /// @param id the index of the point light to be modified
     // /// @param p the new point light that will replace the values at the given index
-    // void ModifyPointLight(unsigned int id, PointLight p);
+    void ModifyPointLight(unsigned int id, PointLight p);
 
     /// Function for gaining access to the background. Can be used to dynamically change the background color, or
     /// texture

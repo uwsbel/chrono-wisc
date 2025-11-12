@@ -31,7 +31,6 @@
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
-#include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/optix/ChOptixUtils.h"
 
 #include "chrono/assets/ChVisualShapeBox.h"
@@ -175,21 +174,21 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
         }
 
         // if transient cameram, populate the transient buffer
-        if (auto trans_sensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
-              // allocate memory for transient samples
-            size_t size = trans_sensor->GetWidth() * trans_sensor->GetHeight()* m_params.max_depth * sizeof(TransientSample); // Possible numerical error here
-            std::cout << "Allocating " << size << " bytes for transient buffer\n";
-            cudaMalloc(reinterpret_cast<void**>(&m_params.transient_buffer),size);
-            cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
+        // if (auto trans_sensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
+        //       // allocate memory for transient samples
+        //     size_t size = trans_sensor->GetWidth() * trans_sensor->GetHeight()* m_params.max_depth * sizeof(TransientSample); // Possible numerical error here
+        //     std::cout << "Allocating " << size << " bytes for transient buffer\n";
+        //     cudaMalloc(reinterpret_cast<void**>(&m_params.transient_buffer),size);
+        //     cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
 
-            m_params.window_size = trans_sensor->GetWindowSize();
-            m_params.timegated_mode = trans_sensor->GetTimeGatedMode();
-            m_params.target_dist = trans_sensor->GetTargetDist();
-            m_params.nlos_hidden_geometry_sampling = trans_sensor->GetNLOSHiddenGeometrySampling();
-            m_params.nlos_laser_sampling = trans_sensor->GetNLOSLaserSamples();
-            m_params.filter_bounces = trans_sensor->GetFilterBounces();
-            m_params.discard_direct_paths = trans_sensor->GetDiscardDirectPaths();
-        }
+        //     m_params.window_size = trans_sensor->GetWindowSize();
+        //     m_params.timegated_mode = trans_sensor->GetTimeGatedMode();
+        //     m_params.target_dist = trans_sensor->GetTargetDist();
+        //     m_params.nlos_hidden_geometry_sampling = trans_sensor->GetNLOSHiddenGeometrySampling();
+        //     m_params.nlos_laser_sampling = trans_sensor->GetNLOSLaserSamples();
+        //     m_params.filter_bounces = trans_sensor->GetFilterBounces();
+        //     m_params.discard_direct_paths = trans_sensor->GetDiscardDirectPaths();
+        // }
 
         m_assignedRenderers.push_back(opx_filter);
         sensor->PushFilterFront(opx_filter);
@@ -798,22 +797,22 @@ void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std:
         }
 
         // Clear transient sensor frame buffer
-        if (auto transientSensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
-            int w = transientSensor->GetWidth();
-            int h = transientSensor->GetHeight();
-             initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
-                                w * transientSensor->GetNumBins(), h);
-            //if (transientSensor->GetUseGI()) {  
-            //    /*initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
-            //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.albedo_buffer,
-            //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.normal_buffer,
-            //                     w, h);*/ // GI is enabled for transient camera but not the denoiser
+        // if (auto transientSensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
+        //     int w = transientSensor->GetWidth();
+        //     int h = transientSensor->GetHeight();
+        //      initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+        //                         w * transientSensor->GetNumBins(), h);
+        //     //if (transientSensor->GetUseGI()) {  
+        //     //    /*initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+        //     //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.albedo_buffer,
+        //     //                    m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.normal_buffer,
+        //     //                     w, h);*/ // GI is enabled for transient camera but not the denoiser
 
-            // } else {
-            //    initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
-            //                     w, h);
-            // }
-        }
+        //     // } else {
+        //     //    initializeBuffer(m_assignedRenderers[id]->m_raygen_record->data.specific.transientCamera.frame_buffer,
+        //     //                     w, h);
+        //     // }
+        // }
 
  
            

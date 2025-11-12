@@ -225,12 +225,12 @@ CH_SENSOR_API void ChScene::UpdateLight(unsigned int id, ChFramed newpose) {
 }
 
 // TODO: Add a Modify Light function
-// CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, PointLight p) {
-//     if (id <= m_pointlights.size()) {
-//         m_pointlights[id] = p;
-//         lights_changed = true;
-//     }
-// }
+CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, PointLight p) {
+    if (id <= m_lights.size()) {
+        m_lights[id] = p;
+        lights_changed = true;
+    }
+}
 
 CH_SENSOR_API void ChScene::SetBackground(Background b) {
     m_background = b;

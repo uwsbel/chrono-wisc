@@ -160,8 +160,8 @@ int main(int argc, char* argv[]) {
     floor->SetFixed(true);
     sys.Add(floor);
     {
-        auto shape = floor->GetVisualModel()->GetShapeInstances()[0].first;
-        if (shape->GetNumMaterials() == 0) {
+        auto shape = floor->GetVisualModel()->GetShapeInstances()[0].shape;
+        if (shape->GetNumMaterials() == 0) {    
             shape->AddMaterial(floor_mat);
         } else {
             shape->GetMaterials()[0] = floor_mat;
@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
     box->SetFixed(true);
     sys.Add(box);
     {
-        auto shape = box->GetVisualModel()->GetShapeInstances()[0].first;
+        auto shape = box->GetVisualModel()->GetShapeInstances()[0].shape;
         if (shape->GetNumMaterials() == 0) {
             shape->AddMaterial(box_mat);
         } else {

@@ -18,7 +18,7 @@
 #include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
-#include "chrono_sensor/sensors/ChTransientSensor.h"
+// #include "chrono_sensor/sensors/ChTransientSensor.h"
 
 #include "chrono_thirdparty/stb/stb_image_write.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -208,10 +208,10 @@ CH_SENSOR_API void ChFilterSave::Initialize(std::shared_ptr<ChSensor> pSensor,
                                         cudaHostFreeHelper<PixelRGBA8>);
         m_host_rgba8->Buffer = std::move(b);
 
-        if (auto cam = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
-            m_is_transient = true;
-            m_num_bins = (unsigned int)cam->GetNumBins();
-        }
+        // if (auto cam = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
+        //     m_is_transient = true;
+        //     m_num_bins = (unsigned int)cam->GetNumBins();
+        // }
         m_host_rgba8->Width = m_rgba8_in->Width;
         m_host_rgba8->Height = m_rgba8_in->Height;
     } else if (auto pRGBA16 = std::dynamic_pointer_cast<SensorDeviceRGBA16Buffer>(bufferInOut)) {

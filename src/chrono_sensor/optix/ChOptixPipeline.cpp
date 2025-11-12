@@ -570,34 +570,34 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             break;
         }
 
-        case PipelineType::TANSIENT: {
-            program_groups.push_back(m_tranientCamera_raygen_group);
-            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_tranientCamera_raygen_group, raygen_record.get()));
-            raygen_record->data.specific.transientCamera.hFOV = 3.14f / 4;      // default value
-            raygen_record->data.specific.transientCamera.maxVFOV = 3.14f / 4;   // default value
-            raygen_record->data.specific.transientCamera.minVFOV = 0.f;         // default value
-            raygen_record->data.specific.transientCamera.frame_buffer = {};     // default value
-            raygen_record->data.specific.transientCamera.use_gi = false;        // default value
-            raygen_record->data.specific.transientCamera.use_fog = true;        // default value
-            raygen_record->data.specific.transientCamera.gamma = 2.2f;          // default value
-            raygen_record->data.specific.transientCamera.lens_model = PINHOLE;  // default value
-            raygen_record->data.specific.transientCamera.lens_parameters = {};
-            raygen_record->data.specific.transientCamera.tmin = 0.f;          // default value
-            raygen_record->data.specific.transientCamera.tmax = 1.f;          // default value
-            raygen_record->data.specific.transientCamera.tbins = 1.f;          // default value
-             raygen_record->data.specific.transientCamera.integrator = Integrator::PATH;
-            break;
-        }
+        // case PipelineType::TANSIENT: {
+        //     program_groups.push_back(m_tranientCamera_raygen_group);
+        //     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_tranientCamera_raygen_group, raygen_record.get()));
+        //     raygen_record->data.specific.transientCamera.hFOV = 3.14f / 4;      // default value
+        //     raygen_record->data.specific.transientCamera.maxVFOV = 3.14f / 4;   // default value
+        //     raygen_record->data.specific.transientCamera.minVFOV = 0.f;         // default value
+        //     raygen_record->data.specific.transientCamera.frame_buffer = {};     // default value
+        //     raygen_record->data.specific.transientCamera.use_gi = false;        // default value
+        //     raygen_record->data.specific.transientCamera.use_fog = true;        // default value
+        //     raygen_record->data.specific.transientCamera.gamma = 2.2f;          // default value
+        //     raygen_record->data.specific.transientCamera.lens_model = PINHOLE;  // default value
+        //     raygen_record->data.specific.transientCamera.lens_parameters = {};
+        //     raygen_record->data.specific.transientCamera.tmin = 0.f;          // default value
+        //     raygen_record->data.specific.transientCamera.tmax = 1.f;          // default value
+        //     raygen_record->data.specific.transientCamera.tbins = 1.f;          // default value
+        //      raygen_record->data.specific.transientCamera.integrator = Integrator::PATH;
+        //     break;
+        // }
 
-        case PipelineType::NORMAL_CAMERA: {
-            program_groups.push_back(m_normalCamera_raygen_group);
-            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_normalCamera_raygen_group, raygen_record.get()));
-            raygen_record->data.specific.normalCamera.hFOV = 3.14f / 4;   // default value
-            raygen_record->data.specific.normalCamera.frame_buffer = {};  // default value
-            raygen_record->data.specific.normalCamera.lens_model = PINHOLE; // default value
-            raygen_record->data.specific.normalCamera.lens_parameters = {}; // default value
-            break;
-        }
+        // case PipelineType::NORMAL_CAMERA: {
+        //     program_groups.push_back(m_normalCamera_raygen_group);
+        //     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_normalCamera_raygen_group, raygen_record.get()));
+        //     raygen_record->data.specific.normalCamera.hFOV = 3.14f / 4;   // default value
+        //     raygen_record->data.specific.normalCamera.frame_buffer = {};  // default value
+        //     raygen_record->data.specific.normalCamera.lens_model = PINHOLE; // default value
+        //     raygen_record->data.specific.normalCamera.lens_parameters = {}; // default value
+        //     break;
+        // }
 
             // case PipelineType::SEGMENTATION_FOV_LENS: {
             //     program_groups.push_back(m_segmentation_fov_lens_raygen_group);

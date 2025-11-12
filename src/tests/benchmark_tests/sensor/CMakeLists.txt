@@ -15,9 +15,9 @@ set(TESTS
     btest_SEN_cornell_box
     btest_SEN_vis_materials
     btest_SEN_camera_lens
-    btest_SEN_cornell_box_transient
+    # btest_SEN_cornell_box_transient
     btest_SEN_benchmark
-    btest_SEN_NLOS
+    # btest_SEN_NLOS
     )
 
 # ------------------------------------------------------------------------------

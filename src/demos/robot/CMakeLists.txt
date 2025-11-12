@@ -20,14 +20,15 @@ if(CH_ENABLE_MODULE_VEHICLE)
         demo_ROBOT_Turtlebot_Rigid
         demo_ROBOT_Viper_Rigid
         demo_ROBOT_Viper_SCM
+        demo_ROBOT_Viper_SCM_POLAR
     )
 
-  if(ENABLE_MODULE_SENSOR)
+  if(CH_ENABLE_MODULE_SENSOR)
     set(DEMOS ${DEMOS}
         demo_ROBOT_Curiosity_SCM_Sensor
         demo_ROBOT_Viper_SCM_Sensor
     )
-    if(ENABLE_MODULE_FSI)
+    if(CH_ENABLE_MODULE_FSI)
       if(USE_NVDB)
           set(DEMOS ${DEMOS}
             demo_ROBOT_Viper_RealSlope_Sensor_NVDB
@@ -36,9 +37,12 @@ if(CH_ENABLE_MODULE_VEHICLE)
             demo_ROBOT_Viper_dust
           )
       endif()
-      # set(DEMOS ${DEMOS}
-      # demo_ROBOT_Viper_WheelSinkage
-      # demo_ROBOT_SingleWheel_Sensor)
+      set(DEMOS ${DEMOS}
+        # demo_ROBOT_Viper_WheelSinkage
+        # demo_ROBOT_CRMVisualMatOpt
+        # demo_ROBOT_CRMVisualMatOpt_old
+        # demo_ROBOT_SingleWheel_Sensor
+      )
     endif()
   endif()
 endif()

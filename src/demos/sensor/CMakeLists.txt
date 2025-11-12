@@ -4,8 +4,9 @@
 # Demos that show the sensor framework
 set(DEMOS
 	# demo_SEN_buildtest
+  # demo_SEN_calc_inertia
   demo_SEN_camera
-  demo_SEN_phys_cam
+  # demo_SEN_phys_cam
   demo_SEN_JSON
   demo_SEN_lidar
   demo_SEN_GPSIMU
@@ -49,6 +50,15 @@ if(CH_ENABLE_MODULE_VEHICLE)
       list(APPEND LIBRARIES "ChronoModels_vehicle")
    endif()
 endif()
+
+# if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#   set(LINKER_FLAGS  "${LINKER_FLAGS} -framework IOKit -framework Cocoa -framework OpenGL")
+# endif()
+
+# # if(ENABLE_MODULE_SENSOR)
+# #     add_executable(demo_SEN_calc_inertia demo_SEN_calc_inertia.cpp)
+# #     target_link_libraries(demo_SEN_calc_inertia PRIVATE Chrono::ChronoEngine Chrono::ChronoSensor)
+# # endif()
 
 #--------------------------------------------------------------
 # Add executables

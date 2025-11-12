@@ -21,8 +21,8 @@
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
 #include "chrono_sensor/sensors/ChSegmentationCamera.h"
 #include "chrono_sensor/sensors/ChDepthCamera.h"
-#include "chrono_sensor/sensors/ChTransientSensor.h"
-#include "chrono_sensor/sensors/ChNormalCamera.h"
+// #include "chrono_sensor/sensors/ChTransientSensor.h"
+// #include "chrono_sensor/sensors/ChNormalCamera.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/sensors/ChSensor.h"
@@ -69,7 +69,7 @@ CH_SENSOR_API void ChFilterOptixRender::Apply() {
      //                                       // processing, or by filters that require synchronization
      std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
      std::chrono::duration<double> wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-     std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
+    //  std::cout << "Filter's ray tracing time: " << wall_time.count() << std::endl;
 }
 
 CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSensor,
@@ -126,58 +126,59 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
             m_denoiser->Initialize(cam->GetWidth(), cam->GetHeight(), cam->GetCudaStream(), frame_buffer, albedo_buffer,
                                    normal_buffer, reinterpret_cast<half4*>(bufferOut->Buffer.get()));
         }
-    } else if(auto transientCamera = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
-        m_is_transient = true;
-        m_num_bins = (unsigned int)transientCamera->GetNumBins();
-        auto bufferOut = chrono_types::make_shared<SensorDeviceFloat4Buffer>();
-        DeviceFloat4BufferPtr b(cudaMallocHelper<PixelFloat4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins()),
-                                cudaFreeHelper<PixelFloat4>);
-        std::cout << "Buffer size: " << pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins() << std::endl;
-        initializeBuffer(b.get(), pOptixSensor->GetWidth() * transientCamera->GetNumBins(), pOptixSensor->GetHeight());
-        bufferOut->Buffer = std::move(b);
-        m_raygen_record->data.specific.transientCamera.hFOV = transientCamera->GetHFOV();
-        m_raygen_record->data.specific.transientCamera.maxVFOV = transientCamera->GetMaxVFOV();
-        m_raygen_record->data.specific.transientCamera.minVFOV = transientCamera->GetMinVFOV();
-        m_raygen_record->data.specific.transientCamera.gamma = transientCamera->GetGamma();
-        m_raygen_record->data.specific.transientCamera.super_sample_factor = transientCamera->GetSampleFactor();
-        m_raygen_record->data.specific.transientCamera.frame_buffer = reinterpret_cast<float4*>(bufferOut->Buffer.get());
-        m_raygen_record->data.specific.transientCamera.use_gi = transientCamera->GetUseDenoiser();
-        m_raygen_record->data.specific.transientCamera.use_fog = transientCamera->GetUseFog();
-        m_raygen_record->data.specific.transientCamera.lens_model = transientCamera->GetLensModelType();
-        m_raygen_record->data.specific.transientCamera.lens_parameters = transientCamera->GetLensParameters();
-        m_raygen_record->data.specific.transientCamera.tmin = transientCamera->GetTmin();
-        m_raygen_record->data.specific.transientCamera.tmax = transientCamera->GetTmax();
-        m_raygen_record->data.specific.transientCamera.tbins = transientCamera->GetNumBins();
-        m_raygen_record->data.specific.transientCamera.integrator = transientCamera->GetIntegrator();
-
-        // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
-        m_bufferOut = bufferOut;
-
-        if (true) { //transientCamera->GetUseGI() || transientCamera->GetCollectionWindow() > 0.f
-            // initialize rng buffer for ray bounces or motion blur
-            m_rng = std::shared_ptr<curandState_t>(
-                cudaMallocHelper<curandState_t>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
-                cudaFreeHelper<curandState_t>);
-
-            init_cuda_rng((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count(),
-                          m_rng.get(), pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
-            m_raygen_record->data.specific.camera.rng_buffer = m_rng.get();
-        }
-
-        //if (cam->GetUseGI() && m_denoiser) {
-        //    half4* frame_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() *  transientCamera->GetNumBins());
-        //    half4* albedo_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins());
-        //    half4* normal_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins());
-        //    m_raygen_record->data.specific.camera.frame_buffer =
-        //        frame_buffer;  // reinterpret_cast<half4*>(bufferOut->Buffer.get());
-        //    m_raygen_record->data.specific.camera.albedo_buffer = albedo_buffer;
-        //    m_raygen_record->data.specific.camera.normal_buffer = normal_buffer;
-
-        //    m_denoiser->Initialize(cam->GetWidth(), cam->GetHeight(), cam->GetCudaStream(), frame_buffer, albedo_buffer,
-        //                           normal_buffer, reinterpret_cast<half4*>(bufferOut->Buffer.get()));
-        //}
-
     }
+    // else if(auto transientCamera = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
+    //     m_is_transient = true;
+    //     m_num_bins = (unsigned int)transientCamera->GetNumBins();
+    //     auto bufferOut = chrono_types::make_shared<SensorDeviceFloat4Buffer>();
+    //     DeviceFloat4BufferPtr b(cudaMallocHelper<PixelFloat4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins()),
+    //                             cudaFreeHelper<PixelFloat4>);
+    //     std::cout << "Buffer size: " << pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins() << std::endl;
+    //     initializeBuffer(b.get(), pOptixSensor->GetWidth() * transientCamera->GetNumBins(), pOptixSensor->GetHeight());
+    //     bufferOut->Buffer = std::move(b);
+    //     m_raygen_record->data.specific.transientCamera.hFOV = transientCamera->GetHFOV();
+    //     m_raygen_record->data.specific.transientCamera.maxVFOV = transientCamera->GetMaxVFOV();
+    //     m_raygen_record->data.specific.transientCamera.minVFOV = transientCamera->GetMinVFOV();
+    //     m_raygen_record->data.specific.transientCamera.gamma = transientCamera->GetGamma();
+    //     m_raygen_record->data.specific.transientCamera.super_sample_factor = transientCamera->GetSampleFactor();
+    //     m_raygen_record->data.specific.transientCamera.frame_buffer = reinterpret_cast<float4*>(bufferOut->Buffer.get());
+    //     m_raygen_record->data.specific.transientCamera.use_gi = transientCamera->GetUseDenoiser();
+    //     m_raygen_record->data.specific.transientCamera.use_fog = transientCamera->GetUseFog();
+    //     m_raygen_record->data.specific.transientCamera.lens_model = transientCamera->GetLensModelType();
+    //     m_raygen_record->data.specific.transientCamera.lens_parameters = transientCamera->GetLensParameters();
+    //     m_raygen_record->data.specific.transientCamera.tmin = transientCamera->GetTmin();
+    //     m_raygen_record->data.specific.transientCamera.tmax = transientCamera->GetTmax();
+    //     m_raygen_record->data.specific.transientCamera.tbins = transientCamera->GetNumBins();
+    //     m_raygen_record->data.specific.transientCamera.integrator = transientCamera->GetIntegrator();
+
+    //     // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
+    //     m_bufferOut = bufferOut;
+
+    //     if (true) { //transientCamera->GetUseGI() || transientCamera->GetCollectionWindow() > 0.f
+    //         // initialize rng buffer for ray bounces or motion blur
+    //         m_rng = std::shared_ptr<curandState_t>(
+    //             cudaMallocHelper<curandState_t>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
+    //             cudaFreeHelper<curandState_t>);
+
+    //         init_cuda_rng((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count(),
+    //                       m_rng.get(), pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
+    //         m_raygen_record->data.specific.camera.rng_buffer = m_rng.get();
+    //     }
+
+    //     //if (cam->GetUseGI() && m_denoiser) {
+    //     //    half4* frame_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() *  transientCamera->GetNumBins());
+    //     //    half4* albedo_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins());
+    //     //    half4* normal_buffer = cudaMallocHelper<half4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight() * transientCamera->GetNumBins());
+    //     //    m_raygen_record->data.specific.camera.frame_buffer =
+    //     //        frame_buffer;  // reinterpret_cast<half4*>(bufferOut->Buffer.get());
+    //     //    m_raygen_record->data.specific.camera.albedo_buffer = albedo_buffer;
+    //     //    m_raygen_record->data.specific.camera.normal_buffer = normal_buffer;
+
+    //     //    m_denoiser->Initialize(cam->GetWidth(), cam->GetHeight(), cam->GetCudaStream(), frame_buffer, albedo_buffer,
+    //     //                           normal_buffer, reinterpret_cast<half4*>(bufferOut->Buffer.get()));
+    //     //}
+
+    // }
     else if (auto phys_cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(pSensor)) {
         auto bufferOut = chrono_types::make_shared<SensorDeviceRGBDHalf4Buffer>();
         DeviceRGBDHalf4BufferPtr b(cudaMallocHelper<PixelRGBDHalf4>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()), 
@@ -278,31 +279,33 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
 
         m_bufferOut = bufferOut;
     
-    } else if (auto normalCamera = std::dynamic_pointer_cast<ChNormalCamera>(pSensor) ) {
-        auto bufferOut = chrono_types::make_shared<SensorDeviceNormalBuffer>();
-        DeviceNormalBufferPtr b(cudaMallocHelper<PixelNormal>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
-                                cudaFreeHelper<PixelNormal>);
-        bufferOut->Buffer = std::move(b);
-        m_raygen_record->data.specific.normalCamera.hFOV = normalCamera->GetHFOV();
-        m_raygen_record->data.specific.normalCamera.frame_buffer = reinterpret_cast<float3*>(bufferOut->Buffer.get());
-        m_raygen_record->data.specific.normalCamera.lens_model = normalCamera->GetLensModelType();
-        m_raygen_record->data.specific.normalCamera.lens_parameters = normalCamera->GetLensParameters();
-        // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
+    }
+    // else if (auto normalCamera = std::dynamic_pointer_cast<ChNormalCamera>(pSensor) ) {
+    //     auto bufferOut = chrono_types::make_shared<SensorDeviceNormalBuffer>();
+    //     DeviceNormalBufferPtr b(cudaMallocHelper<PixelNormal>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
+    //                             cudaFreeHelper<PixelNormal>);
+    //     bufferOut->Buffer = std::move(b);
+    //     m_raygen_record->data.specific.normalCamera.hFOV = normalCamera->GetHFOV();
+    //     m_raygen_record->data.specific.normalCamera.frame_buffer = reinterpret_cast<float3*>(bufferOut->Buffer.get());
+    //     m_raygen_record->data.specific.normalCamera.lens_model = normalCamera->GetLensModelType();
+    //     m_raygen_record->data.specific.normalCamera.lens_parameters = normalCamera->GetLensParameters();
+    //     // make_float3(cam->GetLensParameters().x(), cam->GetLensParameters().y()], cam->GetLensParameters().z());
 
-        if (normalCamera->GetCollectionWindow() > 0.f) {
-            // initialize rng buffer for ray bounces or motion blur
-            m_rng = std::shared_ptr<curandState_t>(
-                cudaMallocHelper<curandState_t>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
-                cudaFreeHelper<curandState_t>);
+    //     if (normalCamera->GetCollectionWindow() > 0.f) {
+    //         // initialize rng buffer for ray bounces or motion blur
+    //         m_rng = std::shared_ptr<curandState_t>(
+    //             cudaMallocHelper<curandState_t>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
+    //             cudaFreeHelper<curandState_t>);
 
-            init_cuda_rng((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count(),
-                          m_rng.get(), pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
-            m_raygen_record->data.specific.normalCamera.rng_buffer = m_rng.get();
-        }
+    //         init_cuda_rng((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count(),
+    //                       m_rng.get(), pOptixSensor->GetWidth() * pOptixSensor->GetHeight());
+    //         m_raygen_record->data.specific.normalCamera.rng_buffer = m_rng.get();
+    //     }
 
-        m_bufferOut = bufferOut;
+    //     m_bufferOut = bufferOut;
     
-    } else if (auto lidar = std::dynamic_pointer_cast<ChLidarSensor>(pSensor)) {
+    // }
+    else if (auto lidar = std::dynamic_pointer_cast<ChLidarSensor>(pSensor)) {
         auto bufferOut = chrono_types::make_shared<SensorDeviceDIBuffer>();
         DeviceDIBufferPtr b(cudaMallocHelper<PixelDI>(pOptixSensor->GetWidth() * pOptixSensor->GetHeight()),
                             cudaFreeHelper<PixelDI>);

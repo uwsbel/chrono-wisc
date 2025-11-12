@@ -23,7 +23,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 
 #include "chrono/physics/ChBodyEasy.h"
-#include "chrono/physics/ChInertiaUtils.h"
+#include "chrono/physics/ChMassProperties.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 
 #include "chrono_fsi/ChSystemFsi.h"

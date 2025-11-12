@@ -16,7 +16,7 @@
 
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 #include "chrono_sensor/sensors/ChCameraSensor.h"
-#include "chrono_sensor/sensors/ChTransientSensor.h"
+// #include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
 #include "chrono_sensor/cuda/image_ops.cuh"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
@@ -373,11 +373,13 @@ CH_SENSOR_API void ChFilterImgAlias::Initialize(std::shared_ptr<ChSensor> pSenso
         // m_cuda_stream = {};
         // m_cuda_stream.hStream = pCam->GetCudaStream();
         // m_cuda_stream.nCudaDeviceId = 0;  // TODO: allow multiple GPU usage
-    } else if (auto pTrans = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
-        m_cuda_stream = pTrans->GetCudaStream();
-        m_is_transient = true;
-        m_num_bins = (unsigned int)pTrans->GetNumBins();
-    } else if (auto p_phys_cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(pSensor)) {
+    }
+    // else if (auto pTrans = std::dynamic_pointer_cast<ChTransientSensor>(pSensor)) {
+    //     m_cuda_stream = pTrans->GetCudaStream();
+    //     m_is_transient = true;
+    //     m_num_bins = (unsigned int)pTrans->GetNumBins();
+    // }
+    else if (auto p_phys_cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(pSensor)) {
         m_cuda_stream = p_phys_cam->GetCudaStream();
         // m_cuda_stream = {};
         // m_cuda_stream.hStream = pCam->GetCudaStream();

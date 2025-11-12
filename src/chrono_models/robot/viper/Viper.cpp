@@ -215,8 +215,8 @@ void ViperPart::Construct(ChSystem* system) {
     m_body->SetFrameCOMToRef(m_cog);
 
     // Add visualization shape
-    if (m_visualize) {
-        printf("Viper Visualization Enabled!\n");
+    if (m_visualize) { // TODO: remove suspension
+        // printf("Viper Visualization Enabled!\n");
         auto vis_mesh_file = GetChronoDataFile("robot/viper/render/" + m_mesh_name + ".obj");
         auto trimesh_vis = ChTriangleMeshConnected::CreateFromWavefrontFile(vis_mesh_file, true, true);
         trimesh_vis->Transform(m_mesh_xform.GetPos(), m_mesh_xform.GetRotMat());  // translate/rotate/scale mesh
@@ -387,9 +387,11 @@ void Viper::Create(ViperWheelType wheel_type) {
     m_chassis = chrono_types::make_shared<ViperChassis>("chassis", m_default_material);
 
     // initilize rover wheels
-    double wx = 0.5618 + 0.08;
-    double wy = 0.2067 + 0.32 + 0.0831;
-    double wz = 0.0;
+    double wx = 0.5618 + 0.08; // [m], for real VIPER's wheel
+    // double wx = 0.6418; // [m], for COBRA's wheel
+    double wy = 0.6098; // [m], for real VIPER's wheel
+    // double wy = 0.6098 + 0.22; // [m], for COBRA's wheel
+    double wz = 0.0; // [m], for real VIPER's wheel
 
     m_wheels[V_LF] = chrono_types::make_shared<ViperWheel>("wheel_LF", ChFrame<>(ChVector3d(+wx, +wy, wz), QUNIT),
                                                            m_wheel_material, wheel_type);
@@ -546,7 +548,7 @@ void Viper::Initialize(const ChFrame<>& pos) {
         m_lift_motors[i]->SetMotorFunction(m_lift_motor_funcs[i]);
         AddRevoluteJoint(m_chassis->GetBody(), m_upper_arms[i]->GetBody(), m_chassis, cr_rel_pos_upper[i], z2x);
 
-        auto steer_rod = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, true, false);
+        auto steer_rod = chrono_types::make_shared<ChBodyEasyBox>(0.1, 0.1, 0.1, 1000, false, false);
         steer_rod->SetPos(m_wheels[i]->GetPos());
         steer_rod->SetFixed(false);
         m_system->Add(steer_rod);

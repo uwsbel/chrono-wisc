@@ -54,12 +54,12 @@ enum class PipelineType {
     // CAMERA_FOV_LENS,            ///< FOV lens model
     SEGMENTATION,               ///< segmentation camera pipeline
     DEPTH_CAMERA,               ///< depth camera pipeline
-    NORMAL_CAMERA,              ///< normal camera pipeline
+    // NORMAL_CAMERA,              ///< normal camera pipeline
     // SEGMENTATION_FOV_LENS,      ///< FOV lens segmentation camera
     LIDAR_SINGLE,               ///< single sample lidar
     LIDAR_MULTI,                ///< multi sample lidar
     RADAR,                      ///< radar model
-    TANSIENT,      ///< transient camera model
+    // TANSIENT,      ///< transient camera model
 
 };
 // TODO: how do we allow custom ray gen programs? (Is that ever going to be a thing?)

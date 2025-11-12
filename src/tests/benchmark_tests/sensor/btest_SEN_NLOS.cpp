@@ -142,57 +142,57 @@ int main(int argc, char* argv[]) {
     floor->SetPos({0, 0, 0});
     floor->SetFixed(true);
     sys.Add(floor);
-    //floor->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
+    //floor->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(grey);
 
     auto ceiling = chrono_types::make_shared<ChBodyEasyBox>(10, 10, .1, 1000, true, false);
     ceiling->SetPos({0, 0, 5});
     ceiling->SetFixed(true);
     //sys.Add(ceiling);
-    ceiling->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(grey);
+    ceiling->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(grey);
 
     auto left_wall = chrono_types::make_shared<ChBodyEasyBox>(10, .1, 5, 1000, true, false);
     left_wall->SetPos({0, 5, 2.5});
     left_wall->SetFixed(true);
     //sys.Add(left_wall);
-    left_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
+    left_wall->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(green);
 
     auto right_wall = chrono_types::make_shared<ChBodyEasyBox>(10, .1, 5, 1000, true, false);
     right_wall->SetPos({0, -5, 2.5});
     right_wall->SetFixed(true);
     //sys.Add(right_wall);
-    right_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
+    right_wall->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(green);
 
     auto relay_wall = chrono_types::make_shared<ChBodyEasyBox>(.1, 10, 5, 1000, true, false);
     //back_wall->SetPos({5, 0, 2.5});
     relay_wall->SetPos({0,0,0});
     relay_wall->SetFixed(true);
     sys.Add(relay_wall);
-    relay_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(relay_wall_mat);
+    relay_wall->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(relay_wall_mat);
 
     auto mid_wall = chrono_types::make_shared<ChBodyEasyBox>(5, .1, 5, 1000, true, false);
     mid_wall->SetPos({-2.5, 0, 2.5});
     mid_wall->SetFixed(true);
     //sys.Add(mid_wall);
-    mid_wall->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
+    mid_wall->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(red);
 
     auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false); 
     //auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
     box_body->SetPos({-1, 0, 0});
     box_body->SetFixed(true);
     //sys.Add(box_body);
-    box_body->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(green);
+    box_body->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(green);
 
     auto sphere_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
     sphere_body->SetPos({-1, 0, 0});
     sphere_body->SetFixed(true);
     sys.Add(sphere_body);
-    sphere_body->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);
+    sphere_body->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(red);
 
   /*  auto rod = chrono_types::make_shared<ChBodyEasyBox>(2, .1, .2, 1000, true, false);
     rod->SetPos({4, -.5, .1});
     rod->SetFixed(true);
     sys.Add(rod);
-    rod->GetVisualModel()->GetShapeInstances()[0].first->AddMaterial(red);*/
+    rod->GetVisualModel()->GetShapeInstances()[0].shape->AddMaterial(red);*/
 
 
     // -----------------------
