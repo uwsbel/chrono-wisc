@@ -114,8 +114,8 @@ class MySoilParams : public vehicle::SCMTerrain::SoilParametersCallback {
                      double& Janosi_shear,
                      double& elastic_K,
                      double& damping_R) override {
-        Bekker_Kphi = 0.82e6 / 5;
-        Bekker_Kc = 0.14e4 / 5;
+        Bekker_Kphi = 0.82e6 / 8;
+        Bekker_Kc = 0.14e4 / 8;
         Bekker_n = 1.0;
         Mohr_cohesion = 0.017e4;
         Mohr_friction = 35.0;
@@ -655,10 +655,10 @@ int main(int argc, char* argv[]) {
     // Or we can define a large moving patch at the pos of the rover body
     if (enable_active_domains) {
         // for VIPER moving on the ground
-        ground.AddActiveDomain(wheel_LF, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        ground.AddActiveDomain(wheel_RF, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        ground.AddActiveDomain(wheel_LB, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));
-        ground.AddActiveDomain(wheel_RB, ChVector3d(0, 0, 0), ChVector3d(0.5, 2 * wheel_range, 2 * wheel_range));        
+        ground.AddActiveDomain(wheel_LF, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));
+        ground.AddActiveDomain(wheel_RF, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));
+        ground.AddActiveDomain(wheel_LB, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));
+        ground.AddActiveDomain(wheel_RB, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));        
 
         // for obstacle rocks standing on the ground
         // for (int i = 0; i < 1; i++) {
