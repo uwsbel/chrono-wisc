@@ -657,8 +657,8 @@ void ChTireTestRig::CreateTerrainCRM() {
                            m_params_crm.depth,                       // depth
                            true,                                     // uniform depth
                            location,                                 // patch center
-                           //    BoxSide::ALL & ~BoxSide::Z_POS);
-                           BoxSide::Z_NEG);
+                           BoxSide::ALL & ~BoxSide::Z_POS);         // all boundaries, except top
+                           // BoxSide::Z_NEG);
     } else {
         terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
                            BoxSide::ALL & ~BoxSide::Z_POS);
