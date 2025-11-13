@@ -311,7 +311,7 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
     int GetNumErosionNodes() const;
 
     /// Return time for updating moving patches at last step (ms).
-    double GetTimerMovingPatches() const;
+    double GetTimerActiveDomains() const;
     /// Return time for geometric ray intersection tests at last step (ms).
     double GetTimerRayTesting() const;
     /// Return time for ray casting at last step (ms). Includes time for ray intersectin testing.
@@ -334,6 +334,8 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
 
   private:
     std::shared_ptr<SCMLoader> m_loader;  ///< underlying load container for contact force generation
+
+    friend class ChScmVisualizationVSG;
 };
 
 /// Parameters for soil-contactable interaction.
@@ -398,7 +400,7 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     };
 
     // Moving patch parameters
-    struct MovingPatchInfo {
+    struct ActiveDomainInfo {
         std::shared_ptr<ChBody> m_body;   // tracked body
         ChVector3d m_center;              // OOBB center, relative to body
         ChVector3d m_hdims;               // OOBB half-dimensions
@@ -508,13 +510,13 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     }
 
     // Synchronize information for a moving patch
-    void UpdateMovingPatch(MovingPatchInfo& p, const ChVector3d& Z);
+    void UpdateActiveDomain(ActiveDomainInfo& p, const ChVector3d& Z);
 
     // Synchronize information for fixed patch
-    void UpdateFixedPatch(MovingPatchInfo& p);
+    void UpdateDefaultActiveDomain(ActiveDomainInfo& p);
 
     // Ray-OBB intersection test
-    bool RayOBBtest(const MovingPatchInfo& p, const ChVector3d& from, const ChVector3d& Z);
+    bool RayOBBtest(const ActiveDomainInfo& p, const ChVector3d& from, const ChVector3d& Z);
 
     // Reset the list of forces and fill it with forces from the soil contact model.
     // This is called automatically during timestepping (only at the beginning of each step).
@@ -549,7 +551,7 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     void SetModifiedNodes(const std::vector<SCMTerrain::NodeLevel>& nodes);
 
     PatchType m_type;      ///< type of SCM patch
-    ChCoordsys<> m_plane;  ///< SCM frame (deformation occurs along the z axis of this frame)
+    ChCoordsys<> m_frame;  ///< SCM frame (deformation occurs along the z axis of this frame)
     ChVector3d m_Z;        ///< SCM plane vertical direction (in absolute frame)
     double m_delta;        ///< grid spacing
     double m_area;         ///< area of a grid cell
@@ -562,8 +564,8 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     std::unordered_map<ChVector2i, NodeRecord, CoordHash> m_grid_map;  ///< modified grid nodes (persistent)
     std::vector<ChVector2i> m_modified_nodes;                          ///< modified grid nodes (current)
 
-    std::vector<MovingPatchInfo> m_patches;  ///< set of active moving patches
-    bool m_moving_patch;                     ///< user-specified moving patches?
+    std::vector<ActiveDomainInfo> m_active_domains;  ///< set of active moving patches
+    bool m_user_domains;                     ///< user-specified moving patches?
 
     double m_test_offset_down;  ///< offset for ray start
     double m_test_offset_up;    ///< offset for ray end
@@ -605,7 +607,7 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     std::vector<int> m_external_modified_vertices;
 
     // Timers and counters
-    ChTimer m_timer_moving_patches;
+    ChTimer m_timer_active_domains;
     ChTimer m_timer_ray_testing;
     ChTimer m_timer_ray_casting;
     ChTimer m_timer_contact_patches;
@@ -621,6 +623,7 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     int m_num_erosion_nodes;
 
     friend class SCMTerrain;
+    friend class ChScmVisualizationVSG;
 };
 
 /// @} vehicle_terrain
