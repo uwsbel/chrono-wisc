@@ -370,16 +370,17 @@ int main(int argc, char* argv[]) {
     }
 
     // Generate unique filename with simulation parameters
+    std::string tire_type_str = use_deformable_tire ? "_deformable" : "_rigid";
     std::string filename = output_dir + "/tire_data_d" + std::to_string((int)density) + "_f" +
                            std::to_string((int)(friction * 10)) + "_c" + std::to_string((int)(cohesion / 100)) + "_g" +
-                           std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope) + ".csv";
+                           std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope) + tire_type_str + ".csv";
 
     // Create snapshots directory if snapshots are enabled
     std::string snapshots_dir;
     if (render && snapshots) {
         snapshots_dir = output_dir + "/snapshots_d" + std::to_string((int)density) + "_f" +
                         std::to_string((int)(friction * 10)) + "_c" + std::to_string((int)(cohesion / 100)) + "_g" +
-                        std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope);
+                        std::to_string((int)(gravity * 10)) + "_s" + std::to_string((int)slope) + tire_type_str;
         if (!std::filesystem::exists(snapshots_dir)) {
             std::filesystem::create_directory(snapshots_dir);
         }
