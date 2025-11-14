@@ -28,6 +28,7 @@
 
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChSystemSMC.h"
+#include "chrono/physics/ChLinkMotorRotationSpeed.h"
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/utils/ChUtilsJSON.h"
@@ -61,7 +62,7 @@ using std::cerr;
 using std::endl;
 
 // -----------------------------------------------------------------------------
-bool use_airless_tire = false;
+bool use_airless_tire = true;
 // Tire specification file
 std::string tire_json = "Polaris/Polaris_RigidMeshTire.json";
 ////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
@@ -99,7 +100,8 @@ bool GetProblemSpecs(int argc,
                      double& cohesion,
                      double& friction,
                      double& gravity,
-                     double& slope) {
+                     double& slope,
+                     bool& use_deformable_tire) {
     ChCLI cli(argv[0], "Tire Test Rig on CRM Terrain Demo");
 
     cli.AddOption<double>("Terrain", "density", "Terrain bulk density (kg/m3)", std::to_string(density));
@@ -108,6 +110,8 @@ bool GetProblemSpecs(int argc,
     cli.AddOption<double>("Simulation", "gravity", "Gravitational acceleration magnitude (m/s2)",
                           std::to_string(gravity));
     cli.AddOption<double>("Simulation", "slope", "Slope angle in degrees", std::to_string(slope));
+    cli.AddOption<bool>("Tire", "deformable", "Use deformable tire (true) or rigid tire (false)", 
+                        "false");
 
     if (!cli.Parse(argc, argv))
         return false;
@@ -117,6 +121,7 @@ bool GetProblemSpecs(int argc,
     friction = cli.GetAsType<double>("friction");
     gravity = cli.GetAsType<double>("gravity");
     slope = cli.GetAsType<double>("slope");
+    use_deformable_tire = cli.GetAsType<bool>("deformable");
     return true;
 }
 
@@ -129,9 +134,10 @@ int main(int argc, char* argv[]) {
     double friction = 0.7;
     double gravity = 9.8;
     double slope = 0.0;  // degrees
+    bool use_deformable_tire = false;  // Default to rigid tire
 
     // Parse command-line arguments
-    if (!GetProblemSpecs(argc, argv, density, cohesion, friction, gravity, slope)) {
+    if (!GetProblemSpecs(argc, argv, density, cohesion, friction, gravity, slope, use_deformable_tire)) {
         return 1;
     }
 
@@ -140,11 +146,16 @@ int main(int argc, char* argv[]) {
     cout << "Friction: " << friction << endl;
     cout << "Gravity: " << gravity << endl;
     cout << "Slope: " << slope << endl;
+    cout << "Tire type: " << (use_deformable_tire ? "deformable" : "rigid") << endl;
     // --------------------------------
     // Create wheel and tire subsystems
     // --------------------------------
     std::shared_ptr<ChTire> tire;
     auto wheel = ReadWheelJSON(GetVehicleDataFile(wheel_json));
+    
+    // Set use_airless_tire based on CLI parameter
+    use_airless_tire = use_deformable_tire;
+    
     if (!use_airless_tire) {
         tire = ReadTireJSON(GetVehicleDataFile(tire_json));
     } else {
@@ -243,7 +254,8 @@ int main(int argc, char* argv[]) {
     ////rig.SetCamberAngle(+15 * CH_DEG_TO_RAD);
 
     rig.SetTireStepsize(step_size);
-    rig.SetTireVisualizationType(VisualizationType::COLLISION);
+    // Disable visualization for rigid tires
+    rig.SetTireVisualizationType(VisualizationType::NONE);
 
     ChTireTestRig::TerrainParamsCRM params;
     params.radius = 0.01;
@@ -276,6 +288,7 @@ int main(int argc, char* argv[]) {
     //   longitudinal speed: 0.2 m/s
     //   angular speed: 10 RPM
     //   slip angle: sinusoidal +- 5 deg with 5 s period
+    
     if (set_longitudinal_speed) {
         ChFunctionSequence f_sequence;
         auto f_ramp = chrono_types::make_shared<ChFunctionRamp>(0, max_linear_speed / ramp_time);
@@ -316,8 +329,16 @@ int main(int argc, char* argv[]) {
     ////rig.Initialize(ChTireTestRig::Mode::DROP);
     rig.Initialize(ChTireTestRig::Mode::TEST);
 
+    // Print tire mass and inertia
+    double tire_mass = tire->GetTireMass();
+    ChVector3d tire_inertia = tire->GetTireInertia();
+    
+    std::cout << "Tire mass: " << tire_mass << " kg" << std::endl;
+    std::cout << "Tire inertia (Ixx, Iyy, Izz): " << tire_inertia.x() << ", " 
+              << tire_inertia.y() << ", " << tire_inertia.z() << " kg·m²" << std::endl;
+
     // Set gravity in CRM terrain system after initialization
-    auto crm_terrain = std::dynamic_pointer_cast<CRMTerrain>(rig.GetTerrain());
+    std::shared_ptr<CRMTerrain> crm_terrain = std::dynamic_pointer_cast<CRMTerrain>(rig.GetTerrain());
     if (crm_terrain) {
         auto sysFSI = crm_terrain->GetFsiSystemSPH();
         if (sysFSI) {
@@ -369,7 +390,7 @@ int main(int argc, char* argv[]) {
     position_file.open(filename);
 
     // Write CSV header
-    position_file << "time,pos_x,pos_y,pos_z,vel_x,vel_y,vel_z" << std::endl;
+    position_file << "time,pos_x,pos_y,pos_z,vel_x,vel_y,vel_z,omega,torque" << std::endl;
 
     const std::string out_dir = GetChronoOutputPath() + "TIRE_TEST_RIG";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
@@ -451,11 +472,29 @@ int main(int argc, char* argv[]) {
     double time_offset = 0.5;
     timer.start();
 
-    // Find the carrier body for getting velocity
-    std::shared_ptr<ChBody> carrier_body = nullptr;
+    // Find the spindle body for getting position and velocity
+    std::shared_ptr<ChBody> spindle_body = nullptr;
     for (auto body : sys->GetBodies()) {
-        if (body->GetName() == "rig_carrier") {
-            carrier_body = body;
+        if (body->GetName() == "rig_spindle") {
+            spindle_body = body;
+            break;
+        }
+    }
+
+    // Find the rotation motor for getting torque
+    std::shared_ptr<ChLinkMotorRotationSpeed> rot_motor = nullptr;
+    for (auto link : sys->GetLinks()) {
+        if (auto motor = std::dynamic_pointer_cast<ChLinkMotorRotationSpeed>(link)) {
+            rot_motor = motor;
+            break;
+        }
+    }
+
+    // Find the slip body for camera tracking
+    std::shared_ptr<ChBody> slip_body = nullptr;
+    for (auto body : sys->GetBodies()) {
+        if (body->GetName() == "rig_slip") {
+            slip_body = body;
             break;
         }
     }
@@ -469,24 +508,29 @@ int main(int argc, char* argv[]) {
             camber_angle_fct.AddPoint(time, tire->GetCamberAngle() * CH_RAD_TO_DEG);
         }
 
-        // Get wheel position and velocity
-        ChVector3d pos = rig.GetPos();
-        ChVector3d vel = carrier_body ? carrier_body->GetLinVel() : ChVector3d(0, 0, 0);
+        // Get spindle position and velocity
+        ChVector3d pos = spindle_body ? spindle_body->GetPos() : ChVector3d(0, 0, 0);
+        ChVector3d vel = spindle_body ? spindle_body->GetLinVel() : ChVector3d(0, 0, 0);
+        
+        // Get motor torque and angular velocity (about motor rotation axis)
+        double torque = rot_motor ? rot_motor->GetMotorTorque() : 0.0;
+        double omega = rot_motor ? rot_motor->GetMotorAngleDt() : 0.0;
 
         // Leave if end of terrain reached
         if (pos.x() > x_max) {
             std::cout << "End of terrain reached" << std::endl;
             break;
         }
-        // Write position and velocity data to CSV file
+        // Write position, velocity, angular velocity, and torque data to CSV file
         if (time >= time_offset) {
             position_file << time << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << vel.x() << ","
-                          << vel.y() << "," << vel.z() << std::endl;
+                          << vel.y() << "," << vel.z() << "," << omega << "," << torque << std::endl;
         }
 
 #ifdef CHRONO_VSG
         if (render && vis && time >= render_frame / render_fps) {
-            auto& loc = rig.GetPos();
+            // Follow the slip body (green box) for camera tracking
+            ChVector3d loc = slip_body ? slip_body->GetPos() : rig.GetPos();
             vis->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
 
             if (!vis->Run())
@@ -526,7 +570,7 @@ int main(int argc, char* argv[]) {
             cout << "   " << pnt.x() << " " << pnt.y() << " " << pnt.z() << endl;
             cout << "   " << trq.x() << " " << trq.y() << " " << trq.z() << endl;
         } else {
-            cout << "\rRTF: " << sys->GetRTF();
+            // cout << "\rRTF: " << sys->GetRTF();
         }
     }
     timer.stop();

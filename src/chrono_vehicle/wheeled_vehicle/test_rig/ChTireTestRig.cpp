@@ -23,6 +23,7 @@
 #include "chrono/assets/ChVisualShapeSphere.h"
 #include "chrono/assets/ChTexture.h"
 #include "chrono/physics/ChLoadContainer.h"
+#include "chrono/physics/ChContactMaterialNSC.h"
 
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
@@ -337,10 +338,11 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_system->AddBody(m_ground_body);
     m_ground_body->SetName("rig_ground");
     m_ground_body->SetFixed(true);
-    {
-        auto box = chrono_types::make_shared<ChVisualShapeBox>(100, dim * CH_1_3, dim * CH_1_3);
-        m_ground_body->AddVisualShape(box);
-    }
+    // Ground body visualization hidden
+    // {
+    //     auto box = chrono_types::make_shared<ChVisualShapeBox>(100, dim * CH_1_3, dim * CH_1_3);
+    //     m_ground_body->AddVisualShape(box);
+    // }
 
     m_carrier_body = chrono_types::make_shared<ChBody>();
     m_system->AddBody(m_carrier_body);
@@ -673,10 +675,36 @@ void ChTireTestRig::CreateTerrainCRM() {
         terrain->AddFeaMesh(mesh, false);
     } else {
         auto rgd_tire = std::static_pointer_cast<ChRigidTire>(m_tire);
-        assert(rgd_tire->UseContactMesh());
-        auto trimesh = rgd_tire->GetContactMesh();
+        
+        // Hardcoded cylinder dimensions matching deformable tire
+        const double CYLINDER_RADIUS = 0.45;  // Total tire radius (rim 0.225 + height 0.225)
+        const double CYLINDER_WIDTH = 0.4;    // Tire width
+        
+        // Create geometry and add cylinder shape
         auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
-        geometry->coll_meshes.push_back(utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, trimesh, 1.0, 0.0, 0));
+        
+        // Extract contact material properties from rigid tire (NSC)
+        auto contact_mat = rgd_tire->GetContactMaterial();
+        auto nsc_mat = std::static_pointer_cast<ChContactMaterialNSC>(contact_mat);
+        ChContactMaterialData mat_data;  // Use default constructor
+        
+        // Set only NSC-specific properties
+        mat_data.mu = nsc_mat->GetSlidingFriction();
+        mat_data.cr = nsc_mat->GetRestitution();
+        
+        // Add material to geometry (material index 0)
+        geometry->materials.push_back(mat_data);
+        
+        // Add cylinder shape: axis along Y (wheel axis), centered at origin
+        // Rotation QuatFromAngleX(CH_PI_2) aligns cylinder axis with Y axis
+        geometry->coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(
+            ChVector3d(0, 0, 0),                    // position relative to spindle
+            QuatFromAngleX(CH_PI_2),                // rotation to align axis with Y
+            CYLINDER_RADIUS,                        // radius
+            CYLINDER_WIDTH,                         // length (width)
+            0                                       // material index
+        ));
+        
         terrain->AddRigidBody(m_spindle, geometry, false);
     }
 

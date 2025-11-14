@@ -5,8 +5,8 @@
 
   "Radius": 0.450,
   "Width": 0.4,
-  "Mass": 52.85,
-  "Inertia": [ 4.29, 8.71, 4.29 ],
+  "Mass": 108.775,
+  "Inertia": [ 38.2426, 35.9565, 20.8386 ],
 
   "Contact Material": {
     "Coefficient of Friction": 0.9277398,
