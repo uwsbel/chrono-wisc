@@ -509,12 +509,12 @@ int main(int argc, char* argv[]) {
         }
 
         // Get spindle position and velocity
-        ChVector3d pos = spindle_body ? spindle_body->GetPos() : ChVector3d(0, 0, 0);
-        ChVector3d vel = spindle_body ? spindle_body->GetLinVel() : ChVector3d(0, 0, 0);
+        ChVector3d pos = spindle_body->GetPos();
+        ChVector3d vel = spindle_body->GetLinVel();
         
         // Get motor torque and angular velocity (about motor rotation axis)
-        double torque = rot_motor ? rot_motor->GetMotorTorque() : 0.0;
-        double omega = rot_motor ? rot_motor->GetMotorAngleDt() : 0.0;
+        double torque = rot_motor->GetMotorTorque();
+        double omega = rot_motor->GetMotorAngleDt();
 
         // Leave if end of terrain reached
         if (pos.x() > x_max) {
@@ -530,7 +530,7 @@ int main(int argc, char* argv[]) {
 #ifdef CHRONO_VSG
         if (render && vis && time >= render_frame / render_fps) {
             // Follow the slip body (green box) for camera tracking
-            ChVector3d loc = slip_body ? slip_body->GetPos() : rig.GetPos();
+            ChVector3d loc = slip_body->GetPos();
             vis->UpdateCamera(loc + ChVector3d(1.0, 2.5, 0.5), loc + ChVector3d(0, 0.25, -0.25));
 
             if (!vis->Run())
