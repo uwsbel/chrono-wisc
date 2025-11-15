@@ -66,7 +66,7 @@
 #include "chrono_sensor/sensors/ChIMUSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
-#include "chrono_sensor/sensors/ChTransientSensor.h"
+// #include "chrono_sensor/sensors/ChTransientSensor.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/sensors/ChSensorBuffer.h"
 #include "chrono_sensor/sensors/ChNoiseModel.h"
@@ -171,7 +171,7 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChMagnetometerSensor)
 %shared_ptr(chrono::sensor::ChGPSSensor)
 %shared_ptr(chrono::sensor::ChCameraSensor)
-%shared_ptr(chrono::sensor::ChTransientSensor)
+// %shared_ptr(chrono::sensor::ChTransientSensor)
 %shared_ptr(chrono::sensor::ChSegmentationCamera)
 %shared_ptr(chrono::sensor::ChDepthCamera)
 %shared_ptr(chrono::ChVisualShapeTriangleMesh)
@@ -348,7 +348,7 @@ using namespace chrono::sensor;
 %include "chrono_sensor/sensors/Sensor.h"
 %include "chrono_sensor/sensors/ChOptixSensor.h"
 %include "chrono_sensor/sensors/ChCameraSensor.h"
-%include "chrono_sensor/sensors/ChTransientSensor.h"
+// %include "chrono_sensor/sensors/ChTransientSensor.h"
 %include "chrono_sensor/sensors/ChSegmentationCamera.h"
 %include "chrono_sensor/sensors/ChDepthCamera.h"
 %include "chrono_sensor/ChConfigSensor.h.in"
@@ -360,7 +360,7 @@ using namespace chrono::sensor;
 %include "chrono_sensor/sensors/ChNoiseModel.h"
 
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChCameraSensor)
-%DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChTransientSensor)
+// %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChTransientSensor)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChLidarSensor)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChAccelerometerSensor)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChGPSSensor)
