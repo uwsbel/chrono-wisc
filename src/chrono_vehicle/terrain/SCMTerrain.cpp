@@ -104,13 +104,13 @@ void SCMTerrain::SetTexture(const std::string tex_file, float scale_x, float sca
 }
 
 // Set the SCM reference plane.
-void SCMTerrain::SetReferenceFrame(const ChCoordsys<>& plane) {
-    m_loader->m_frame = plane;
-    m_loader->m_Z = plane.rot.GetAxisZ();
+void SCMTerrain::SetReferenceFrame(const ChCoordsys<>& frame) {
+    m_loader->m_frame = frame;
+    m_loader->m_Z = frame.rot.GetAxisZ();
 }
 
-// Get the SCM reference plane.
-const ChCoordsys<>& SCMTerrain::GetPlane() const {
+// Get the SCM reference frame.
+const ChCoordsys<>& SCMTerrain::GetReferenceFrame() const {
     return m_loader->m_frame;
 }
 
@@ -188,7 +188,7 @@ double SCMTerrain::GetTestHeight() const {
     return m_loader->m_test_offset_up;
 }
 
-// Set the color plot type.
+// Set the color plot type
 void SCMTerrain::SetPlotType(DataPlotType plot_type, double min_val, double max_val) {
     m_loader->m_plot_type = plot_type;
     m_loader->m_plot_v_min = min_val;
@@ -202,18 +202,18 @@ void SCMTerrain::SetColormap(ChColormap::Type type) {
 // Enable SCM terrain patch boundaries
 void SCMTerrain::SetBoundary(const ChAABB& aabb) {
 }
-// Enable moving patch.
+// Add a user-provided active domains
 void SCMTerrain::AddActiveDomain(std::shared_ptr<ChBody> body,
-                                const ChVector3d& OOBB_center,
-                                const ChVector3d& OOBB_dims) {
-    SCMLoader::ActiveDomainInfo pinfo;
-    pinfo.m_body = body;
-    pinfo.m_center = OOBB_center;
-    pinfo.m_hdims = OOBB_dims / 2;
+                                 const ChVector3d& OOBB_center,
+                                 const ChVector3d& OOBB_dims) {
+    SCMLoader::ActiveDomainInfo ad;
+    ad.m_body = body;
+    ad.m_center = OOBB_center;
+    ad.m_hdims = OOBB_dims / 2;
 
-    m_loader->m_active_domains.push_back(pinfo);
+    m_loader->m_active_domains.push_back(ad);
 
-    // Moving patch monitoring is now enabled
+    // Enable user-provided active domains
     m_loader->m_user_domains = true;
 }
 
@@ -406,7 +406,6 @@ SCMLoader::SCMLoader(ChSystem* system, bool visualization_mesh) : m_soil_fun(nul
     m_test_offset_down = 0.5;
 
     m_user_domains = false;
-
     m_cosim_mode = false;
 }
 
@@ -705,11 +704,11 @@ void SCMLoader::CreateVisualizationMesh(double sizeX, double sizeY) {
 }
 
 void SCMLoader::SetupInitial() {
-    // If no user-specified moving patches, create one that will encompass all collision shapes in the system
+    // If no user-specified active domains, create one that will encompass all collision shapes in the system
     if (!m_user_domains) {
-        SCMLoader::ActiveDomainInfo pinfo;
-        pinfo.m_body = nullptr;
-        m_active_domains.push_back(pinfo);
+        SCMLoader::ActiveDomainInfo ad;
+        ad.m_body = nullptr;
+        m_active_domains.push_back(ad);
     }
 }
 
@@ -908,8 +907,8 @@ ChVector3d SCMLoader::GetNormal(const ChVector3d& loc) const {
     return ChWorldFrame::FromISO(nrm_abs);
 }
 
-// Synchronize information for a moving patch
-void SCMLoader::UpdateActiveDomain(ActiveDomainInfo& p, const ChVector3d& Z) {
+// Synchronize information for a user-provided active domain
+void SCMLoader::UpdateActiveDomain(ActiveDomainInfo& ad, const ChVector3d& Z) {
     ChVector2d p_min(+std::numeric_limits<double>::max());
     ChVector2d p_max(-std::numeric_limits<double>::max());
 
@@ -920,9 +919,9 @@ void SCMLoader::UpdateActiveDomain(ActiveDomainInfo& p, const ChVector3d& Z) {
         int iz = (j / 4);
 
         // OOBB corner in body frame
-        ChVector3d c_body = p.m_center + p.m_hdims * ChVector3d(2.0 * ix - 1, 2.0 * iy - 1, 2.0 * iz - 1);
+        ChVector3d c_body = ad.m_center + ad.m_hdims * ChVector3d(2.0 * ix - 1, 2.0 * iy - 1, 2.0 * iz - 1);
         // OOBB corner in absolute frame
-        ChVector3d c_abs = p.m_body->GetFrameRefToAbs().TransformPointLocalToParent(c_body);
+        ChVector3d c_abs = ad.m_body->GetFrameRefToAbs().TransformPointLocalToParent(c_body);
         // OOBB corner expressed in SCM frame
         ChVector3d c_scm = m_frame.TransformPointParentToLocal(c_abs);
 
@@ -941,22 +940,22 @@ void SCMLoader::UpdateActiveDomain(ActiveDomainInfo& p, const ChVector3d& Z) {
     int n_x = x_max - x_min + 1;
     int n_y = y_max - y_min + 1;
 
-    p.m_range.resize(n_x * n_y);
+    ad.m_range.resize(n_x * n_y);
     for (int i = 0; i < n_x; i++) {
         for (int j = 0; j < n_y; j++) {
-            p.m_range[j * n_x + i] = ChVector2i(i + x_min, j + y_min);
+            ad.m_range[j * n_x + i] = ChVector2i(i + x_min, j + y_min);
         }
     }
 
     // Calculate inverse of SCM normal expressed in body frame (for optimization of ray-OBB test)
-    ChVector3d dir = p.m_body->TransformDirectionParentToLocal(Z);
-    p.m_ooN.x() = (dir.x() == 0) ? 1e10 : 1.0 / dir.x();
-    p.m_ooN.y() = (dir.y() == 0) ? 1e10 : 1.0 / dir.y();
-    p.m_ooN.z() = (dir.z() == 0) ? 1e10 : 1.0 / dir.z();
+    ChVector3d dir = ad.m_body->TransformDirectionParentToLocal(Z);
+    ad.m_ooN.x() = (dir.x() == 0) ? 1e10 : 1.0 / dir.x();
+    ad.m_ooN.y() = (dir.y() == 0) ? 1e10 : 1.0 / dir.y();
+    ad.m_ooN.z() = (dir.z() == 0) ? 1e10 : 1.0 / dir.z();
 }
 
-// Synchronize information for fixed patch
-void SCMLoader::UpdateDefaultActiveDomain(ActiveDomainInfo& p) {
+// Synchronize information for the default active domain
+void SCMLoader::UpdateDefaultActiveDomain(ActiveDomainInfo& ad) {
     ChVector2d p_min(+std::numeric_limits<double>::max());
     ChVector2d p_max(-std::numeric_limits<double>::max());
 
@@ -989,10 +988,10 @@ void SCMLoader::UpdateDefaultActiveDomain(ActiveDomainInfo& p) {
     int n_x = x_max - x_min + 1;
     int n_y = y_max - y_min + 1;
 
-    p.m_range.resize(n_x * n_y);
+    ad.m_range.resize(n_x * n_y);
     for (int i = 0; i < n_x; i++) {
         for (int j = 0; j < n_y; j++) {
-            p.m_range[j * n_x + i] = ChVector2i(i + x_min, j + y_min);
+            ad.m_range[j * n_x + i] = ChVector2i(i + x_min, j + y_min);
         }
     }
 }
@@ -1040,7 +1039,7 @@ static const std::vector<ChVector2i> neighbors4{
 };
 
 // Default implementation uses Map-Reduce for collecting ray intersection hits.
-// The alternative is to simultaenously load the global map of hits while ray casting (using a critical section).
+// The alternative is to simultaneously load the global map of hits while ray casting (using a critical section).
 ////#define RAY_CASTING_WITH_CRITICAL_SECTION
 
 // Reset the list of forces, and fills it with forces from a soil contact model.
@@ -1092,10 +1091,10 @@ void SCMLoader::ComputeInternalForces() {
 
     m_timer_active_domains.start();
 
-    // Update patch information (find range of grid indices)
+    // Update active domains and find range of active grid indices)
     if (m_user_domains) {
-        for (auto& p : m_active_domains)
-            UpdateActiveDomain(p, m_Z);
+        for (auto& a : m_active_domains)
+            UpdateActiveDomain(a, m_Z);
     } else {
         assert(m_active_domains.size() == 1);
         UpdateDefaultActiveDomain(m_active_domains[0]);
@@ -1181,7 +1180,7 @@ void SCMLoader::ComputeInternalForces() {
     const int nthreads = GetSystem()->GetNumThreadsChrono();
     std::vector<std::unordered_map<ChVector2i, HitRecord, CoordHash>> t_hits(nthreads);
 
-    // Loop through all moving patches (user-defined or default one)
+    // Loop through all active domains (user-defined or default one)
     for (auto& p : m_active_domains) {
         m_timer_ray_testing.start();
 
