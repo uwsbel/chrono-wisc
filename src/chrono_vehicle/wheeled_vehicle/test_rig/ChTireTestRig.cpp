@@ -350,20 +350,6 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_carrier_body->SetPos(ChVector3d(0, 0, 0));
     m_carrier_body->SetMass(mass);
     m_carrier_body->SetInertiaXX(inertia);
-    {
-        auto mat = chrono_types::make_shared<ChVisualMaterial>();
-        mat->SetDiffuseColor({0.6f, 0.2f, 0.2f});
-
-        utils::ChBodyGeometry::AddVisualizationCylinder(m_carrier_body,              //
-                                                        ChVector3d(+2 * dim, 0, 0),  //
-                                                        ChVector3d(-2 * dim, 0, 0),  //
-                                                        dim / 2,                     //
-                                                        mat);
-
-        auto box = chrono_types::make_shared<ChVisualShapeBox>(dim * CH_1_3, dim * CH_1_3, 10 * dim);
-        box->AddMaterial(mat);
-        m_carrier_body->AddVisualShape(box, ChFrame<>(ChVector3d(0, 0, -5 * dim)));
-    }
 
     m_chassis_body = chrono_types::make_shared<ChBody>();
     m_system->AddBody(m_chassis_body);

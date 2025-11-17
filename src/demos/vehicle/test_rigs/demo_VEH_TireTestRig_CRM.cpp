@@ -255,7 +255,11 @@ int main(int argc, char* argv[]) {
 
     rig.SetTireStepsize(step_size);
     // Disable visualization for rigid tires
-    rig.SetTireVisualizationType(VisualizationType::NONE);
+    if (!use_deformable_tire) {
+        rig.SetTireVisualizationType(VisualizationType::NONE);
+    } else {
+        rig.SetTireVisualizationType(VisualizationType::MESH);
+    }
 
     ChTireTestRig::TerrainParamsCRM params;
     params.radius = 0.01;
@@ -364,7 +368,7 @@ int main(int argc, char* argv[]) {
     // -----------------
 
     // Create output directory
-    std::string output_dir = "tire_test_crm";
+    std::string output_dir = GetChronoOutputPath() + "tire_test_crm";
     if (!std::filesystem::exists(output_dir)) {
         std::filesystem::create_directory(output_dir);
     }
@@ -411,7 +415,7 @@ int main(int argc, char* argv[]) {
         auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
-        visFSI->EnableRigidBodyMarkers(false);
+        visFSI->EnableRigidBodyMarkers(true);
         visFSI->EnableFlexBodyMarkers(true);
 
         // VSG visual system (attach visFSI as plugin)
