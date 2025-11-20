@@ -70,7 +70,7 @@ double depth = 0.43;
 // Output frequency
 bool output = true;
 double output_fps = 5;
-bool save_csv = true;
+bool save_csv = false;
 
 // write info frequency
 double csv_fps = 1000;
@@ -217,10 +217,19 @@ std::shared_ptr<ChLinkLock> CreateFlap(ChFsiProblemSPH& fsi, bool use_bce) {
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    double step_size = 1e-4;  // used to be 5e-5!
+    double step_size = 5e-5;  // used to be 5e-5!
     bool verbose = true;
+    
+    if (argc != 3) {
+	    std::cout << "needs 2 inputs, wave period and channel width (defaul 1.2)" << std::endl;
+	    return 0;
+    }
 
     double period = atof(argv[1]);
+    double csize_y = atof(argv[2]);
+
+    t_end = 4*period;
+    csize.y() = csize_y;
 
     // Create the Chrono system and associated collision system
     ChSystemNSC sysMBS;
@@ -273,11 +282,11 @@ int main(int argc, char* argv[]) {
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
 
     // Create a wave tank
-    double stroke = 0.05;
+    double stroke = 0.1;
     double frequency = 1.0 / period;
     //auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, period);
 
-    auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, period);
+    auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, frequency);
 
     ////fsi.SetProfile(chrono_types::make_shared<WaveTankBezierBeach>(x_start), false);
     fsi.SetProfile(chrono_types::make_shared<WaveTankRampBeach>(x_start, 0.2), true);
@@ -291,7 +300,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Excitation_period_" + argv[1] + "/";
+        GetChronoOutputPath() + "Flap_Excitation_period_" + argv[1] + "_width_" + argv[2] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
