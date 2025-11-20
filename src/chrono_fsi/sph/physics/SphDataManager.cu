@@ -31,6 +31,7 @@
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/transform.h>
+#include <thrust/transform_reduce.h>
 #include <thrust/partition.h>
 #include <thrust/zip_function.h>
 
@@ -547,6 +548,35 @@ struct scale_functor {
     __host__ __device__ Real3 operator()(Real3& x) const { return m_a * x; }
     const Real m_a;
 };
+
+// functor for finding free surface (z direction) around neighbor hood of (xmin, xmax) and (ymin, ymax)
+struct freesurface_z {
+    Real xmin, xmax, ymin, ymax;
+
+    freesurface_z(Real xmin, Real xmax, Real ymin, Real ymax) : xmin(xmin), xmax(xmax), ymin(ymin), ymax(ymax) {}
+
+    __host__ __device__ Real operator()(const Real4& p) const {
+        if (p.x >= xmin && p.x <= xmax && p.y >= ymin && p.y <= ymax)
+            return p.z;
+        return -std::numeric_limits<Real>::infinity();
+    }
+};
+
+Real FsiDataManager::GetFreeSurfaceZ(Real xmin, Real xmax, Real ymin, Real ymax)  {
+    auto& pos4_D = sphMarkers_D->posRadD;
+
+    // compute max z within the specified range 
+    Real max_z = thrust::transform_reduce(
+        pos4_D.begin(), 
+        pos4_D.end(),
+        freesurface_z(xmin, xmax, ymin, ymax),
+        -std::numeric_limits<Real>::infinity(),
+        thrust::maximum<Real>());
+
+    return max_z;
+}
+
+
 
 std::vector<Real3> FsiDataManager::GetPositions() {
     auto& pos4_D = sphMarkers_D->posRadD;

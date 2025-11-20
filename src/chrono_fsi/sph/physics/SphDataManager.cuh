@@ -265,6 +265,9 @@ struct FsiDataManager {
     /// Extract positions of all markers (SPH and BCE).
     std::vector<Real3> GetPositions();
 
+    /// Extract free surface value of SPH markers
+    Real GetFreeSurfaceZ(Real xmin, Real xmax, Real ymin, Real ymax);
+
     /// Extract velocities of all markers (SPH and BCE).
     std::vector<Real3> GetVelocities();
 
