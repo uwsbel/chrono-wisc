@@ -375,6 +375,9 @@ class CH_FSI_API ChFsiFluidSystemSPH : public ChFsiFluidSystem {
     /// with the axes of that frame.
     std::vector<int> FindParticlesInBox(const ChFrame<>& frame, const ChVector3d& size);
 
+    /// free surface z position at given (x,y) location
+    double GetFreeSurfaceZ(double x, double y) const;
+
     /// Extract positions of all markers (SPH and BCE).
     std::vector<Real3> GetPositions() const;
 

@@ -390,7 +390,10 @@ int main(int argc, char* argv[]) {
 
     std::ofstream ofile;
     ofile.open(out_dir + "/info.csv");
-    ofile << "time,torque" << std::endl;
+    ofile << "time,torque,free_surface" << std::endl;
+
+    ChFsiFluidSystemSPH& sysSPH = sysFSI->GetFluidSystemSPH();
+
 
     while (time < t_end) {
         if (save_csv && time >= out_frame / output_fps) {
@@ -403,8 +406,8 @@ int main(int argc, char* argv[]) {
         if (output && time >= csv_frame / csv_fps) {
             // get the reaction force
             reaction_torque = lock->GetReaction2().torque;
-            ofile << time << "," << reaction_torque.y() << std::endl;
-
+            ofile << time << "," << reaction_torque.y()
+                          << "," << sysSPH.GetFreeSurfaceZ(-1.7, 0) << std::endl;
             csv_frame++;
         }
 

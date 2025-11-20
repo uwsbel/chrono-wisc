@@ -2687,6 +2687,20 @@ std::vector<Real3> ChFsiFluidSystemSPH::GetPositions() const {
     return m_data_mgr->GetPositions();
 }
 
+double ChFsiFluidSystemSPH::GetFreeSurfaceZ(double x, double y) const {
+    double x_min = x - m_paramsH->d0;
+    double x_max = x + m_paramsH->d0;
+    double y_min = y - m_paramsH->d0;
+    double y_max = y + m_paramsH->d0;
+
+    SynchronizeCopyStream();
+
+    double z_max = m_data_mgr->GetFreeSurfaceZ(x_min, x_max, y_min, y_max);
+
+    return z_max + m_paramsH->d0 / 2.0;
+
+}
+
 std::vector<Real3> ChFsiFluidSystemSPH::GetVelocities() const {
     SynchronizeCopyStream();
     return m_data_mgr->GetVelocities();
