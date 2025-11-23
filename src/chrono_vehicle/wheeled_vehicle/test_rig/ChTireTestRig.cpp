@@ -46,8 +46,12 @@ namespace vehicle {
 
 // -----------------------------------------------------------------------------
 
-ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel, std::shared_ptr<ChTire> tire, ChSystem* system)
+ChTireTestRig::ChTireTestRig(std::shared_ptr<ChWheel> wheel,
+                             std::shared_ptr<ChTire> tire,
+                             ChSystem* system,
+                             ChVector3d offset)
     : m_system(system),
+      m_offset(offset),
       m_grav(9.8),
       m_wheel(wheel),
       m_tire(tire),
@@ -326,6 +330,8 @@ void ChTireTestRig::Advance(double step) {
 void ChTireTestRig::CreateMechanism(Mode mode) {
     m_system->SetGravitationalAcceleration(m_grav);
 
+    auto offset_pos = [this](const ChVector3d& local) { return local + m_offset; };
+
     // Create bodies.
     // Rig bodies are constructed with mass and inertia commensurate with those of the wheel-tire system.
     // The spindle body is constructed with zero mass and inertia (these will be increased by at least the wheel
@@ -338,6 +344,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_system->AddBody(m_ground_body);
     m_ground_body->SetName("rig_ground");
     m_ground_body->SetFixed(true);
+    m_ground_body->SetPos(m_offset);
     // Ground body visualization hidden
     // {
     //     auto box = chrono_types::make_shared<ChVisualShapeBox>(100, dim * CH_1_3, dim * CH_1_3);
@@ -347,7 +354,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_carrier_body = chrono_types::make_shared<ChBody>();
     m_system->AddBody(m_carrier_body);
     m_carrier_body->SetName("rig_carrier");
-    m_carrier_body->SetPos(ChVector3d(0, 0, 0));
+    m_carrier_body->SetPos(offset_pos(ChVector3d(0, 0, 0)));
     m_carrier_body->SetMass(mass);
     m_carrier_body->SetInertiaXX(inertia);
     {
@@ -368,7 +375,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_chassis_body = chrono_types::make_shared<ChBody>();
     m_system->AddBody(m_chassis_body);
     m_chassis_body->SetName("rig_chassis");
-    m_chassis_body->SetPos(ChVector3d(0, 0, 0));
+    m_chassis_body->SetPos(offset_pos(ChVector3d(0, 0, 0)));
     m_chassis_body->SetMass(mass);
     m_chassis_body->SetInertiaXX(inertia);
     {
@@ -389,7 +396,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_slip_body = chrono_types::make_shared<ChBody>();
     m_system->AddBody(m_slip_body);
     m_slip_body->SetName("rig_slip");
-    m_slip_body->SetPos(ChVector3d(0, 0, -4 * dim));
+    m_slip_body->SetPos(offset_pos(ChVector3d(0, 0, -4 * dim)));
     m_slip_body->SetMass(mass);
     m_slip_body->SetInertiaXX(inertia);
     {
@@ -409,7 +416,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_spindle->SetName("rig_spindle");
     m_spindle->SetMass(0);
     m_spindle->SetInertiaXX(ChVector3d(0.01, 0.02, 0.01));
-    m_spindle->SetPos(ChVector3d(0, 3 * dim, -4 * dim));
+    m_spindle->SetPos(offset_pos(ChVector3d(0, 3 * dim, -4 * dim)));
     m_spindle->SetRot(qc);
     utils::ChBodyGeometry::AddVisualizationCylinder(m_spindle,                   //
                                                     ChVector3d(0, 0, 0),         //
@@ -420,22 +427,23 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     if (mode == Mode::TEST && m_ls_actuated) {
         m_lin_motor = chrono_types::make_shared<ChLinkMotorLinearSpeed>();
         m_system->AddLink(m_lin_motor);
-        m_lin_motor->Initialize(m_carrier_body, m_ground_body, ChFrame<>(ChVector3d(0, 0, 0), QuatFromAngleY(CH_PI_2)));
+        m_lin_motor->Initialize(m_carrier_body, m_ground_body,
+                                ChFrame<>(offset_pos(ChVector3d(0, 0, 0)), QuatFromAngleY(CH_PI_2)));
     } else {
         ChQuaternion<> z2x;
         z2x.SetFromAngleY(CH_PI_2);
         auto prismatic = chrono_types::make_shared<ChLinkLockPrismatic>();
         m_system->AddLink(prismatic);
-        prismatic->Initialize(m_carrier_body, m_ground_body, ChFrame<>(VNULL, z2x));
+        prismatic->Initialize(m_carrier_body, m_ground_body, ChFrame<>(offset_pos(VNULL), z2x));
     }
 
     auto prismatic = chrono_types::make_shared<ChLinkLockPrismatic>();
     m_system->AddLink(prismatic);
-    prismatic->Initialize(m_carrier_body, m_chassis_body, ChFrame<>(VNULL, QUNIT));
+    prismatic->Initialize(m_carrier_body, m_chassis_body, ChFrame<>(offset_pos(VNULL), QUNIT));
 
     m_slip_lock = chrono_types::make_shared<ChLinkLockLock>();
     m_system->AddLink(m_slip_lock);
-    m_slip_lock->Initialize(m_chassis_body, m_slip_body, ChFrame<>(VNULL, QUNIT));
+    m_slip_lock->Initialize(m_chassis_body, m_slip_body, ChFrame<>(offset_pos(VNULL), QUNIT));
     m_slip_lock->SetMotionAxis(ChVector3d(0, 0, 1));
 
     ChQuaternion<> z2y;
@@ -443,11 +451,11 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     if (mode == Mode::TEST && m_rs_actuated) {
         m_rot_motor = chrono_types::make_shared<ChLinkMotorRotationSpeed>();
         m_system->AddLink(m_rot_motor);
-        m_rot_motor->Initialize(m_spindle, m_slip_body, ChFrame<>(ChVector3d(0, 3 * dim, -4 * dim), z2y));
+        m_rot_motor->Initialize(m_spindle, m_slip_body, ChFrame<>(offset_pos(ChVector3d(0, 3 * dim, -4 * dim)), z2y));
     } else {
         auto revolute = chrono_types::make_shared<ChLinkLockRevolute>();
         m_system->AddLink(revolute);
-        revolute->Initialize(m_spindle, m_slip_body, ChFrame<>(ChVector3d(0, 3 * dim, -4 * dim), z2y));
+        revolute->Initialize(m_spindle, m_slip_body, ChFrame<>(offset_pos(ChVector3d(0, 3 * dim, -4 * dim)), z2y));
     }
 
     // Initialize subsystems
@@ -459,15 +467,13 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     m_tire->SetVisualizationType(m_tire_vis);
 
     // Update chassis mass to satisfy requested normal load
-    if (m_grav.z() > 0) {
-        m_total_mass = m_normal_load / m_grav.z();
-        double other_mass = m_slip_body->GetMass() + m_spindle->GetMass() + m_wheel->GetMass() + m_tire->GetMass();
-        double chassis_mass = m_total_mass - other_mass;
-        if (chassis_mass > mass) {
-            m_chassis_body->SetMass(chassis_mass);
-        } else {
-            std::cout << "\nWARNING!  Prescribed normal load too small. Discarded.\n" << std::endl;
-        }
+    m_total_mass = m_normal_load / m_grav.z();
+    double other_mass = m_slip_body->GetMass() + m_spindle->GetMass() + m_wheel->GetMass() + m_tire->GetMass();
+    double chassis_mass = m_total_mass - other_mass;
+    if (chassis_mass > mass) {
+        m_chassis_body->SetMass(chassis_mass);
+    } else {
+        std::cout << "\nWARNING!  Prescribed normal load too small. Discarded.\n" << std::endl;
     }
 
     // Set terrain offset (based on wheel center) and terrain height (below tire)
@@ -518,6 +524,7 @@ void ChTireTestRig::CreateTerrainSCM() {
 
 void ChTireTestRig::CreateTerrainRigid() {
     ChVector3d location(m_params_rigid.length / 2 - 2 * m_tire->GetRadius(), m_terrain_offset, m_terrain_height);
+    location += m_offset;
 
     auto terrain = chrono_types::make_shared<vehicle::RigidTerrain>(m_system);
 
@@ -659,8 +666,8 @@ void ChTireTestRig::CreateTerrainCRM() {
                            m_params_crm.depth,                       // depth
                            true,                                     // uniform depth
                            location,                                 // patch center
-                           BoxSide::ALL & ~BoxSide::Z_POS);         // all boundaries, except top
-                           // BoxSide::Z_NEG);
+                           BoxSide::ALL & ~BoxSide::Z_POS);          // all boundaries, except top
+                                                                     // BoxSide::Z_NEG);
     } else {
         terrain->Construct({m_params_crm.length, m_params_crm.width, m_params_crm.depth}, location,
                            BoxSide::ALL & ~BoxSide::Z_POS);
@@ -675,36 +682,36 @@ void ChTireTestRig::CreateTerrainCRM() {
         terrain->AddFeaMesh(mesh, false);
     } else {
         auto rgd_tire = std::static_pointer_cast<ChRigidTire>(m_tire);
-        
+
         // Hardcoded cylinder dimensions matching deformable tire
         const double CYLINDER_RADIUS = 0.45;  // Total tire radius (rim 0.225 + height 0.225)
         const double CYLINDER_WIDTH = 0.4;    // Tire width
-        
+
         // Create geometry and add cylinder shape
         auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
-        
+
         // Extract contact material properties from rigid tire (NSC)
         auto contact_mat = rgd_tire->GetContactMaterial();
         auto nsc_mat = std::static_pointer_cast<ChContactMaterialNSC>(contact_mat);
         ChContactMaterialData mat_data;  // Use default constructor
-        
+
         // Set only NSC-specific properties
         mat_data.mu = nsc_mat->GetSlidingFriction();
         mat_data.cr = nsc_mat->GetRestitution();
-        
+
         // Add material to geometry (material index 0)
         geometry->materials.push_back(mat_data);
-        
+
         // Add cylinder shape: axis along Y (wheel axis), centered at origin
         // Rotation QuatFromAngleX(CH_PI_2) aligns cylinder axis with Y axis
         geometry->coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(
-            ChVector3d(0, 0, 0),                    // position relative to spindle
-            QuatFromAngleX(CH_PI_2),                // rotation to align axis with Y
-            CYLINDER_RADIUS,                        // radius
-            CYLINDER_WIDTH,                         // length (width)
-            0                                       // material index
-        ));
-        
+            ChVector3d(0, 0, 0),      // position relative to spindle
+            QuatFromAngleX(CH_PI_2),  // rotation to align axis with Y
+            CYLINDER_RADIUS,          // radius
+            CYLINDER_WIDTH,           // length (width)
+            0                         // material index
+            ));
+
         terrain->AddRigidBody(m_spindle, geometry, false);
     }
 

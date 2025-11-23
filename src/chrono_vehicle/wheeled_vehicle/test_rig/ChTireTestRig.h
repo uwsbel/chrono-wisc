@@ -94,9 +94,10 @@ class CH_VEHICLE_API ChTireTestRig {
     };
 
     /// Construct a tire test rig within the specified system.
-    ChTireTestRig(std::shared_ptr<ChWheel> wheel,  ///< wheel subsystem
-                  std::shared_ptr<ChTire> tire,    ///< tire subsystem
-                  ChSystem* system                 ///< containing mechanical system
+    ChTireTestRig(std::shared_ptr<ChWheel> wheel,          ///< wheel subsystem
+                  std::shared_ptr<ChTire> tire,            ///< tire subsystem
+                  ChSystem* system,                        ///< containing mechanical system
+                  ChVector3d offset = ChVector3d(0, 0, 0)  ///< offset from the origin
     );
 
     ~ChTireTestRig();
@@ -229,6 +230,15 @@ class CH_VEHICLE_API ChTireTestRig {
     /// Get a handle to the underlying terrain subsystem.
     std::shared_ptr<ChTerrain> GetTerrain() const { return m_terrain; }
 
+    /// Get a handle to the wheel subsystem.
+    std::shared_ptr<ChWheel> GetWheel() const { return m_wheel; }
+
+    /// Get a handle to the tire subsystem.
+    std::shared_ptr<ChTire> GetTire() const { return m_tire; }
+
+    /// Get a handle to the spindle subsystem.
+    std::shared_ptr<ChSpindle> GetSpindle() const { return m_spindle; }
+
     /// Get current carrier body position.
     const ChVector3d& GetPos() const { return m_carrier_body->GetPos(); }
 
@@ -250,7 +260,9 @@ class CH_VEHICLE_API ChTireTestRig {
     void CreateTerrainGranular();
     void CreateTerrainCRM();
 
-    ChSystem* m_system;  ///< pointer to the Chrono system
+    ChSystem* m_system;   ///< pointer to the Chrono system
+    ChVector3d m_offset;  ///< offset from the origin (required for multiple rigs in a single simulation) - DOES NOT
+                          ///< APPLY TO SCM, CRM and GRANULAR TERRAIN
 
     std::shared_ptr<ChTerrain> m_terrain;  ///< handle to underlying terrain subsystem
     std::shared_ptr<ChWheel> m_wheel;      ///< handle to wheel subsystem
