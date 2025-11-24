@@ -18,7 +18,7 @@ if(CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS} demo_VEH_TireTestRig)
     set(DEMOS ${DEMOS} demo_VEH_SuspensionTestRig)
     set(DEMOS ${DEMOS} demo_VEH_TrackTestRig)
-
+    set(DEMOS ${DEMOS} demo_VEH_ManyTireTestRig)
     endif()
 
 if((CH_ENABLE_MODULE_PARDISO_MKL OR CH_ENABLE_MODULE_MUMPS) AND CH_ENABLE_MODULE_VSG)
