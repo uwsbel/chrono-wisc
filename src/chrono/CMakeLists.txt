@@ -892,6 +892,8 @@ source_group(particlefactory FILES ${Chrono_particlefactory_SOURCES} ${Chrono_pa
 set(Chrono_timestepper_SOURCES
     timestepper/ChIntegrable.cpp
     timestepper/ChTimestepper.cpp
+    timestepper/ChTimestepperExplicit.cpp
+    timestepper/ChTimestepperImplicit.cpp
     timestepper/ChTimestepperHHT.cpp
     timestepper/ChStaticAnalysis.cpp
     timestepper/ChAssemblyAnalysis.cpp
@@ -900,6 +902,8 @@ set(Chrono_timestepper_HEADERS
     timestepper/ChState.h
     timestepper/ChIntegrable.h
     timestepper/ChTimestepper.h
+    timestepper/ChTimestepperExplicit.h
+    timestepper/ChTimestepperImplicit.h
     timestepper/ChTimestepperHHT.h
     timestepper/ChStaticAnalysis.h
     timestepper/ChAssemblyAnalysis.h
@@ -1432,7 +1436,9 @@ if(UNIX)
 endif()
 
 if(HDF5_FOUND)
-    if(TARGET hdf5-static)
+    if(TARGET hdf5-static AND (NOT APPLE))
+      # There are some issues with the static version of HDF5 on macOS
+      # See https://autotwin.github.io/automesh/installation.html#zlib-target-not-found
       message(STATUS "Linking static libraries hdf5-static")
       target_link_libraries(Chrono_core PUBLIC hdf5-static)
       target_link_libraries(Chrono_core PUBLIC hdf5_cpp-static)
