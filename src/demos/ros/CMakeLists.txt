@@ -1,26 +1,42 @@
+#--------------------------------------------------------------
+# List of all ROS demos
 
-set(DEMOS "")
-
-list(APPEND DEMOS demo_ROS_custom_handler)
+set(DEMOS
+  demo_ROS_custom_handler
+  demo_ROS_RGBA8_publisher
+)
 
 if (CH_ROS_HAS_INTERFACES)
-  list(APPEND DEMOS demo_ROS_viper)
+  set(
+    DEMOS ${DEMOS}
+    demo_ROS_viper
+  )
 endif()
 
 if (CH_ENABLE_MODULEPARSERS AND HAVE_URDF)
-  list(APPEND DEMOS demo_ROS_urdf)
+  set(
+    DEMOS ${DEMOS}
+    demo_ROS_urdf
+  )
 endif()
 
 if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
   if (CH_ROS_HAS_INTERFACES)
-    list(APPEND DEMOS demo_ROS_vehicle)
-    list(APPEND DEMOS demo_ROS_two_managers)
+    set(
+      DEMOS ${DEMOS}
+      demo_ROS_vehicle
+      # demo_ROS_two_managers
+    )
   endif()
 endif()
 
 if(CH_ENABLE_MODULE_SENSOR)
-  list(APPEND DEMOS demo_ROS_sensor)
+  set(
+    DEMOS ${DEMOS}
+    demo_ROS_sensor
+  )
 endif()
+
 
 # ------------------------------------------------------------------------------
 # Include directories, compiler flags, libraries
