@@ -282,10 +282,8 @@ int main(int argc, char* argv[]) {
     fsi.RegisterParticlePropertiesCallback(chrono_types::make_shared<DepthPressurePropertiesCallback>(depth));
 
     // Create a wave tank
-    double stroke = 0.1;
+    double stroke = 0.05;
     double frequency = 1.0 / period;
-    //auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, period);
-
     auto fun = chrono_types::make_shared<WaveFunctionDecay>(stroke, frequency);
 
     ////fsi.SetProfile(chrono_types::make_shared<WaveTankBezierBeach>(x_start), false);
@@ -300,7 +298,7 @@ int main(int argc, char* argv[]) {
 
     // Create oputput directories
     std::string out_dir =
-        GetChronoOutputPath() + "Flap_Excitation_period_" + argv[1] + "_width_" + argv[2] + "/";
+        GetChronoOutputPath() + "Flap_Excitation_stroke_5cm_period_" + argv[1] + "_width_" + argv[2] + "/";
     if (!filesystem::create_directory(filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
