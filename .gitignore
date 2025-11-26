@@ -19,6 +19,8 @@
 /build*
 /compile_commands.json
 CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
 
 ##---------------------------------------------------
 ## C++

@@ -31,6 +31,7 @@
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChManyTireTestRigs.h"
 
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
+#include "demos/SetChronoSolver.h"
 
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
@@ -46,7 +47,6 @@ namespace {
 struct DemoParams {
     std::string wheel_json = "Polaris/Polaris_Wheel.json";
     std::string tire_json = "Polaris/Polaris_TMeasyTire.json";
-    ////std::string tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
     bool deformable = false;
     bool is_deformable_airless = false;
     double normal_load = 2400.0;  // [N]
@@ -62,6 +62,12 @@ struct DemoParams {
     double slip_ratio = 0.0;       // [0..1)
     double slip_angle_deg = 5.0;   // [deg]
     double slip_angle_freq = 0.2;  // [Hz]
+    
+    void SetTireJson() {
+        if (deformable && !is_deformable_airless) {
+            tire_json = "Polaris/Polaris_ANCF4Tire_Lumped.json";
+        }
+    }
 };
 
 bool ParseCommandLine(int argc, char** argv, DemoParams& params) {
@@ -102,12 +108,6 @@ bool ParseCommandLine(int argc, char** argv, DemoParams& params) {
     return true;
 }
 
-std::shared_ptr<ChSystem> MakeSystem(bool deformable) {
-    if (deformable)
-        return chrono_types::make_shared<ChSystemSMC>();
-    return chrono_types::make_shared<ChSystemNSC>();
-}
-
 std::shared_ptr<ChFunctionSequence> CreateRampHoldFunction(double target_value, double ramp_time, double hold_time) {
     auto seq = chrono_types::make_shared<ChFunctionSequence>();
 
@@ -127,6 +127,40 @@ std::shared_ptr<ChFunctionSequence> CreateRampHoldFunction(double target_value, 
 
     seq->Setup();
     return seq;
+}
+
+std::shared_ptr<ChSystem> SetupSystem(bool fea_tire) {
+    std::shared_ptr<ChSystem> system;
+    ChSolver::Type solver_type;
+    ChTimestepper::Type integrator_type;
+    
+    // Create system based on FEA tire detection
+    if (fea_tire) {
+        system = chrono_types::make_shared<ChSystemSMC>();
+        solver_type = ChSolver::Type::PARDISO_MKL;
+        integrator_type = ChTimestepper::Type::HHT;
+    } else {
+        system = chrono_types::make_shared<ChSystemNSC>();
+        solver_type = ChSolver::Type::BARZILAIBORWEIN;
+        integrator_type = ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED;
+    }
+
+    system->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
+    
+    // Same as in demo_VEH_TireTestRig_CRM.cpp
+    // Number of OpenMP threads used in Chrono
+    int num_threads_chrono = std::min(8, ChOMP::GetNumProcs());
+    // Number of threads used in collision detection
+    int num_threads_collision = 1;
+    // Number of threads used by Eigen
+    int num_threads_eigen = 1;
+    // Number of threads used by PardisoMKL
+    int num_threads_pardiso = std::min(8, ChOMP::GetNumProcs());
+    
+    system->SetNumThreads(num_threads_chrono, num_threads_collision, num_threads_eigen);
+    SetChronoSolver(*system, solver_type, integrator_type, num_threads_pardiso);
+    
+    return system;
 }
 
 void ConfigureVisualSystem(std::shared_ptr<ChVisualSystem>& vis, std::shared_ptr<ChSystem> sys, bool enable_rendering) {
@@ -166,11 +200,12 @@ int main(int argc, char* argv[]) {
 #ifdef CHRONO_DATA_DIR
     SetChronoDataPath(CHRONO_DATA_DIR);
 #endif
-    std::cout << "Deformable: " << params.deformable << std::endl;
-    auto system = MakeSystem(params.deformable);
-
-    system->SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
-    system->SetNumThreads(std::min(8, ChOMP::GetNumProcs()), 1, 1);
+    
+    // Set tire JSON based on deformable flag
+    params.SetTireJson();
+    
+    std::cout << "Deformable: " << params.deformable << std::endl;    
+    auto system = SetupSystem(params.deformable);
 
     const double step_size = params.deformable ? 5e-4 : 2e-4;
     const double ramp_time = std::max(0.0, params.ramp_time);
@@ -217,10 +252,14 @@ int main(int argc, char* argv[]) {
 
     rigs.InitializeAll(ChTireTestRig::Mode::TEST);
 
+    // Setup system once before querying DOF counts.
+    system->Setup();
     std::cout << "Initialized " << rigs.GetNumRigs() << " tire test rigs on rigid terrain.\n";
     std::cout << "Wheel json: " << params.wheel_json << "\n";
     std::cout << "Tire json: "
-              << (params.deformable ? std::string("ANCFAirlessTire3443B (built-in)") : params.tire_json) << "\n";
+              << (params.is_deformable_airless ? std::string("ANCFAirlessTire3443B (built-in)") : params.tire_json) << "\n";
+    std::cout << "Position-level DOFs: " << system->GetNumCoordsPosLevel() << "\n";
+    std::cout << "Velocity-level DOFs: " << system->GetNumCoordsVelLevel() << "\n";
 
     std::shared_ptr<ChVisualSystem> vis;
     ConfigureVisualSystem(vis, system, params.render);
