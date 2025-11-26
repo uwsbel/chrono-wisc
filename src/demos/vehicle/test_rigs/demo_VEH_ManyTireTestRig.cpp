@@ -23,6 +23,7 @@
 
 #include "chrono/assets/ChVisualSystem.h"
 #include "chrono/collision/ChCollisionSystem.h"
+#include "chrono/core/ChDataPath.h"
 #include "chrono/physics/ChLinkMotorRotationSpeed.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChSystemSMC.h"
@@ -62,6 +63,7 @@ struct DemoParams {
     double slip_ratio = 0.0;       // [0..1)
     double slip_angle_deg = 5.0;   // [deg]
     double slip_angle_freq = 0.2;  // [Hz]
+    bool save_matrices = false;
     
     void SetTireJson() {
         if (deformable && !is_deformable_airless) {
@@ -264,8 +266,17 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChVisualSystem> vis;
     ConfigureVisualSystem(vis, system, params.render);
     int render_frame = 0;
+    bool matrix_done = false;
 
     while (system->GetChTime() < params.sim_time) {
+        // Enable solver matrix write at t = 0.1 (just once)
+        if (params.save_matrices && !matrix_done && system->GetChTime() >= 0.1) {
+            std::cout << "Enabling solver matrix write at t = " << system->GetChTime() << " s\n";
+            system->EnableSolverMatrixWrite(true, GetChronoOutputPath());
+            system->EnableSolverMatrixWriteFirstIterOnly(true);  // Save only first Newton-Raphson iteration
+            std::cout << "Will write solver matrix (first iteration only) to " << GetChronoOutputPath() << "\n";
+        }
+        
 #ifdef CHRONO_VSG
         if (vis && system->GetChTime() >= render_frame / params.render_fps) {
             auto focus_index = num_rigs / 2;
@@ -280,6 +291,14 @@ int main(int argc, char* argv[]) {
 #endif
 
         rigs.AdvanceAll(step_size);
+        
+        // Disable solver matrix write after t = 0.1 + step_size (just once) and exit loop
+        if (params.save_matrices && !matrix_done && system->GetChTime() >= 0.1 + step_size) {
+            std::cout << "Disabling solver matrix write at t = " << system->GetChTime() << " s\n";
+            system->EnableSolverMatrixWrite(false);
+            matrix_done = true;
+            break;
+        }
     }
 
     std::cout << "Final time: " << system->GetChTime() << " s\n";

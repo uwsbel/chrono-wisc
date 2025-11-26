@@ -559,6 +559,13 @@ class ChApi ChSystem : public ChIntegrableIIorder {
     /// Return true if solver matrices are being written to disk.
     bool IsSolverMatrixWriteEnabled() const { return write_matrix; }
 
+    /// Enable/disable writing solver matrices only on the first Newton-Raphson iteration.
+    /// When enabled, matrices are written only when solvecount == 0 (first iteration of each step).
+    void EnableSolverMatrixWriteFirstIterOnly(bool val) { write_matrix_first_iter_only = val; }
+
+    /// Return true if solver matrices are written only on the first iteration.
+    bool IsSolverMatrixWriteFirstIterOnly() const { return write_matrix_first_iter_only; }
+
     /// Write the mass (M), damping (R), stiffness (K), and constraint Jacobian (Cq) matrices at current configuration.
     /// These can be used for linearized motion, modal analysis, buckling analysis, etc.
     /// The sparse matrices are saved in COO format in 'path' folder according to the naming:
@@ -838,6 +845,7 @@ class ChApi ChSystem : public ChIntegrableIIorder {
     unsigned int solvecount;  ///< number of StateSolveCorrection (reset to 0 at each timestep of static analysis)
 
     bool write_matrix;       ///< write current system matrix to file(s); for debugging
+    bool write_matrix_first_iter_only;  ///< if true, write matrices only on first Newton-Raphson iteration (solvecount == 0)
     std::string output_dir;  ///< output directory for writing system matrices
 
     unsigned int ncontacts;  ///< total number of contacts

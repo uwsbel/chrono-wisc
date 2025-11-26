@@ -459,7 +459,7 @@ void ChTireTestRig::CreateMechanism(Mode mode) {
     if (chassis_mass > mass) {
         m_chassis_body->SetMass(chassis_mass);
     } else {
-        std::cout << "\nWARNING!  Prescribed normal load too small. Discarded.\n" << std::endl;
+        // std::cout << "\nWARNING!  Prescribed normal load too small. Discarded.\n" << std::endl;
     }
 
     // Set terrain offset (based on wheel center) and terrain height (below tire)

@@ -64,6 +64,7 @@ ChSystem::ChSystem(const std::string& name)
       solvecount(0),
       output_dir("."),
       write_matrix(false),
+      write_matrix_first_iter_only(false),
       ncontacts(0),
       composition_strategy(new ChContactMaterialCompositionStrategy),
       collision_system(nullptr),
@@ -101,6 +102,7 @@ ChSystem::ChSystem(const ChSystem& other) : m_RTF(0), collision_system(nullptr),
     solvecount = other.solvecount;
     setupcount = other.setupcount;
     write_matrix = other.write_matrix;
+    write_matrix_first_iter_only = other.write_matrix_first_iter_only;
     output_dir = other.output_dir;
     SetTimestepperType(other.GetTimestepperType());
     nthreads_chrono = other.nthreads_chrono;
@@ -1067,7 +1069,8 @@ bool ChSystem::StateSolveCorrection(
     }
 
     // Diagnostics:
-    if (write_matrix) {
+    bool should_write = write_matrix && (!write_matrix_first_iter_only || solvecount == 0);
+    if (should_write) {
         std::string prefix = "solve_" + std::to_string(stepcount) + "_" + std::to_string(solvecount);
 
         if (std::dynamic_pointer_cast<ChIterativeSolver>(solver)) {
@@ -1086,7 +1089,7 @@ bool ChSystem::StateSolveCorrection(
         StreamOut(v, file_v);
     }
 
-    GetSolver()->EnableWrite(write_matrix, std::to_string(stepcount) + "_" + std::to_string(solvecount), output_dir);
+    GetSolver()->EnableWrite(should_write, std::to_string(stepcount) + "_" + std::to_string(solvecount), output_dir);
 
     // If indicated, first perform a solver setup.
     // Return 'false' if the setup phase fails.
@@ -1109,7 +1112,7 @@ bool ChSystem::StateSolveCorrection(
     IntFromDescriptor(0, Dv, 0, Dl);
 
     // Diagnostics:
-    if (write_matrix) {
+    if (should_write) {
         std::string prefix = "solve_" + std::to_string(stepcount) + "_" + std::to_string(solvecount) + "_";
 
         std::ofstream file_Dv(output_dir + "/" + prefix + "Dv.dat");
