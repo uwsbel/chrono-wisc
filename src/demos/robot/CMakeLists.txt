@@ -28,6 +28,13 @@ if(CH_ENABLE_MODULE_VEHICLE)
         demo_ROBOT_Curiosity_SCM_Sensor
         demo_ROBOT_Viper_SCM_Sensor
     )
+
+    if(CH_ENABLE_MODULE_ROS)
+      set(DEMOS ${DEMOS}
+          demo_ROBOT_Viper_SCM_WheelSinkage
+      )
+    endif()
+
     if(CH_ENABLE_MODULE_FSI)
       if(USE_NVDB)
           set(DEMOS ${DEMOS}
@@ -89,6 +96,10 @@ if(CH_ENABLE_MODULE_VSG)
     if(CH_ENABLE_MODULE_FSI)
       list(APPEND LIBS "Chrono_fsisph_vsg")
     endif()
+endif()
+
+if(CH_ENABLE_MODULE_ROS)
+  list(APPEND LIBS "Chrono_ros")
 endif()
 
 # ------------------------------------------------------------------------------
