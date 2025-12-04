@@ -77,7 +77,7 @@
 
 #include "chrono_vehicle/ChDriver.h"
 #include "chrono_vehicle/ChTerrain.h"
-
+#include "chrono_vehicle/ChVehicleVisualSystem.h"
 
 // Wheeled vehicle
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicle.h"
