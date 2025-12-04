@@ -117,6 +117,15 @@ CH_SENSOR_API UserRGBDHalf4BufferPtr ChSensor::GetMostRecentBuffer() {
 }
 
 // -----------------------------------------------------------------------------
+// retriever function for image semantic data in semantic format
+// -----------------------------------------------------------------------------
+template <>
+CH_SENSOR_API UserSemanticBufferPtr ChSensor::GetMostRecentBuffer() {
+    // call the templated helper function
+    return GetMostRecentBufferHelper<UserSemanticBufferPtr, ChFilterSemanticAccess, ChFilterSemanticAccessName>();
+}
+
+// -----------------------------------------------------------------------------
 // retriever function for image depth data as float values
 // -----------------------------------------------------------------------------
 template <>

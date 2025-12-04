@@ -37,6 +37,7 @@
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChSegmentationCamera.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/filters/ChFilterAccess.h"
 #include "chrono_sensor/filters/ChFilterGrayscale.h"
@@ -94,7 +95,7 @@ const std::string decorated_ground_mesh_path = GetChronoDataFile("robot/curiosit
 const std::string out_dir = GetChronoOutputPath() + "VIPER_SCM_WheelSinkage/"; // output base folder for saved images
 
 //// ROS parameters ////
-double ROS_publish_rate = 30; // [Hz], ROS image_message publishing rate
+double ROS_publish_rate = 15; // [Hz], ROS image_message publishing rate
 int pub_buf_size = 10; // size of a publisher buffer
 
 //// Switch setting ////
@@ -293,9 +294,12 @@ int main(int argc, char* argv[]) {
 	// ---------------- //
 	// Create lunar regolith visual material
 	auto regolith_mat = chrono_types::make_shared<ChVisualMaterial>();
+	auto regolith_tex_mat = chrono_types::make_shared<ChVisualMaterial>();
 	if (enable_hapke) {
         regolith_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
         regolith_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
+		regolith_tex_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+        regolith_tex_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     }
     else {
         // regolith_mat->SetDiffuseColor({0.5738f, 0.5174f, 0.5666f});
@@ -307,10 +311,19 @@ int main(int argc, char* argv[]) {
 		regolith_mat->SetUseSpecularWorkflow(true);
 		regolith_mat->SetRoughness(1.0f);
 		regolith_mat->SetMetallic(0.f);
+		
+		regolith_tex_mat->SetKdTexture(GetChronoDataFile("robot/curiosity/rocks/moon_dusted_05_diff_1k.png"));
+		regolith_tex_mat->SetRoughnessTexture(GetChronoDataFile("robot/curiosity/rocks/moon_dusted_05_rough_1k.png"));
+		regolith_tex_mat->SetNormalMapTexture(GetChronoDataFile("robot/curiosity/rocks/moon_dusted_05_nor_gl_1k.png"));
+		regolith_tex_mat->SetDisplacementTexture(GetChronoDataFile("robot/curiosity/rocks/moon_dusted_05_disp_1k.png"));
+		regolith_tex_mat->SetMetallic(0.f);
+		regolith_tex_mat->SetTextureScale(9.f, 3.f);
     }
 	
 	regolith_mat->SetClassID(255); // first 4 bits in semantic cam, FF00
-    regolith_mat->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF
+	regolith_mat->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF
+	regolith_tex_mat->SetClassID(255); // first 4 bits in semantic cam, FF00
+    regolith_tex_mat->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF
 
 	////// Set up decorated grounds
 	printf("Loading decorated ground into system ...\n");
@@ -323,7 +336,7 @@ int main(int argc, char* argv[]) {
 
 	//// Set up side ground meshes
 	// Load mesh from obj file
-	auto decorated_ground_mesh_side_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(decorated_ground_mesh_path, false, false);
+	auto decorated_ground_mesh_side_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(decorated_ground_mesh_path, true, true);
 	decorated_ground_mesh_side_loader->Transform(
 		ChVector3d(0, 0, 0),
 		ChMatrix33<>(
@@ -496,18 +509,14 @@ int main(int argc, char* argv[]) {
 
 	//// Create the deformable SCM ground ////
 	vehicle::SCMTerrain ground(&sys);
-	ground.SetReferenceFrame(ChCoordsys<>(ChVector3d(0, 0, 0.05)));
+	ground.SetReferenceFrame(ChCoordsys<>(ChVector3d(0, 0, 0.08)));
 
 	ground.Initialize(ground_mesh_path, mesh_resolution);
 	ground.SetMeshWireframe(false);
-	auto mesh = ground.GetMesh();
 	{
-		if(mesh->GetNumMaterials() == 0){
-			mesh->AddMaterial(regolith_mat);
-		}
-		else{
-			mesh->GetMaterials()[0] = regolith_mat;
-		}
+		auto mesh = ground.GetMesh();
+		if(mesh->GetNumMaterials() == 0) mesh->AddMaterial(regolith_tex_mat);
+		else mesh->GetMaterials()[0] = regolith_tex_mat;
 	}
 
 	//// Set the soil terramechanical parameters
@@ -714,7 +723,7 @@ int main(int argc, char* argv[]) {
 	}
 	*/
 	
-	// Create Left-Front wheel sinkage observer
+	// Add Left-Back wheel sinkage observer
 	ChVector3f LB_wheel_offset({-0.6418, 0.6098 + 0.22, 0});
     float cam_radius = 5.f; // [m]
     float cam_elevat = 7.f * CH_PI/180; // [rad]
@@ -756,6 +765,30 @@ int main(int argc, char* argv[]) {
 		));
 	}
 	manager->AddSensor(wheel_cam_LB);
+
+	// Add Left-Back wheel sinkage semantic segmenter
+	auto wheel_segment_LB = chrono_types::make_shared<ChSegmentationCamera>(
+		viper.GetChassis()->GetBody(),	// body camera is attached to
+		update_rate,					// update rate in Hz
+		offset_sink_observer,			// offset pose
+		image_width,					// image width
+		image_height,					// image height
+		sink_observer_fov,				// camera's horizontal field of view
+		lens_model						// lens model
+	);
+	wheel_segment_LB->SetName("wheel_segment_left_back");
+	wheel_segment_LB->SetLag(lag);
+	wheel_segment_LB->SetCollectionWindow(0.f); // would cause dynamic blur effect
+	wheel_segment_LB->PushFilter(chrono_types::make_shared<ChFilterSemanticAccess>());
+	if (vis) {
+		wheel_segment_LB->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Wheel Segment Left-Back"));
+	}
+	if (save) {
+		wheel_segment_LB->PushFilter(chrono_types::make_shared<ChFilterSave>(
+			out_dir + "WheelSegment_LeftBack_" + argv[1] + "_" + brdf_type + "_" + expsr_time_str.str() + "/"
+		));
+	}
+	manager->AddSensor(wheel_segment_LB);
 
 	// Add front-end camera mounted on the Viper
 	char front_cam_posi_idx = 'A';
@@ -824,12 +857,22 @@ int main(int argc, char* argv[]) {
 	sink_observer_msg.step				= sizeof(PixelRGBA8) * sink_observer_msg.width;	// 4 bytes per pixel (R, G, B, A)
 	sink_observer_msg.data.resize(sink_observer_msg.step * sink_observer_msg.height);
 
+	sensor_msgs::msg::Image sink_segment_msg;
+	sink_segment_msg.header.frame_id	= wheel_segment_LB->GetName();						// camera's name
+	sink_segment_msg.width				= wheel_segment_LB->GetWidth();
+	sink_segment_msg.height				= wheel_segment_LB->GetHeight();
+	sink_segment_msg.encoding			= "rgba8";										// RGBA, 8 bits per channel
+	sink_segment_msg.is_bigendian		= false;
+	sink_segment_msg.step				= sizeof(PixelRGBA8) * sink_segment_msg.width;	// 4 bytes per pixel (R, G, B, A)
+	sink_segment_msg.data.resize(sink_segment_msg.step * sink_segment_msg.height);
+
 	// Initialize ROS
 	rclcpp::init(argc, argv);
 
 	// Create the ROS node, passing in the initialized image
 	auto node = std::make_shared<RGBA8PublisherNode>("chrono_node");
 	node->AddImgPublisher(wheel_cam_LB->GetName());
+	node->AddImgPublisher(wheel_segment_LB->GetName());
 
 	// Explicit executor
 	rclcpp::executors::SingleThreadedExecutor executor;
@@ -889,17 +932,24 @@ int main(int argc, char* argv[]) {
 		
 		// Update image message data and publish out
 		sink_observer_msg.header.stamp = GetROSTimestamp(sim_time);
+		sink_segment_msg.header.stamp = GetROSTimestamp(sim_time);
 		// img_msg.data.assign(rgba8_image, rgba8_image + img_msg.step * img_msg.height); // debug
 
-		UserRGBA8BufferPtr rgba8_buffer_ptr = wheel_cam_LB->GetMostRecentBuffer<UserRGBA8BufferPtr>();	// start of PixelRGBA8[]
+		UserRGBA8BufferPtr rgba8_buffer_ptr = wheel_cam_LB->GetMostRecentBuffer<UserRGBA8BufferPtr>(); // start of PixelRGBA8[]
+		UserSemanticBufferPtr segment_buffer_ptr = wheel_segment_LB->GetMostRecentBuffer<UserSemanticBufferPtr>(); // start of PixelSemantic[]
 		if (rgba8_buffer_ptr && rgba8_buffer_ptr->Buffer) {
 			const uint8_t* rgba8_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelRGBA8*>(rgba8_buffer_ptr->Buffer.get()));
 			sink_observer_msg.data.assign(rgba8_ptr, rgba8_ptr + sink_observer_msg.step * sink_observer_msg.height);
+		}
+		if (segment_buffer_ptr && segment_buffer_ptr->Buffer) {
+			const uint8_t* segment_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelSemantic*>(segment_buffer_ptr->Buffer.get()));
+			sink_segment_msg.data.assign(segment_ptr, segment_ptr + sink_segment_msg.step * sink_segment_msg.height);
 		}
     	
 		time_elapsed_since_last_publish += sim_time_step;
 		if (time_elapsed_since_last_publish > publish_frame_time) {
 			node->PublishImgMsg(wheel_cam_LB->GetName(), sink_observer_msg);
+			node->PublishImgMsg(wheel_segment_LB->GetName(), sink_segment_msg);
 			time_elapsed_since_last_publish -= publish_frame_time;
 		}
 		

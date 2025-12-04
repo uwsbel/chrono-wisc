@@ -49,9 +49,10 @@ enum ViperWheelID {
 
 /// Viper wheel type.
 enum class ViperWheelType {
-    RealWheel,    ///< actual geometry of the Viper wheel
-    SimpleWheel,  ///< simplified wheel geometry
-    CylWheel      ///< cylindrical wheel geometry
+    RealWheel,      ///< actual geometry of the Viper wheel
+    SimpleWheel,    ///< simplified wheel geometry
+    CylWheel,       ///< cylindrical wheel geometry
+    CustomizedWheel ///< customized wheel geometry
 };
 
 // -----------------------------------------------------------------------------
@@ -151,7 +152,8 @@ class CH_MODELS_API ViperWheel : public ViperPart {
     ViperWheel(const std::string& name,                 ///< part name
                const ChFrame<>& rel_pos,                ///< position relative to chassis frame
                std::shared_ptr<ChContactMaterial> mat,  ///< contact material
-               ViperWheelType wheel_type                ///< wheel type
+               ViperWheelType wheel_type,               ///< wheel type
+               std::string customized_wheel_name = ""   ///< name of the customized wheel type if needed
     );
     ~ViperWheel() {}
 
@@ -202,7 +204,7 @@ class ViperDriver;
 /// This class should be the entry point to create a complete rover.
 class CH_MODELS_API Viper {
   public:
-    Viper(ChSystem* system, ViperWheelType wheel_type = ViperWheelType::RealWheel);
+    Viper(ChSystem* system, ViperWheelType wheel_type = ViperWheelType::RealWheel, std::string customized_wheel_name = "");
 
     ~Viper() {}
 
@@ -310,7 +312,7 @@ class CH_MODELS_API Viper {
 
   private:
     /// Create the rover parts.
-    void Create(ViperWheelType wheel_type);
+    void Create(ViperWheelType wheel_type, std::string = "");
 
     ChSystem* m_system;  ///< pointer to the Chrono system
 

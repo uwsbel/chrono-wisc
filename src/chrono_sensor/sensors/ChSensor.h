@@ -49,6 +49,7 @@ const char ChFilterGPSAccessName[] = "ChFilterGPSAccess";        /// GPS data fo
 const char ChFilterRadarAccessName[] = "ChFilterRadarAccess";
 const char ChFilterRadarXYZAccessName[] = "ChFilterRadarXYZAccess";
 const char ChFilterTachometerAccessName[] = "ChFilterTachometerAccess";
+const char ChFilterSemanticAccessName[] = "ChFilterSemanticAccess";
 const char ChFilterDepthAccessName[] = "ChFilterDepthAccess";
 const char ChFilterFloat4AccessName[] = "ChFilterFloat4Access";
 const char ChFilterNormalAccessName[] = "ChFilterNormalAccess";  /// 3 channel float array

@@ -291,7 +291,8 @@ void ViperChassis::Initialize(ChSystem* system, const ChFrame<>& pos) {
 ViperWheel::ViperWheel(const std::string& name,
                        const ChFrame<>& rel_pos,
                        std::shared_ptr<ChContactMaterial> mat,
-                       ViperWheelType wheel_type)
+                       ViperWheelType wheel_type,
+                       std::string customized_wheel_name)
     : ViperPart(name, rel_pos, mat, true) {
     switch (wheel_type) {
         case ViperWheelType::RealWheel:
@@ -302,6 +303,13 @@ ViperWheel::ViperWheel(const std::string& name,
             break;
         case ViperWheelType::CylWheel:
             m_mesh_name = "viper_cylwheel";
+            break;
+        case ViperWheelType::CustomizedWheel:
+            m_mesh_name = customized_wheel_name;
+            break;
+        default:
+            std::cout << "Unknown VIPER wheel type" << std::endl;
+            exit(1);
             break;
     }
 
@@ -366,7 +374,7 @@ ViperUpright::ViperUpright(const std::string& name,
 // =============================================================================
 
 // Rover model
-Viper::Viper(ChSystem* system, ViperWheelType wheel_type) : m_system(system), m_chassis_fixed(false) {
+Viper::Viper(ChSystem* system, ViperWheelType wheel_type, std::string customized_wheel_name) : m_system(system), m_chassis_fixed(false) {
     // Set default collision model envelope commensurate with model dimensions.
     // Note that an SMC system automatically sets envelope to 0.
     auto contact_method = m_system->GetContactMethod();
@@ -379,28 +387,34 @@ Viper::Viper(ChSystem* system, ViperWheelType wheel_type) : m_system(system), m_
     m_default_material = DefaultContactMaterial(contact_method);
     m_wheel_material = DefaultContactMaterial(contact_method);
 
-    Create(wheel_type);
+    Create(wheel_type, customized_wheel_name);
 }
 
-void Viper::Create(ViperWheelType wheel_type) {
+void Viper::Create(ViperWheelType wheel_type, std::string customized_wheel_name) {
     // create rover chassis
     m_chassis = chrono_types::make_shared<ViperChassis>("chassis", m_default_material);
 
     // initilize rover wheels
-    double wx = 0.5618 + 0.08; // [m], for real VIPER's wheel
-    // double wx = 0.6418; // [m], for COBRA's wheel
-    double wy = 0.6098; // [m], for real VIPER's wheel
-    // double wy = 0.6098 + 0.22; // [m], for COBRA's wheel
-    double wz = 0.0; // [m], for real VIPER's wheel
+    double wx = 0.;
+    double wy = 0.;
+    if (wheel_type == ViperWheelType::CustomizedWheel) {
+        wx = 0.6418;        // [m], for COBRA's wheel_v2
+        wy = 0.6098 + 0.22; // [m], for COBRA's wheel_v2
+    }
+    else {
+        wx = 0.5618 + 0.08; // [m], for real VIPER's wheel
+        wy = 0.6098; // [m], for real VIPER's wheel
+    }
+    double wz = 0.0; // [m]
 
     m_wheels[V_LF] = chrono_types::make_shared<ViperWheel>("wheel_LF", ChFrame<>(ChVector3d(+wx, +wy, wz), QUNIT),
-                                                           m_wheel_material, wheel_type);
+                                                           m_wheel_material, wheel_type, customized_wheel_name);
     m_wheels[V_RF] = chrono_types::make_shared<ViperWheel>("wheel_RF", ChFrame<>(ChVector3d(+wx, -wy, wz), QUNIT),
-                                                           m_wheel_material, wheel_type);
+                                                           m_wheel_material, wheel_type, customized_wheel_name);
     m_wheels[V_LB] = chrono_types::make_shared<ViperWheel>("wheel_LB", ChFrame<>(ChVector3d(-wx, +wy, wz), QUNIT),
-                                                           m_wheel_material, wheel_type);
+                                                           m_wheel_material, wheel_type, customized_wheel_name);
     m_wheels[V_RB] = chrono_types::make_shared<ViperWheel>("wheel_RB", ChFrame<>(ChVector3d(-wx, -wy, wz), QUNIT),
-                                                           m_wheel_material, wheel_type);
+                                                           m_wheel_material, wheel_type, customized_wheel_name);
 
     m_wheels[V_LF]->m_mesh_xform = ChFrame<>(VNULL, QuatFromAngleZ(CH_PI));
     m_wheels[V_LB]->m_mesh_xform = ChFrame<>(VNULL, QuatFromAngleZ(CH_PI));
