@@ -1,0 +1,12 @@
+# Generated data/output folders in this demo directory
+ARTcar_*/
+Pull_*/
+pull_*/
+Sine_*/
+SineSideSlip_*/
+slalom_with_power*/
+DEMO_OUTPUT/
+rendering_for_paper/
+
+# Python cache
+__pycache__/

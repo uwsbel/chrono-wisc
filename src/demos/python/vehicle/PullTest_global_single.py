@@ -88,7 +88,7 @@ def generate_sobol_param_dicts(n, particle_spacing):
         u = U[i].tolist()
         pdict = {
             "rad": _int_from_unit(u[0], rad_lb, rad_ub),
-            "w_by_r": _float_from_unit(u[1], 0.7, 1.3),
+            "w_by_r": _float_from_unit(u[1], 0.7, 1.4),
             "what_percent_is_grouser": _float_from_unit(u[2], 0.0, 0.3),
             "g_density": _int_from_unit(u[3], gd_lb, gd_ub),
             "fan_theta_deg": _int_from_unit(u[4], th_lb, th_ub),

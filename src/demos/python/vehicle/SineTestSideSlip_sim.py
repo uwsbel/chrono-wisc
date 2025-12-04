@@ -37,6 +37,7 @@ class Params:
     particle_spacing=0.005, # Particle spacing
     fan_theta_deg=60.0 # Only for Straight - Its the angle with horizontal in clockwise direction
     steering_kp=5.5 # Steering gain
+    steering_ki=0.0 # Steering integral gain
     steering_kd=1.0 # Steering derivative gain
     speed_kp=0.5 # Speed gain
     speed_kd=0.1 # Speed derivative gain
@@ -368,7 +369,7 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
 
     driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), bezier_path, "sine_path", SimParams.target_speed,vehicle_init_time, 2.0)
     driver.GetSteeringController().SetLookAheadDistance(0.25)
-    driver.GetSteeringController().SetGains(Params.steering_kp, 0, Params.steering_kd)
+    driver.GetSteeringController().SetGains(Params.steering_kp, Params.steering_ki, Params.steering_kd)
     driver.GetSpeedController().SetGains(Params.speed_kp, 0.2, Params.speed_kd)
     driver.Initialize()
     
@@ -745,6 +746,7 @@ if __name__ == "__main__":
     parser.add_argument("--fan_theta_deg", type=float, default=60.0)
     # Optional controllers (defaults preserved if omitted)
     parser.add_argument("--steering_kp", type=float, default=None)
+    parser.add_argument("--steering_ki", type=float, default=None)
     parser.add_argument("--steering_kd", type=float, default=None)
     parser.add_argument("--speed_kp", type=float, default=None)
     parser.add_argument("--speed_kd", type=float, default=None)
@@ -776,6 +778,8 @@ if __name__ == "__main__":
     # Optional controller overrides
     if args.steering_kp is not None:
         p.steering_kp = float(args.steering_kp)
+    if args.steering_ki is not None:
+        p.steering_ki = float(args.steering_ki)
     if args.steering_kd is not None:
         p.steering_kd = float(args.steering_kd)
     if args.speed_kp is not None:

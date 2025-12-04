@@ -209,6 +209,7 @@ def main():
     # Always use 'total_time_to_reach' as the time column
     time_col = "total_time_to_reach"
     power_col = "average_power" if "average_power" in df_sorted.columns else ("avg_power" if "avg_power" in df_sorted.columns else None)
+    rms_error_col = "rms_error" if "rms_error" in df_sorted.columns else None
 
     if not args.snapshots:
         # If a specific rank is requested, just print its stats
@@ -225,12 +226,15 @@ def main():
             m = row.get(metric_col)
             t = row.get(time_col)
             pwr = row.get(power_col) if power_col else None
+            rms_err = row.get(rms_error_col) if rms_error_col else None
             print(f"rank={idx}")
             print(f"  trial_index: {row.get('trial_index')}")
             print(f"  metric ({metric_col}): {m}")
             print(f"  {time_col}: {t}")
             if power_col:
                 print(f"  {power_col}: {pwr}")
+            if rms_error_col:
+                print(f"  {rms_error_col}: {rms_err}")
             print("  wheel (raw from CSV):")
             print(f"    rad_outer: {rad_outer}")
             print(f"    w_by_r: {w_by_r}")
@@ -271,12 +275,15 @@ def main():
                 m = row.get(metric_col)
                 t = row.get(time_col)
                 pwr = row.get(power_col) if power_col else None
+                rms_err = row.get(rms_error_col) if rms_error_col else None
                 f.write(f"rank {i}:\n")
                 f.write(f"  trial_index: {row.get('trial_index')}\n")
                 f.write(f"  metric ({metric_col}): {m}\n")
                 f.write(f"  {time_col}: {t}\n")
                 if power_col:
                     f.write(f"  {power_col}: {pwr}\n")
+                if rms_error_col:
+                    f.write(f"  {rms_error_col}: {rms_err}\n")
                 f.write("  wheel (raw from CSV):\n")
                 f.write(f"    rad_outer: {rad_outer}\n")
                 f.write(f"    w_by_r: {w_by_r}\n")

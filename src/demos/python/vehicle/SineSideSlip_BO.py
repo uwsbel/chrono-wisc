@@ -12,12 +12,11 @@ from ax.generation_strategy.generator_spec import GeneratorSpec
 from ax.generation_strategy.transition_criterion import MinTrials
 from ax.adapter.registry import Generators
 from botorch.acquisition.logei import qLogNoisyExpectedImprovement
-# from botorch.acquisition.monte_carlo import qLogNoisyExpectedImprovement
-
 
 """
-Single-GPU, single-process BO driver aligned with PullTest_global_single.py.
-Removes previous multiprocessing and GPU assignment; runs suggestions sequentially.
+Single-GPU, single-process BO driver for the Sine test with side-slip metric,
+aligned with SineTestSideSlip_global_single.py. Evaluates suggestions
+sequentially and can seed prior completed trials from SineSideSlip_global_* runs.
 """
 
 
@@ -39,11 +38,11 @@ def compute_int_bounds(lower_m, upper_m, spacing):
     return lb, ub
 
 
-def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path, resume):
+def build_ax_client(particle_spacing, sobol_trials, state_path, resume):
     """
     Create an AxClient configured to:
       - run `sobol_trials` quasi-random Sobol initial points,
-      - then switch to Modular BoTorch Bayesian optimization using qEI,
+      - then switch to Modular BoTorch Bayesian optimization using qLogNEI.
     """
     botorch_node = GenerationNode(
         node_name="BoTorch",
@@ -77,10 +76,10 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
     center_node = CenterGenerationNode(next_node_name=sobol_node.node_name)
 
     gs = GenerationStrategy(
-        name="Center+Sobol+BoTorch(qEI)",
+        name="Center+Sobol+BoTorch(qLogNEI)",
         nodes=[center_node, sobol_node, botorch_node],
     )
-        
+
     if resume and os.path.isfile(state_path):
         ax_client = AxClient.load_from_json_file(filepath=state_path)
         try:
@@ -92,7 +91,6 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
             else:
                 print("No completed trials in loaded Ax state yet; continuing.")
         except Exception as e:
-            # Ax may raise or return None if no data exists yet; resume anyway.
             print(f"Could not determine best parameters on resume: {e}")
         return ax_client
 
@@ -101,8 +99,9 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
     # Outer radius (including grousers) bounds in meters
     rad_lb, rad_ub = compute_int_bounds(0.05, 0.14, particle_spacing)
 
+    # Note: w_by_r upper bound widened to 1.4 to match SideSlip global sampling
     ax_client.create_experiment(
-        name="wheel_optimization",
+        name="sine_wheel_optimization_sideslip",
         parameters=[
             {"name": "rad", "type": "range", "bounds": [rad_lb, rad_ub], "value_type": "int"},
             {"name": "w_by_r", "type": "range", "bounds": [0.7, 1.4], "value_type": "float"},
@@ -118,17 +117,17 @@ def build_ax_client(particle_spacing, sobol_trials, max_parallelism, state_path,
     return ax_client
 
 
-def map_params_to_sim(param_dict, particle_spacing, density, cohesion, friction, max_force, target_speed):
-    from PullTest_sim import Params, SimParams
+def map_params_to_sim(param_dict, particle_spacing, density, cohesion, friction, max_force, target_speed, terrain_length):
+    from SineTestSideSlip_sim import Params, SimParams
 
     p = Params()
     p.particle_spacing = particle_spacing
-    # New parametrization inputs
-    rad_outer = int(param_dict["rad"])  # in multiples of particle spacing
-    w_by_r = float(param_dict["w_by_r"])
-    pct_g = float(param_dict["what_percent_is_grouser"])
+    # New parametrization inputs (outer radius and ratios)
+    rad_outer = int(param_dict["rad"])  # multiples of particle spacing
+    w_by_r = float(param_dict["w_by_r"])  # unitless ratio
+    pct_g = float(param_dict["what_percent_is_grouser"])  # fraction of outer radius
 
-    # Derived discrete geometry (in multiples of particle spacing)
+    # Derived discrete geometry in multiples of spacing
     g_height_int = int(round(rad_outer * pct_g))
     g_height_int = max(0, g_height_int)
     rad_inner_int = int(rad_outer - g_height_int)
@@ -139,21 +138,25 @@ def map_params_to_sim(param_dict, particle_spacing, density, cohesion, friction,
     p.g_height = g_height_int
     p.g_density = int(param_dict["g_density"])
     p.fan_theta_deg = int(param_dict.get("fan_theta_deg", 0))
-    
+
     sp = SimParams()
     sp.density = density
     sp.cohesion = cohesion
     sp.friction = friction
     sp.max_force = max_force
     sp.target_speed = target_speed
-    
+    try:
+        sp.terrain_length = float(terrain_length)
+    except Exception:
+        pass
+
     return p, sp
 
 
 def _seed_from_csv(ax_client, csv_paths, expected_particle_spacing=None):
     """Read existing completed trials from one or more CSV files and attach to Ax.
-    The CSV is expected to have the schema written by PullTest_global_single.py / PullTest_BO.py:
-    timestamp,trial_index,metric,total_time_to_reach,average_power,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing
+    The CSV is expected to have the schema written by SineTestSideSlip_global_single.py:
+    timestamp,trial_index,metric,total_time_to_reach,rms_error,average_power,beta_rms,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing
 
     Parameters are mapped as:
       rad <- rad_outer
@@ -170,7 +173,8 @@ def _seed_from_csv(ax_client, csv_paths, expected_particle_spacing=None):
     if isinstance(csv_paths, str):
         csv_paths = [csv_paths]
 
-    seeded = 0
+    attached = 0
+    completed = 0
     for path in csv_paths:
         if not os.path.isfile(path):
             print(f"Seed CSV not found: {path}")
@@ -183,18 +187,21 @@ def _seed_from_csv(ax_client, csv_paths, expected_particle_spacing=None):
                     if not line:
                         continue
                     parts = line.split(",")
-                    if len(parts) < 11:
+                    if len(parts) < 13:
                         continue
                     try:
-                        # Columns: 0 ts, 1 trial_idx, 2 metric, 3 time, 4 power, 5 rad_outer, 6 w_by_r,
-                        # 7 pct_g, 8 g_density, 9 fan_theta_deg, 10 particle_spacing
+                        # Columns: 0 ts, 1 trial_idx, 2 metric, 3 time, 4 rms, 5 power, 6 beta_rms,
+                        # 7 rad_outer, 8 w_by_r, 9 pct_g, 10 g_density, 11 fan_theta_deg, 12 particle_spacing
                         metric = float(parts[2])
-                        rad_outer = int(float(parts[5]))
-                        w_by_r = float(parts[6])
-                        pct_g = float(parts[7])
-                        g_density = int(float(parts[8]))
-                        fan_theta_deg = int(float(parts[9]))
-                        pspace = float(parts[10])
+                        if not math.isfinite(metric):
+                            # Skip non-finite metrics
+                            continue
+                        rad_outer = int(float(parts[7]))
+                        w_by_r = float(parts[8])
+                        pct_g = float(parts[9])
+                        g_density = int(float(parts[10]))
+                        fan_theta_deg = int(float(parts[11]))
+                        pspace = float(parts[12])
                         if expected_particle_spacing is not None and abs(pspace - expected_particle_spacing) > 1e-12:
                             continue
                         params = {
@@ -205,29 +212,38 @@ def _seed_from_csv(ax_client, csv_paths, expected_particle_spacing=None):
                             "fan_theta_deg": fan_theta_deg,
                         }
                         _, t_idx = ax_client.attach_trial(parameters=params)
+                        attached += 1
                         print(f"Attached trial {t_idx} with parameters: {params}")
-                        ax_client.complete_trial(trial_index=t_idx, raw_data={"metric": metric})
-                        seeded += 1
+                        try:
+                            ax_client.complete_trial(trial_index=t_idx, raw_data={"metric": metric})
+                            completed += 1
+                        except Exception as comp_e:
+                            # If completion fails, abandon the trial to keep state clean
+                            try:
+                                ax_client.abandon_trial(trial_index=t_idx)
+                            except Exception:
+                                pass
+                            print(f"  Completion failed for attached trial {t_idx}: {comp_e}")
                     except Exception:
                         continue
         except Exception as e:
             print(f"Failed to read seed CSV {path}: {e}")
             continue
-    if seeded > 0:
-        print(f"Seeded {seeded} completed trials from CSV into Ax experiment.")
+    if completed > 0:
+        print(f"Seeding summary: attached={attached}, completed={completed} from CSV.")
     else:
-        print("No trials were seeded from CSV.")
-    return seeded
+        print(f"No trials were seeded from CSV. attached={attached}, completed={completed}.")
+    return completed
 
 
-def _autodiscover_seed_csv(particle_spacing, cohesion, friction, max_force, target_speed):
+def _autodiscover_seed_csv(density, cohesion, friction, max_force, target_speed, terrain_length):
     """Return a candidate seed CSV path based on requested parameters.
-    Pattern: Pull_global_{particle_spacing}_{cohesion}_{friction}_{max_force}_{target_speed}/trials.csv
+    Pattern: SineSideSlip_global_{density}_{cohesion}_{friction}_{max_force}_{target_speed}_{terrain_length}/trials.csv
     """
     folder = (
-        f"Pull_global_{_fmt_num(particle_spacing)}_"
+        f"SineSideSlip_global_{_fmt_num(density)}_"
         f"{_fmt_num(cohesion)}_{_fmt_num(friction)}_"
-        f"{_fmt_num(max_force)}_{_fmt_num(target_speed)}"
+        f"{_fmt_num(max_force)}_{_fmt_num(target_speed)}_{_fmt_num(terrain_length)}"
     )
     return os.path.join(folder, "trials.csv")
 
@@ -237,22 +253,32 @@ def ensure_dir(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Bayesian Optimization for wheel parameters using Ax + BoTorch (qEI)")
-    parser.add_argument("--particle_spacing", type=float, default=0.01, help="Particle spacing (meters)")
+    parser = argparse.ArgumentParser(description="Bayesian Optimization (Sine test with side-slip) for wheel parameters using Ax + BoTorch (qLogNEI)")
+    parser.add_argument("--particle_spacing", type=float, default=0.005, help="Particle spacing (meters)")
     parser.add_argument("--batches", type=int, default=100, help="Number of outer iterations (batches)")
     parser.add_argument("--q", type=int, default=8, help="Suggestions evaluated per batch (sequential)")
     parser.add_argument("--sobol", type=int, default=0, help="Number of Sobol warmup trials before BO")
-    # Default out_dir follows Pull_global_* template for consistency with global runs
-    parser.add_argument("--out_dir", type=str, default=None, help="Output directory for logs and state (default: Pull_global_* template)")
+    # Default out_dir follows SineSideSlip_global_* template for consistency with global runs
+    parser.add_argument("--out_dir", type=str, default=None, help="Output directory for logs and state (default: SineSideSlip_global_* template)")
     parser.add_argument("--state_path", type=str, default=None, help="Path to save/load Ax state JSON (defaults to out_dir/ax_state.json)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing Ax state JSON if present")
-    parser.add_argument("--seed", action="store_true", help="Autodiscover and seed prior trials from Pull_global_* matching the parameters")
+    parser.add_argument("--seed", action="store_true", help="Autodiscover and seed prior trials from SineSideSlip_global_* matching the parameters")
     parser.add_argument("--seed_csv", type=str, nargs="*", default=None, help="Path(s) to trials.csv files to seed completed trials (overrides autodiscovery)")
+    # Environment / material
     parser.add_argument("--density", type=float, default=1700, help="Material density")
     parser.add_argument("--cohesion", type=float, default=0, help="Material cohesion")
     parser.add_argument("--friction", type=float, default=0.8, help="Material friction coefficient")
-    parser.add_argument("--max_force", type=float, default=20, help="Maximum pulling force")
+    parser.add_argument("--max_force", type=float, default=25, help="Maximum pulling force")
     parser.add_argument("--target_speed", type=float, default=2.0, help="Target vehicle speed")
+    parser.add_argument("--terrain_length", type=float, default=5.0, help="Terrain length in meters (e.g., 5.0 or 10.0)")
+    # Sine metric weighting (defaults align with SineTestSideSlip_global_single)
+    parser.add_argument("--weight_speed", type=float, default=0.5, help="Weight for speed metric component")
+    parser.add_argument("--weight_power", type=float, default=0.0, help="Weight for power metric component")
+    parser.add_argument("--weight_beta", type=float, default=0.2, help="Weight for side-slip (beta) metric component")
+    # Optional sine shape overrides
+    parser.add_argument("--sine_amplitude", type=float, default=None, help="Override sine amplitude in meters (optional)")
+    parser.add_argument("--num_periods", type=int, default=None, help="Override number of sine periods (optional)")
+
     args = parser.parse_args()
 
     particle_spacing = args.particle_spacing
@@ -262,9 +288,9 @@ def main():
     # Default out_dir template if not provided (use normalized float formatting)
     if args.out_dir is None:
         out_dir = (
-            f"Pull_global_{_fmt_num(particle_spacing)}_"
+            f"SineSideSlip_global_{_fmt_num(args.density)}_"
             f"{_fmt_num(args.cohesion)}_{_fmt_num(args.friction)}_"
-            f"{_fmt_num(args.max_force)}_{_fmt_num(args.target_speed)}"
+            f"{_fmt_num(args.max_force)}_{_fmt_num(args.target_speed)}_{_fmt_num(args.terrain_length)}"
         )
     else:
         out_dir = args.out_dir
@@ -279,7 +305,6 @@ def main():
     ax_client = build_ax_client(
         particle_spacing=particle_spacing,
         sobol_trials=sobol_trials,
-        max_parallelism=q,
         state_path=state_path,
         resume=args.resume,
     )
@@ -287,33 +312,49 @@ def main():
     # Seeding: use explicit CSV if provided; otherwise autodiscover when --seed is passed
     seeded_count = 0
     if args.seed_csv and len(args.seed_csv) > 0:
-        seeded_count = _seed_from_csv(ax_client, args.seed_csv, expected_particle_spacing=None)
+        seeded_count = _seed_from_csv(ax_client, args.seed_csv, expected_particle_spacing=particle_spacing)
     elif args.seed:
-        auto_csv = _autodiscover_seed_csv(particle_spacing, args.cohesion, args.friction, args.max_force, args.target_speed)
-        seeded_count = _seed_from_csv(ax_client, [auto_csv], expected_particle_spacing=None)
+        auto_csv = _autodiscover_seed_csv(args.density, args.cohesion, args.friction, args.max_force, args.target_speed, args.terrain_length)
+        seeded_count = _seed_from_csv(ax_client, [auto_csv], expected_particle_spacing=particle_spacing)
     if (args.seed or (args.seed_csv and len(args.seed_csv) > 0)) and seeded_count == 0:
         print("Seeding requested but no trials found; retaining Sobol warmup to avoid empty-data BO.")
 
     if not os.path.isfile(trials_csv):
         with open(trials_csv, "w") as f:
-            f.write("timestamp,trial_index,metric,total_time_to_reach,average_power,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing\n")
-    
+            f.write("timestamp,trial_index,metric,total_time_to_reach,rms_error,average_power,beta_rms,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing\n")
+
     density = args.density
     cohesion = args.cohesion
     friction = args.friction
     max_force = args.max_force
     target_speed = args.target_speed
+    terrain_length = args.terrain_length
 
     for batch_idx in range(batches):
         print(f"Batch {batch_idx + 1}/{batches}")
-        suggestions, is_available = ax_client.get_next_trials(max_trials=q)
+        suggestions, _ = ax_client.get_next_trials(max_trials=q)
 
         # Evaluate each suggestion sequentially on the single GPU
         for trial_index, param_dict in suggestions.items():
             try:
-                from PullTest_sim import sim
-                params_for_sim, sim_params = map_params_to_sim(param_dict, particle_spacing, density, cohesion, friction, max_force, target_speed)
-                metric, total_time_to_reach, _, average_power, sim_failed = sim(params_for_sim, sim_params)
+                from SineTestSideSlip_sim import sim
+                params_for_sim, sim_params = map_params_to_sim(
+                    param_dict, particle_spacing, density, cohesion, friction, max_force, target_speed, terrain_length
+                )
+
+                kwargs = {}
+                if args.sine_amplitude is not None:
+                    kwargs["sine_amplitude"] = float(args.sine_amplitude)
+                if args.num_periods is not None:
+                    kwargs["num_periods"] = int(args.num_periods)
+
+                metric, total_time_to_reach, rms_error, average_power, beta_rms, sim_failed = sim(
+                    params_for_sim, sim_params,
+                    weight_speed=float(args.weight_speed),
+                    weight_power=float(args.weight_power),
+                    weight_beta=float(args.weight_beta),
+                    **kwargs,
+                )
 
                 if sim_failed or metric is None:
                     ax_client.abandon_trial(trial_index=trial_index)
@@ -330,11 +371,13 @@ def main():
                 ax_client.complete_trial(trial_index=trial_index, raw_data={"metric": float(metric)})
                 with open(trials_csv, "a") as f:
                     f.write(
-                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric:.4f},{total_time_to_reach:.4f},{average_power:.2f},"
+                        f"{datetime.utcnow().isoformat()}Z,{trial_index},{metric:.4f},{total_time_to_reach:.4f},{rms_error:.6f},{average_power:.2f},{beta_rms:.6f},"
                         f"{param_dict['rad']},{param_dict['w_by_r']:.6f},{param_dict['what_percent_is_grouser']:.6f},{param_dict['g_density']},"
                         f"{param_dict['fan_theta_deg']},{particle_spacing}\n"
                     )
-                print(f"  Trial {trial_index}: metric={metric:.4f}, time={total_time_to_reach:.4f}s, power={average_power:.2f}W")
+                print(
+                    f"  Trial {trial_index}: metric={metric:.4f}, time={total_time_to_reach:.4f}s, rms={rms_error:.4f}m, power={average_power:.2f}W, beta_rms={beta_rms:.4f}rad"
+                )
             except KeyboardInterrupt:
                 print("Keyboard interrupt received. Stopping batch early.")
                 ax_client.save_to_json_file(filepath=state_path)
@@ -363,3 +406,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

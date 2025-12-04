@@ -5,13 +5,10 @@ from typing import List, Tuple
 
 # Use a non-interactive matplotlib backend to avoid Tkinter crashes in
 # multi-threaded/process environments and headless runs.
-# This must be set before importing pyplot anywhere.
 try:
     import matplotlib
     matplotlib.use("Agg")
 except Exception:
-    # If matplotlib is not installed or the import fails, plotting blocks
-    # below already handle exceptions gracefully.
     pass
 
 import numpy as np
@@ -22,15 +19,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-# ----- Problem definition (PullTest single-wheel new params) -----
-
-
-def compute_int_bounds(lower_m: float, upper_m: float, spacing: float) -> Tuple[int, int]:
-    lb = int(np.ceil(lower_m / spacing))
-    ub = int(np.floor(upper_m / spacing))
-    if lb > ub:
-        raise ValueError(f"Invalid bounds after scaling: [{lb}, {ub}] for spacing={spacing}")
-    return lb, ub
+# ----- Problem definition (steering controller only: kp, ki, kd) -----
 
 
 @dataclass
@@ -41,135 +30,67 @@ class VarSpec:
     values: Tuple[int, ...] = None      # for categorical
 
 
-def build_varspecs_pull_single(particle_spacing: float, feature_names: List[str]) -> List[VarSpec]:
-    """Build VarSpecs for Pull/Sine studies, optionally including control gains.
-
-    Always supports geometry parameters. If steering/speed control columns are
-    present in the CSV, include them with reasonable bounds (aligned with
-    Sine/Slalom scripts in this repo):
-      - steering_kp in [0.1, 20.0]
-      - steering_kd in [0.0, 5.0]
-      - speed_kp    in [0.1, 5.0]
-      - speed_kd    in [0.0, 1.0]
-    """
-    # Integer ranges derived from meters and spacing (match PullTest_global_single.py)
-    rad_lb, rad_ub = compute_int_bounds(0.05, 0.14, particle_spacing)
-    th_lb, th_ub = 45, 135
-
+def build_varspecs_controller(feature_names: List[str]) -> List[VarSpec]:
+    """Bounds match SineSideSlip_BO_stControllerOnly.py."""
     specs: List[VarSpec] = []
-    if "rad_outer" in feature_names:
-        specs.append(VarSpec("rad_outer", "int", (rad_lb, rad_ub)))
-    if "w_by_r" in feature_names:
-        # Reflect widened bound seen in SineSideSlip data generation
-        specs.append(VarSpec("w_by_r", "float", (0.7, 1.4)))
-    if "what_percent_is_grouser" in feature_names:
-        specs.append(VarSpec("what_percent_is_grouser", "float", (0.0, 0.3)))
-    if "g_density" in feature_names:
-        specs.append(VarSpec("g_density", "int", (2, 16)))
-    if "fan_theta_deg" in feature_names:
-        specs.append(VarSpec("fan_theta_deg", "int", (th_lb, th_ub)))
-
-    # Optional controls
     if "steering_kp" in feature_names:
-        specs.append(VarSpec("steering_kp", "float", (0.1, 20.0)))
+        specs.append(VarSpec("steering_kp", "float", (1.0, 15.0)))
+    if "steering_ki" in feature_names:
+        specs.append(VarSpec("steering_ki", "float", (0.0, 4.0)))
     if "steering_kd" in feature_names:
-        specs.append(VarSpec("steering_kd", "float", (0.0, 5.0)))
-    if "speed_kp" in feature_names:
-        specs.append(VarSpec("speed_kp", "float", (0.1, 5.0)))
-    if "speed_kd" in feature_names:
-        specs.append(VarSpec("speed_kd", "float", (0.0, 1.0)))
-
+        specs.append(VarSpec("steering_kd", "float", (0.0, 4.0)))
     return specs
 
 
-"""
-Only support the PullTest single-wheel NEW parameterization with these exact
-column names emitted by PullTest_global_single.py.
-"""
-
-# ----- Data loading and cleaning -----
-
 BASE_FEATURES = [
-    "rad_outer",
-    "w_by_r",
-    "what_percent_is_grouser",
-    "g_density",
-    "fan_theta_deg",
+    "steering_kp",
+    "steering_ki",
+    "steering_kd",
 ]
 
 
 def detect_features(df: pd.DataFrame) -> List[str]:
-    """Return list of feature columns present, including optional controls.
-
-    Always prioritizes the canonical geometry features; adds any of the
-    optional controller gains if present in the CSV columns.
-    """
-    feats = [c for c in BASE_FEATURES if c in df.columns]
-    for c in ["steering_kp", "steering_kd", "speed_kp", "speed_kd"]:
-        if c in df.columns:
-            feats.append(c)
-    return feats
+    """Only consider steering gains for the controller-only study."""
+    return [c for c in BASE_FEATURES if c in df.columns]
 
 
-def load_filtered_pull(csv_path: str, filter_penalties: bool = True, target_col: str = "metric"):
+def load_filtered_controller(csv_path: str, filter_penalties: bool = True, target_col: str = "metric"):
     df = pd.read_csv(csv_path)
 
-    # Core columns we expect regardless of target
-    core_required = ["total_time_to_reach", "particle_spacing"]
+    core_required = ["total_time_to_reach"]
     core_missing = [c for c in core_required if c not in df.columns]
     if core_missing:
         raise SystemExit(f"CSV missing required core columns: {core_missing}")
 
-    # Validate target availability
     if target_col not in df.columns:
         raise SystemExit(
             f"Target column '{target_col}' not found in CSV. Available columns include: "
             f"{[c for c in ['metric','beta_rms','rms_error','average_power'] if c in df.columns]}"
         )
 
-    # Cast numerics for target and time
     time_col = "total_time_to_reach"
     df[target_col] = pd.to_numeric(df[target_col], errors="coerce")
     df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
 
     df = df.replace([np.inf, -np.inf], np.nan)
-    # Drop rows without valid target/time
     df = df.dropna(subset=[target_col, time_col])
 
-    # Remove failed simulations if filtering is enabled
-    # Failures are encoded as metric >= 500 or total_time_to_reach == 12.0 (2*tend)
     if filter_penalties and target_col == "metric":
         df = df[(df[target_col] < 500) & (df[time_col] != 12.0)]
 
-    # Particle spacing (constant per run)
-    if not df["particle_spacing"].isna().all():
-        spacing = pd.to_numeric(df["particle_spacing"], errors="coerce").dropna().mode().iloc[0]
-    else:
-        spacing = 0.01
-
-    # Determine features present and drop rows with NaNs in those
     features = detect_features(df)
     if not features:
-        raise SystemExit("No supported feature columns found in CSV.")
+        raise SystemExit("No steering gain columns found in CSV (expected steering_kp, steering_ki, steering_kd).")
     df = df.dropna(subset=features)
 
-    # Cast integer-like features
-    for c in ["rad_outer", "g_density", "fan_theta_deg"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce").astype(int)
+    for c in features:
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
 
-    # Cast controllers to float if present
-    for c in ["steering_kp", "steering_kd", "speed_kp", "speed_kd"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
-
-    return df, float(spacing), target_col, features
+    return df, target_col, features
 
 
 def count_failed_from_jsonl(path: str) -> int:
-    """Count unique failed trial indices from a failed_trials.jsonl file.
-    If the file is missing or unreadable, return 0.
-    """
+    """Count unique failed trial indices from a failed_trials jsonl file."""
     try:
         import json
         if not os.path.isfile(path):
@@ -185,7 +106,6 @@ def count_failed_from_jsonl(path: str) -> int:
                     if isinstance(rec, dict) and "trial_index" in rec:
                         uniq.add(int(rec["trial_index"]))
                 except Exception:
-                    # Skip malformed lines
                     pass
         return len(uniq)
     except Exception:
@@ -249,12 +169,10 @@ def saltelli_indices(predict_fn, specs: List[VarSpec], n: int, rng: np.random.Ge
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sobol (Saltelli/Jansen) global sensitivity for PullTest new params via surrogate.")
-    parser.add_argument(
-        "--csv",
-        default="",  # recommend specifying explicitly
-        help="Path to trials.csv from PullTest_global_single.py runs",
+    parser = argparse.ArgumentParser(
+        description="Sobol global sensitivity for steering-only BO runs (kp, ki, kd) via surrogate."
     )
+    parser.add_argument("--csv", default="", help="Path to trials_stControllerOnly.csv")
     parser.add_argument("--n", type=int, default=2000, help="Base sample size for Saltelli (A and B)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--no-filter-penalties", action="store_true", help="Keep penalty trials (metric>=500 or time==12)")
@@ -262,18 +180,16 @@ def main():
     parser.add_argument("--ice", action="store_true", help="Generate ICE plots for each parameter using the fitted surrogate")
     parser.add_argument("--ice-subsample", type=int, default=120, help="Number of data rows to use for ICE conditioning (lines)")
     parser.add_argument("--ice-grid", type=int, default=100, help="Number of grid points per feature for ICE")
-    parser.add_argument("--outdir", default=None, help="Output directory (default: <run_dir>/analysis)")
+    parser.add_argument("--outdir", default=None, help="Output directory (default: <run_dir>/analysis_controller)")
     parser.add_argument("--cv-folds", type=int, default=5, help="K-fold CV folds to evaluate surrogate quality")
     parser.add_argument("--model", choices=["rf", "xgb", "gp"], default="rf", help="Surrogate model to use")
-    parser.add_argument("--target", type=str, default="metric", help="Target column to model (e.g., metric, beta_rms, rms_error, average_power)")
-    parser.add_argument("--failed-log", default=None, help="Path to failed_trials.jsonl (default: alongside CSV)")
-    # XGBoost options
+    parser.add_argument("--target", type=str, default="metric", help="Target column to model (metric, beta_rms, rms_error, average_power)")
+    parser.add_argument("--failed-log", default=None, help="Path to failed_trials_stControllerOnly.jsonl (default: alongside CSV)")
     parser.add_argument("--xgb-estimators", type=int, default=800, help="XGBoost number of trees")
     parser.add_argument("--xgb-depth", type=int, default=8, help="XGBoost max depth")
     parser.add_argument("--xgb-learning-rate", type=float, default=0.05, help="XGBoost learning rate")
     parser.add_argument("--xgb-subsample", type=float, default=0.8, help="XGBoost subsample ratio")
     parser.add_argument("--xgb-colsample-bytree", type=float, default=0.8, help="XGBoost colsample by tree")
-    # GP options
     parser.add_argument("--gp-max-samples", type=int, default=1000, help="Max training samples for GP (subsamples if exceeded)")
     parser.add_argument("--gp-n-restarts", type=int, default=2, help="GP optimizer restarts")
     parser.add_argument("--restrict", type=int, default=None, help="Restrict to first N data points from the CSV")
@@ -282,16 +198,14 @@ def main():
     filter_penalties = not args.no_filter_penalties
 
     if not args.csv:
-        raise SystemExit("Please provide --csv pointing to your PullTest trials.csv")
+        raise SystemExit("Please provide --csv pointing to your trials_stControllerOnly.csv")
 
-    # Load data
-    df, spacing, target_col, features = load_filtered_pull(
+    df, target_col, features = load_filtered_controller(
         args.csv, filter_penalties=filter_penalties, target_col=args.target
     )
     if df.empty:
         raise SystemExit("No usable rows after filtering.")
 
-    # Apply restriction if specified
     if args.restrict is not None:
         if args.restrict <= 0:
             raise SystemExit(f"--restrict must be positive, got {args.restrict}")
@@ -299,16 +213,12 @@ def main():
             df = df.iloc[:args.restrict].copy()
             print(f"Restricted to first {len(df)} data points (requested: {args.restrict})")
 
-    # Features/target
     X = df[features].to_numpy(dtype=float)
     y = df[target_col].to_numpy(dtype=float)
 
-    # Build domain spec from spacing (include controls if present)
-    specs = build_varspecs_pull_single(spacing, features)
+    specs = build_varspecs_controller(features)
 
-    # Construct surrogate based on selection
     model_name = args.model
-
     if model_name == "rf":
         estimator = RandomForestRegressor(
             n_estimators=600,
@@ -352,10 +262,8 @@ def main():
     else:
         raise SystemExit(f"Unknown model: {model_name}")
 
-    # K-fold CV to assess surrogate quality (R^2)
     kf = KFold(n_splits=args.cv_folds, shuffle=True, random_state=args.seed)
 
-    # For GP, subsample for CV if dataset is large
     X_cv = X
     y_cv = y
     gp_note = None
@@ -370,38 +278,29 @@ def main():
     r2_cv_mean = float(np.mean(cv_scores))
     r2_cv_std = float(np.std(cv_scores, ddof=1)) if len(cv_scores) > 1 else 0.0
 
-    # Refit on final training set (subsample for GP if needed)
     if model_name == "gp" and len(X) > args.gp_max_samples:
         estimator.fit(X_cv, y_cv)
     else:
         estimator.fit(X, y)
 
-    # Prediction wrapper expects 2D array of mixed types
     def predict_fn(arr_2d: np.ndarray) -> np.ndarray:
         return estimator.predict(arr_2d)
 
-    # Saltelli sampling / Sobol indices
     rng = np.random.default_rng(args.seed)
     saltelli_n = args.n
-    # if model_name == "gp" and args.n > 1000:
-    #     print("Warning: reducing Saltelli n to 1000 for GP to keep runtime reasonable.")
-    #     saltelli_n = 1000
     S1, ST, names = saltelli_indices(predict_fn, specs, n=saltelli_n, rng=rng)
 
-    # Prepare output directory
     if args.outdir is None:
         run_dir = os.path.dirname(os.path.abspath(args.csv))
-        outdir = os.path.join(run_dir, "analysis")
+        outdir = os.path.join(run_dir, "analysis_controller")
     else:
         outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
 
-    # Save CSV
     res = pd.DataFrame({"param": names, "S1": S1, "ST": ST}).sort_values("S1", ascending=False)
-    out_csv = os.path.join(outdir, "global_sobol_indices_pull_single_newParams.csv")
+    out_csv = os.path.join(outdir, "global_sobol_indices_stControllerOnly.csv")
     res.to_csv(out_csv, index=False)
 
-    # Optional plot
     if args.plot:
         try:
             import matplotlib.pyplot as plt
@@ -413,21 +312,20 @@ def main():
 
             x = np.arange(len(names_ord))
             w = 0.35
-            plt.figure(figsize=(12, 6))
+            plt.figure(figsize=(10, 5))
             plt.bar(x - w / 2, S1_ord, width=w, label="S1 (first-order)")
             plt.bar(x + w / 2, ST_ord, width=w, label="ST (total-order)")
             plt.xticks(x, names_ord, rotation=45, ha="right")
             plt.ylabel("Sobol index")
-            plt.title("Global Sobol Indices (PullTest new params)")
+            plt.title("Global Sobol Indices (steering controller only)")
             plt.legend()
             plt.tight_layout()
-            out_png = os.path.join(outdir, "global_sobol_indices_pull_single_newParams.png")
+            out_png = os.path.join(outdir, "global_sobol_indices_stControllerOnly.png")
             plt.savefig(out_png, dpi=200)
             plt.close()
         except Exception as e:
             print(f"Plotting failed: {e}")
 
-    # ICE plots
     if args.ice:
         try:
             import matplotlib.pyplot as plt
@@ -435,7 +333,6 @@ def main():
             ice_dir = os.path.join(outdir, "ice")
             os.makedirs(ice_dir, exist_ok=True)
 
-            # Subsample rows for ICE lines
             rng = np.random.default_rng(args.seed)
             n_rows = len(df)
             m = min(n_rows, max(10, int(args.ice_subsample)))
@@ -444,10 +341,8 @@ def main():
 
             pdp_swing_lines = []
 
-            # Grid and prediction for each feature
             for j, spec in enumerate(specs):
                 name = spec.name
-                # Build grid across the domain bounds
                 if spec.kind == "int":
                     lo, hi = int(spec.bounds[0]), int(spec.bounds[1])
                     grid = np.arange(lo, hi + 1, max(1, (hi - lo) // max(5, args.ice_grid - 1)))
@@ -456,7 +351,6 @@ def main():
                     lo, hi = float(spec.bounds[0]), float(spec.bounds[1])
                     grid = np.linspace(lo, hi, num=max(5, args.ice_grid))
                 else:
-                    # categorical not used in this problem; skip if present
                     continue
 
                 C = np.zeros((len(X_ref), len(grid)), dtype=float)
@@ -469,10 +363,8 @@ def main():
                         preds = np.full(len(grid), np.nan)
                     C[i_row, :] = preds
 
-                # PDP mean
                 pdp = np.nanmean(C, axis=0)
 
-                # PDP-based percent swing statistic
                 delta = float(np.nanmax(pdp) - np.nanmin(pdp))
                 baseline = float(np.nanmean(np.abs(pdp)))
                 if np.isnan(baseline) or baseline <= 0.0:
@@ -500,7 +392,6 @@ def main():
                 plt.savefig(os.path.join(ice_dir, f"ice_{name}.png"), dpi=150)
                 plt.close()
 
-            # Save PDP-based percent swing statistics to a text file
             try:
                 swing_path = os.path.join(outdir, "ice_pdp_percent_swing.txt")
                 with open(swing_path, "w") as f:
@@ -516,19 +407,19 @@ def main():
         except Exception as e:
             print(f"ICE plotting failed: {e}")
 
-    # Console summary
-    print(f"Data points used: {len(df)} | spacing={spacing}")
-    # Count failures from JSONL
+    print(f"Data points used: {len(df)}")
     run_dir = os.path.dirname(os.path.abspath(args.csv))
-    failed_log_path = args.failed_log if args.failed_log else os.path.join(run_dir, "failed_trials.jsonl")
+    failed_log_path = args.failed_log if args.failed_log else os.path.join(run_dir, "failed_trials_stControllerOnly.jsonl")
     json_failures = count_failed_from_jsonl(failed_log_path)
-    print(f"Failed simulations (from failed_trials.jsonl): {json_failures}")
+    print(f"Failed simulations (from failed_trials_stControllerOnly.jsonl): {json_failures}")
     print(f"Model: {model_name}")
     print(f"Target: {target_col}")
     print(f"Surrogate R^2 CV (k={args.cv_folds}) mean={r2_cv_mean:.3f} std={r2_cv_std:.3f}")
     if r2_cv_mean < 0.0:
-        print("Warning: negative CV R^2 indicates the surrogate is performing worse than a constant-baseline model."
-              " Consider trying a different target (e.g., --target beta_rms for side-slip studies) or a different model (e.g., --model rf).")
+        print(
+            "Warning: negative CV R^2 indicates the surrogate is performing worse than a constant-baseline model. "
+            "Consider trying a different target (e.g., --target beta_rms for side-slip studies) or a different model (e.g., --model rf)."
+        )
     if gp_note:
         print(gp_note)
     print("Top factors by S1:")

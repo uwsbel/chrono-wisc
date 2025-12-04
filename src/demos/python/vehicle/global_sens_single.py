@@ -29,24 +29,36 @@ class VarSpec:
     values: Tuple[int, ...] = None      # for categorical
 
 
-def build_varspecs_single(particle_spacing: float) -> List[VarSpec]:
+def build_varspecs_single(particle_spacing: float, feature_names: List[str]) -> List[VarSpec]:
     # Integer ranges derived from meters and spacing (from SlalomTest_BO_single.py)
     rad_lb, rad_ub = compute_int_bounds(0.06, 0.12, particle_spacing)
     width_lb, width_ub = compute_int_bounds(0.05, 0.12, particle_spacing)
     gh_lb, gh_ub = compute_int_bounds(0.02, 0.05, particle_spacing)
 
-    return [
-        VarSpec("rad", "int", (rad_lb, rad_ub)),
-        VarSpec("width", "int", (width_lb, width_ub)),
-        VarSpec("g_height", "int", (gh_lb, gh_ub)),
-        VarSpec("g_density", "int", (2, 16)),
-        VarSpec("grouser_type", "cat", values=(0, 1)),
-        VarSpec("fan_theta_deg", "int", (45, 135)),
-        VarSpec("steering_kp", "float", (0.1, 20.0)),
-        VarSpec("steering_kd", "float", (0.0, 5.0)),
-        VarSpec("speed_kp", "float", (0.1, 5.0)),
-        VarSpec("speed_kd", "float", (0.0, 1.0)),
-    ]
+    specs: List[VarSpec] = []
+    if "rad" in feature_names:
+        specs.append(VarSpec("rad", "int", (rad_lb, rad_ub)))
+    if "width" in feature_names:
+        specs.append(VarSpec("width", "int", (width_lb, width_ub)))
+    if "g_height" in feature_names:
+        specs.append(VarSpec("g_height", "int", (gh_lb, gh_ub)))
+    if "g_density" in feature_names:
+        specs.append(VarSpec("g_density", "int", (2, 16)))
+    if "grouser_type" in feature_names:
+        specs.append(VarSpec("grouser_type", "cat", values=(0, 1)))
+    if "fan_theta_deg" in feature_names:
+        specs.append(VarSpec("fan_theta_deg", "int", (45, 135)))
+    if "steering_kp" in feature_names:
+        specs.append(VarSpec("steering_kp", "float", (0.1, 20.0)))
+    if "steering_ki" in feature_names:
+        specs.append(VarSpec("steering_ki", "float", (0.0, 5.0)))
+    if "steering_kd" in feature_names:
+        specs.append(VarSpec("steering_kd", "float", (0.0, 5.0)))
+    if "speed_kp" in feature_names:
+        specs.append(VarSpec("speed_kp", "float", (0.1, 5.0)))
+    if "speed_kd" in feature_names:
+        specs.append(VarSpec("speed_kd", "float", (0.0, 1.0)))
+    return specs
 
 
 # ----- Data loading and cleaning -----
@@ -60,6 +72,7 @@ FEATURES_SINGLE = [
     "grouser_type",
     "fan_theta_deg",
     "steering_kp",
+    "steering_ki",
     "steering_kd",
     "speed_kp",
     "speed_kd",
@@ -91,7 +104,8 @@ def load_filtered_single(csv_path: str, filter_penalties: bool = True) -> Tuple[
 
     # Some runs include an extra constant column 'g_width' — ignore it.
     # Keep only rows without NaNs in the features we model.
-    df = df.dropna(subset=[c for c in FEATURES_SINGLE if c in df.columns])
+    present_feats = [c for c in FEATURES_SINGLE if c in df.columns]
+    df = df.dropna(subset=present_feats)
 
     # Cast integral/categorical features to int for surrogate consistency
     int_like = [
@@ -210,15 +224,15 @@ def main():
     if df.empty:
         raise SystemExit("No usable rows after filtering.")
 
-    # Features/target
-    missing = [c for c in FEATURES_SINGLE if c not in df.columns]
-    if missing:
-        raise SystemExit(f"CSV missing required columns: {missing}")
-    X = df[FEATURES_SINGLE].to_numpy(dtype=float)
+    # Features/target (use whatever parameters are present and varying)
+    features = [c for c in FEATURES_SINGLE if c in df.columns]
+    if not features:
+        raise SystemExit("No parameter columns detected for analysis.")
+    X = df[features].to_numpy(dtype=float)
     y = df["composite_metric"].to_numpy(dtype=float)
 
     # Build domain spec from spacing
-    specs = build_varspecs_single(spacing)
+    specs = build_varspecs_single(spacing, features)
 
     # Construct surrogate based on selection
     model_name = args.model
@@ -354,4 +368,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

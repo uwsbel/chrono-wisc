@@ -347,14 +347,14 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
         visVSG.AttachVehicle(artCar.GetVehicle())
         visVSG.AttachPlugin(visFSI)
         visVSG.SetWindowTitle("Wheeled vehicle on CRM deformable terrain")
-        visVSG.SetWindowSize(1280, 800)
+        visVSG.SetWindowSize(1920, 1080)
         visVSG.SetWindowPosition(100, 100)
         visVSG.EnableSkyBox()
         visVSG.SetLightIntensity(1.0)
         visVSG.SetLightDirection(1.5 * chrono.CH_PI_2, chrono.CH_PI_4)
         visVSG.SetCameraAngleDeg(40)
         visVSG.SetChaseCamera(chrono.VNULL, 1.0, 0.0)
-        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -1, 0.5))
+        visVSG.SetChaseCameraPosition(chrono.ChVector3d(0, -2.0, 0.5))
         
         visVSG.Initialize()
         vis = visVSG
