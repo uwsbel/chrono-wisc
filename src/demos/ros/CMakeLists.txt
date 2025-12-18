@@ -4,6 +4,7 @@
 set(DEMOS
   demo_ROS_custom_handler
   demo_ROS_RGBA8_publisher
+  demo_ROS_ipc_test
 )
 
 if (CH_ROS_HAS_INTERFACES)
@@ -13,11 +14,8 @@ if (CH_ROS_HAS_INTERFACES)
   )
 endif()
 
-if (CH_ENABLE_MODULEPARSERS AND HAVE_URDF)
-  set(
-    DEMOS ${DEMOS}
-    demo_ROS_urdf
-  )
+if (CH_ENABLE_MODULE_PARSERS AND HAVE_URDF)
+  list(APPEND DEMOS demo_ROS_urdf)
 endif()
 
 if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)

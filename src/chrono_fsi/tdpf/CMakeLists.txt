@@ -16,9 +16,18 @@ message(STATUS "TDPF-based Chrono::FSI submodule")
 # Return now if Eigen version < 3.3.6
 if(EIGEN3_VERSION VERSION_LESS "3.3.6")
     message(WARNING "Eigen version (${EIGEN3_VERSION}) is less than the required version (3.3.6); disabling Chrono::FSI")
-    set(CH_ENABLE_MODULE_FSI OFF CACHE BOOL "Enable the Chrono FSI module" FORCE)
+    set(CH_ENABLE_MODULE_FSI_TDPF OFF CACHE BOOL "Enable the Chrono::TDPF FSI module" FORCE)
     return()
 endif()
+
+#-----------------------------------------------------------------------------
+# Allow using a HydroChrono tree different than the submodule in
+# src/chrono_thirdparty
+#-----------------------------------------------------------------------------
+
+set(CH_HYDROCHRONO_DIR "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/HydroChrono" CACHE PATH "Path to top-level HydroChrono directory")
+
+include_directories(${CH_HYDROCHRONO_DIR}/include)
 
 #-----------------------------------------------------------------------------
 # List all files for the TDPF-based Chrono::FSI library
@@ -31,6 +40,12 @@ set(FSITDPF_BASE_FILES
     ChFsiFluidSystemTDPF.cpp
 )
 source_group("" FILES ${FSITDPF_BASE_FILES})
+
+# --------------- HydroChrono FILES
+
+set(FSITDPF_HC_FILES
+)
+source_group("tdpf" FILES ${FSITDPF_HC_FILES})
 
 # --------------- 3rd party STB FILES
 
@@ -70,8 +85,9 @@ install(FILES ${FSITDPF_CONFIG_FILE} DESTINATION include/chrono_fsi/tdpf)
 message(STATUS "  Add Chrono_fsitdpf library")
 
 add_library(Chrono_fsitdpf
-    ${FSITDPF_BASE_FILES}
     ${FSITDPF_CONFIG_FILE}
+    ${FSITDPF_BASE_FILES}
+    ${FSITDPF_HC_FILES}
 )
 add_library(Chrono::fsitdpf ALIAS Chrono_fsitdpf)
 
@@ -84,26 +100,13 @@ endif()
 if(MSVC)
   target_compile_options(Chrono_fsitdpf PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4251>)              # missing DLL interface
   target_compile_options(Chrono_fsitdpf PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4100>)              # unreferenced formal parameter
-  target_compile_options(Chrono_fsitdpf PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4324>)  # unreferenced formal parameter
   set_target_properties(Chrono_fsitdpf PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
 endif()
 
 target_link_libraries(Chrono_fsitdpf PRIVATE Chrono_core)
 target_link_libraries(Chrono_fsitdpf PUBLIC Chrono_fsi)
 
-target_link_libraries(Chrono_fsitdpf PUBLIC CUDA::cudart_static)
-target_link_libraries(Chrono_fsitdpf PUBLIC CUDA::nvrtc)
-target_link_libraries(Chrono_fsitdpf PUBLIC CUDA::cuda_driver)
-target_link_libraries(Chrono_fsitdpf PUBLIC CUDA::cublas)
-target_link_libraries(Chrono_fsitdpf PUBLIC CUDA::cusparse)
-
-target_link_libraries(Chrono_fsitdpf PUBLIC Thrust::Thrust)
-target_compile_definitions(Chrono_fsitdpf PRIVATE "THRUST_DEVICE_SYSTEM=THRUST_DEVICE_SYSTEM_CUDA")
-target_compile_definitions(Chrono_fsitdpf PRIVATE "THRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_CPP")
-
 target_compile_definitions(Chrono_fsitdpf PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_FSI>)
-
-set_target_properties(Chrono_fsitdpf PROPERTIES CUDA_ARCHITECTURES ${CHRONO_CUDA_ARCHITECTURES})
 
 install(TARGETS Chrono_fsitdpf
         EXPORT ChronoTargets

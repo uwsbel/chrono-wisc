@@ -59,24 +59,6 @@ set(CRM_CURIOSITY_FILES
 
 source_group("curiosity" FILES ${CRM_CURIOSITY_FILES})
 
-#-----------------------------------------------------------------------------
-
-set(CRM_RASSOR_FILES
-    rassor/Rassor.cpp    
-    rassor/Rassor.h
-)
-
-source_group("rassor" FILES ${CRM_RASSOR_FILES})
-
-
-#-----------------------------------------------------------------------------
-# if(ENABLE_MODULE_PARSERS)
-#     set(CRM_UNITREEGO1_FILES
-#         unitree_go1/Unitree_Go1.cpp
-#         unitree_go1/Unitree_Go1.h
-#     )
-#     source_group("unitree_go1" FILES ${CRM_UNITREEGO1_FILES})
-# endif()
 
 #-----------------------------------------------------------------------------
 

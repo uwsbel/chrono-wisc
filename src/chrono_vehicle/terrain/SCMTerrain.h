@@ -24,14 +24,15 @@
 #include <ostream>
 #include <unordered_map>
 
+#include "chrono/core/ChTimer.h"
 #include "chrono/assets/ChVisualShapeTriangleMesh.h"
+#include "chrono/assets/ChColormap.h"
 #include "chrono/physics/ChBody.h"
-#include "chrono/fea/ChNodeFEAxyz.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChLoadsBody.h"
 #include "chrono/physics/ChLoadsNodeXYZ.h"
 #include "chrono/physics/ChSystem.h"
-#include "chrono/core/ChTimer.h"
+#include "chrono/fea/ChNodeFEAxyz.h"
 
 #include "chrono_vehicle/ChApiVehicle.h"
 #include "chrono_vehicle/ChSubsysDefs.h"
@@ -142,6 +143,12 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
     /// Set the colormap type for false coloring of the SCM mesh.
     /// The default colormap is JET (a divergent blue-red map).
     void SetColormap(ChColormap::Type type);
+
+    /// Get the type of the colormap currently in use.
+    ChColormap::Type GetColormapType() const;
+
+    /// Get the colormap object in current use.
+    const ChColormap& GetColormap() const;
 
     /// Set visualization color.
     void SetColor(const ChColor& color);
@@ -507,8 +514,7 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
         // be called multiple times per timestep and not necessarily in time-increasing order;
         // this is a problem because in this force model the force is dissipative and keeps a 'history'.
         // Instead, we invoke ComputeInternalForces only at the beginning of the timestep in Setup().
-
-        ChTime = time;
+        ChPhysicsItem::Update(time, update_assets);
     }
 
     // Synchronize information for a user-provided active domain.
@@ -566,6 +572,9 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     std::unordered_map<ChVector2i, NodeRecord, CoordHash> m_grid_map;  ///< modified grid nodes (persistent)
     std::vector<ChVector2i> m_modified_nodes;                          ///< modified grid nodes (current)
 
+    ChAABB m_aabb;    ///< user-specified SCM terrain boundary
+    bool m_boundary;  ///< user-specified SCM terrain boundary?
+
     std::vector<ActiveDomainInfo> m_active_domains;  ///< set of active domains
     bool m_user_domains;                             ///< user-specified active domains?
 
@@ -573,6 +582,8 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     double m_test_offset_up;    ///< offset for ray end
 
     std::shared_ptr<ChVisualShapeTriangleMesh> m_trimesh_shape;  ///< mesh visualization asset
+    std::unique_ptr<ChColormap> m_colormap;                      ///< colormap for mesh false coloring
+    ChColormap::Type m_colormap_type;                            ///< colormap type
 
     bool m_cosim_mode;  ///< co-simulation mode
 

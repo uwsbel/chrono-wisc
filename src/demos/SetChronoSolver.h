@@ -37,7 +37,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
                      const chrono::ChSolver::Type& solver_type,
                      const chrono::ChTimestepper::Type& integrator_type,
                      int num_threads_mkl = 1,
-                     bool verbose = true) {
+                     bool verbose = false) {
     auto contact_method = sys.GetContactMethod();
     auto slvr_type = solver_type;
     auto intg_type = integrator_type;
@@ -61,7 +61,7 @@ bool SetChronoSolver(chrono::ChSystem& sys,
     }
 
     // Barzilai-Borwein cannot be used with stiffness matrices
-    if (slvr_type == chrono::ChSolver::Type::BARZILAIBORWEIN && sys.GetSystemDescriptor()->GetKRMBlocks().size() > 0) {
+    if (slvr_type == chrono::ChSolver::Type::BARZILAIBORWEIN && sys.GetSystemDescriptor()->HasKRBlocks()) {
         cout << prefix << "BARZILAIBORWEIN cannot be used for a system that includes stiffness matrices" << endl;
         return false;
     }

@@ -23,7 +23,7 @@
 #include <thread>
 
 #include "chrono/utils/ChUtils.h"
-#include "chrono/utils/ChUtilsInputOutput.h"
+#include "chrono/input_output/ChWriterCSV.h"
 #include "chrono/assets/ChVisualSystem.h"
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
@@ -188,13 +188,14 @@ int main(int argc, char* argv[]) {
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = integration_scheme;
     sph_params.initial_spacing = spacing;
-    sph_params.d0_multiplier = 1;
-    sph_params.free_surface_threshold = 0.8;
+    sph_params.d0_multiplier = 1.0;
+    sph_params.free_surface_threshold = 2.0;
     sph_params.artificial_viscosity = 0.5;
     sph_params.use_consistent_gradient_discretization = false;
     sph_params.use_consistent_laplacian_discretization = false;
     sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
     sph_params.boundary_method = BoundaryMethod::ADAMI;
+    sph_params.num_proximity_search_steps = 4;
     terrain.SetSPHParameters(sph_params);
 
     // Set output level from SPH simulation
@@ -276,7 +277,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string out_file = out_dir + "/results.txt";
-    utils::ChWriterCSV csv(" ");
+    ChWriterCSV csv(" ");
 
     // -----------------------------
     // Create run-time visualization
