@@ -30,6 +30,7 @@ class ChElementBase;
 }}
 
 %template(material_list) std::vector<std::shared_ptr<chrono::ChVisualMaterial>>;
+%template(ChVisualShapeInstanceList) std::vector< chrono::ChVisualShapeInstance >;
 
 %shared_ptr(chrono::ChVisualShape)
 %shared_ptr(chrono::ChVisualShapeFEA)
