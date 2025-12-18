@@ -128,6 +128,7 @@ class ChBaseGuiComponentVSG : public ChGuiComponentVSG {
     // Example here taken from the Dear imgui comments (mostly)
     virtual void render(vsg::CommandBuffer& cb) override {
         ImGui::SetNextWindowSize(ImVec2(0.0f, 0.0f));
+        ImGui::SetNextWindowPos(ImVec2(5.0f, 5.0f));
 
         ImGuiTableFlags table_flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_SizingFixedFit;
         ImGuiColorEditFlags color_edit_flags =
@@ -2337,6 +2338,9 @@ void ChVisualSystemVSG::BindObjectCollisionModel(const std::shared_ptr<ChContact
 
     // Populate the group with shapes in the visual model
     PopulateCollGroup(coll_shapes_group, coll_model);
+
+    if (coll_shapes_group->children.size() == 0)
+        return;
 
     // Attach a transform to the group and initialize it with the body current position
     auto vis_model_transform = vsg::MatrixTransform::create();
