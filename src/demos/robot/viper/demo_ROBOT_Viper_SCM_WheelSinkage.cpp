@@ -50,15 +50,23 @@
 
 #include "chrono_thirdparty/filesystem/path.h"
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp/executors/single_threaded_executor.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "builtin_interfaces/msg/time.hpp"
+// #include "rclcpp/rclcpp.hpp"
+// #include "rclcpp/executors/single_threaded_executor.hpp"
+// #include "sensor_msgs/msg/image.hpp"
+// #include "builtin_interfaces/msg/time.hpp"
+
+#include "chrono_ros/ChROSManager.h"
+#include "chrono_ros/handlers/ChROSClockHandler.h"
+#include "chrono_ros/handlers/ChROSTFHandler.h"
+#include "chrono_ros/handlers/sensor/ChROSCameraHandler.h"
+#include "chrono_ros/handlers/sensor/ChROSSegmentCamHandler.h"
+#include "chrono_ros/handlers/sensor/ChROSDepthCamHandler.h"
 
 using namespace chrono;
 using namespace chrono::irrlicht;
 using namespace chrono::viper;
 using namespace chrono::sensor;
+using namespace chrono::ros;
 using namespace irr;
 
 //// Camera model parameter setting ////
@@ -120,22 +128,22 @@ builtin_interfaces::msg::Time GetROSTimestamp(double time_s) {
     return timestamp;
 }
 
-class RGBA8PublisherNode : public rclcpp::Node {
-	public:
-		explicit RGBA8PublisherNode(const std::string node_name = "") : rclcpp::Node(node_name) {}		
+// class RGBA8PublisherNode : public rclcpp::Node {
+// 	public:
+// 		explicit RGBA8PublisherNode(const std::string node_name = "") : rclcpp::Node(node_name) {}		
 		
-		void AddImgPublisher(std::string topic_name = "rgba8_image") {
-			m_publisher_map[topic_name] = this->create_publisher<sensor_msgs::msg::Image>(topic_name, pub_buf_size);
-		}
+// 		void AddImgPublisher(std::string topic_name = "rgba8_image") {
+// 			m_publisher_map[topic_name] = this->create_publisher<sensor_msgs::msg::Image>(topic_name, pub_buf_size);
+// 		}
 
-		/// Call this from the main loop to publish the image message
-		void PublishImgMsg(std::string topic_name, sensor_msgs::msg::Image &img_msg) {
-			m_publisher_map[topic_name]->publish(img_msg);
-		}
+// 		/// Call this from the main loop to publish the image message
+// 		void PublishImgMsg(std::string topic_name, sensor_msgs::msg::Image &img_msg) {
+// 			m_publisher_map[topic_name]->publish(img_msg);
+// 		}
 
-	private:
-		std::unordered_map<std::string, rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr> m_publisher_map;
-};
+// 	private:
+// 		std::unordered_map<std::string, rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr> m_publisher_map;
+// };
 
 // Customized callback for setting location-dependent soil properties.
 // Note that the location is given in the SCM reference frame.
@@ -916,6 +924,7 @@ int main(int argc, char* argv[]) {
 	// --------- //
 	// ROS setup //
 	// --------- //
+	/*
 	// Initialize ROS
 	rclcpp::init(argc, argv);
 
@@ -976,13 +985,59 @@ int main(int argc, char* argv[]) {
 		front_right_cam_msg.data.resize(front_right_cam_msg.step * front_right_cam_msg.height);
 		node->AddImgPublisher(front_right_cam->GetName());	
 	}
-	
-	
-	
 
 	// Explicit executor
 	rclcpp::executors::SingleThreadedExecutor executor;
 	executor.add_node(node);
+	*/
+
+	// ------------- //
+	// Ch::ROS setup //
+	// ------------- //
+	auto ros_manager = chrono_types::make_shared<ChROSManager>(); // Create ROS manager
+
+	if (enable_ROS) {
+		// Create a publisher for the simulation clock. The clock automatically publishes on every tick and on topic /clock
+		auto clock_handler = chrono_types::make_shared<ChROSClockHandler>();
+		ros_manager->RegisterHandler(clock_handler);
+		
+		if (estimate_wheel_sink) {
+			// Create the ROS publisher for the wheel_cam_LB
+			auto wheel_cam_LB_handler = chrono_types::make_shared<ChROSCameraHandler>(
+				ROS_publish_rate, wheel_cam_LB, wheel_cam_LB->GetName()
+			);
+			ros_manager->RegisterHandler(wheel_cam_LB_handler);
+
+			// Create the ROS publisher for the wheel_segment_LB
+			auto wheel_segment_LB_handler = chrono_types::make_shared<ChROSSegmentCamHandler>(
+				ROS_publish_rate, wheel_segment_LB, wheel_segment_LB->GetName()
+			);
+			ros_manager->RegisterHandler(wheel_segment_LB_handler);
+		}
+
+		if (predict_depth_map) {
+			// Create the ROS publisher for the front_depth_cam
+			auto front_depth_cam_handler = chrono_types::make_shared<ChROSDepthCamHandler>(
+				ROS_publish_rate, front_depth_cam, front_depth_cam->GetName()
+			);
+			ros_manager->RegisterHandler(front_depth_cam_handler);
+
+			// Create the ROS publisher for the front_left_cam
+			auto front_left_cam_handler = chrono_types::make_shared<ChROSCameraHandler>(
+				ROS_publish_rate, front_left_cam, front_left_cam->GetName()
+			);
+			ros_manager->RegisterHandler(front_left_cam_handler);
+
+			// Create the ROS publisher for the front_right_cam
+			auto front_right_cam_handler = chrono_types::make_shared<ChROSCameraHandler>(
+				ROS_publish_rate, front_right_cam, front_right_cam->GetName()
+			);
+			ros_manager->RegisterHandler(front_right_cam_handler);
+		}
+
+		// Finally, initialize the ROS manager
+		ros_manager->Initialize();
+	}
 
 	// // Create the Irrlicht visualization sys
 	// auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();Speed
@@ -998,10 +1053,8 @@ int main(int argc, char* argv[]) {
 	// --------------- //
 
 	ChTimer wall_timer; // [sec], wall time in real world
-	float sim_time = 0.0; // [sec], simulation time in Chrono
+	double sim_time = 0.0; // [sec], simulation time in Chrono
 	float cout_timer = 0.1; // [sec], time to print out something
-	float orbit_radius = 100.0f;
-	float orbit_rate = 0.5f;
 	double max_steering = CH_PI / 3;
 	double steering = 0;
 	double publish_frame_time = (ROS_publish_rate == 0) ? 0 : (1 / ROS_publish_rate); // NOTE: If update_rate == 0, tick is called each time
@@ -1015,7 +1068,7 @@ int main(int argc, char* argv[]) {
 	//     tools::drawColorbar(vis.get(), 0, 20000, "Pressure yield [Pa]", 1180);
 	//     vis->EndScene();# Make ssh dir
 		
-	sim_time = (float)sys.GetChTime();
+	sim_time = sys.GetChTime();
 		// std::cout << "Sim time: " << sim_time << " RTF: " << timer() / sim_time << std::endl; 
 		if (sim_time > cout_timer) {
 			// time_t timenow = time(NULL);
@@ -1061,6 +1114,7 @@ int main(int argc, char* argv[]) {
 
 		// Update image message data and publish out
 		if (enable_ROS) {
+			/*
 			UserRGBA8BufferPtr rgba8_buffer_ptr;
 			UserSemanticBufferPtr segment_buffer_ptr;
 			UserDepthBufferPtr depth_buffer_ptr;
@@ -1122,10 +1176,14 @@ int main(int argc, char* argv[]) {
 				
 				time_elapsed_since_last_publish -= publish_frame_time;
 			}
+
+			if (!rclcpp::ok()) break;
+			*/
+
+			if (!ros_manager->Update(sim_time, sim_time_step)) break;
 		}
 
 		//// Update states
-		if (!rclcpp::ok()) break;
 		wall_timer.start();
 		// tune parameter mode, stop VIPER
 		if (tune_param_mode == false) {

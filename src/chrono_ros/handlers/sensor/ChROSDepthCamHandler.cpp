@@ -9,19 +9,21 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Aaron Young, Patrick Chen
+// 
+// Authors: Bo-Hsun Chen, slightly modified from ChROSCameraHandler.cpp
+// 
 // =============================================================================
 //
-// ROS Handler for communicating camera information
+// ROS Handler for communicating depth camera information
 //
 // =============================================================================
 
-#include "chrono_ros/handlers/sensor/ChROSCameraHandler.h"
+#include "chrono_ros/handlers/sensor/ChROSDepthCamHandler.h"
 #include "chrono_ros/handlers/sensor/ChROSCameraHandler_ipc.h"
 #include "chrono_ros/handlers/ChROSHandlerUtilities.h"
 #include "chrono_ros/handlers/sensor/ChROSSensorHandlerUtilities.h"
 
-#include "chrono_sensor/sensors/ChCameraSensor.h"
+#include "chrono_sensor/sensors/ChDepthCamera.h"
 #include "chrono_sensor/filters/ChFilterAccess.h"
 
 #include <cstring>
@@ -31,17 +33,17 @@ using namespace chrono::sensor;
 namespace chrono {
 namespace ros {
 
-ChROSCameraHandler::ChROSCameraHandler(std::shared_ptr<ChCameraSensor> camera, const std::string& topic_name)
-    : ChROSCameraHandler(camera->GetUpdateRate(), camera, topic_name) {}
+ChROSDepthCamHandler::ChROSDepthCamHandler(std::shared_ptr<ChDepthCamera> depth_cam, const std::string& topic_name)
+    : ChROSDepthCamHandler(depth_cam->GetUpdateRate(), depth_cam, topic_name) {}
 
-ChROSCameraHandler::ChROSCameraHandler(double update_rate,
-                                       std::shared_ptr<ChCameraSensor> camera,
-                                       const std::string& topic_name)
-    : ChROSHandler(update_rate), m_camera(camera), m_topic_name(topic_name), m_last_publish_time(-1.0) {}
+ChROSDepthCamHandler::ChROSDepthCamHandler(double update_rate,
+                                               std::shared_ptr<ChDepthCamera> depth_cam,
+                                               const std::string& topic_name)
+    : ChROSHandler(update_rate), m_depth_cam(depth_cam), m_topic_name(topic_name), m_last_publish_time(-1.0) {}
 
-bool ChROSCameraHandler::Initialize(std::shared_ptr<ChROSInterface> interface) {
+bool ChROSDepthCamHandler::Initialize(std::shared_ptr<ChROSInterface> interface) {
     // Validate sensor has the required RGBA8 access filter
-    if (!ChROSSensorHandlerUtilities::CheckSensorHasFilter<ChFilterRGBA8Access, ChFilterRGBA8AccessName>(m_camera)) {
+    if (!ChROSSensorHandlerUtilities::CheckSensorHasFilter<ChFilterSemanticAccess, ChFilterSemanticAccessName>(m_depth_cam)) {
         return false;
     }
 
@@ -53,7 +55,7 @@ bool ChROSCameraHandler::Initialize(std::shared_ptr<ChROSInterface> interface) {
     return true;
 }
 
-std::vector<uint8_t> ChROSCameraHandler::GetSerializedData(double time) {
+std::vector<uint8_t> ChROSDepthCamHandler::GetSerializedData(double time) {
     // Check if it's time to publish based on update rate
     // Handler base class doesn't automatically throttle GetSerializedData calls
     double frame_time = GetUpdateRate() == 0 ? 0 : 1.0 / GetUpdateRate();
@@ -64,16 +66,16 @@ std::vector<uint8_t> ChROSCameraHandler::GetSerializedData(double time) {
     }
     
     // Extract camera image from Chrono sensor (no ROS symbols)
-    auto rgba8_ptr = m_camera->GetMostRecentBuffer<UserRGBA8BufferPtr>();
-    if (!rgba8_ptr->Buffer) {
+    auto depth_ptr = m_depth_cam->GetMostRecentBuffer<UserDepthBufferPtr>();
+    if (!depth_ptr->Buffer) {
         // Buffer not ready - return empty to skip this frame
         return std::vector<uint8_t>();
     }
 
     // Calculate image dimensions
-    uint32_t width = m_camera->GetWidth();
-    uint32_t height = m_camera->GetHeight();
-    uint32_t step = sizeof(PixelRGBA8) * width;
+    uint32_t width = m_depth_cam->GetWidth();
+    uint32_t height = m_depth_cam->GetHeight();
+    uint32_t step = sizeof(PixelSemantic) * width;
     size_t image_size = step * height;
 
     // Create IPC metadata header
@@ -81,10 +83,10 @@ std::vector<uint8_t> ChROSCameraHandler::GetSerializedData(double time) {
     strncpy(header.topic_name, m_topic_name.c_str(), sizeof(header.topic_name) - 1);
     header.topic_name[sizeof(header.topic_name) - 1] = '\0';
     
-    strncpy(header.frame_id, m_camera->GetName().c_str(), sizeof(header.frame_id) - 1);
+    strncpy(header.frame_id, m_depth_cam->GetName().c_str(), sizeof(header.frame_id) - 1);
     header.frame_id[sizeof(header.frame_id) - 1] = '\0';
-
-    strncpy(header.encoding, std::string("rgba8").c_str(), sizeof(header.encoding) - 1);
+    
+    strncpy(header.encoding, std::string("32FC1").c_str(), sizeof(header.encoding) - 1);
     header.encoding[sizeof(header.encoding) - 1] = '\0';
     
     header.width = width;
@@ -103,7 +105,7 @@ std::vector<uint8_t> ChROSCameraHandler::GetSerializedData(double time) {
     std::memcpy(m_serialize_buffer.data(), &header, sizeof(ipc::CameraData));
     
     // Copy pixel data
-    const uint8_t* pixel_ptr = reinterpret_cast<const uint8_t*>(rgba8_ptr->Buffer.get());
+    const uint8_t* pixel_ptr = reinterpret_cast<const uint8_t*>(depth_ptr->Buffer.get());
     std::memcpy(m_serialize_buffer.data() + sizeof(ipc::CameraData), pixel_ptr, image_size);
 
     m_last_publish_time = time;

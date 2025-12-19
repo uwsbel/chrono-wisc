@@ -151,6 +151,10 @@ source_group("vehicle_handler" FILES ${CH_ROS_VEHICLE_HANDLER_FILES})
 set(CH_ROS_SENSOR_HANDLER_FILES "")
 if (CH_ENABLE_MODULE_SENSOR)
   set(CH_ROS_SENSOR_HANDLER_FILES
+    handlers/sensor/ChROSDepthCamHandler.h
+    handlers/sensor/ChROSDepthCamHandler.cpp
+    handlers/sensor/ChROSSegmentCamHandler.h
+    handlers/sensor/ChROSSegmentCamHandler.cpp
     handlers/sensor/ChROSCameraHandler.h
     handlers/sensor/ChROSCameraHandler.cpp
     handlers/sensor/ChROSLidarHandler.h
