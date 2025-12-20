@@ -41,19 +41,12 @@
 #include "chrono_sensor/sensors/ChDepthCamera.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/filters/ChFilterAccess.h"
-// #include "chrono_sensor/filters/ChFilterGrayscale.h"
 #include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_sensor/filters/ChFilterVisualize.h"
-// #include "chrono_sensor/filters/ChFilterCameraNoise.h"
 #include "chrono_sensor/filters/ChFilterCameraExposure.h"
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 
 #include "chrono_thirdparty/filesystem/path.h"
-
-// #include "rclcpp/rclcpp.hpp"
-// #include "rclcpp/executors/single_threaded_executor.hpp"
-// #include "sensor_msgs/msg/image.hpp"
-// #include "builtin_interfaces/msg/time.hpp"
 
 #include "chrono_ros/ChROSManager.h"
 #include "chrono_ros/handlers/ChROSClockHandler.h"
@@ -96,7 +89,7 @@ int nthreads = 40; // number of SCM and collision threads
 bool var_params = true; // if true, use provided callback to change soil properties based on location
 const std::string decorated_ground_mesh_path = GetChronoDataFile("robot/curiosity/rocks/Terrain06/terrain06_ground_decimate_005.obj");
 
-//// Paths to save results ////
+//// File paths to save results ////
 const std::string out_dir = GetChronoOutputPath() + "VIPER_SCM_WheelSinkage/"; // output base folder for saved images
 
 //// ROS parameters ////
@@ -119,31 +112,6 @@ bool predict_depth_map = false; // whether do depth map prediction using front-e
 double sim_end_time = 40.; // [sec], simulation end time
 double sim_time_step = (tune_param_mode) ? 2.5e-3 : 2.5e-4; // [sec], simulation time step
 
-
-// Given time stamp in second, return time stamp in ROS format
-builtin_interfaces::msg::Time GetROSTimestamp(double time_s) {
-    builtin_interfaces::msg::Time timestamp;
-    timestamp.sec = static_cast<int32_t>(time_s);
-    timestamp.nanosec = static_cast<uint32_t>((time_s - timestamp.sec) * 1e9);
-    return timestamp;
-}
-
-// class RGBA8PublisherNode : public rclcpp::Node {
-// 	public:
-// 		explicit RGBA8PublisherNode(const std::string node_name = "") : rclcpp::Node(node_name) {}		
-		
-// 		void AddImgPublisher(std::string topic_name = "rgba8_image") {
-// 			m_publisher_map[topic_name] = this->create_publisher<sensor_msgs::msg::Image>(topic_name, pub_buf_size);
-// 		}
-
-// 		/// Call this from the main loop to publish the image message
-// 		void PublishImgMsg(std::string topic_name, sensor_msgs::msg::Image &img_msg) {
-// 			m_publisher_map[topic_name]->publish(img_msg);
-// 		}
-
-// 	private:
-// 		std::unordered_map<std::string, rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr> m_publisher_map;
-// };
 
 // Customized callback for setting location-dependent soil properties.
 // Note that the location is given in the SCM reference frame.
@@ -290,10 +258,6 @@ int main(int argc, char* argv[]) {
 	// Create Viper rover //
 	// ------------------ //
 	auto driver = chrono_types::make_shared<ViperSpeedDriver>(0.1, dsr_wheel_ang_vel);
-	// auto driver = chrono_types::make_shared<ViperDCMotorControl>();
-	// for (auto viper_wheel_ID: viper_wheel_IDs) {
-	// 	driver->SetMotorNoLoadSpeed(-1.0 * CH_PI, viper_wheel_ID);
-	// }
 	Viper viper(&sys, wheel_type, "cobra_wheel_v2");
 	viper.SetDriver(driver);
 	viper.SetWheelContactMaterial(CustomWheelMaterial(ChContactMethod::NSC));
@@ -329,12 +293,6 @@ int main(int argc, char* argv[]) {
         regolith_tex_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     }
     else {
-		// Optimized using CRM terrain
-        // regolith_mat->SetDiffuseColor({0.5738f, 0.5174f, 0.5666f});
-        // regolith_mat->SetRoughness(0.0267f);
-        // regolith_mat->SetMetallic(0.5399f);
-        // regolith_mat->SetUseSpecularWorkflow(false);
-
 		regolith_mat->SetDiffuseColor({0.4 * 1.983, 0.4 * 1.667, 0.4 * 1.410});
 		regolith_mat->SetUseSpecularWorkflow(true);
 		regolith_mat->SetRoughness(1.0f);
@@ -352,68 +310,11 @@ int main(int argc, char* argv[]) {
 	regolith_mat->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF
 	regolith_tex_mat->SetClassID(255); // first 4 bits in semantic cam, FF00
     regolith_tex_mat->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF
-	
-	/*
-	////// Set up decorated grounds
-	printf("Loading decorated ground into system ...\n");
-	// auto decorated_ground_mat = chrono_types::make_shared<ChVisualMaterial>();
-	auto decorated_ground_mesh_side = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
-	auto decorated_ground_body_left = chrono_types::make_shared<ChBodyAuxRef>();
-	auto decorated_ground_body_right = chrono_types::make_shared<ChBodyAuxRef>();
-	auto decorated_ground_body_front = chrono_types::make_shared<ChBodyEasyBox>(6.5, 3.8, 0.2, 1000, true, false);
-	auto decorated_ground_body_back = chrono_types::make_shared<ChBodyEasyBox>(7.0, 3.8, 0.2, 1000, true, false);
-
-	//// Set up side ground meshes
-	// Load mesh from obj file
-	auto decorated_ground_mesh_side_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(decorated_ground_mesh_path, true, true);
-	decorated_ground_mesh_side_loader->Transform(
-		ChVector3d(0, 0, 0),
-		ChMatrix33<>(
-			{7.0, 1.0, 1.0}, // scale to a different size
-			{0., 0., 0.}
-		) 
-	);
-	decorated_ground_mesh_side_loader->RepairDuplicateVertexes(1e-9); // if meshes are not watertight
-	decorated_ground_mesh_side->SetMesh(decorated_ground_mesh_side_loader);
-	decorated_ground_mesh_side->SetBackfaceCull(true);
-
-	// Set up side decorated-grounds
-	decorated_ground_body_left->AddVisualShape(decorated_ground_mesh_side);
-	decorated_ground_body_left->GetVisualShape(0)->SetMaterial(0, regolith_mat);
-	decorated_ground_body_left->SetFixed(true);
-	decorated_ground_body_left->SetPos({0., -3.7, -0.32}); // [m]
-	decorated_ground_body_left->SetRot(QuatFromAngleAxis(-0.5 * (CH_PI / 180), {0, 1, 0}));
-	sys.Add(decorated_ground_body_left);
-
-	decorated_ground_body_right->AddVisualShape(decorated_ground_mesh_side);
-	decorated_ground_body_right->GetVisualShape(0)->SetMaterial(0, regolith_mat);
-	decorated_ground_body_right->SetFixed(true);
-	decorated_ground_body_right->SetPos({0.,  3.7, -0.39}); // [m]
-	decorated_ground_body_right->SetRot(QuatFromAngleAxis(-0.5 * (CH_PI / 180), {0, 1, 0}));
-	sys.Add(decorated_ground_body_right);
-
-	//// Set up front ground mesh
-	decorated_ground_body_front->SetFixed(true);
-	decorated_ground_body_front->SetPos({-9.48, 0.10, -0.505}); // [m]
-	decorated_ground_body_front->SetRot(QuatFromAngleAxis(-1.0 * (CH_PI/180), {0, 1, 0}));
-	decorated_ground_body_front->GetVisualShape(0)->SetMaterial(0, regolith_mat);
-	sys.Add(decorated_ground_body_front);
-
-	//// Set up back ground mesh
-	decorated_ground_body_back->SetPos({9.5, 0, -0.38});
-	decorated_ground_body_back->SetFixed(true);
-	decorated_ground_body_back->GetVisualShape(0)->SetMaterial(0, regolith_mat);
-	sys.Add(decorated_ground_body_back);
-
-	printf("Finished Loading decorated ground into system\n");
-	*/
 
 	//// Set up rocks ////
 	std::vector<std::vector<std::shared_ptr<ChBodyAuxRef>>> rock_bodies_set;
 	if (add_rocks == true) {
 		std::vector<std::string> terrains = {"04", "01", "11"};
-		// std::vector<std::string> terrains = {"04", "01"};
-		// std::vector<std::string> terrains = {"11"};
 		// Looping through all available terrains
 		for (std::string terrainID : terrains) {
 			std::string rock_mesh_dir = GetChronoDataFile("robot/curiosity/rocks/Terrain" + terrainID + "/");
@@ -423,9 +324,6 @@ int main(int argc, char* argv[]) {
 			
 			if (terrainID == "04") { // Terrain 4
 				rock_num = 27;
-				// terrain_x_offset = 2.45; // [m], for v12
-				// terrain_y_offset = 0; // [m], for v12
-				// terrain_z_offset = -0.527; // [m], for v12
 				terrain_x_offset = 2.45 + 0.; // [m], for v15
 				terrain_y_offset = 0 - 0.025; // [m], for v15
 				terrain_z_offset = -0.527 + 0.055; // [m], for v15
@@ -433,9 +331,6 @@ int main(int argc, char* argv[]) {
 			}
 			else if (terrainID == "01") { // Terrain 01
 				rock_num = 15;
-				// terrain_x_offset = -1.07; // [m], for v12
-				// terrain_y_offset = 0.; // [m], for v12
-				// terrain_z_offset = -0.274; // [m], for v12
 				terrain_x_offset = -1.07 + 0.14; // [m], for v15
 				terrain_y_offset = 0. - 0.05; // [m], for v15
 				terrain_z_offset = -0.274 + 0.06; // [m], for v15
@@ -443,9 +338,6 @@ int main(int argc, char* argv[]) {
 			}
 			else if (terrainID == "11") { // Terrain 11
 				rock_num = 9;
-				// terrain_x_offset = -4.22; // [m], for v12
-				// terrain_y_offset = -0.22; // [m], for v12
-				// terrain_z_offset = -0.22; // [m], for v12
 				terrain_x_offset = -4.22 + 0.14; // [m], for v15
 				terrain_y_offset = -0.22 + 0.44; // [m], for v15
 				terrain_z_offset = -0.22 + 0.12; // [m], for v15
@@ -477,11 +369,11 @@ int main(int argc, char* argv[]) {
 					rock_visual_mesh_path = GetChronoDataFile("robot/curiosity/rocks/Terrain" + std::string(argv[3]) + "/terrain" + std::string(argv[3]) + "_rock" + std::to_string(rock_idx+1) + ".obj"); // test
 				}
 				else {
-					// if (tune_param_mode == true) {
+					if (tune_param_mode == true) {
 						rock_visual_mesh_path = rock_mesh_dir + "terrain" + terrainID + "_rock" + std::to_string(rock_idx+1) + "_decimate-005.obj";
-					// } else {
-					// 	rock_visual_mesh_path = rock_mesh_dir + "terrain" + terrainID + "_rock" + std::to_string(rock_idx+1) + ".obj";
-					// }
+					} else {
+						rock_visual_mesh_path = rock_mesh_dir + "terrain" + terrainID + "_rock" + std::to_string(rock_idx+1) + ".obj";
+					}
 				}
 
 				auto rock_visual_mesh_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(rock_visual_mesh_path, false, true);
@@ -531,7 +423,6 @@ int main(int argc, char* argv[]) {
 	// ---------------- //
 	// Creat the ground //
 	// ---------------- //
-	// std::string ground_mesh_path = GetChronoDataFile("robot/curiosity/rocks/big_ground_scale1_v12.obj"); // for MAES version
 	std::string ground_mesh_path = GetChronoDataFile("robot/curiosity/rocks/big_ground_scale1_v15.obj");
 
 	//// Create the deformable SCM ground ////
@@ -584,9 +475,6 @@ int main(int argc, char* argv[]) {
 	ground.AddActiveDomain(wheel_LB, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));
 	ground.AddActiveDomain(wheel_RB, ChVector3d(0, 0, 0), ChVector3d(0.5, wheel_range, wheel_range));
 
-	// Set some visualization parameters: either with a texture, or with falsecolor plot, etc.
-	//ground.SetPlotType(vehicle::SCMTerrain::PLOT_PRESSURE, 0, 20000);
-
 	// create a fixed origin cube to attach camera
 	auto origin_cube = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
 	origin_cube->SetPos({0, 0, 0});
@@ -613,9 +501,9 @@ int main(int argc, char* argv[]) {
 	
 	manager->scene->SetBackground(bgd);
 
-	// ------------------------- //
-	// Creat cameras and viewers //
-	// ------------------------- //
+	// -------------------------- //
+	// Create cameras and viewers //
+	// -------------------------- //
 	std::vector<float> expsr_a_arr(3, 0.); // exposure correction coefficients of a-term
 	std::vector<float> expsr_b_arr(3, 0.); // exposure correction coefficients of b-term
 	expsr_a_arr = {0., 0., 1.0}; // simple Default model
@@ -628,10 +516,8 @@ int main(int argc, char* argv[]) {
 
 	// Set up left bird-eye-view camera
 	chrono::ChFrame<double> cam_birdview_left_pose({0, -5.5, 2.0}, QuatFromAngleAxis(CH_PI/2, {0, 0, 1}));
-	// chrono::ChFrame<double> cam_birdview_left_pose({-5.0, -7.0, 2.0}, QuatFromAngleAxis(CH_PI/2, {0, 0, 1})); // calibrating
 	cam_birdview_left_pose.SetRot(cam_birdview_left_pose.GetRot() * QuatFromAngleAxis(20. * CH_PI/180, {0, 1, 0}));
 	auto cam_birdview_left = chrono_types::make_shared<ChCameraSensor>(
-		// viper.GetChassis()->GetBody(),		// body camera is attached to
 		origin_cube,						// body that camera is attached to
 		update_rate,						// update rate in Hz
 		cam_birdview_left_pose,				// offset pose
@@ -666,10 +552,8 @@ int main(int argc, char* argv[]) {
 
 	// Set up right bird-eye-view camera
 	chrono::ChFrame<double> cam_birdview_right_pose({0, 5.5, 2.0}, QuatFromAngleAxis(-CH_PI/2, {0, 0, 1}));
-	// chrono::ChFrame<double> cam_birdview_right_pose({-5.0, 8.0, 2.0}, QuatFromAngleAxis(-CH_PI/2, {0, 0, 1})); // calibrating
 	cam_birdview_right_pose.SetRot(cam_birdview_right_pose.GetRot() * QuatFromAngleAxis(20. * CH_PI/180, {0, 1, 0}));
 	auto cam_birdview_right = chrono_types::make_shared<ChCameraSensor>(
-		// viper.GetChassis()->GetBody(),  // body camera is attached to
 		origin_cube,                    // body that camera is attached to
 		update_rate,                    // update rate in Hz
 		cam_birdview_right_pose,         // offset pose
@@ -701,52 +585,6 @@ int main(int argc, char* argv[]) {
 		));
 	}
 	manager->AddSensor(cam_birdview_right);
-
-	/*
-	chrono::ChFrame<double> wheel_poses[4] = {
-		chrono::ChFrame<double>({-1.0, -1.5, 0.5}, QuatFromAngleAxis(.2, {-2, 3,  9.75})), 
-		chrono::ChFrame<double>({ 1.0, -1.5, 0.5}, QuatFromAngleAxis(.2, {-2, 3,  9.75})),
-		chrono::ChFrame<double>({ 1.0,  1.5, 0.5}, QuatFromAngleAxis(.2, { 2, 3, -9.75})),
-		chrono::ChFrame<double>({-1.0,  1.5, 0.5}, QuatFromAngleAxis(.2, { 2, 3, -9.75}))
-	};
-
-	std::vector<std::string> wheel_cam_names = {"RightBack", "RightFront", "LeftFront", "LeftBack"};
-
-	auto rf_wheel = chrono::ChFrame<double>({1.0, 1.5, 0.5}, QuatFromAngleAxis(.2, {2, 3, -9.75}));
-	for (int i = 0; i < 4; i++) {
-		auto wheel_cam = chrono_types::make_shared<ChCameraSensor>(
-			viper.GetChassis()->GetBody(),	// body camera is attached to
-			update_rate,					// update rate in Hz
-			wheel_poses[i],					// offset pose
-			image_width,					// image width
-			image_height,					// image height
-			viewer_fov,						// camera's horizontal field of view
-			alias_factor,					// supersample factor for antialiasing
-			lens_model,						// lens model
-			false,							// use global illumination or not
-			cam_integrator      			// integrator
-		);
-		wheel_cam->SetName("Wheel Camera " + wheel_cam_names[i]);
-		wheel_cam->SetLag(lag);
-		wheel_cam->SetCollectionWindow(0.f); // would cause dynamic blur effect
-		if (exposure_correction_switch == true) {
-			wheel_cam->PushFilter(chrono_types::make_shared<ChFilterCameraExposureCorrect>(
-				expsr_a_arr[0], expsr_a_arr[1], expsr_a_arr[2],
-				expsr_b_arr[0], expsr_b_arr[1], expsr_b_arr[2], expsr_time + 0.100f
-			));
-		}
-		if (vis)
-			wheel_cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(
-				image_width, image_height, "Wheel Camera " + wheel_cam_names[i]
-			));
-		if (save) {
-			wheel_cam->PushFilter(chrono_types::make_shared<ChFilterSave>(
-				out_dir + "WheelCam_" + wheel_cam_names[i] + "_" + argv[1] + "_" + brdf_type + "_" + expsr_time_str.str() + "/"
-			));
-		}
-		manager->AddSensor(wheel_cam);
-	}
-	*/
 	
 	// Add Left-Back wheel sinkage observer
 	ChVector3f LB_wheel_offset({-0.6418, 0.6098 + 0.22, 0});
@@ -758,14 +596,11 @@ int main(int argc, char* argv[]) {
     );
 	auto wheel_cam_LB = chrono_types::make_shared<ChCameraSensor>(
 		viper.GetChassis()->GetBody(),	// body camera is attached to
-		// origin_cube,						// body that camera is attached to
 		update_rate,					// update rate in Hz
 		offset_sink_observer,			// offset pose
-		// cam_birdview_left_pose,				// offset pose
 		image_width,					// image width
 		image_height,					// image height
 		sink_observer_fov,				// camera's horizontal field of view
-		// viewer_fov,                     // camera's horizontal field of view
 		alias_factor,					// supersample factor for antialiasing
 		lens_model,						// lens model
 		false,							// use global illumination or not
@@ -826,17 +661,11 @@ int main(int argc, char* argv[]) {
 	}
 	chrono::ChFrame<double> front_left_cam_pose(front_left_cam_posi, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
 	chrono::ChFrame<double> front_right_cam_pose(front_right_cam_posi, QuatFromAngleAxis(30 * (CH_PI / 180), {0, 1, 0}));
-	// chrono::ChFrame<double> offset_pose6( // debug
-	//     ChVector3d({1.76913 + front_cam_posi.x(), -0.503446 + front_cam_posi.y(), 0.5 + front_cam_posi.z()}),
-	//     QuatFromAngleAxis(CH_PI, {0, 0, 1}) * QuatFromAngleAxis(20 * (CH_PI / 180), {0, 1, 0}) 
-	// );
 
 	auto front_depth_cam = chrono_types::make_shared<ChDepthCamera>(
 		viper.GetChassis()->GetBody(), // body that camera is attached to
-		// origin_cube,            // body that camera is attached to, debug
 		update_rate,			// update rate in Hz
 		front_left_cam_pose,	// offset pose
-		// offset_pose6,           // offset pose, debug
 		front_cam_width,		// image width
 		front_cam_height,		// image height
 		front_cam_fov,			// camera's horizontal field of view
@@ -849,10 +678,8 @@ int main(int argc, char* argv[]) {
 
 	auto front_left_cam = chrono_types::make_shared<ChCameraSensor>(
 		viper.GetChassis()->GetBody(), // body that camera is attached to
-		// origin_cube,            // body that camera is attached to, debug
 		update_rate,			// update rate in Hz
 		front_left_cam_pose,	// offset pose
-		// offset_pose6,           // offset pose, debug
 		front_cam_width,		// image width
 		front_cam_height,		// image height
 		front_cam_fov,			// camera's horizontal field of view
@@ -867,10 +694,8 @@ int main(int argc, char* argv[]) {
 
 	auto front_right_cam = chrono_types::make_shared<ChCameraSensor>(
 		viper.GetChassis()->GetBody(), // body that camera is attached to
-		// origin_cube,            // body that camera is attached to, debug
 		update_rate,			// update rate in Hz
 		front_right_cam_pose,	// offset pose
-		// offset_pose6,           // offset pose, debug
 		front_cam_width,		// image width
 		front_cam_height,		// image height
 		front_cam_fov,			// camera's horizontal field of view
@@ -921,76 +746,6 @@ int main(int argc, char* argv[]) {
 		manager->AddSensor(front_right_cam);
 	}
 
-	// --------- //
-	// ROS setup //
-	// --------- //
-	/*
-	// Initialize ROS
-	rclcpp::init(argc, argv);
-
-	// Create the ROS node, passing in the initialized images
-	auto node = std::make_shared<RGBA8PublisherNode>("chrono_node");
-
-	// Create image messages
-	sensor_msgs::msg::Image sink_observer_msg;
-	sensor_msgs::msg::Image sink_segment_msg;
-	sensor_msgs::msg::Image front_depth_cam_msg;
-	sensor_msgs::msg::Image front_left_cam_msg;
-	sensor_msgs::msg::Image front_right_cam_msg;
-
-	if (enable_ROS && estimate_wheel_sink) {
-		sink_observer_msg.header.frame_id	= wheel_cam_LB->GetName();						// camera's name
-		sink_observer_msg.width				= wheel_cam_LB->GetWidth();
-		sink_observer_msg.height			= wheel_cam_LB->GetHeight();
-		sink_observer_msg.encoding			= "rgba8";										// RGBA-8bit
-		sink_observer_msg.is_bigendian		= false;
-		sink_observer_msg.step				= sizeof(PixelRGBA8) * sink_observer_msg.width;	// 4 bytes per pixel (R, G, B, A)
-		sink_observer_msg.data.resize(sink_observer_msg.step * sink_observer_msg.height);
-		node->AddImgPublisher(wheel_cam_LB->GetName());
-	
-		sink_segment_msg.header.frame_id	= wheel_segment_LB->GetName();						// camera's name
-		sink_segment_msg.width				= wheel_segment_LB->GetWidth();
-		sink_segment_msg.height				= wheel_segment_LB->GetHeight();
-		sink_segment_msg.encoding			= "rgba8";										// RGBA-8bit
-		sink_segment_msg.is_bigendian		= false;
-		sink_segment_msg.step				= sizeof(PixelRGBA8) * sink_segment_msg.width;	// 4 bytes per pixel (R, G, B, A)
-		sink_segment_msg.data.resize(sink_segment_msg.step * sink_segment_msg.height);
-		node->AddImgPublisher(wheel_segment_LB->GetName());
-	}
-	if (enable_ROS && predict_depth_map) {
-		front_depth_cam_msg.header.frame_id		= front_depth_cam->GetName();						// camera's name
-		front_depth_cam_msg.width				= front_depth_cam->GetWidth();
-		front_depth_cam_msg.height				= front_depth_cam->GetHeight();
-		front_depth_cam_msg.encoding			= "32FC1";											// float
-		front_depth_cam_msg.is_bigendian		= false;
-		front_depth_cam_msg.step				= sizeof(PixelDepth) * front_depth_cam_msg.width;	// 4 Bytes per pixel
-		front_depth_cam_msg.data.resize(front_depth_cam_msg.step * front_depth_cam_msg.height);
-		node->AddImgPublisher(front_depth_cam->GetName());
-		
-		front_left_cam_msg.header.frame_id	= front_left_cam->GetName();						// camera's name
-		front_left_cam_msg.width			= front_left_cam->GetWidth();
-		front_left_cam_msg.height			= front_left_cam->GetHeight();
-		front_left_cam_msg.encoding			= "rgba8";											// RGBA-8bit
-		front_left_cam_msg.is_bigendian		= false;
-		front_left_cam_msg.step				= sizeof(PixelRGBA8) * front_left_cam_msg.width;	// 4 Bytes per pixel (R, G, B, A)
-		front_left_cam_msg.data.resize(front_left_cam_msg.step * front_left_cam_msg.height);
-		node->AddImgPublisher(front_left_cam->GetName());
-	
-		front_right_cam_msg.header.frame_id		= front_right_cam->GetName();						// camera's name
-		front_right_cam_msg.width				= front_right_cam->GetWidth();
-		front_right_cam_msg.height				= front_right_cam->GetHeight();
-		front_right_cam_msg.encoding			= "rgba8";											// RGBA-8bit
-		front_right_cam_msg.is_bigendian		= false;
-		front_right_cam_msg.step				= sizeof(PixelRGBA8) * front_right_cam_msg.width;	// 4 Bytes per pixel (R, G, B, A)
-		front_right_cam_msg.data.resize(front_right_cam_msg.step * front_right_cam_msg.height);
-		node->AddImgPublisher(front_right_cam->GetName());	
-	}
-
-	// Explicit executor
-	rclcpp::executors::SingleThreadedExecutor executor;
-	executor.add_node(node);
-	*/
-
 	// ------------- //
 	// Ch::ROS setup //
 	// ------------- //
@@ -1039,15 +794,6 @@ int main(int argc, char* argv[]) {
 		ros_manager->Initialize();
 	}
 
-	// // Create the Irrlicht visualization sys
-	// auto vis = chrono_types::make_shared<ChVisualSystemIrrlicht>();Speed
-	// vis->AddCamera(ChVector3d(2.0, 0.0, 1.4), ChVector3d(0, 0, wheel_range));
-	// vis->AddTypicalLights();
-	// vis->AddLightWithShadow(ChVector3d(-5.0, -0.5, 8.0), ChVector3d(-1, 0, 0), 100, 1, 35, 85, 512,
-	//                         ChColor(0.8f, 0.8f, 0.8f));
-	// vis->EnableShadows();
-	// std::chrono::high_resolution_clock::time_point tm1 = std::chrono::high_resolution_clock::now();
-
 	// --------------- //
 	// Simulation loop //
 	// --------------- //
@@ -1060,18 +806,10 @@ int main(int argc, char* argv[]) {
 	double publish_frame_time = (ROS_publish_rate == 0) ? 0 : (1 / ROS_publish_rate); // NOTE: If update_rate == 0, tick is called each time
 	double time_elapsed_since_last_publish = 0;
 	while (sim_time < sim_end_time) {
-	// while (vis->Run()) {   
-
-	//     vis->BeginScene();
-	//     vis->GetActiveCamera()->setTarget(core::vector3dfCH(Body_1->GetPos()));
-	//     vis->Render();
-	//     tools::drawColorbar(vis.get(), 0, 20000, "Pressure yield [Pa]", 1180);
-	//     vis->EndScene();# Make ssh dir
 		
-	sim_time = sys.GetChTime();
-		// std::cout << "Sim time: " << sim_time << " RTF: " << timer() / sim_time << std::endl; 
+		sim_time = sys.GetChTime();
+
 		if (sim_time > cout_timer) {
-			// time_t timenow = time(NULL);
 			auto timenow = std::chrono::system_clock::to_time_t(std::chrono::high_resolution_clock::now());
 			char* time_str = ctime(&timenow);
 			time_str[strlen(time_str) - 1] = '\0'; // remove the '\n' character
@@ -1099,13 +837,10 @@ int main(int argc, char* argv[]) {
 					front_right_cam_posi + delta_posi,
 					front_right_cam->GetOffsetPose().GetRot()
 				));
-
 			}
 
 			cout_timer += 0.1;
 		}
-
-		// std::chrono::high_resolution_clock::time_point tm1 = std::chrono::high_resolution_clock::now();
 		
 		//// steering policy ////
 		// P-control
@@ -1114,72 +849,6 @@ int main(int argc, char* argv[]) {
 
 		// Update image message data and publish out
 		if (enable_ROS) {
-			/*
-			UserRGBA8BufferPtr rgba8_buffer_ptr;
-			UserSemanticBufferPtr segment_buffer_ptr;
-			UserDepthBufferPtr depth_buffer_ptr;
-
-			if (estimate_wheel_sink) {
-				sink_observer_msg.header.stamp = GetROSTimestamp(sim_time);
-				sink_segment_msg.header.stamp = GetROSTimestamp(sim_time);
-
-				rgba8_buffer_ptr = wheel_cam_LB->GetMostRecentBuffer<UserRGBA8BufferPtr>(); // start of PixelRGBA8[]
-				if (rgba8_buffer_ptr && rgba8_buffer_ptr->Buffer) {
-					const uint8_t* rgba8_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelRGBA8*>(rgba8_buffer_ptr->Buffer.get()));
-					sink_observer_msg.data.assign(rgba8_ptr, rgba8_ptr + sink_observer_msg.step * sink_observer_msg.height);
-				}
-				
-				segment_buffer_ptr = wheel_segment_LB->GetMostRecentBuffer<UserSemanticBufferPtr>(); // start of PixelSemantic[]
-				if (segment_buffer_ptr && segment_buffer_ptr->Buffer) {
-					const uint8_t* segment_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelSemantic*>(segment_buffer_ptr->Buffer.get()));
-					sink_segment_msg.data.assign(segment_ptr, segment_ptr + sink_segment_msg.step * sink_segment_msg.height);
-				}
-			}
-
-			if (predict_depth_map) {
-				front_depth_cam_msg.header.stamp = GetROSTimestamp(sim_time);
-				front_left_cam_msg.header.stamp	= GetROSTimestamp(sim_time);
-				front_right_cam_msg.header.stamp = GetROSTimestamp(sim_time);
-
-				depth_buffer_ptr = front_depth_cam->GetMostRecentBuffer<UserDepthBufferPtr>(); // start of PixelDepth[]
-				if (depth_buffer_ptr && depth_buffer_ptr->Buffer) {
-					const uint8_t* depth_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelDepth*>(depth_buffer_ptr->Buffer.get()));
-					front_depth_cam_msg.data.assign(depth_ptr, depth_ptr + front_depth_cam_msg.step * front_depth_cam_msg.height);
-				}
-
-				rgba8_buffer_ptr = front_left_cam->GetMostRecentBuffer<UserRGBA8BufferPtr>(); // start of PixelRGBA8[]
-				if (rgba8_buffer_ptr && rgba8_buffer_ptr->Buffer) {
-					const uint8_t* rgba8_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelRGBA8*>(rgba8_buffer_ptr->Buffer.get()));
-					front_left_cam_msg.data.assign(rgba8_ptr, rgba8_ptr + front_left_cam_msg.step * front_left_cam_msg.height);
-				}
-
-				rgba8_buffer_ptr = front_right_cam->GetMostRecentBuffer<UserRGBA8BufferPtr>(); // start of PixelRGBA8[]
-				if (rgba8_buffer_ptr && rgba8_buffer_ptr->Buffer) {
-					const uint8_t* rgba8_ptr = reinterpret_cast<const uint8_t*>(reinterpret_cast<const PixelRGBA8*>(rgba8_buffer_ptr->Buffer.get()));
-					front_right_cam_msg.data.assign(rgba8_ptr, rgba8_ptr + front_right_cam_msg.step * front_right_cam_msg.height);
-				}
-			}
-
-			time_elapsed_since_last_publish += sim_time_step;
-			if (time_elapsed_since_last_publish > publish_frame_time) {
-				if (estimate_wheel_sink) {
-					node->PublishImgMsg(wheel_cam_LB->GetName(), sink_observer_msg);
-					node->PublishImgMsg(wheel_segment_LB->GetName(), sink_segment_msg);
-				}
-
-				if (predict_depth_map) {
-					node->PublishImgMsg(front_depth_cam->GetName(), front_depth_cam_msg);
-					node->PublishImgMsg(front_left_cam->GetName(), front_left_cam_msg);
-					node->PublishImgMsg(front_right_cam->GetName(), front_right_cam_msg);
-
-				}
-				
-				time_elapsed_since_last_publish -= publish_frame_time;
-			}
-
-			if (!rclcpp::ok()) break;
-			*/
-
 			if (!ros_manager->Update(sim_time, sim_time_step)) break;
 		}
 
@@ -1193,14 +862,7 @@ int main(int argc, char* argv[]) {
 		sys.DoStepDynamics(sim_time_step);
 		manager->Update();
 		wall_timer.stop();
-
-		// std::chrono::high_resolution_clock::time_point tm2 = std::chrono::high_resolution_clock::now();
-		// std::chrono::duration<double> wall_time_m = std::chrono::duration_cast<std::chrono::duration<double>>(tm2 - tm1);
-		// std::cout << "wall time: " << wall_time_m.count() << "s.\n";
-
-		////terrain.PrintStepStatistics(std::cout);
 	}
-	rclcpp::shutdown();
 
 	return 0;
 }
