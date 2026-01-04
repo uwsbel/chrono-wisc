@@ -45,13 +45,14 @@ def _float_from(val, default=None):
 def detect_schema(df: pd.DataFrame) -> str:
     cols = set(df.columns)
     # Sine trials often include rms_error or steering gains
-    if {"rms_error", "steering_kp", "steering_kd"} & cols:
+    if {"rms_error", "steering_kp", "steering_ki", "steering_kd"} & cols:
         return "sine"
     return "pull"
 
 
 def build_args_from_row(row: pd.Series, schema: str, sim_script: Path, python: str,
-                        visualize: bool, snapshots: bool, output_dir: Path,
+                        visualize: bool, snapshots: bool, save_blender: bool,
+                        save_particles: bool, output_dir: Path,
                         extra_args: list[str]) -> list[str]:
     # Geometry mapping (common between pull and sine)
     rad_outer = _int_from(row.get("rad_outer")) or _int_from(row.get("rad"))
@@ -86,7 +87,7 @@ def build_args_from_row(row: pd.Series, schema: str, sim_script: Path, python: s
 
     # Optional controller for sine if present
     if schema == "sine":
-        for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+        for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
             if name in row and pd.notna(row[name]):
                 val = row[name]
                 if _isfinite(val):
@@ -95,6 +96,10 @@ def build_args_from_row(row: pd.Series, schema: str, sim_script: Path, python: s
     # Visualization and snapshots
     if snapshots:
         cmd.append("--snapshots")
+    if save_blender:
+        cmd.append("--save-blender")
+    if save_particles:
+        cmd.append("--save-particles")
     if visualize or snapshots:
         cmd.append("--visualize")
     if output_dir is not None:
@@ -131,7 +136,7 @@ def derive_sim_params(row: dict, schema: str) -> dict:
         "fan_theta_deg": fan_theta_deg,
     }
     if schema == "sine":
-        for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+        for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
             if name in row and pd.notna(row[name]) and _isfinite(row[name]):
                 out[name] = float(row[name])
     return out
@@ -139,9 +144,11 @@ def derive_sim_params(row: dict, schema: str) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Run top-N trials using a given sim script (Pull or Sine)")
-    parser.add_argument("folder", help="BO output folder containing trials.csv")
+    parser.add_argument("folder", help="BO output folder containing trials.csv (or a CSV file path)")
     parser.add_argument("sim_script", help="Path to the Python sim script to run")
     parser.add_argument("--python", default=sys.executable, help="Python interpreter to use")
+    parser.add_argument("--csv", dest="csv_name", default=None,
+                        help="Custom trials CSV name or path (default: trials.csv in the folder)")
     parser.add_argument("--schema", choices=["auto", "pull", "sine"], default="auto")
     parser.add_argument("--top", type=int, default=10, help="Number of top trials to run")
     parser.add_argument("--metric-col", type=str, default=None, help="Metric column name (default: 'metric')")
@@ -150,18 +157,34 @@ def main():
     sort_group.add_argument("--descending", action="store_true", help="Sort descending")
     parser.add_argument("--visualize", action="store_true", help="Enable visualization")
     parser.add_argument("--snapshots", action="store_true", help="Enable snapshots (implies visualize)")
+    parser.add_argument("--save-blender", action="store_true", help="Enable Blender output")
+    parser.add_argument("--save-particles", action="store_true", help="Enable particle output")
     parser.add_argument("--rank", type=int, default=None, help="Select a specific rank (1-based) instead of top-N")
     parser.add_argument("--dry-run", action="store_true", help="Print commands without executing")
     parser.add_argument("--extra-args", nargs=argparse.REMAINDER, help="Additional args to pass to sim script; prefix with --")
 
     args = parser.parse_args()
 
-    folder = Path(args.folder).expanduser().resolve()
-    if not folder.exists():
-        parser.error(f"Folder not found: {folder}")
-    csv_path = folder / "trials.csv"
-    if not csv_path.exists():
-        parser.error(f"Missing trials.csv at {csv_path}")
+    folder_arg = Path(args.folder).expanduser().resolve()
+    if not folder_arg.exists():
+        parser.error(f"Folder or CSV not found: {folder_arg}")
+
+    if folder_arg.is_file():
+        if args.csv_name:
+            parser.error("--csv cannot be used when the first argument is a CSV file path")
+        csv_path = folder_arg
+        folder = csv_path.parent
+    else:
+        folder = folder_arg
+        if args.csv_name:
+            csv_path = Path(args.csv_name).expanduser()
+            if not csv_path.is_absolute():
+                csv_path = folder / csv_path
+            csv_path = csv_path.resolve()
+        else:
+            csv_path = folder / "trials.csv"
+        if not csv_path.exists():
+            parser.error(f"Missing trials CSV at {csv_path}")
     sim_script = Path(args.sim_script).expanduser().resolve()
     if not sim_script.exists():
         parser.error(f"Sim script not found: {sim_script}")
@@ -211,7 +234,7 @@ def main():
     power_col = "average_power" if "average_power" in df_sorted.columns else ("avg_power" if "avg_power" in df_sorted.columns else None)
     rms_error_col = "rms_error" if "rms_error" in df_sorted.columns else None
 
-    if not args.snapshots:
+    if not (args.snapshots or args.save_blender or args.save_particles):
         # If a specific rank is requested, just print its stats
         if args.rank is not None:
             row = selected[0]
@@ -243,7 +266,7 @@ def main():
             print(f"    fan_theta_deg: {fan_theta_deg}")
             print(f"    particle_spacing: {particle_spacing}")
             # Optional controllers if present in CSV
-            for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+            for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
                 if name in row and pd.notna(row[name]):
                     print(f"    {name}: {row[name]}")
             print("  wheel (sim args):")
@@ -253,7 +276,7 @@ def main():
             print(f"    g_density: {sim_params.get('g_density')}")
             print(f"    particle_spacing: {sim_params.get('particle_spacing')}")
             print(f"    fan_theta_deg: {sim_params.get('fan_theta_deg')}")
-            for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+            for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
                 if name in sim_params:
                     print(f"    {name}: {sim_params[name]}")
             return
@@ -292,7 +315,7 @@ def main():
                 f.write(f"    fan_theta_deg: {fan_theta_deg}\n")
                 f.write(f"    particle_spacing: {particle_spacing}\n")
                 # Optional controllers if present
-                for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+                for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
                     if name in row and pd.notna(row[name]):
                         f.write(f"    {name}: {row[name]}\n")
                 f.write("  wheel (sim args):\n")
@@ -302,14 +325,14 @@ def main():
                 f.write(f"    g_density: {sim_params.get('g_density')}\n")
                 f.write(f"    particle_spacing: {sim_params.get('particle_spacing')}\n")
                 f.write(f"    fan_theta_deg: {sim_params.get('fan_theta_deg')}\n")
-                for name in ("steering_kp", "steering_kd", "speed_kp", "speed_kd"):
+                for name in ("steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"):
                     if name in sim_params:
                         f.write(f"    {name}: {sim_params[name]}\n")
                 f.write("\n")
         print(f"Wrote summary: {out_path}")
         return
 
-    # Snapshots requested: run simulations (top-N or a specific rank)
+    # Outputs requested: run simulations (top-N or a specific rank)
     N = len(selected)
     for offset, row in enumerate(selected):
         idx = (base_index + offset)
@@ -328,8 +351,10 @@ def main():
             schema=schema,
             sim_script=sim_script,
             python=args.python,
-            visualize=True,  # snapshots implies visualize
-            snapshots=True,
+            visualize=args.visualize,
+            snapshots=args.snapshots,
+            save_blender=args.save_blender,
+            save_particles=args.save_particles,
             output_dir=run_output_dir,
             extra_args=extra_args,
         )

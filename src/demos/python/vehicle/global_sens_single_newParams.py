@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 from dataclasses import dataclass
 from typing import List, Tuple
@@ -47,9 +48,11 @@ def build_varspecs_pull_single(particle_spacing: float, feature_names: List[str]
     Always supports geometry parameters. If steering/speed control columns are
     present in the CSV, include them with reasonable bounds (aligned with
     Sine/Slalom scripts in this repo):
-      - steering_kp in [0.1, 20.0]
-      - steering_kd in [0.0, 5.0]
+      - steering_kp in [1.0, 15.0] (if steering_ki present), else [0.1, 20.0]
+      - steering_ki in [0.0, 4.0]
+      - steering_kd in [0.0, 4.0]  (if steering_ki present), else [0.0, 5.0]
       - speed_kp    in [0.1, 5.0]
+      - speed_ki    in [0.0, 2.0]
       - speed_kd    in [0.0, 1.0]
     """
     # Integer ranges derived from meters and spacing (match PullTest_global_single.py)
@@ -70,12 +73,21 @@ def build_varspecs_pull_single(particle_spacing: float, feature_names: List[str]
         specs.append(VarSpec("fan_theta_deg", "int", (th_lb, th_ub)))
 
     # Optional controls
+    # If steering_ki is present, match the BO_wControl study bounds (SineSideSlip_BO_wControl.py).
+    # Otherwise keep broader historical defaults for older datasets.
+    has_steering_ki = "steering_ki" in feature_names
+    steering_kp_bounds = (1.0, 15.0) if has_steering_ki else (0.1, 20.0)
+    steering_kd_bounds = (0.0, 4.0) if has_steering_ki else (0.0, 5.0)
     if "steering_kp" in feature_names:
-        specs.append(VarSpec("steering_kp", "float", (0.1, 20.0)))
+        specs.append(VarSpec("steering_kp", "float", steering_kp_bounds))
+    if "steering_ki" in feature_names:
+        specs.append(VarSpec("steering_ki", "float", (0.0, 4.0)))
     if "steering_kd" in feature_names:
-        specs.append(VarSpec("steering_kd", "float", (0.0, 5.0)))
+        specs.append(VarSpec("steering_kd", "float", steering_kd_bounds))
     if "speed_kp" in feature_names:
         specs.append(VarSpec("speed_kp", "float", (0.1, 5.0)))
+    if "speed_ki" in feature_names:
+        specs.append(VarSpec("speed_ki", "float", (0.0, 2.0)))
     if "speed_kd" in feature_names:
         specs.append(VarSpec("speed_kd", "float", (0.0, 1.0)))
 
@@ -105,7 +117,7 @@ def detect_features(df: pd.DataFrame) -> List[str]:
     optional controller gains if present in the CSV columns.
     """
     feats = [c for c in BASE_FEATURES if c in df.columns]
-    for c in ["steering_kp", "steering_kd", "speed_kp", "speed_kd"]:
+    for c in ["steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"]:
         if c in df.columns:
             feats.append(c)
     return feats
@@ -136,10 +148,13 @@ def load_filtered_pull(csv_path: str, filter_penalties: bool = True, target_col:
     # Drop rows without valid target/time
     df = df.dropna(subset=[target_col, time_col])
 
-    # Remove failed simulations if filtering is enabled
-    # Failures are encoded as metric >= 500 or total_time_to_reach == 12.0 (2*tend)
-    if filter_penalties and target_col == "metric":
-        df = df[(df[target_col] < 500) & (df[time_col] != 12.0)]
+    # Remove failed simulations if filtering is enabled.
+    # Failures are encoded as metric >= 500 and/or total_time_to_reach == 12.0 (2*tend).
+    if filter_penalties:
+        if "metric" in df.columns:
+            df["metric"] = pd.to_numeric(df["metric"], errors="coerce")
+            df = df[df["metric"] < 500]
+        df = df[df[time_col] != 12.0]
 
     # Particle spacing (constant per run)
     if not df["particle_spacing"].isna().all():
@@ -159,7 +174,7 @@ def load_filtered_pull(csv_path: str, filter_penalties: bool = True, target_col:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype(int)
 
     # Cast controllers to float if present
-    for c in ["steering_kp", "steering_kd", "speed_kp", "speed_kd"]:
+    for c in ["steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
 
@@ -262,6 +277,7 @@ def main():
     parser.add_argument("--ice", action="store_true", help="Generate ICE plots for each parameter using the fitted surrogate")
     parser.add_argument("--ice-subsample", type=int, default=120, help="Number of data rows to use for ICE conditioning (lines)")
     parser.add_argument("--ice-grid", type=int, default=100, help="Number of grid points per feature for ICE")
+    parser.add_argument("--ice-only-controls", action="store_true", help="Only plot ICE for controller gains (still computes sensitivities for all)")
     parser.add_argument("--outdir", default=None, help="Output directory (default: <run_dir>/analysis)")
     parser.add_argument("--cv-folds", type=int, default=5, help="K-fold CV folds to evaluate surrogate quality")
     parser.add_argument("--model", choices=["rf", "xgb", "gp"], default="rf", help="Surrogate model to use")
@@ -430,10 +446,38 @@ def main():
     # ICE plots
     if args.ice:
         try:
+            import seaborn as sns
             import matplotlib.pyplot as plt
 
             ice_dir = os.path.join(outdir, "ice")
             os.makedirs(ice_dir, exist_ok=True)
+
+            sns.set_theme(style="whitegrid")
+            plt.rcParams.update(
+                {
+                    # "font.family": "serif",
+                    # "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+                    "axes.labelsize": 10,
+                    "axes.titlesize": 10,
+                    "xtick.labelsize": 9,
+                    "ytick.labelsize": 9,
+                    "legend.fontsize": 9,
+                }
+            )
+
+            label_map = {
+                "rad_outer": r"$r_o$",
+                "w_by_r": r"$w_r$",
+                "what_percent_is_grouser": r"$g_r$",
+                "g_density": r"$n_g$",
+                "fan_theta_deg": r"$\alpha_g$",
+                "steering_kp": r"$K_{p,s}$",
+                "steering_ki": r"$K_{i,s}$",
+                "steering_kd": r"$K_{d,s}$",
+                "speed_kp": r"$K_{p,t}$",
+                "speed_ki": r"$K_{i,t}$",
+                "speed_kd": r"$K_{d,t}$",
+            }
 
             # Subsample rows for ICE lines
             rng = np.random.default_rng(args.seed)
@@ -443,10 +487,14 @@ def main():
             X_ref = df[features].to_numpy(dtype=float)[idx]
 
             pdp_swing_lines = []
+            ice_results = []
+            control_names = {"steering_kp", "steering_ki", "steering_kd", "speed_kp", "speed_ki", "speed_kd"}
 
             # Grid and prediction for each feature
             for j, spec in enumerate(specs):
                 name = spec.name
+                if args.ice_only_controls and name not in control_names:
+                    continue
                 # Build grid across the domain bounds
                 if spec.kind == "int":
                     lo, hi = int(spec.bounds[0]), int(spec.bounds[1])
@@ -487,18 +535,96 @@ def main():
                 pdp_swing_lines.append(line)
                 print(line)
 
-                plt.figure(figsize=(6, 4))
-                for k in range(C.shape[0]):
-                    plt.plot(grid, C[k, :], color="tab:blue", alpha=0.18, linewidth=1)
-                plt.plot(grid, pdp, color="tab:orange", linewidth=2.5, label="PDP (mean)")
-                plt.xlabel(name)
-                plt.ylabel(target_col)
-                plt.title(f"ICE for {name}")
-                plt.grid(True, alpha=0.25)
-                plt.legend()
-                plt.tight_layout()
-                plt.savefig(os.path.join(ice_dir, f"ice_{name}.png"), dpi=150)
-                plt.close()
+                label = label_map.get(name, name)
+                if name == "rad_outer":
+                    label = r"$r_o$ [m]"
+                    grid_plot = grid * spacing
+                else:
+                    grid_plot = grid
+
+                ice_results.append(
+                    {
+                        "name": name,
+                        "label": label,
+                        "grid": grid_plot,
+                        "C": C,
+                        "pdp": pdp,
+                    }
+                )
+
+            if ice_results:
+                n_feats = len(ice_results)
+                y_min = min(np.nanmin(item["C"]) for item in ice_results)
+                y_max = max(np.nanmax(item["C"]) for item in ice_results)
+                y_min = min(y_min, min(np.nanmin(item["pdp"]) for item in ice_results))
+                y_max = max(y_max, max(np.nanmax(item["pdp"]) for item in ice_results))
+                if n_feats == 5:
+                    fig = plt.figure(figsize=(9.6, 5.2))
+                    gs = fig.add_gridspec(2, 6, wspace=0.35, hspace=0.4)
+                    axes = [
+                        fig.add_subplot(gs[0, 0:2]),
+                        fig.add_subplot(gs[0, 2:4]),
+                        fig.add_subplot(gs[0, 4:6]),
+                        fig.add_subplot(gs[1, 1:3]),
+                        fig.add_subplot(gs[1, 3:5]),
+                    ]
+                    ncols = 3
+                elif n_feats == 8:
+                    nrows, ncols = 2, 4
+                    fig, axes = plt.subplots(
+                        nrows=nrows,
+                        ncols=ncols,
+                        sharey=True,
+                        figsize=(3.2 * ncols, 2.6 * nrows),
+                    )
+                    axes = np.atleast_1d(axes).ravel()
+                elif n_feats <= 4:
+                    nrows, ncols = 1, n_feats
+                    fig, axes = plt.subplots(
+                        nrows=nrows,
+                        ncols=ncols,
+                        sharey=True,
+                        figsize=(3.2 * ncols, 2.6 * nrows),
+                    )
+                    axes = np.atleast_1d(axes).ravel()
+                else:
+                    ncols = 4
+                    nrows = int(np.ceil(n_feats / ncols))
+                    fig, axes = plt.subplots(
+                        nrows=nrows,
+                        ncols=ncols,
+                        sharey=True,
+                        figsize=(3.2 * ncols, 2.6 * nrows),
+                    )
+                    axes = np.atleast_1d(axes).ravel()
+
+                for ax_i, ax in enumerate(axes):
+                    if ax_i >= n_feats:
+                        ax.axis("off")
+                        continue
+                    item = ice_results[ax_i]
+                    grid = item["grid"]
+                    C = item["C"]
+                    pdp = item["pdp"]
+                    for k in range(C.shape[0]):
+                        ax.plot(grid, C[k, :], color="#4C78A8", alpha=0.18, linewidth=0.8)
+                    ax.plot(grid, pdp, color="#F58518", linewidth=2.0, label="PDP (mean)")
+                    ax.set_xlabel(item["label"])
+                    show_y = (n_feats == 5 and ax_i in [0, 3]) or (n_feats != 5 and ax_i % ncols == 0)
+                    if show_y:
+                        ax.set_ylabel("objective")
+                    else:
+                        ax.set_ylabel("")
+                        ax.tick_params(left=False, labelleft=False)
+                    ax.grid(True, alpha=0.25)
+                    ax.set_ylim(y_min, y_max)
+
+                axes[0].legend(loc="best", frameon=False)
+                fig.tight_layout()
+                fig.subplots_adjust(wspace=0.25, hspace=0.3)
+                out_png = os.path.join(ice_dir, "ice_combined.png")
+                fig.savefig(out_png, dpi=200)
+                plt.close(fig)
 
             # Save PDP-based percent swing statistics to a text file
             try:
@@ -520,9 +646,23 @@ def main():
     print(f"Data points used: {len(df)} | spacing={spacing}")
     # Count failures from JSONL
     run_dir = os.path.dirname(os.path.abspath(args.csv))
-    failed_log_path = args.failed_log if args.failed_log else os.path.join(run_dir, "failed_trials.jsonl")
+    if args.failed_log:
+        failed_log_path = args.failed_log
+    else:
+        candidates = [
+            os.path.join(run_dir, "failed_trials.jsonl"),
+            os.path.join(run_dir, "failed_trials_wControl.jsonl"),
+        ]
+        failed_log_path = ""
+        for cand in candidates:
+            if os.path.isfile(cand):
+                failed_log_path = cand
+                break
+        if not failed_log_path:
+            globbed = sorted(glob.glob(os.path.join(run_dir, "failed_trials*.jsonl")))
+            failed_log_path = globbed[0] if globbed else os.path.join(run_dir, "failed_trials.jsonl")
     json_failures = count_failed_from_jsonl(failed_log_path)
-    print(f"Failed simulations (from failed_trials.jsonl): {json_failures}")
+    print(f"Failed simulations (from {os.path.basename(failed_log_path)}): {json_failures}")
     print(f"Model: {model_name}")
     print(f"Target: {target_col}")
     print(f"Surrogate R^2 CV (k={args.cv_folds}) mean={r2_cv_mean:.3f} std={r2_cv_std:.3f}")

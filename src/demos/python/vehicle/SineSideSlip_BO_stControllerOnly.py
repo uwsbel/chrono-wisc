@@ -122,7 +122,7 @@ def build_ax_client(sobol_trials, state_path, resume, enable_ki=True):
         ],
     )
 
-center_node = CenterGenerationNode(next_node_name=sobol_node.name)
+    center_node = CenterGenerationNode(next_node_name=sobol_node.name)
     gs = GenerationStrategy(name="Center+Sobol+BoTorch(qLogNEI)", nodes=[center_node, sobol_node, botorch_node])
 
     if resume and os.path.isfile(state_path):

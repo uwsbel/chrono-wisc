@@ -22,11 +22,8 @@ import pychrono.fsi as fsi
 import time
 import argparse
 import os
-import shutil
 from simple_wheel_gen import GenSimpleWheelPointCloud
 from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize
-
-SAVE_OUTPUT_HZ = 10
 
 # Global flag for signal handling
 simulation_error = None
@@ -122,23 +119,12 @@ def CreateFSIWheels(vehicle, terrain, Params):
     
 
 
-def _reset_output_dir(path):
-    if path is None:
-        return
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    elif os.path.exists(path):
-        os.remove(path)
-    os.makedirs(path, exist_ok=True)
-
-
-def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None,
-        particle_sph_dir=None, particle_fsi_dir=None, blender_dir=None, visualize=False):
+def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None, visualize=False, log_recorder=None):
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
     
     # Problem settings
-    tend = 6
+    tend = 3
     verbose = False
     
 
@@ -175,6 +161,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     artCar.SetStallTorque(5)
     artCar.SetTireRollingResistance(0)
     artCar.Initialize()
+    wheels = [wheel for axle in artCar.GetVehicle().GetAxles() for wheel in axle.GetWheels()]
 
     sysMBS = artCar.GetSystem()
     sysMBS.SetCollisionSystemType(chrono.ChCollisionSystem.Type_BULLET)
@@ -268,59 +255,36 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     # Set maximum vehicle X location
     x_max = aabb.max.x - 1.0
     
-    # Create the path-following driver
-    # print("Create path...")
-    path = veh.StraightLinePath(chrono.ChVector3d(0, 0, vehicle_init_height),
-                               chrono.ChVector3d(terrain_length, 0, vehicle_init_height), 1)
-    
+    # Driver inputs: ramp throttle to 0.7 with zero steering/brake
+    throttle_ramp_duration = 3.0
+    target_throttle = 0.7
+    driver_inputs = veh.DriverInputs()
 
-    driver = veh.ChPathFollowerDriver(artCar.GetVehicle(), path, "straight_path", SimParams.target_speed, 0.5, 2.0)
-    driver.GetSteeringController().SetLookAheadDistance(0.5)
-    driver.GetSteeringController().SetGains(5, 0, 1)
-    driver.GetSpeedController().SetGains(0.8, 0.2, 0.3)
-    driver.Initialize()
-    
-    # Set up TSDA to apply pulling force
-    # print("Create pulling force...")
-    tsda = chrono.ChLinkTSDA()
-    max_force = SimParams.max_force
-    zero_force_duration = vehicle_init_time + 0.5
-    fast_step_to_max_force_duration = 0.1
-    max_force_duration = tend - zero_force_duration - fast_step_to_max_force_duration
-    
-    # Create force sequence
-    seq = chrono.ChFunctionSequence()
-    f_const = chrono.ChFunctionConst(0)
-    f_fast = chrono.ChFunctionRamp(0, -max_force / fast_step_to_max_force_duration)
-    f_const_max = chrono.ChFunctionConst(-max_force)
-    seq.InsertFunct(f_const, zero_force_duration)
-    seq.InsertFunct(f_fast, fast_step_to_max_force_duration)
-    seq.InsertFunct(f_const_max, max_force_duration)
-    seq.Setup()
-    
     chassis_body = artCar.GetVehicle().GetChassisBody()
     
-    # Create spring box (anchor point)
-    spring_box = chrono.ChBody()
-    spring_box.SetFixed(True)
-    spring_box_pos = chrono.ChVector3d(0, 0, terrain_height / 2 + 0.1)
-    spring_box.SetPos(spring_box_pos)
-    sysMBS.AddBody(spring_box)
+    # Create anchor body and constraint that blocks forward motion while allowing vertical motion
+    anchor_body = chrono.ChBody()
+    anchor_body.SetFixed(True)
+    sysMBS.AddBody(anchor_body)
     
-    # Initialize TSDA between chassis and spring box
+    constraint = chrono.ChLinkMateGeneric()
+    constraint.SetConstrainedCoords(True, False, False, True, True, True)
+
     # Attachment point on chassis: rear wheel x-position, CG y and z positions
     rear_wheel_x = -0.32264 - 0.05  # Rear wheel spindle x-position relative to chassis reference
     cg_y = -0.0014  # CG y-position (essentially 0)
-    cg_z = -0.048 + 0.1   # CG z-position
-    tsda.Initialize(spring_box, chassis_body, True, chrono.ChVector3d(0, 0, 0), chrono.ChVector3d(rear_wheel_x, cg_y, cg_z))
-    tsda.SetSpringCoefficient(0)
-    tsda.SetDampingCoefficient(0)
-    
-    # Register the force functor
-    force_functor = PullForceFunctor(seq)
-    tsda.RegisterForceFunctor(force_functor)
-    
-    sysMBS.AddLink(tsda)
+    cg_z = -0.048 + 0.05   # CG z-position
+    attach_local = chrono.ChVector3d(rear_wheel_x, cg_y, cg_z)
+    attach_world = chassis_body.TransformPointLocalToParent(attach_local)
+    anchor_body.SetPos(attach_world)
+    constraint.Initialize(
+        chassis_body,
+        anchor_body,
+        True,
+        chrono.ChFramed(attach_local, chrono.QUNIT),
+        chrono.ChFramed(chrono.VNULL, chrono.QUNIT),
+    )
+    sysMBS.AddLink(constraint)
     
     # Add visualization
     # Red sphere on vehicle attachment point (same location as TSDA attachment)
@@ -328,13 +292,10 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     vis_sphere.SetColor(chrono.ChColor(1.0, 0.0, 0.0))
     chassis_body.AddVisualShape(vis_sphere, chrono.ChFramed(chrono.ChVector3d(rear_wheel_x, cg_y, cg_z)))
     
-    # Spring box visualization
+    # Anchor visualization
     vis_box = chrono.ChVisualShapeBox(0.1, 0.1, 0.1)
     vis_box.SetColor(chrono.ChColor(0.5, 0.5, 0.5))
-    spring_box.AddVisualShape(vis_box, chrono.ChFramed(chrono.ChVector3d(0, 0, 0)))
-    
-    # Visual spring (cylinder representing the TSDA)
-    tsda.AddVisualShape(chrono.ChVisualShapeSpring(0.1, 80, 1))
+    anchor_body.AddVisualShape(vis_box, chrono.ChFramed(chrono.ChVector3d(0, 0, 0)))
     
     # Set up output
     out_dir = chrono.GetChronoOutputPath() + "pull/"
@@ -373,18 +334,6 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
         visVSG.Initialize()
         vis = visVSG
     
-    blender_exporter = None
-    if blender_dir is not None:
-        try:
-            import pychrono.postprocess as postprocess
-        except Exception as exc:
-            raise RuntimeError("pychrono.postprocess is required for Blender output") from exc
-        blender_exporter = postprocess.ChBlender(sysMBS)
-        blender_exporter.SetBasePath(blender_dir)
-        blender_exporter.AddAll()
-        blender_exporter.SetCamera(chrono.ChVector3d(3.0, -2.0, 1.0), chrono.ChVector3d(0, 0, 0.2), 50)
-        blender_exporter.ExportScript()
-
     # Simulation loop
     t_sim = 0
     sim_frame = 0
@@ -392,28 +341,27 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     
     # print("Start simulation...")
     total_time_to_reach = tend*2
-    initial_x_position =  artCar.GetVehicle().GetPos().x
-    min_speed = 0.15
     net_power = 0
     power_count = 0
+    pull_forces = []
     render_frame = 0
-    output_frame = 0
     start_time = time.time()
     while t_sim < tend:
         veh_loc = artCar.GetVehicle().GetPos()
-        current_x_position = veh_loc.x
 
         veh_z_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).z
         veh_roll_rate = artCar.GetChassis().GetRollRate()
         veh_pitch_rate = artCar.GetChassis().GetPitchRate()
         veh_yaw_rate = artCar.GetChassis().GetYawRate()
         veh_z_pos = veh_loc.z
+        veh_x_vel = artCar.GetChassis().GetPointVelocity(chrono.ChVector3d(0, 0, 0)).x
 
         engine_speed = artCar.GetVehicle().GetEngine().GetMotorSpeed()
         engine_torque = artCar.GetVehicle().GetEngine().GetOutputMotorshaftTorque()
+        inst_power = engine_torque * engine_speed
         
         if(t_sim > 0.5):
-            net_power += engine_torque * engine_speed
+            net_power += inst_power
             power_count += 1
 
         # If Z vel is crazy high, break
@@ -438,27 +386,22 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
             total_time_to_reach = tend*2
             break
 
-        # After 3 seconds check if any meaningful progress has been made
-        # If no, then break
-        if(t_sim > 3 and current_x_position - initial_x_position < min_speed * 2):
-            print(f"No meaningful progress has been made: {current_x_position - initial_x_position}")
-            sim_failed = True
-            total_time_to_reach = tend*2
-            break
-
-        # Get driver inputs from path follower
-        if t_sim < vehicle_init_time:
-            driver_inputs = veh.DriverInputs()
-            driver_inputs.m_throttle = 0.0
-            driver_inputs.m_steering = 0.0
-            driver_inputs.m_braking = 0.0
-        else:
-            driver_inputs = driver.GetInputs()
-            driver_inputs.m_braking = 0.0
-        # Stop vehicle before reaching end of terrain patch
-        if veh_loc.x >= x_max:
-            total_time_to_reach = t_sim
-            break
+        # Ramp throttle; keep steering/braking zero
+        throttle = min(target_throttle, target_throttle * (t_sim / throttle_ramp_duration))
+        driver_inputs.m_throttle = throttle
+        driver_inputs.m_steering = 0.0
+        driver_inputs.m_braking = 0.0
+        # Record reaction force along +X (vehicle pull on anchor is opposite of reaction on anchor)
+        wrench_anchor = constraint.GetReaction2()
+        pull_force_x = -wrench_anchor.force.x
+        pull_forces.append(pull_force_x)
+        if log_recorder:
+            wheel_rpms = []
+            for wheel in wheels:
+                state = wheel.GetState()
+                rpm = state.omega * 60.0 / (2 * chrono.CH_PI)
+                wheel_rpms.append(rpm)
+            log_recorder(t_sim, pull_force_x, veh_x_vel, wheel_rpms, inst_power)
         
         # Run-time visualization
         if visualize and t_sim >= render_frame / render_fps and vis is not None:
@@ -473,15 +416,8 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
                 except Exception:
                     pass
             render_frame += 1
-        if (particle_sph_dir is not None or blender_exporter is not None) and t_sim >= output_frame / SAVE_OUTPUT_HZ:
-            if particle_sph_dir is not None:
-                terrain.SaveOutputData(t_sim, particle_sph_dir, particle_fsi_dir)
-            if blender_exporter is not None:
-                blender_exporter.ExportData()
-            output_frame += 1
         try:
             # Synchronize systems
-            driver.Synchronize(t_sim)
             if vis is not None:
                 vis.Synchronize(t_sim, driver_inputs)
             terrain.Synchronize(t_sim)
@@ -495,7 +431,6 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
                 break
             
             # Advance system state
-            driver.Advance(step_size)
             if vis is not None:
                 vis.Advance(step_size)
             
@@ -519,6 +454,7 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     end_time = time.time()
     total_sim_time = end_time - start_time
     print(f"Simulation time: {total_sim_time} seconds")
+    total_time_to_reach = t_sim
     # Final check for CUDA errors
     error_occurred, error_message = check_cuda_error()
     if error_occurred:
@@ -533,44 +469,20 @@ def sim(Params, SimParams, weight_speed=0.9, weight_power=0.1, snapshot_dir=None
     print(f"  g_density: {Params.g_density}")
     print(f"  particle_spacing: {Params.particle_spacing}")
     print(f"  fan_theta_deg: {Params.fan_theta_deg}")
-    if(total_time_to_reach < 1):
-        print(f"Total time to reach is less than 1 second")
-        sim_failed = True
-        total_time_to_reach = tend*2
     
+    # Compute metrics for slip test
+    max_pull_force = max((abs(f) for f in pull_forces), default=0.0)
+    average_power = net_power / power_count if power_count > 0 else 0.0
 
-
-    
-    # Compute metrics
-    ideal_time = terrain_length / SimParams.target_speed
-    time_cost_score  = (total_time_to_reach / ideal_time) * 10
-
-    ideal_power = 100.0
-    # Power metrics
-    average_power = 0
-    if power_count > 0:
-        average_power = net_power / power_count
-    else:
-        # This basically means things have failed
-        average_power = float('inf')
-    power_score = (average_power / ideal_power) * 10
-
-    print(f"Ideal time: {ideal_time}")
-    print(f"Total time to reach: {total_time_to_reach}")
-    print(f"Time cost score: {time_cost_score:}")
-    print(f"Ideal power: {ideal_power}")
+    print(f"Simulated time: {total_time_to_reach}")
+    print(f"Max pull force at constraint (X): {max_pull_force}")
     print(f"Average power: {average_power}")
-    print(f"Power score: {power_score}")
-    print(f"Weight speed: {weight_speed}")
-    print(f"Weight power: {weight_power}")
-    if(sim_failed):
-        print(f"Simulation failed")
-        metric = 500
-    else:
-        print(f"Total time to reach: {total_time_to_reach}")
-        metric = weight_speed * time_cost_score + weight_power * power_score
+    metric = max_pull_force
+    if sim_failed:
+        print("Simulation failed")
+        metric = 0
 
-    print(f"Metric: {metric}")
+    print(f"Metric (max pull force): {metric}")
     try:
         # Clear CUDA errors before cleanup
         clear_cuda_error()
@@ -605,11 +517,9 @@ if __name__ == "__main__":
     parser.add_argument("--friction", type=float, default=0.8)
     parser.add_argument("--max_force", type=float, default=20.0)
     parser.add_argument("--target_speed", type=float, default=2.0)
-    # Visualization / outputs
+    # Visualization / snapshots
     parser.add_argument("--visualize", action="store_true", help="Enable visualization")
     parser.add_argument("--snapshots", action="store_true", help="Enable snapshot saving (implies visualize)")
-    parser.add_argument("--save-blender", action="store_true", help="Enable Blender output")
-    parser.add_argument("--save-particles", action="store_true", help="Enable particle output")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for snapshots and logs")
     # Weights (kept for completeness)
     parser.add_argument("--weight_speed", type=float, default=0.9)
@@ -632,33 +542,18 @@ if __name__ == "__main__":
     sp.target_speed = float(args.target_speed)
 
     visualize = args.visualize or args.snapshots
-    snapshot_dir = os.path.join(args.output_dir, "snapshots") if args.snapshots and args.output_dir else None
-    blender_dir = os.path.join(args.output_dir, "blender") if args.save_blender and args.output_dir else None
-    particle_dir = os.path.join(args.output_dir, "particle_files") if args.save_particles and args.output_dir else None
+    snapshot_dir = args.output_dir if args.snapshots else None
     if snapshot_dir is not None:
-        _reset_output_dir(snapshot_dir)
-    if blender_dir is not None:
-        _reset_output_dir(blender_dir)
-    particle_sph_dir = None
-    particle_fsi_dir = None
-    if particle_dir is not None:
-        _reset_output_dir(particle_dir)
-        particle_sph_dir = os.path.join(particle_dir, "particles")
-        particle_fsi_dir = os.path.join(particle_dir, "fsi")
-        os.makedirs(particle_sph_dir, exist_ok=True)
-        os.makedirs(particle_fsi_dir, exist_ok=True)
+        os.makedirs(snapshot_dir, exist_ok=True)
 
     metric, total_time_to_reach, _, average_power, sim_failed = sim(
         p, sp,
         weight_speed=float(args.weight_speed),
         weight_power=float(args.weight_power),
         snapshot_dir=snapshot_dir,
-        particle_sph_dir=particle_sph_dir,
-        particle_fsi_dir=particle_fsi_dir,
-        blender_dir=blender_dir,
         visualize=visualize,
     )
-    print(f"Metric: {metric:.4f}")
-    print(f"Total time to reach: {total_time_to_reach:.4f}")
+    print(f"Max pull force metric: {metric:.4f}")
+    print(f"Simulated time: {total_time_to_reach:.4f}")
     print(f"Average power: {average_power:.2f}W")
     print(f"Simulation failed: {sim_failed}")

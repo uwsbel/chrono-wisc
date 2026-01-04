@@ -185,7 +185,7 @@ def plot_metrics_boxplot(df: pd.DataFrame, outdir: str) -> None:
 
     # Combined plot (kept for convenience)
     fig_c, ax_c = plt.subplots(figsize=(max(6.0, 1.6 * len(labels)), 4.8))
-    bp_c = ax_c.boxplot(data, tick_labels=labels, showfliers=False, patch_artist=True)
+    bp_c = ax_c.boxplot(data, labels=labels, showfliers=False, patch_artist=True)
     for patch, color in zip(bp_c['boxes'], colors * (len(labels) // len(colors) + 1)):
         patch.set_facecolor(color)
         patch.set_alpha(0.7)

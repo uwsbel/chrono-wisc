@@ -23,8 +23,11 @@ import time
 import math
 import argparse
 import os
+import shutil
 from simple_wheel_gen import GenSimpleWheelPointCloud
 from cuda_error_checker import check_cuda_error, clear_cuda_error, safe_advance, safe_synchronize
+
+SAVE_OUTPUT_HZ = 10
 
 # Global flag for signal handling
 simulation_error = None
@@ -186,7 +189,18 @@ def computeCrossTrackErrorXY(vehicle_xy, path_points_xy):
     return best if best is not None else 0.0
 
 
-def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, sine_amplitude=0.28, num_periods=2, snapshot_dir=None, visualize=False):
+def _reset_output_dir(path):
+    if path is None:
+        return
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.exists(path):
+        os.remove(path)
+    os.makedirs(path, exist_ok=True)
+
+
+def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, sine_amplitude=0.28, num_periods=2,
+        snapshot_dir=None, particle_sph_dir=None, particle_fsi_dir=None, blender_dir=None, visualize=False):
 
     # Set the data path for vehicle models
     veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
@@ -317,14 +331,15 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
     
     # Construct the terrain
     # print("Create terrain...")
-    start_time = time.time()
+    terrain_start_time = time.time()
     # terrain.Construct(chrono.ChVector3d(terrain_length, terrain_width, terrain_height),
     #                   chrono.ChVector3d(terrain_length / 2, 0, 0),
     #                   (fsi.BoxSide_ALL & ~fsi.BoxSide_Z_POS))
     # Read SPH particles from file
     terrain.Construct(sph_file, bce_file, chrono.ChVector3d(0, 0, 0), False)
-    end_time = time.time()
-    print(f"Terrain construction time: {end_time - start_time} seconds")
+    terrain_end_time = time.time()
+    terrain_construction_time = terrain_end_time - terrain_start_time
+    print(f"Terrain construction time: {terrain_construction_time} seconds")
     # Initialize the terrain system
     terrain.Initialize()
     
@@ -472,6 +487,18 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
         visVSG.Initialize()
         vis = visVSG
     
+    blender_exporter = None
+    if blender_dir is not None:
+        try:
+            import pychrono.postprocess as postprocess
+        except Exception as exc:
+            raise RuntimeError("pychrono.postprocess is required for Blender output") from exc
+        blender_exporter = postprocess.ChBlender(sysMBS)
+        blender_exporter.SetBasePath(blender_dir)
+        blender_exporter.AddAll()
+        blender_exporter.SetCamera(chrono.ChVector3d(3.0, -2.0, 1.0), chrono.ChVector3d(0, 0, 0.2), 50)
+        blender_exporter.ExportScript()
+
     # Simulation loop
     t_sim = 0
     sim_frame = 0
@@ -484,7 +511,8 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
     net_power = 0
     power_count = 0
     render_frame = 0
-    start_time = time.time()
+    output_frame = 0
+    sim_start_time = time.time()
     
     # Error tracking for cross-track error
     sum_squared_error = 0.0
@@ -597,6 +625,12 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
                 except Exception:
                     pass
             render_frame += 1
+        if (particle_sph_dir is not None or blender_exporter is not None) and t_sim >= output_frame / SAVE_OUTPUT_HZ:
+            if particle_sph_dir is not None:
+                terrain.SaveOutputData(t_sim, particle_sph_dir, particle_fsi_dir)
+            if blender_exporter is not None:
+                blender_exporter.ExportData()
+            output_frame += 1
         try:
             # Synchronize systems
             driver.Synchronize(t_sim)
@@ -634,9 +668,16 @@ def sim(Params, SimParams, weight_speed=0.6, weight_power=0.0, weight_beta=0.2, 
             
         t_sim += step_size
         sim_frame += 1
-    end_time = time.time()
-    total_sim_time = end_time - start_time
+    sim_end_time = time.time()
+    total_sim_time = sim_end_time - sim_start_time
     print(f"Simulation time: {total_sim_time} seconds")
+    time_simulated = t_sim
+    if time_simulated > 0:
+        realtime_factor = total_sim_time / time_simulated
+    else:
+        realtime_factor = float('inf')
+    print(f"Realtime factor: {realtime_factor} (simulation_time / time_simulated)")
+    print(f"Terrain construction time: {terrain_construction_time} seconds")
     # Final check for CUDA errors
     error_occurred, error_message = check_cuda_error()
     if error_occurred:
@@ -762,9 +803,11 @@ if __name__ == "__main__":
     parser.add_argument("--weight_power", type=float, default=0.1)
     parser.add_argument("--sine_amplitude", type=float, default=0.28)
     parser.add_argument("--num_periods", type=int, default=2)
-    # Visualization / snapshots
+    # Visualization / outputs
     parser.add_argument("--visualize", action="store_true", help="Enable visualization")
     parser.add_argument("--snapshots", action="store_true", help="Enable snapshot saving (implies visualize)")
+    parser.add_argument("--save-blender", action="store_true", help="Enable Blender output")
+    parser.add_argument("--save-particles", action="store_true", help="Enable particle output")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for snapshots and logs")
     args = parser.parse_args()
 
@@ -799,9 +842,21 @@ if __name__ == "__main__":
         pass
 
     visualize = args.visualize or args.snapshots
-    snapshot_dir = args.output_dir if args.snapshots else None
+    snapshot_dir = os.path.join(args.output_dir, "snapshots") if args.snapshots and args.output_dir else None
+    blender_dir = os.path.join(args.output_dir, "blender") if args.save_blender and args.output_dir else None
+    particle_dir = os.path.join(args.output_dir, "particle_files") if args.save_particles and args.output_dir else None
     if snapshot_dir is not None:
-        os.makedirs(snapshot_dir, exist_ok=True)
+        _reset_output_dir(snapshot_dir)
+    if blender_dir is not None:
+        _reset_output_dir(blender_dir)
+    particle_sph_dir = None
+    particle_fsi_dir = None
+    if particle_dir is not None:
+        _reset_output_dir(particle_dir)
+        particle_sph_dir = os.path.join(particle_dir, "particles")
+        particle_fsi_dir = os.path.join(particle_dir, "fsi")
+        os.makedirs(particle_sph_dir, exist_ok=True)
+        os.makedirs(particle_fsi_dir, exist_ok=True)
 
     metric, total_time_to_reach, rms_error, average_power, beta_rms, sim_failed = sim(
         p, sp,
@@ -810,6 +865,9 @@ if __name__ == "__main__":
         sine_amplitude=float(args.sine_amplitude),
         num_periods=int(args.num_periods),
         snapshot_dir=snapshot_dir,
+        particle_sph_dir=particle_sph_dir,
+        particle_fsi_dir=particle_fsi_dir,
+        blender_dir=blender_dir,
         visualize=visualize,
     )
     print(f"Metric: {metric:.4f}")

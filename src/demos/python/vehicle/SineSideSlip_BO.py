@@ -45,54 +45,35 @@ def build_ax_client(particle_spacing, sobol_trials, state_path, resume):
       - then switch to Modular BoTorch Bayesian optimization using qLogNEI.
     """
     botorch_node = GenerationNode(
-        node_name="BoTorch",
+        name="BoTorch",
         generator_specs=[
             GeneratorSpec(
                 generator_enum=Generators.BOTORCH_MODULAR,
-                model_kwargs={
-                    "botorch_acqf_class": qLogNoisyExpectedImprovement,
-                },
+                model_kwargs={"botorch_acqf_class": qLogNoisyExpectedImprovement},
             )
         ],
     )
 
     sobol_node = GenerationNode(
-        node_name="Sobol",
-        generator_specs=[
-            GeneratorSpec(
-                generator_enum=Generators.SOBOL,
-                model_kwargs={"seed": 0},
-            )
-        ],
+        name="Sobol",
+        generator_specs=[GeneratorSpec(generator_enum=Generators.SOBOL, model_kwargs={"seed": 0})],
         transition_criteria=[
             MinTrials(
                 threshold=max(1, int(sobol_trials)),
-                transition_to=botorch_node.node_name,
+                transition_to=botorch_node.name,
                 use_all_trials_in_exp=True,
             )
         ],
-    )
+    )   
 
-    center_node = CenterGenerationNode(next_node_name=sobol_node.node_name)
-
-    gs = GenerationStrategy(
-        name="Center+Sobol+BoTorch(qLogNEI)",
-        nodes=[center_node, sobol_node, botorch_node],
-    )
+    center_node = CenterGenerationNode(next_node_name=sobol_node.name)
+    gs = GenerationStrategy(name="Center+Sobol+BoTorch(qLogNEI)", nodes=[center_node, sobol_node, botorch_node])
 
     if resume and os.path.isfile(state_path):
-        ax_client = AxClient.load_from_json_file(filepath=state_path)
         try:
-            best = ax_client.get_best_parameters()
-            if best is not None:
-                best_params, best_vals = best
-                print(f"Best params: {best_params}")
-                print(f"Best metric: {best_vals}")
-            else:
-                print("No completed trials in loaded Ax state yet; continuing.")
+            return AxClient.load_from_json_file(filepath=state_path)
         except Exception as e:
-            print(f"Could not determine best parameters on resume: {e}")
-        return ax_client
+            print(f"Could not load Ax state from {state_path}: {e}")
 
     ax_client = AxClient(generation_strategy=gs)
 
@@ -255,9 +236,9 @@ def ensure_dir(path):
 def main():
     parser = argparse.ArgumentParser(description="Bayesian Optimization (Sine test with side-slip) for wheel parameters using Ax + BoTorch (qLogNEI)")
     parser.add_argument("--particle_spacing", type=float, default=0.005, help="Particle spacing (meters)")
-    parser.add_argument("--batches", type=int, default=100, help="Number of outer iterations (batches)")
-    parser.add_argument("--q", type=int, default=8, help="Suggestions evaluated per batch (sequential)")
-    parser.add_argument("--sobol", type=int, default=0, help="Number of Sobol warmup trials before BO")
+    parser.add_argument("--max_trials", type=int, default=2000, help="Total number of trials")
+    parser.add_argument("--q", type=int, default=1, help="Suggestions evaluated per batch (sequential)")
+    parser.add_argument("--sobol", type=int, default=1200, help="Number of Sobol warmup trials before BO")
     # Default out_dir follows SineSideSlip_global_* template for consistency with global runs
     parser.add_argument("--out_dir", type=str, default=None, help="Output directory for logs and state (default: SineSideSlip_global_* template)")
     parser.add_argument("--state_path", type=str, default=None, help="Path to save/load Ax state JSON (defaults to out_dir/ax_state.json)")
@@ -272,9 +253,9 @@ def main():
     parser.add_argument("--target_speed", type=float, default=2.0, help="Target vehicle speed")
     parser.add_argument("--terrain_length", type=float, default=5.0, help="Terrain length in meters (e.g., 5.0 or 10.0)")
     # Sine metric weighting (defaults align with SineTestSideSlip_global_single)
-    parser.add_argument("--weight_speed", type=float, default=0.5, help="Weight for speed metric component")
-    parser.add_argument("--weight_power", type=float, default=0.0, help="Weight for power metric component")
-    parser.add_argument("--weight_beta", type=float, default=0.2, help="Weight for side-slip (beta) metric component")
+    parser.add_argument("--weight_speed", type=float, default=0.4, help="Weight for speed metric component")
+    parser.add_argument("--weight_power", type=float, default=0.4, help="Weight for power metric component")
+    parser.add_argument("--weight_beta", type=float, default=0.0, help="Weight for side-slip (beta) metric component")
     # Optional sine shape overrides
     parser.add_argument("--sine_amplitude", type=float, default=None, help="Override sine amplitude in meters (optional)")
     parser.add_argument("--num_periods", type=int, default=None, help="Override number of sine periods (optional)")
@@ -282,8 +263,6 @@ def main():
     args = parser.parse_args()
 
     particle_spacing = args.particle_spacing
-    batches = args.batches
-    q = args.q
 
     # Default out_dir template if not provided (use normalized float formatting)
     if args.out_dir is None:
@@ -323,6 +302,8 @@ def main():
         with open(trials_csv, "w") as f:
             f.write("timestamp,trial_index,metric,total_time_to_reach,rms_error,average_power,beta_rms,rad_outer,w_by_r,what_percent_is_grouser,g_density,fan_theta_deg,particle_spacing\n")
 
+    total_limit = max(1, int(args.max_trials))
+
     density = args.density
     cohesion = args.cohesion
     friction = args.friction
@@ -330,9 +311,10 @@ def main():
     target_speed = args.target_speed
     terrain_length = args.terrain_length
 
-    for batch_idx in range(batches):
-        print(f"Batch {batch_idx + 1}/{batches}")
-        suggestions, _ = ax_client.get_next_trials(max_trials=q)
+    while ax_client.experiment.num_trials < total_limit:
+        remaining = total_limit - ax_client.experiment.num_trials
+        request = min(max(1, int(args.q)), remaining)
+        suggestions, _ = ax_client.get_next_trials(max_trials=request)
 
         # Evaluate each suggestion sequentially on the single GPU
         for trial_index, param_dict in suggestions.items():
