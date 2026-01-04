@@ -32,15 +32,16 @@ linux:doxygen:deploy:
   tags:
   - linux
   image:
+    # We should use an old version of doxygen since syntax changes are required in the latest
     name: ubuntu:focal
   stage: deploy
   before_script:
     - TZ=America/Chicago
     - ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone  
-    - apt-get update; apt-get install -y git python python3-pip graphviz rsync wget
+    - apt-get update; apt-get install -y git python3-pip graphviz rsync wget doxygen openssh-client
     #- pacman -Sy --noconfirm base-devel git python python-pip graphviz openssh rsync wget
-    - wget https://downloads.sourceforge.net/project/doxygen/rel-1.8.16/doxygen-1.8.16.linux.bin.tar.gz
-    - tar -xf doxygen-1.8.16.linux.bin.tar.gz
+    # - wget https://downloads.sourceforge.net/project/doxygen/rel-1.8.16/doxygen-1.8.16.linux.bin.tar.gz
+    # - tar -xf doxygen-1.8.16.linux.bin.tar.gz
     - mkdir -p ~/.ssh
     - chmod 0700 ~/.ssh
     # This private key is only useable from specific IPs, so it should be okay to
@@ -52,18 +53,13 @@ linux:doxygen:deploy:
     # Cache a verified host pubkey from file to avoid MITM attacks
     - cat $API_ENDPOINT_PUBKEY >> ~/.ssh/known_hosts
   script:
-    - export PATH="$PWD/doxygen-1.8.16/bin:$PATH"
+    # - export PATH="$PWD/doxygen-1.8.16/bin:$PATH"
     - cd doxygen
     - doxygen Doxyfile
     # - doxygen Doxyfile_Generate_Search_Index
     - rsync -ra /tmp/chrono_doxygen/html/* $API_HTML_ENDPOINT
     - rsync /tmp/chrono_doxygen/searchdata.xml $API_SEARCH_ENDPOINT
     - ssh $API_REINDEX_ENDPOINT /usr/bin/doxyindexer -o $API_CGI_DIR $API_CGI_DIR/searchdata.xml
-  needs:
-    - job: macos-apple:sonoma:test
-      artifacts: false
-    - job: windows:vs2022:test
-      artifacts: false
   environment:
     name: doxygen
     url: http://api.projectchrono.org/
@@ -191,7 +187,6 @@ linux:ubuntu22.04-clang:test:
     - echo "Build PyChrono and deploy via Anaconda..."
     # this command is needed to get the git describe data needed by the numbering
     - git fetch --prune --unshallow
-    - export CONDA_NPY=19
     - wget "http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
     - bash Miniconda3-latest-Linux-x86_64.sh -b
     - export PATH=$HOME/miniconda3/bin:$PATH
@@ -462,7 +457,6 @@ macos-apple:sonoma:test:
 .macos-deploy-base:
   extends: .macos
   before_script:
-    - export CONDA_NPY=19
     - brew install wget
     - ARCHITECTURE=`uname -m`
     - wget https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-$ARCHITECTURE.sh -O ~/miniconda.sh

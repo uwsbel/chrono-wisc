@@ -23,10 +23,13 @@
     #endif
 #endif
 
-#include <cuda_fp16.h>
 #include <functional>
 #include <memory>
 #include <vector>
+
+#ifdef CHRONO_HAS_OPTIX
+    #include <cuda_fp16.h>
+#endif
 
 namespace chrono {
 namespace sensor {
@@ -199,7 +202,6 @@ using DeviceSemanticBufferPtr = std::shared_ptr<PixelSemantic[]>;
 using SensorDeviceSemanticBuffer = SensorBufferT<DeviceSemanticBufferPtr>;
 /// pointer to an semantic image on the host that has been moved for safety and can be given to the user
 using UserSemanticBufferPtr = std::shared_ptr<SensorHostSemanticBuffer>;
-
 
 struct PixelDepth {
     float depth;  // depth value
