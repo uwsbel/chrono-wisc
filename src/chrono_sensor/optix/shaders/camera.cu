@@ -55,80 +55,82 @@ extern "C" __global__ void __raygen__camera() {
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
     const CameraParameters& camera = raygen->specific.camera;
 
-    const uint3 idx = optixGetLaunchIndex();
-    const uint3 screen = optixGetLaunchDimensions();
-    unsigned int nsamples = camera.super_sample_factor * camera.super_sample_factor;
-    float inv_nsamples = 1 / static_cast<float>(nsamples);
-    const unsigned int image_index = screen.x * idx.y + idx.x;
+    const uint3 px_2D_idx = optixGetLaunchIndex();
+    const uint3 img_size = optixGetLaunchDimensions();
+    unsigned int num_spp = camera.super_sample_factor * camera.super_sample_factor; // number of samples per pixel (spp)
+    float recip_num_spp = 1 / static_cast<float>(num_spp);
+    const unsigned int pixel_idx = img_size.x * px_2D_idx.y + px_2D_idx.x;
 
     float3 color_result = make_float3(0.f);
     float3 normal_result = make_float3(0.f);
     float3 albedo_result = make_float3(0.f);
-    float tranparency = 1.f;
+    float transparency = 1.f;
     float gamma = camera.gamma;
-    camera.frame_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
+    camera.frame_buffer[pixel_idx] = make_half4(0.f, 0.f, 0.f, 0.f);
 
-   
-    //
     if (camera.use_gi) {
-        camera.albedo_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
-        camera.normal_buffer[image_index] = make_half4(0.f, 0.f, 0.f, 0.f);
+        camera.albedo_buffer[pixel_idx] = make_half4(0.f, 0.f, 0.f, 0.f);
+        camera.normal_buffer[pixel_idx] = make_half4(0.f, 0.f, 0.f, 0.f);
     }   
     
-    curandState_t rng = camera.rng_buffer[image_index];
+    curandState_t rng = camera.rng_buffer[pixel_idx];
     bool is_transparent = false;
-    for (int sample = 0; sample < nsamples; sample++) {
+    for (int sample = 0; sample < num_spp; sample++) {
        
+        // Add motion-blur effect
+        float t_frac = 0.f;
+        // t_frac = static_cast<float>((sample + 1)) * inv_nsamples;  // evenly-spaced midpoint samples over span to compose motion blu
+        if (camera.rng_buffer)
+            t_frac = curand_uniform(&rng);  // 0-1 between start and end time of the camera (chosen here)
+        
+        const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent during the frame
+        float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
+        float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
 
-        float2 jitter = make_float2(curand_uniform(&rng) - 0.5f, curand_uniform(&rng) - 0.5f);
-        // float2 d = (make_float2(idx.x, idx.y) + make_float2(0.5, 0.5)) / make_float2(screen.x, screen.y) * 2.f -
+
+        // jitter ~ [Unif(-0.5, 0.5), Unif(-0.5, 0.5)]
+        float2 jitter = make_float2(curand_uniform(&rng) - 0.5f, curand_uniform(&rng) - 0.5f); 
+        // float2 d = (make_float2(px_2D_idx.x, px_2D_idx.y) + make_float2(0.5, 0.5)) / make_float2(img_size.x, img_size.y) * 2.f -
         // make_float2(1.f);
-        float2 d = (make_float2(idx.x, idx.y) + jitter) / make_float2(screen.x, screen.y) * 2.f - make_float2(1.f);
-        d.y *= (float)(screen.y) / (float)(screen.x);  // correct for the aspect ratio
+        // d ~ [
+        //     (j + Unif(-0.5, 0.5)) / img_w * 2 -
+        // ]
+        float2 d = (make_float2(px_2D_idx.x, px_2D_idx.y) + jitter) / make_float2(img_size.x, img_size.y) * 2.f - make_float2(1.f);
+        // d.y *= (float)(img_size.y) / (float)(img_size.x);  // correct for the aspect ratio
 
         if (camera.lens_model == FOV_LENS && ((d.x) > 1e-5 || abs(d.y) > 1e-5)) {
             float focal = 1.f / tanf(camera.hFOV / 2.0);
-            float2 d_normalized = d / focal;
-            float rd = sqrtf(d_normalized.x * d_normalized.x + d_normalized.y * d_normalized.y);
+            float2 d_nrmlz = d / focal;
+            float rd = sqrtf(d_nrmlz.x * d_nrmlz.x + d_nrmlz.y * d_nrmlz.y);
             float ru = tanf(rd * camera.hFOV) / (2 * tanf(camera.hFOV / 2.0));
-            d = d_normalized * (ru / rd) * focal;
+            d = d_nrmlz * (ru / rd) * focal;
 
         } else if (camera.lens_model == RADIAL) {
-            float focal = 1.f / tanf(camera.hFOV / 2.0);
             float recip_focal = tanf(camera.hFOV / 2.0);
-            float2 d_normalized = d * recip_focal;
-            float rd2 = d_normalized.x * d_normalized.x + d_normalized.y * d_normalized.y;
+            float2 d_nrmlz = d * recip_focal;
+            float rd2 = d_nrmlz.x * d_nrmlz.x + d_nrmlz.y * d_nrmlz.y;
             float distortion_ratio = radial_function(rd2, camera.lens_parameters);
-            d = d_normalized * distortion_ratio * focal;
+            d = d_nrmlz * distortion_ratio / recip_focal;
         }
 
         // if (camera.super_sample_factor > 1) {
-        //    unsigned int local_idx = idx.x % camera.super_sample_factor;
-        //    unsigned int local_idy = idx.y % camera.super_sample_factor;
+        //    unsigned int local_idx = px_2D_idx.x % camera.super_sample_factor;
+        //    unsigned int local_idy = px_2D_idx.y % camera.super_sample_factor;
 
         //    float d_local_x = (local_idx + .5) / camera.super_sample_factor - (camera.super_sample_factor / 2);
         //    float d_local_y = (local_idy + .5) / camera.super_sample_factor - (camera.super_sample_factor / 2);
 
         //    float2 dir_change = make_float2(-d_local_y, d_local_x);
         //    float2 pixel_dist =
-        //        make_float2(2 * camera.super_sample_factor / screen.x, 2 * camera.super_sample_factor / screen.y);
+        //        make_float2(2 * camera.super_sample_factor / img_size.x, 2 * camera.super_sample_factor / img_size.y);
         //    float2 dist_change =
         //        pixel_dist *
         //        sin(.4636);  // * sin(.4636);  // approximately a 26.6 degree roation about the center of the pixel
 
         //    d = d + make_float2(dist_change.x * dir_change.x, dist_change.y * dir_change.y);
         //}
-
-        float t_frac = 0.f;
-        //if (camera.rng_buffer)
-        //    t_frac = curand_uniform(&rng);  // 0-1 between start and end time of the camera (chosen here)
-        const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
-
-        float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
-        float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
-        // float3 ray_origin = raygen->pos0;
-        // float4 ray_quat = raygen->rot0;
-        const float h_factor = camera.hFOV / CUDART_PI_F * 2.0;
+        
+        const float h_factor = camera.hFOV / CUDART_PI_F * 2.0; // bug here
         float3 forward;
         float3 left;
         float3 up;
@@ -140,7 +142,7 @@ extern "C" __global__ void __raygen__camera() {
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
         if (true) { // camera.use_gi
-            prd.rng = camera.rng_buffer[image_index];
+            prd.rng = camera.rng_buffer[pixel_idx];
         }
         unsigned int opt1;
         unsigned int opt2;
@@ -152,66 +154,40 @@ extern "C" __global__ void __raygen__camera() {
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
         
         color_result += prd.color;
-        normal_result = (prd.normal * inv_nsamples); //?
-        albedo_result = (prd.albedo * inv_nsamples);
-        tranparency = (prd.transparency);
+        normal_result = (prd.normal * recip_num_spp); //?
+        albedo_result = (prd.albedo * recip_num_spp);
+        transparency = (prd.transparency);
         if (!is_transparent && (prd.transparency) < 1e-6)
             is_transparent = true;
 
 
-        //camera.frame_buffer[image_index] = make_half4(corrected_color.x, corrected_color.y, corrected_color.z, 1.f);
+        //camera.frame_buffer[pixel_idx] = make_half4(corrected_color.x, corrected_color.y, corrected_color.z, 1.f);
 
         if (camera.use_gi) {
-            //camera.albedo_buffer[image_index] = make_half4(albedo_result.x, albedo_result.y, albedo_result.z, 0.f);
-            camera.albedo_buffer[image_index].x += albedo_result.x;
-            camera.albedo_buffer[image_index].y += albedo_result.y;
-            camera.albedo_buffer[image_index].z += albedo_result.z;
-            camera.albedo_buffer[image_index].w = 0.f;
+            //camera.albedo_buffer[pixel_idx] = make_half4(albedo_result.x, albedo_result.y, albedo_result.z, 0.f);
+            camera.albedo_buffer[pixel_idx].x = __float2half((float)camera.albedo_buffer[pixel_idx].x + albedo_result.x);
+            camera.albedo_buffer[pixel_idx].y = __float2half((float)camera.albedo_buffer[pixel_idx].y + albedo_result.y);
+            camera.albedo_buffer[pixel_idx].z = __float2half((float)camera.albedo_buffer[pixel_idx].z + albedo_result.z);
+            camera.albedo_buffer[pixel_idx].w = __float2half(0.f);
 
             float screen_n_x = -Dot(left, normal_result);     // screen space (x right)
             float screen_n_y = Dot(up, normal_result);        // screen space (y up)
             float screen_n_z = -Dot(forward, normal_result);  // screen space (-z forward)
-            camera.normal_buffer[image_index] = make_half4(screen_n_x, screen_n_y, screen_n_z, 0.f);
-            camera.normal_buffer[image_index].x += normal_result.x;
-            camera.normal_buffer[image_index].y += normal_result.y;
-            camera.normal_buffer[image_index].z += normal_result.z;
-            camera.normal_buffer[image_index].w += 0.f;
+            camera.normal_buffer[pixel_idx] = make_half4(screen_n_x, screen_n_y, screen_n_z, 0.f);
+            camera.normal_buffer[pixel_idx].x = __float2half((float)camera.normal_buffer[pixel_idx].x + normal_result.x);
+            camera.normal_buffer[pixel_idx].y = __float2half((float)camera.normal_buffer[pixel_idx].y + normal_result.y);
+            camera.normal_buffer[pixel_idx].z = __float2half((float)camera.normal_buffer[pixel_idx].z + normal_result.z);
+            camera.normal_buffer[pixel_idx].w = __float2half(0.f);
         }
     }
-   // printf("C1 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
-    color_result = color_result * inv_nsamples;
-    //tranparency =  tranparency;
+    color_result = color_result * recip_num_spp;
 
-    half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), tranparency);
-    //half4 corrected_color = make_half4(1,0.5,0.25,0);
-   // printf("C2 Color: (%f,%f,%f)\n", color_result.x, color_result.y, color_result.z);
-
-
-    camera.frame_buffer[image_index].x = corrected_color.x;
-    camera.frame_buffer[image_index].y = corrected_color.y;
-    camera.frame_buffer[image_index].z = corrected_color.z;
-    camera.frame_buffer[image_index].w = corrected_color.w;
-    //if (!(color_result.x > 0 && color_result.z > 0) && color_result.y > 0) {
-    //printf("Frame Buff4: (%f,%f,%f,%f)\n", __half2float(camera.frame_buffer[image_index].x),
-    //       __half2float(camera.frame_buffer[image_index].y), 
-    //       __half2float(camera.frame_buffer[image_index].z),
-    //       __half2float(camera.frame_buffer[image_index].w));
-    //}
-    //color_result = color_result * inv_nsamples;
-    //normal_result = normal_result * inv_nsamples; // should the normals be averaged?
-    //albedo_result = albedo_result * inv_nsamples;
-
-    // Gamma correct the output color into sRGB color space
-    //float gamma = camera.gamma;
-    //camera.frame_buffer[image_index] =
-    //    make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), tranparency);
-    //if (camera.use_gi) {
-    //    camera.albedo_buffer[image_index] = make_half4(albedo_result.x, albedo_result.y, albedo_result.z, 0.f);
-    //    float screen_n_x = -Dot(left, normal_result);     // screen space (x right)
-    //    float screen_n_y = Dot(up, normal_result);     // screen space (y up)
-    //    float screen_n_z = -Dot(forward, normal_result);  // screen space (-z forward)
-    //    camera.normal_buffer[image_index] = make_half4(screen_n_x, screen_n_y, screen_n_z, 0.f);
-    //}
+    // Gamma correction
+    half4 corrected_color = make_half4(pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), transparency);
+    camera.frame_buffer[pixel_idx].x = corrected_color.x;
+    camera.frame_buffer[pixel_idx].y = corrected_color.y;
+    camera.frame_buffer[pixel_idx].z = corrected_color.z;
+    camera.frame_buffer[pixel_idx].w = corrected_color.w;
 }
 
 
