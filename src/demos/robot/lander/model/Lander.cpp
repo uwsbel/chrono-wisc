@@ -256,6 +256,7 @@ void Lander::Initialize(const ChFrame<>& pos, double ground_clearance) {
             auto footpad = chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Z, m_footpad_radius, m_footpad_height,
                                                                          footpad_density, m_contact_material);
             footpad->SetName("Footpad" + std::to_string(i + 1));
+            footpad->EnableCollision(true);
 
             // Position footpad: center at leg end position
             // The footpad center should be at the leg end, with the flat face parallel to ground
