@@ -91,11 +91,15 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/box.cu
       optix/shaders/sphere.cu
       optix/shaders/cylinder.cu
-      optix/shaders/camera.cu
-      optix/shaders/lidar.cu
       optix/shaders/miss.cu
       optix/shaders/material_shaders.cu
-      optix/shaders/radar.cu
+      optix/shaders/RayGens/camera.cu
+      optix/shaders/RayGens/phys_cam.cu
+      optix/shaders/RayGens/segment_cam.cu
+      optix/shaders/RayGens/depth_cam.cu
+      optix/shaders/RayGens/normal_cam.cu
+      optix/shaders/RayGens/lidar.cu
+      optix/shaders/RayGens/radar.cu
   )
 
   if(CH_USE_SENSOR_NVDB)

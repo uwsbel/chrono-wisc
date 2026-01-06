@@ -27,6 +27,8 @@
 #include "chrono/assets/ChTexture.h"
 #include "chrono/assets/ChColor.h"
 
+enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, PRINCIPLED, HAPKE, RETROREFLECTIVE, VDB, VDBHAPKE, VDBVOL};
+
 namespace chrono {
 
 /// @addtogroup chrono_assets
@@ -72,16 +74,9 @@ class ChApi ChVisualMaterial {
     void SetUseSpecularWorkflow(bool s) { use_specular_workflow = s; }
     /// @brief Enable or disable the use of the Hapke material model. We implement the modern hapke model descried in  https://doi.org/10.1002/2013JE004580
     void SetUseHapke(bool h) {use_hapke = h;}
-    /// @brief  Set the shader to be used for rendering the material. 
-    /// 0 - Diffuse
-    /// 1 - Specular
-    /// 2 - Dielectric
-    /// 3 - Glossy
-    /// 4 - Disney
-    /// 5 - Hapke
-    /// 6 - Retroreflective
-    /// @param s 
-    void SetBSDF(int s) {BSDFType = s;}
+    /// @brief  Set the type of the material to be used for rendering.
+    /// @param s
+    void SetBSDF(BSDFType s) {bsdf_type = s;}
     void SetIsHiddenObject(bool hidden) {is_hidden_object = hidden;}
 
     void SetAbsorptionCoefficient(float abs_coef) {m_absorption_coefficient = abs_coef;}
@@ -180,7 +175,7 @@ class ChApi ChVisualMaterial {
 
     bool use_specular_workflow;
     bool use_hapke;
-    int BSDFType;
+    BSDFType bsdf_type;
 
     ChTexture kd_texture;         ///< diffuse texture map
     ChTexture ks_texture;         ///< specular texture map

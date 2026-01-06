@@ -396,7 +396,7 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     
     // physics-based camera raygen
     CreateOptixProgramGroup(m_phys_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__phys_camera"); // __raygen__phys_camera in camera.cu
+                            m_camera_raygen_module, "__raygen__phys_camera"); // __raygen__phys_camera in phys_cam.cu
     
     // // camera fov lens raygen
     // CreateOptixProgramGroup(m_camera_fov_lens_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
@@ -404,19 +404,19 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     
 
     CreateOptixProgramGroup(m_depthCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__depthcamera");
+                            m_camera_raygen_module, "__raygen__depth_camera");
 
     // transient raygen
     CreateOptixProgramGroup(m_tranientCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__transientcamera");
+                            m_camera_raygen_module, "__raygen__transient_camera");
 
     // normal camera single raygen
     CreateOptixProgramGroup(m_normalCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__normalcamera");
+                            m_camera_raygen_module, "__raygen__normal_camera");
 
     // segmentation pinhole raygen
     CreateOptixProgramGroup(m_segmentation_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__segmentation");
+                            m_camera_raygen_module, "__raygen__segment_camera");
     
     // segmentation fov lens raygen
     // CreateOptixProgramGroup(m_segmentation_fov_lens_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,

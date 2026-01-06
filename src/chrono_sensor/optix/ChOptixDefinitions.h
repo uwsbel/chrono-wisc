@@ -40,21 +40,21 @@ struct half4 {
 /// @{
 
 /// Ray types, used to determine the shading and miss functions for populating ray information
-enum RayType {
-    CAMERA_RAY_TYPE = 0,       /// camera rays
-    SHADOW_RAY_TYPE = 1,       /// shadow rays
-    LIDAR_RAY_TYPE = 2,        /// lidar rays
-    RADAR_RAY_TYPE = 3,        /// radar rays
-    SEGMENTATION_RAY_TYPE = 4, /// semantic camera rays 
-    DEPTH_RAY_TYPE = 5,        /// depth camera rays
-    TRANSIENT_RAY_TYPE = 6,
-    LASER_SAMPLE_RAY_TYPE = 7,
+enum class RayType {
+    CAMERA_RAY_TYPE,       /// camera rays
+    SHADOW_RAY_TYPE,       /// shadow rays
+    LIDAR_RAY_TYPE,        /// lidar rays
+    RADAR_RAY_TYPE,        /// radar rays
+    SEGMENTATION_RAY_TYPE, /// semantic camera rays 
+    DEPTH_RAY_TYPE,        /// depth camera rays
+    TRANSIENT_RAY_TYPE,    /// transient camera rays
+    LASER_SAMPLE_RAY_TYPE,  /// lidar laser sample rays
     PHYS_CAMERA_RAY_TYPE = 8,  /// physics-based camera rays
     NORMAL_RAY_TYPE = 9        /// normal camera rays
 };
 
 /// The type of lens model that camera can use for rendering
-enum CameraLensModelType {
+enum class CameraLensModelType {
     PINHOLE,   ///< traditional computer graphics ideal camera model.
     FOV_LENS,  ///< Wide angle lens model based on single spherical lens.
     RADIAL     ///< Wide angle lens model based on polynomial fit
@@ -70,7 +70,6 @@ enum CameraLensModelType {
 
 enum class TIMEGATED_MODE {BOX,TENT,COS,SIN,EXPONENTIAL};
 
-enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, DISNEY, HAPKE, RETROREFLECTIVE, VDB, VDBHAPKE, VDBVOL};
 
 
 enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
@@ -442,7 +441,8 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     int use_hapke;                      // toggle between disney and hapke shader // size 4
     float emissive_power;               // size 4
 
-    // hapke parameters
+    // TODO: Should be moved out to other place for Hapke-specific material struct
+    // Hapke parameters
     float w; // average single scattering albedo
     float b; // shape controlling parameter for the amplitude of backward and forward scatter of particles
     float c; // weighting factor that controls the contribution of backward and forward scatter.
@@ -452,7 +452,7 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     float theta_p;
     float absorption_coefficient;
     float scattering_coefficient;
-    int BSDFType; // 0 for disney, 1 for hapke 2 for diffuse//  size 4
+    BSDFType bsdf_type;
     int is_hidden_geometry; // 0 for not hidden geometry, 1 for hidden geometry // size 4
     float2 pad; // padding to ensure 16 byte alignment
     
@@ -469,7 +469,7 @@ struct ContextParameters {
     float3 fog_color;                   ///< color of fog in the scene
     float fog_scattering;               ///< scattering coefficient of fog in the scene
     int max_depth;                      ///< maximum traversable depth
-    float scene_epsilon;                ///< an epsilon value used for detecting self intersections
+    float scene_epsilon;                ///< an epsilon value used for detecting self intersections (“shadow acne”)
     float importance_cutoff;            ///< mimumum value before killing rays
     OptixTraversableHandle root;        ///< a handle to the root node in the scene
     MaterialParameters* material_pool;  ///< device pointer to list of materials to use for shading
@@ -576,7 +576,7 @@ struct PerRayData_normalCamera {
 };
 
 /// Data associated with a single segmentation camera ray
-struct PerRayData_semantic {
+struct PerRayData_segment {
     unsigned short int class_id;     ///< the class id of the first hit
     unsigned short int instance_id;  ///< the instance id of the first hit
 };

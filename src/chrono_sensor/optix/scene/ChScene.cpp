@@ -237,8 +237,8 @@ CH_SENSOR_API void ChScene::SetBackground(Background b) {
     background_changed = true;
 }
 
-CH_SENSOR_API void ChScene::SetSceneEpsilon(float e) {
-    m_scene_epsilon = e;
+CH_SENSOR_API void ChScene::SetSceneEpsilon(float epsilon) {
+    m_scene_epsilon = epsilon;
     background_changed = true;
 }
 

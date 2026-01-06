@@ -114,10 +114,10 @@ __device__ __inline__ PerRayData_phys_camera* getPhysCameraPRD() {
     return reinterpret_cast<PerRayData_phys_camera*>(ints_as_pointer(opt0, opt1));
 }
 
-__device__ __inline__ PerRayData_semantic* getSemanticPRD() {
+__device__ __inline__ PerRayData_segment* getSegmentPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_semantic*>(ints_as_pointer(opt0, opt1));
+    return reinterpret_cast<PerRayData_segment*>(ints_as_pointer(opt0, opt1));
 }
 
 __device__ __inline__ PerRayData_depthCamera* getDepthCameraPRD() {
@@ -237,8 +237,8 @@ __device__ __inline__ PerRayData_normalCamera default_normalCamera_prd() {
     return prd;
 };
 
-__device__ __inline__ PerRayData_semantic default_semantic_prd() {
-    PerRayData_semantic prd = {};
+__device__ __inline__ PerRayData_segment default_segment_prd() {
+    PerRayData_segment prd = {};
     prd.class_id = 0;
     prd.instance_id = 0;
     return prd;
@@ -520,7 +520,7 @@ __device__ __inline__ float3 refract(const float3& v, const float3& n, const flo
     return n_ratio * v + (n_ratio * cosi - sqrtf(max(0.f, 1 - n_ratio * n_ratio * cosi * cosi))) * n;
 }
 
-__device__ __inline__ void basis_from_quaternion(const float4& q, float3& f, float3& g, float3& h) {
+__device__ __inline__ void basis_from_quaternion(const float4& q, float3& x, float3& y, float3& z) {
     const float e0e0 = q.x * q.x;
     const float e1e1 = q.y * q.y;
     const float e2e2 = q.z * q.z;
@@ -531,9 +531,52 @@ __device__ __inline__ void basis_from_quaternion(const float4& q, float3& f, flo
     const float e1e2 = q.y * q.z;
     const float e1e3 = q.y * q.w;
     const float e2e3 = q.z * q.w;
-    f = make_float3((e0e0 + e1e1) * 2.f - 1.f, (e1e2 + e0e3) * 2.f, (e1e3 - e0e2) * 2.f);
-    g = make_float3((e1e2 - e0e3) * 2.f, (e0e0 + e2e2) * 2.f - 1.f, (e2e3 + e0e1) * 2.f);
-    h = make_float3((e1e3 + e0e2) * 2.f, (e2e3 - e0e1) * 2.f, (e0e0 + e3e3) * 2.f - 1.f);
+    x = make_float3((e0e0 + e1e1) * 2.f - 1.f, (e1e2 + e0e3) * 2.f, (e1e3 - e0e2) * 2.f);
+    y = make_float3((e1e2 - e0e3) * 2.f, (e0e0 + e2e2) * 2.f - 1.f, (e2e3 + e0e1) * 2.f);
+    z = make_float3((e1e3 + e0e2) * 2.f, (e2e3 - e0e1) * 2.f, (e0e0 + e3e3) * 2.f - 1.f);
+}
+
+__device__ __inline__
+float4 quaternion_from_basis(const float3& x, const float3& y, const float3& z) {
+    // Rotation matrix elements (column-major)
+    const float m00 = x.x, m01 = y.x, m02 = z.x;
+    const float m10 = x.y, m11 = y.y, m12 = z.y;
+    const float m20 = x.z, m21 = y.z, m22 = z.z;
+
+    float4 q;
+
+    const float trace = m00 + m11 + m22;
+
+    if (trace > 0.0f) {
+        const float s = sqrtf(trace + 1.0f) * 2.0f;
+        q.x = (m21 - m12) / s;
+        q.y = (m02 - m20) / s;
+        q.z = (m10 - m01) / s;
+        q.w = 0.25f * s;
+    }
+    else if (m00 > m11 && m00 > m22) {
+        const float s = sqrtf(1.0f + m00 - m11 - m22) * 2.0f;
+        q.x = 0.25f * s;
+        q.y = (m01 + m10) / s;
+        q.z = (m02 + m20) / s;
+        q.w = (m21 - m12) / s;
+    }
+    else if (m11 > m22) {
+        const float s = sqrtf(1.0f + m11 - m00 - m22) * 2.0f;
+        q.x = (m01 + m10) / s;
+        q.y = 0.25f * s;
+        q.z = (m12 + m21) / s;
+        q.w = (m02 - m20) / s;
+    }
+    else {
+        const float s = sqrtf(1.0f + m22 - m00 - m11) * 2.0f;
+        q.x = (m02 + m20) / s;
+        q.y = (m12 + m21) / s;
+        q.z = 0.25f * s;
+        q.w = (m10 - m01) / s;
+    }
+
+    return q;
 }
 
 __device__ __inline__ float lerp(const float& a, const float& b, const float& t) {
@@ -652,6 +695,38 @@ __device__ __inline__ float3 quaternion_rotate(const float4& q, const float3& v)
     // Perform the rotation: v' = 2 * dot(u, v) * u + (s*s - dot(u, u)) * v + 2 * s * cross(u, v)
     return 2.0f * Dot(u, v) * u + (s * s - Dot(u, u)) * v + 2.0f * s * Cross(u, v);
 }
+
+__device__ __inline__ float radial_function(const float& rd2, const LensParams& params){
+    // Drap, P., & Lefevre, J. (2016). 
+    // An Exact Formula for Calculating Inverse Radial Lens Distortions. 
+    // Sensors (Basel, Switzerland), 16(6), 807. https://doi.org/10.3390/s16060807
+    double rd4 = rd2 * rd2;
+    double rd6 = rd4 * rd2;
+    double rd8 = rd4 * rd4;
+    double rd10 = rd6 * rd4;
+    double rd12 = rd6 * rd6;
+    double rd14 = rd8 * rd6;
+    double rd16 = rd8 * rd8;
+    double rd18 = rd10 * rd8;
+
+    float ru = (float)(1.0 + params.a0 * rd2 + 
+        params.a1 * rd4 +
+        params.a2 * rd6 + 
+        params.a3 * rd8 +
+        params.a4 * rd10 +
+        params.a5 * rd12 +
+        params.a6 * rd14 +
+        params.a7 * rd16 +
+        params.a8 * rd18);
+    return ru;
+}
+
+__device__ float gaussian(int dx, int dy, float sigma) {
+    float dist2 = dx * dx + dy * dy;
+    return expf(-dist2 / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
+}
+
+
 
 #ifdef USE_SENSOR_NVDB
 __device__ __inline__ float3 make_float3(const nanovdb::Vec3f& a) {

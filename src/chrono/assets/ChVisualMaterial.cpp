@@ -37,7 +37,7 @@ ChVisualMaterial::ChVisualMaterial()
       instance_id(0),
       use_hapke(false),
       emissive_power(0.f),
-      BSDFType(0),
+      bsdf_type(BSDFType::Principled),
       is_hidden_object(true) {} 
 
 void ChVisualMaterial::SetKdTexture(const std::string& filename) {

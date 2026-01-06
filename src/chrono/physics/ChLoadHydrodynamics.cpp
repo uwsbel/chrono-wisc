@@ -63,7 +63,7 @@ void ChLoadHydrodynamics::Update(double time, bool update_assets) {
                 auto col = b2.first->GetOffset_w();
                 if (m_verbose)
                     std::cout << "  add 6x6 block starting at (" << row << "," << col << ")" << std::endl;
-                m_added_mass.block(row, col, 6, 6) = row_block(Eigen::seq(0, 5), Eigen::seq(i, i + 5));
+                m_added_mass.block(row, col, 6, 6) = row_block.block(0, i, 6, 6);;
                 i += 6;
             }
         }
@@ -84,7 +84,7 @@ void ChLoadHydrodynamics::IntLoadResidual_Mv(const unsigned int off,
     int i = 0;
     for (const auto& b : m_body_blocks) {
         auto offset = b.first->GetOffset_w();
-        w1(Eigen::seq(i, i + 5)) = w(Eigen::seq(offset, offset + 5));
+        w1.segment(i, 6) = w.segment(offset, 6);
         i += 6;
     }
 
@@ -93,7 +93,7 @@ void ChLoadHydrodynamics::IntLoadResidual_Mv(const unsigned int off,
     i = 0;
     for (const auto& b : m_body_blocks) {
         auto offset = b.first->GetOffset_w();
-        R(Eigen::seq(offset, offset + 5)) += cMw1(Eigen::seq(i, i + 5));
+        R.segment(offset, 6) += cMw1.segment(i, 6);
         i += 6;
     }
 }

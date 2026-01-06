@@ -73,7 +73,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 2;
+int alias_factor = 16;
 
 bool use_gi = true;  // whether cameras should use global illumination
 
