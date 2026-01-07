@@ -26,7 +26,6 @@
 
 #include "chrono/geometry/ChBox.h"
 #include "chrono/geometry/ChSphere.h"
-#include "chrono/geometry/ChCone.h"
 #include "chrono/geometry/ChCylinder.h"
 #include "chrono/geometry/ChLine.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
@@ -150,7 +149,6 @@ class ChApi ChBodyGeometry {
         double radius;                                     ///< radius of sweeping sphere
         int matID;                                         ///< index in contact material list
         ChColor color;                                     ///< visualization color
-        bool is_mutable;                                   ///< true if mesh is deformable
     };
 
     /// Line shape for visualization.
@@ -168,7 +166,6 @@ class ChApi ChBodyGeometry {
         ConvexHullsShape(const std::string& filename, int matID = -1);
         std::vector<std::vector<ChVector3d>> hulls;  ///< convex hulls in group
         int matID;                                   ///< index in contact material list
-        bool is_mutable;                             ///< true if hull is deformable
     };
 
     /// Create visualization assets for the specified body.

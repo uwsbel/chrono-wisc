@@ -23,9 +23,13 @@
 namespace chrono {
 namespace sensor {
 
-ChNVDBShape::ChNVDBShape() {}
+ChNVDBShape::ChNVDBShape() {
+    SetMutable(false);
+}
 
-ChNVDBShape::ChNVDBShape(const ChBox& box) : gbox(box) {}
+ChNVDBShape::ChNVDBShape(const ChBox& box) : gbox(box) {
+    SetMutable(false);
+}
 
 void ChNVDBShape::ArchiveOut(ChArchiveOut& archive_out) {
     // version number

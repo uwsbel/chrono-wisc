@@ -47,7 +47,7 @@ extern "C" __global__ void __raygen__camera() {
     PerRayData_camera prd;
     for (int sample_idx = 0; sample_idx < num_spp; sample_idx++) {
        
-        //// Obtain camera's pose (origin of the ray to be launched) ////
+        //// Get camera's pose (origin of the ray to be launched) ////
         
         // Add motion-blur effect
         float t_frac = (camera.rng_buffer) ? curand_uniform(&rng) : 0.f;
@@ -59,12 +59,15 @@ extern "C" __global__ void __raygen__camera() {
         
         basis_from_quaternion(ray_quat, cam_forward, cam_left, cam_up);
 
-        //// Obtain (u, v) location on the view plane ////
+        //// Get (u, v) location on the view plane ////
         
         float2 jitter = (sample_idx == num_spp - 1) ? make_float2(0.5f, 0.5f) : make_float2(curand_uniform(&rng), curand_uniform(&rng)); 
+        
         // UV ~ [{(j + Unif(0, 1)) / img_w * 2 - 1} in range[-1, 1], {(i + Unif(0, 1)) / img_h * 2 - 1} in range[-1, 1]]
         float2 uv = (make_float2(px_2D_idx.x, px_2D_idx.y) + jitter) / make_float2(img_size.x, img_size.y) * 2.f - make_float2(1.f);
-        // Correct for the aspect ratio, TODO: This should be added here or after the lens distortion model?
+        
+        // Bo-Hsun TODO: This should be added here or after the lens distortion model?
+        // Correct the aspect ratio
         uv.y *= (float)(img_size.y) / (float)(img_size.x);  
 
         // Apply lens distortion model
@@ -129,6 +132,7 @@ extern "C" __global__ void __raygen__camera() {
     transparency_result = transparency_result * recip_num_spp;
     if (camera.use_gi) {
         camera.albedo_buffer[pixel_idx] = make_half4(albedo_result.x, albedo_result.y, albedo_result.z, 0.f);
+        
         // Transform to screen coordinates (x: right, y: up, z: backward)
         camera.normal_buffer[pixel_idx] = make_half4(-Dot(cam_left, prd.normal), Dot(cam_up, prd.normal), -Dot(cam_forward, prd.normal), 0.f);
     }

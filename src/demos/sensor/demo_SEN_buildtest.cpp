@@ -144,6 +144,7 @@ int main(int argc, char* argv[]) {
     auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
     trimesh_shape->SetMesh(mmesh);
     trimesh_shape->SetName("Mesh");
+    trimesh_shape->SetMutable(false);
 
     std::shared_ptr<ChBody> imu_parent;
     std::shared_ptr<ChBody> gps_parent;

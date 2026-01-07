@@ -107,8 +107,7 @@ ChBodyGeometry::ConeShape::ConeShape(const ChVector3d& pos, const ChQuaternion<>
 ChBodyGeometry::LineShape::LineShape(const ChVector3d& pos, const ChQuaternion<>& rot, std::shared_ptr<ChLine> line)
     : pos(pos), rot(rot), line(line) {}
 
-ChBodyGeometry::ConvexHullsShape::ConvexHullsShape(const std::string& filename, int matID)
-    : matID(matID), is_mutable(false) {
+ChBodyGeometry::ConvexHullsShape::ConvexHullsShape(const std::string& filename, int matID) : matID(matID) {
     ChTriangleMeshConnected mesh;
     utils::LoadConvexHulls(filename, mesh, hulls);
 }
@@ -157,12 +156,7 @@ ChBodyGeometry::TrimeshShape::TrimeshShape(const ChVector3d& pos,
                                            double scale,
                                            double radius,
                                            int matID)
-    : trimesh(trimesh),
-      radius(radius),
-      matID(matID),
-      int_point(interior_point),
-      color({-1, -1, -1}),
-      is_mutable(false) {
+    : trimesh(trimesh), radius(radius), matID(matID), int_point(interior_point), color({-1, -1, -1}) {
     ChMatrix33d R(rot);
 
     // Transform mesh vertices
@@ -253,7 +247,7 @@ void ChBodyGeometry::CreateVisualizationAssets(std::shared_ptr<ChBody> body, Vis
         for (auto& mesh : coll_meshes) {
             auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
             trimesh_shape->SetMesh(mesh.trimesh);
-            trimesh_shape->SetMutable(mesh.is_mutable);
+            trimesh_shape->SetMutable(false);
             if (mesh.color.R < 0 || mesh.color.G < 0 || mesh.color.B < 0)
                 trimesh_shape->AddMaterial(mesh_mat);
             else
@@ -318,7 +312,7 @@ void ChBodyGeometry::CreateVisualizationAssets(std::shared_ptr<ChBody> body, Vis
     for (auto& mesh : vis_meshes) {
         auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
         trimesh_shape->SetMesh(mesh.trimesh);
-        trimesh_shape->SetMutable(mesh.is_mutable);
+        trimesh_shape->SetMutable(false);
         if (mesh.color.R < 0 || mesh.color.G < 0 || mesh.color.B < 0)
             trimesh_shape->AddMaterial(mesh_mat);
         else
@@ -364,7 +358,6 @@ void ChBodyGeometry::CreateCollisionShapes(std::shared_ptr<ChBody> body,
         assert(cmaterials[hulls_group.matID]);
         for (const auto& hull : hulls_group.hulls) {
             auto shape = chrono_types::make_shared<ChCollisionShapeConvexHull>(cmaterials[hulls_group.matID], hull);
-            shape->SetMutable(hulls_group.is_mutable);
             body->AddCollisionShape(shape);
         }
     }
@@ -372,7 +365,6 @@ void ChBodyGeometry::CreateCollisionShapes(std::shared_ptr<ChBody> body,
         assert(cmaterials[mesh.matID]);
         auto shape = chrono_types::make_shared<ChCollisionShapeTriangleMesh>(cmaterials[mesh.matID], mesh.trimesh,
                                                                              false, false, mesh.radius);
-        shape->SetMutable(mesh.is_mutable);
         body->AddCollisionShape(shape);
     }
 

@@ -18,14 +18,19 @@ namespace chrono {
 // dynamic creation and persistence
 CH_FACTORY_REGISTER(ChVisualShapeCone)
 
-ChVisualShapeCone::ChVisualShapeCone() {}
+ChVisualShapeCone::ChVisualShapeCone() {
+    SetMutable(false);
+}
 
 ChVisualShapeCone::ChVisualShapeCone(double radius, double height) {
     gcone.r = radius;
     gcone.h = height;
+    SetMutable(false);
 }
 
-ChVisualShapeCone::ChVisualShapeCone(const ChCone& cone) : gcone(cone) {}
+ChVisualShapeCone::ChVisualShapeCone(const ChCone& cone) : gcone(cone) {
+    SetMutable(false);
+}
 
 void ChVisualShapeCone::ArchiveOut(ChArchiveOut& archive_out) {
     // version number
