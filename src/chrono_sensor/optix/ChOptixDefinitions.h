@@ -68,7 +68,7 @@ enum class CameraLensModelType {
 }
 */
 
-enum class TIMEGATED_MODE {BOX, TENT, COS, SIN, EXPONENTIAL};
+enum class TIMEGATED_MODE {BOX,TENT,COS,SIN,EXPONENTIAL};
 
 
 
@@ -441,7 +441,7 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
     int use_hapke;                      // toggle between disney and hapke shader // size 4
     float emissive_power;               // size 4
 
-    // Bo-Hsun TODO: Should be moved out to other place for Hapke-specific material struct
+    // TODO: Should be moved out to other place for Hapke-specific material struct
     // Hapke parameters
     float w; // average single scattering albedo
     float b; // shape controlling parameter for the amplitude of backward and forward scatter of particles
@@ -475,7 +475,6 @@ struct ContextParameters {
     MaterialParameters* material_pool;  ///< device pointer to list of materials to use for shading
     MeshParameters* mesh_pool;          ///< device pointer to list of meshes for instancing
     
-    // Bo-Hsun TODO: Should be moved out to other place for transient camera struct
     // Transient rendering parameters
     TransientSample* transient_buffer; 
     float window_size;
