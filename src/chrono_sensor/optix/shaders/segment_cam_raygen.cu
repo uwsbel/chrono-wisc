@@ -19,6 +19,14 @@
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
 
+/// Default of segmentation per ray data (PRD)
+__device__ __inline__ PerRayData_segment DefaultSegmentPRD() {
+    PerRayData_segment prd = {};
+    prd.class_id = 0;
+    prd.instance_id = 0;
+    return prd;
+};
+
 /// Ray generation program for segmentation camera
 extern "C" __global__ void __raygen__segment_camera() {
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
@@ -65,7 +73,7 @@ extern "C" __global__ void __raygen__segment_camera() {
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
 
-    PerRayData_segment prd = default_segment_prd();
+    PerRayData_segment prd = DefaultSegmentPRD();
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd, opt1, opt2);

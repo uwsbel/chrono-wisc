@@ -19,6 +19,20 @@
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
 
+__device__ __inline__ PerRayData_phys_camera DefaultPhysCamPRD() {
+    PerRayData_phys_camera prd = {};
+    prd.color = make_float3(0.f, 0.f, 0.f);
+    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
+    prd.rng = curandState_t();
+    prd.depth = 2;
+    prd.use_gi = false;
+    prd.albedo = make_float3(0.f, 0.f, 0.f);
+    prd.normal = make_float3(0.f, 0.f, 0.f);
+    prd.distance = 0.f;
+    prd.use_fog = true;
+    return prd;
+};
+
 /// Physics-based camera ray generation program with a lens distortion model
 extern "C" __global__ void __raygen__phys_camera() {
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
@@ -83,7 +97,7 @@ extern "C" __global__ void __raygen__phys_camera() {
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
 
-    PerRayData_phys_camera prd = default_phys_camera_prd();
+    PerRayData_phys_camera prd = DefaultPhysCamPRD();
     prd.use_gi = camera.use_gi;
     if (camera.use_gi) {
         prd.rng = camera.rng_buffer[image_index];

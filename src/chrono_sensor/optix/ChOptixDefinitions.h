@@ -41,8 +41,6 @@ struct half4 {
 /// @{
 
 /// Ray types, used to determine the shading and miss functions for populating ray information
-/// Bo-Hsun TODO: Max of 256 ray types if encoded in uint8_t, since sizeof(uint8_t) is 1 byte
-
 enum class RayType {
     CAMERA_RAY_TYPE,       /// camera rays
     SHADOW_RAY_TYPE,       /// shadow rays
@@ -54,6 +52,7 @@ enum class RayType {
     LASER_SAMPLE_RAY_TYPE, /// lidar laser sample rays
     PHYS_CAMERA_RAY_TYPE,  /// physics-based camera rays
     NORMAL_RAY_TYPE        /// normal camera rays
+    //// ---- Register Your Customized Sensor Here (define customized ray types) ---- ////
 };
 
 /// The type of lens model that camera can use for rendering

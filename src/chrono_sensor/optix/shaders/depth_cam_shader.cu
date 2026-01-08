@@ -21,6 +21,7 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include "chrono_sensor/optix/shaders/shader_utils.cu"
+#include "chrono_sensor/optix/shaders/depth_cam_raygen.cu"
 
 __device__ __inline__ PerRayData_depthCamera* GetDepthCameraPRD() {
     unsigned int opt0 = optixGetPayload_0();

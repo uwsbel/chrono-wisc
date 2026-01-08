@@ -119,12 +119,6 @@ __device__ __inline__ PerRayData_phys_camera* GetPhysCameraPRD() {
 }
 
 
-__device__ __inline__ PerRayData_laserSampleRay* GetLaserSamplePRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
-}
-
 __device__ __inline__ PerRayData_camera default_camera_prd() {
     PerRayData_camera prd = {};
     prd.color = make_float3(0.f, 0.f, 0.f);
@@ -140,71 +134,6 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
     return prd;
 };
 
-__device__ __inline__ PerRayData_phys_camera default_phys_camera_prd() {
-    PerRayData_phys_camera prd = {};
-    prd.color = make_float3(0.f, 0.f, 0.f);
-    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
-    prd.rng = curandState_t();
-    prd.depth = 2;
-    prd.use_gi = false;
-    prd.albedo = make_float3(0.f, 0.f, 0.f);
-    prd.normal = make_float3(0.f, 0.f, 0.f);
-    prd.distance = 0.f;
-    prd.use_fog = true;
-    return prd;
-};
-
-__device__ __inline__ PerRayData_depthCamera default_depthCamera_prd(float maxDepth) {
-    PerRayData_depthCamera prd = {};
-    prd.depth = 0.f;
-    prd.max_depth = maxDepth;
-    return prd;
-};
-
-__device__ __inline__ PerRayData_transientCamera default_transientCamera_prd(int pixel_index) {
-    PerRayData_transientCamera prd = {};
-    prd.color = make_float3(0.f, 0.f, 0.f);
-    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
-    prd.rng = curandState_t();
-    prd.depth = 1;
-    prd.use_gi = false;
-    prd.albedo = make_float3(0.f, 0.f, 0.f);
-    prd.normal = make_float3(0.f, 0.f, 0.f);
-    prd.use_fog = false;
-    prd.transparency = 1.f;
-    prd.current_pixel = pixel_index;
-    prd.depth_reached = 0;
-    prd.path_length = 0.f;
-    prd.fromNLOSHit = false;
-    prd.integrator = Integrator::PATH;
-    prd.laser_focus_point = make_float3(0,0,0);
-    //prd.transient_buffer = {0, make_float3(0.f, 0.f, 0.f)};
-    return prd;
-};
-
-__device__ __inline__ PerRayData_laserSampleRay default_laserSampleRay_prd() {
-    PerRayData_laserSampleRay prd = {};
-    prd.laser_hitpoint = make_float3(1e10,1e10,1e10);
-    prd.contribution = make_float3(1.f, 1.f, 1.f);
-    prd.Lr = make_float3(0.f, 0.f, 0.f);
-    prd.path_length = 0.f;
-    prd.bsdf_pdf = 0.f;
-    prd.sample_laser = false;
-    prd.depth = 0;
-}
-
-__device__ __inline__ PerRayData_normalCamera default_normalCamera_prd() {
-    PerRayData_normalCamera prd = {};
-    prd.normal = make_float3(0.f, 0.f, 0.f);
-    return prd;
-};
-
-__device__ __inline__ PerRayData_segment default_segment_prd() {
-    PerRayData_segment prd = {};
-    prd.class_id = 0;
-    prd.instance_id = 0;
-    return prd;
-};
 
 __device__ __inline__ PerRayData_shadow default_shadow_prd() {
     PerRayData_shadow prd = {make_float3(1.f, 1.f, 1.f),  // default opacity amount
@@ -213,20 +142,7 @@ __device__ __inline__ PerRayData_shadow default_shadow_prd() {
     return prd;
 };
 
-__device__ __inline__ PerRayData_lidar default_lidar_prd() {
-    PerRayData_lidar prd = {
-        0.f,  // default range
-        0.f   // default intensity
-    };
-    return prd;
-};
-__device__ __inline__ PerRayData_radar default_radar_prd() {
-    PerRayData_radar prd = {
-        0.f,  // default range
-        0.f   // default rcs
-    };
-    return prd;
-};
+
 /// =======================
 /// float3-float3 operators
 /// =======================
@@ -682,6 +598,11 @@ __device__ __inline__ float radial_function(const float& rd2, const LensParams& 
         params.a8 * rd18);
     return ru;
 }
+
+__device__ __inline__ float gaussian(int x, int y, float sigma) {
+    return expf(-(x * x + y * y) / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
+}
+
 
 #ifdef USE_SENSOR_NVDB
 __device__ __inline__ float3 make_float3(const nanovdb::Vec3f& a) {

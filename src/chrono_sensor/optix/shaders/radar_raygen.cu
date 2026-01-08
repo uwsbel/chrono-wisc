@@ -12,12 +12,22 @@
 // Authors: Han Wang, Asher Elmquist
 // =============================================================================
 //
-// RT kernels for tracing and measureing depth for a radar
+// RT kernels for tracing and measureing depth for a RADAR
 //
 // =============================================================================
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
+
+/// Default of RADAR per ray data (PRD)
+__device__ __inline__ PerRayData_radar DefaultRadarPRD() {
+    PerRayData_radar prd = {
+        0.f,  // default range
+        0.f   // default rcs
+    };
+    return prd;
+};
+
 
 extern "C" __global__ void __raygen__radar() {
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
@@ -46,7 +56,7 @@ extern "C" __global__ void __raygen__radar() {
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward * x + left * y + up * z);
 
-    PerRayData_radar prd_radar = default_radar_prd();
+    PerRayData_radar prd_radar = DefaultRadarPRD();
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd_radar, opt1, opt2);

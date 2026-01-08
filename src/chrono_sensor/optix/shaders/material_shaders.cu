@@ -86,8 +86,9 @@ extern "C" __global__ void __closesthit__material_shader() {
         world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
     }
 
-    float3 hp = ray_orig + ray_dist * ray_dir;
-    // from here on out, things are specific to the ray type
+    // float3 hp = ray_orig + ray_dist * ray_dir; // debug
+
+    // From here on out, things are specific to the ray type
     RayType raytype = (RayType)optixGetPayload_2();
 
     switch (raytype) {
@@ -197,17 +198,18 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
         
         case RayType::LASER_SAMPLE_RAY_TYPE:
-            PerRayData_laserSampleRay* prd = GetLaserSamplePRD();
-            if (prd->sample_laser) {
-                LaserNEEE(prd, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv, tangent,
-                          ray_dist, ray_orig, ray_dir);
-            } else {
-                prd->laser_hitpoint = hit_point;
-            }
+            LaserSampleShader(GetLaserSamplePRD(), mat_params, material_id, mat_params->num_blended_materials,
+                              world_normal, uv, tangent, ray_dist, ray_orig, ray_dir, hit_point);
             break;
 
         case RayType::NORMAL_RAY_TYPE:
             NormalCamShader(GetNormalCameraPRD(), world_normal);
             break;
+        
+        default:
+            printf("Unknown ray type in material shader ...... \n");
+            break;
+            
+        //// ---- Register Your Customized Sensor Here (case for your customized ray type) ---- ////
     }
 }

@@ -18,10 +18,38 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
-__device__ float gaussian(int dx, int dy, float sigma) {
-    float dist2 = dx * dx + dy * dy;
-    return expf(-dist2 / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
+
+__device__ __inline__ PerRayData_laserSampleRay DefaultLaserSamplePRD() {
+    PerRayData_laserSampleRay prd = {};
+    prd.laser_hitpoint = make_float3(1e10,1e10,1e10);
+    prd.contribution = make_float3(1.f, 1.f, 1.f);
+    prd.Lr = make_float3(0.f, 0.f, 0.f);
+    prd.path_length = 0.f;
+    prd.bsdf_pdf = 0.f;
+    prd.sample_laser = false;
+    prd.depth = 0;
 }
+
+__device__ __inline__ PerRayData_transientCamera DefaultTransientCamPRD(int pixel_index) {
+    PerRayData_transientCamera prd = {};
+    prd.color = make_float3(0.f, 0.f, 0.f);
+    prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
+    prd.rng = curandState_t();
+    prd.depth = 1;
+    prd.use_gi = false;
+    prd.albedo = make_float3(0.f, 0.f, 0.f);
+    prd.normal = make_float3(0.f, 0.f, 0.f);
+    prd.use_fog = false;
+    prd.transparency = 1.f;
+    prd.current_pixel = pixel_index;
+    prd.depth_reached = 0;
+    prd.path_length = 0.f;
+    prd.fromNLOSHit = false;
+    prd.integrator = Integrator::PATH;
+    prd.laser_focus_point = make_float3(0,0,0);
+    //prd.transient_buffer = {0, make_float3(0.f, 0.f, 0.f)};
+    return prd;
+};
 
 /// Transient camera ray generation program with using a lens distortion model
 extern "C" __global__ void __raygen__transient_camera() {
@@ -49,7 +77,7 @@ extern "C" __global__ void __raygen__transient_camera() {
         assert(l.type == LightType::SPOT_LIGHT); // MITRANSIENT assumes only one light source and it should be a Spot Light/Projector (TODO)
 
 
-        PerRayData_laserSampleRay prd = default_laserSampleRay_prd();
+        PerRayData_laserSampleRay prd = DefaultLaserSamplePRD();
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
@@ -129,7 +157,7 @@ extern "C" __global__ void __raygen__transient_camera() {
         //basis_from_quaternion(ray_quat, forward, left, up);
         //float3 ray_direction = normalize(forward * x + left * y + up * z);
 
-        PerRayData_transientCamera prd = default_transientCamera_prd(image_index);
+        PerRayData_transientCamera prd = DefaultTransientCamPRD(image_index);
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
         prd.laser_focus_point = laser_focus_point;

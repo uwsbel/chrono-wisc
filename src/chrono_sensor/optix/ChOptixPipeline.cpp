@@ -401,8 +401,6 @@ void ChOptixPipeline::CreateOptixProgramGroup(OptixProgramGroup& group,
                                               const char* is_name,
                                               OptixModule ch_module,
                                               const char* ch_name) {
-    const char* temp = (is_name != nullptr) ? is_name : "(null)";
-    std::cout << "Binding " << ch_name << " to " << temp << " ...... "; // debug
     
     char log[2048];
     size_t sizeof_log = sizeof(log);
@@ -434,7 +432,6 @@ void ChOptixPipeline::CreateOptixProgramGroup(OptixProgramGroup& group,
     }
 
     OPTIX_ERROR_CHECK(optixProgramGroupCreate(m_context, &group_desc, 1, &group_options, log, &sizeof_log, &group));
-    std::cout << " Done. " << std::endl; // debug
 }
 
 void ChOptixPipeline::AssembleBaseProgramGroups() {

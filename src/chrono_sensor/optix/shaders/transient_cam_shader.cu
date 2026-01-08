@@ -21,6 +21,7 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include "chrono_sensor/optix/shaders/shader_utils.cu"
+#include "chrono_sensor/optix/shaders/transient_cam_raygen.cu"
 
 __device__ __inline__ void SampleBoxPosition(const BoxParameters& box, const float3& sample, PositionSample& ps) {
     // Use sample.z to determine which face to sample
@@ -224,7 +225,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
             laser_dir_bsdf.pdf /= pdf_ls;
 
             // Shoot laser ray towards laser focus point
-            PerRayData_laserSampleRay prd = default_laserSampleRay_prd();
+            PerRayData_laserSampleRay prd = DefaultLaserSamplePRD();
             prd.sample_laser = true;
             prd.path_length = prd_camera->path_length + laser_dist;
             prd.bsdf_pdf = laser_dir_bsdf.pdf;
@@ -351,7 +352,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
             //}
 
             // Trace next ray
-            PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+            PerRayData_transientCamera prd_reflection = DefaultTransientCamPRD(prd_camera->current_pixel);
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -394,7 +395,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
                 // }
 
                 // Trace next ray
-                PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+                PerRayData_transientCamera prd_reflection = DefaultTransientCamPRD(prd_camera->current_pixel);
                 prd_reflection.integrator = prd_camera->integrator;
                 prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
                 prd_reflection.rng = prd_camera->rng;
@@ -522,7 +523,7 @@ static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera
             }
 
             // Trace next ray
-            PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+            PerRayData_transientCamera prd_reflection = DefaultTransientCamPRD(prd_camera->current_pixel);
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -677,7 +678,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
             // }
 
             // Trace next ray
-            PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+            PerRayData_transientCamera prd_reflection = DefaultTransientCamPRD(prd_camera->current_pixel);
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -726,7 +727,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
                 // }
 
                 // Trace next ray
-                PerRayData_transientCamera prd_reflection = default_transientCamera_prd(prd_camera->current_pixel);
+                PerRayData_transientCamera prd_reflection = DefaultTransientCamPRD(prd_camera->current_pixel);
                 prd_reflection.integrator = prd_camera->integrator;
                 prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
                 prd_reflection.rng = prd_camera->rng;
@@ -751,10 +752,84 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
     prd_camera->normal = world_normal;
 }
 
+/// 
+static __device__ __inline__ void LaserNEEE(PerRayData_laserSampleRay* prd,
+                                            const MaterialRecordParameters* mat_params,
+                                            unsigned int& material_id,
+                                            const unsigned int& num_blended_materials,
+                                            const float3& world_normal,
+                                            const float2& uv,
+                                            const float3& tangent,
+                                            const float& ray_dist,
+                                            const float3& ray_orig,
+                                            const float3& ray_dir) {
+    const MaterialParameters& mat = params.material_pool[material_id];
+    BSDFType bsdf_type = mat.bsdf_type;
+    // Set the hit point manually as the laser focus point to account for floating point errors in optix
+    // Since the original hitpoint with error is somehere around the focus point this pobs won't be a bad approximation?
+    float3 hit_point = prd->laser_hitpoint;  //
+    float3 Lr = make_float3(0.0f);
+
+    float3 wo = -ray_dir;
+
+    float3 Ld = make_float3(0.f);
+
+    if (params.num_lights > 0 && bsdf_type != BSDFType::SPECULAR) {
+        // Uniform sample light
+        unsigned int sample_light_index = 0;  // NLOS scenes assume there is only one light source in the scene
+        Light l = params.lights[sample_light_index];
+        LightSample ls;
+        ls.hitpoint = hit_point;
+        ls.wo = wo;
+        ls.n = world_normal;
+
+        // Compute direct lighting
+        float3 dl = ComputeDirectLight(l, ls, mat, uv, prd->depth);
+        Ld = prd->contribution * dl;
+
+        /*      if (fmaxf(Ld) < 0) {
+
+                 printf("Hit Point LS: (%f,%f,%f) | t: %f | contr: (%f,%f,%f) | dl: (%f,%f,%f), Ld: (%f,%f,%f)\n",
+                     hit_point.x, hit_point.y, hit_point.z, optixGetRayTime(),
+                     prd->contribution.x,prd->contribution.y,prd->contribution.z,
+                     dl.x,dl.y,dl.z,
+                     Ld.x,Ld.y,Ld.z);
+              }*/
+        prd->path_length += ls.dist;
+        prd->Lr = Ld;
+    }
+}
+
+
 __device__ __inline__ PerRayData_transientCamera* GetTransientCameraPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
     return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
+}
+
+__device__ __inline__ PerRayData_laserSampleRay* GetLaserSamplePRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
+}
+
+static __device__ __inline__ void LaserSampleShader(PerRayData_laserSampleRay* prd,
+                                                    const MaterialRecordParameters* mat_params,
+                                                    unsigned int& material_id,
+                                                    const unsigned int& num_blended_materials,
+                                                    const float3& world_normal,
+                                                    const float2& uv,
+                                                    const float3& tangent,
+                                                    const float& ray_dist,
+                                                    const float3& ray_orig,
+                                                    const float3& ray_dir,
+                                                    const float3& hit_point) {
+    if (prd->sample_laser) {
+        LaserNEEE(prd, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv, tangent,
+                    ray_dist, ray_orig, ray_dir);
+    } else {
+        prd->laser_hitpoint = hit_point;
+    }                                                    
 }
 
 static __device__ __inline__ void TransientCamShader(PerRayData_transientCamera* transCam_prd,

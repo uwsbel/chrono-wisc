@@ -54,7 +54,6 @@ void GetShaderFromFile(OptixDeviceContext context,
     // std::chrono::high_resolution_clock::time_point start_compile = std::chrono::high_resolution_clock::now();
     
     std::string cuda_file = shader_dir + "/" + file_name + ".cu";
-    std::cout << "Creating Optix Module from : " << cuda_file << " ...... "; // debug
     std::string str;
     std::ifstream f(cuda_file);
     if (f.good()) {
@@ -135,7 +134,6 @@ void GetShaderFromFile(OptixDeviceContext context,
     size_t sizeof_log = sizeof(log);
     OPTIX_ERROR_CHECK(optixModuleCreate(context, &module_compile_options, &pipeline_compile_options, ptx.c_str(),
                                         ptx.size(), log, &sizeof_log, &module));
-    std::cout << " Done. " << std::endl; // debug
 }
 
 void optix_log_callback(unsigned int level, const char* tag, const char* message, void*) {

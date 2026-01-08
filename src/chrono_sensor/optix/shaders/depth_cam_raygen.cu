@@ -18,6 +18,14 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
+/// Default of depth camera per ray data (PRD)
+__device__ __inline__ PerRayData_depthCamera DefaultDepthCameraPRD(float maxDepth) {
+    PerRayData_depthCamera prd = {};
+    prd.depth = 0.f;
+    prd.max_depth = maxDepth;
+    return prd;
+};
+
 /// Ray generation program for depth camera
 extern "C" __global__ void __raygen__depth_camera() {
     const RaygenParameters* raygen = (RaygenParameters*) optixGetSbtDataPointer();
@@ -65,7 +73,7 @@ extern "C" __global__ void __raygen__depth_camera() {
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
 
-    PerRayData_depthCamera prd = default_depthCamera_prd(camera.max_depth);
+    PerRayData_depthCamera prd = DefaultDepthCameraPRD(camera.max_depth);
     
     unsigned int opt1;
     unsigned int opt2;
