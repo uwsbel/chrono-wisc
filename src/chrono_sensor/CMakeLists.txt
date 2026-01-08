@@ -93,13 +93,24 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/cylinder.cu
       optix/shaders/miss.cu
       optix/shaders/material_shaders.cu
-      optix/shaders/RayGens/camera.cu
-      optix/shaders/RayGens/phys_cam.cu
-      optix/shaders/RayGens/segment_cam.cu
-      optix/shaders/RayGens/depth_cam.cu
-      optix/shaders/RayGens/normal_cam.cu
-      optix/shaders/RayGens/lidar.cu
-      optix/shaders/RayGens/radar.cu
+      optix/shaders/shader_utils.cu
+      optix/shaders/camera_raygen.cu
+      optix/shaders/depth_cam_raygen.cu
+      optix/shaders/lidar_raygen.cu
+      optix/shaders/normal_cam_raygen.cu
+      optix/shaders/phys_cam_raygen.cu
+      optix/shaders/radar_raygen.cu
+      optix/shaders/segment_cam_raygen.cu
+      optix/shaders/transient_cam_raygen.cu
+      optix/shaders/camera_hapke_shader.cu
+      optix/shaders/camera_volumetric_shader.cu
+      optix/shaders/depth_cam_shader.cu
+      optix/shaders/lidar_shader.cu
+      optix/shaders/normal_cam_shader.cu
+      optix/shaders/radar_shader.cu
+      optix/shaders/segment_cam_shader.cu
+      optix/shaders/shadow_shader.cu
+      optix/shaders/transient_cam_shader.cu
   )
 
   if(CH_USE_SENSOR_NVDB)
@@ -110,6 +121,7 @@ if(CH_USE_SENSOR_OPTIX)
 
   set(Chrono_sensor_RT_HEADERS
       optix/shaders/device_utils.h
+      # optix/shaders/sensor_shader_registration.h
   )
 
   source_group("RT Programs" FILES ${Chrono_sensor_RT_SOURCES} ${Chrono_sensor_RT_HEADERS})

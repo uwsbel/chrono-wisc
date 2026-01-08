@@ -1,4 +1,4 @@
-/* =============================================================================
+// =============================================================================
 // PROJECT CHRONO - http://projectchrono.org
 //
 // Copyright (c) 2019 projectchrono.org
@@ -14,9 +14,19 @@
 //
 // RT kernels for coloring upon ray not intersecting anything
 //
-// ============================================================================= */
+// =============================================================================
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
+#include "chrono_sensor/optix/shaders/shadow_shader.cu"
+#include "chrono_sensor/optix/shaders/normal_cam_shader.cu"
+#include "chrono_sensor/optix/shaders/depth_cam_shader.cu"
+#include "chrono_sensor/optix/shaders/segment_cam_shader.cu"
+#include "chrono_sensor/optix/shaders/transient_cam_shader.cu"
+#include "chrono_sensor/optix/shaders/radar_shader.cu"
+#include "chrono_sensor/optix/shaders/lidar_shader.cu"
+#include "chrono_sensor/optix/shaders/camera_hapke_shader.cu"
+#include "chrono_sensor/optix/shaders/camera_volumetric_shader.cu"
 
 extern "C" __global__ void __miss__shader() {
     const MissParameters* miss = (MissParameters*)optixGetSbtDataPointer();
@@ -25,14 +35,14 @@ extern "C" __global__ void __miss__shader() {
     RayType raytype = (RayType)optixGetPayload_2();
 
     switch (raytype) {
-        case PHYS_CAMERA_RAY_TYPE: 
-        case CAMERA_RAY_TYPE: {
+        case RayType::PHYS_CAMERA_RAY_TYPE: 
+        case RayType::CAMERA_RAY_TYPE: {
             const CameraMissParameters& camera_miss = miss->camera_miss;
             PerRayData_camera* prd;
-            if (raytype == PHYS_CAMERA_RAY_TYPE) {
-                prd = reinterpret_cast<PerRayData_phys_camera*>(getPhysCameraPRD());
+            if (raytype == RayType::PHYS_CAMERA_RAY_TYPE) {
+                prd = reinterpret_cast<PerRayData_phys_camera*>(GetPhysCameraPRD());
             } else {
-                prd = getCameraPRD();
+                prd = GetCameraPRD();
             }
 
             if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
@@ -64,9 +74,9 @@ extern "C" __global__ void __miss__shader() {
             break;
         }
 
-        case TRANSIENT_RAY_TYPE: {
+        case RayType::TRANSIENT_RAY_TYPE: {
             const CameraMissParameters& camera_miss = miss->camera_miss;
-            PerRayData_transientCamera* prd = getTransientCameraPRD();
+            PerRayData_transientCamera* prd = GetTransientCameraPRD();
 
             if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
                 // evironment map assumes z up
@@ -96,20 +106,20 @@ extern "C" __global__ void __miss__shader() {
             prd->depth_reached = prd->depth;
             break;
         }
-        case LIDAR_RAY_TYPE: {
+        case RayType::LIDAR_RAY_TYPE: {
             // leave as default values
             break;
         }
-        case RADAR_RAY_TYPE: {
+        case RayType::RADAR_RAY_TYPE: {
             // leave as default values
             break;
         }
-        case DEPTH_RAY_TYPE: {
-            PerRayData_depthCamera* prd = getDepthCameraPRD();
+        case RayType::DEPTH_RAY_TYPE: {
+            PerRayData_depthCamera* prd = GetDepthCameraPRD();
             prd->depth = prd->max_depth; // set miss hit to max depth
             break;
         }
-        case NORMAL_RAY_TYPE: {
+        case RayType::NORMAL_RAY_TYPE: {
             // leave as default values
             break;
         }

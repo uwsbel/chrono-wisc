@@ -69,7 +69,7 @@ extern "C" __global__ void __raygen__segment_camera() {
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd, opt1, opt2);
-    unsigned int raytype = (unsigned int)SEGMENTATION_RAY_TYPE;
+    unsigned int raytype = (unsigned int)RayType::SEGMENTATION_RAY_TYPE;
     optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse, OptixVisibilityMask(1),
                OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
     camera.frame_buffer[image_index].x = prd.class_id;

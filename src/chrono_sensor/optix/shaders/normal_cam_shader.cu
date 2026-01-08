@@ -9,15 +9,27 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Nevindu M. Batagoda
+// Authors: Bo-Hsun Chen
 // =============================================================================
 //
-// Depth camera shader
+// Normal camera shader
 //
 // =============================================================================
+
+#ifndef NORMAL_CAM_SHADER_CU
+#define NORMAL_CAM_SHADER_CU
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
 
-static __device__ __inline__ void DepthCamShader(PerRayData_depthCamera* prd, const float& ray_dist) {
-    prd->depth = fminf(prd->max_depth, ray_dist);
+__device__ __inline__ PerRayData_normalCamera* GetNormalCameraPRD() {
+	unsigned int opt0 = optixGetPayload_0();
+	unsigned int opt1 = optixGetPayload_1();
+	return reinterpret_cast<PerRayData_normalCamera*>(ints_as_pointer(opt0, opt1));
 }
+
+static __device__ __inline__ void NormalCamShader(PerRayData_normalCamera* prd, const float3& world_normal) {
+	prd->normal = world_normal;
+}
+
+# endif  // NORMAL_CAM_SHADER_CU

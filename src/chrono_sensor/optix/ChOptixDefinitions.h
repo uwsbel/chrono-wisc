@@ -22,6 +22,7 @@
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
 #include <cuda_fp16.h>
+#include "chrono/assets/ChVisualBSDFType.h"
 
 #ifdef USE_SENSOR_NVDB
     #include <nanovdb/NanoVDB.h>
@@ -40,6 +41,8 @@ struct half4 {
 /// @{
 
 /// Ray types, used to determine the shading and miss functions for populating ray information
+/// Bo-Hsun TODO: Max of 256 ray types if encoded in uint8_t, since sizeof(uint8_t) is 1 byte
+
 enum class RayType {
     CAMERA_RAY_TYPE,       /// camera rays
     SHADOW_RAY_TYPE,       /// shadow rays
@@ -48,13 +51,13 @@ enum class RayType {
     SEGMENTATION_RAY_TYPE, /// semantic camera rays 
     DEPTH_RAY_TYPE,        /// depth camera rays
     TRANSIENT_RAY_TYPE,    /// transient camera rays
-    LASER_SAMPLE_RAY_TYPE,  /// lidar laser sample rays
-    PHYS_CAMERA_RAY_TYPE = 8,  /// physics-based camera rays
-    NORMAL_RAY_TYPE = 9        /// normal camera rays
+    LASER_SAMPLE_RAY_TYPE, /// lidar laser sample rays
+    PHYS_CAMERA_RAY_TYPE,  /// physics-based camera rays
+    NORMAL_RAY_TYPE        /// normal camera rays
 };
 
 /// The type of lens model that camera can use for rendering
-enum class CameraLensModelType {
+enum CameraLensModelType {
     PINHOLE,   ///< traditional computer graphics ideal camera model.
     FOV_LENS,  ///< Wide angle lens model based on single spherical lens.
     RADIAL     ///< Wide angle lens model based on polynomial fit
@@ -70,7 +73,7 @@ enum class CameraLensModelType {
 
 enum class TIMEGATED_MODE {BOX, TENT, COS, SIN, EXPONENTIAL};
 
-
+// enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, SIMPLEPRINCIPLED, PRINCIPLED, HAPKE, RETROREFLECTIVE, VDB, VDBHAPKE, VDBVOL};
 
 enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
 

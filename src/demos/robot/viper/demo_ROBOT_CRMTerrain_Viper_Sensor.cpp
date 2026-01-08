@@ -347,7 +347,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetAbsorptionCoefficient(1e-4);
     vis_mat->SetScatteringCoefficient(0.01);
     vis_mat->SetEmissivePower(100.f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
+    vis_mat->SetBSDF(BSDFType::VDBVOL);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
 
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, false, false);
@@ -662,7 +662,7 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+    vis_mat->SetBSDF(BSDFType::HAPKE);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);

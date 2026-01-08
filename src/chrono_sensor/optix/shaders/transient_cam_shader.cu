@@ -16,8 +16,11 @@
 //
 // =============================================================================
 
-#include "chrono_sensor/optix/shaders/device_utils.h"
+#ifndef TRANSIENT_CAM_SHADER_CU
+#define TRANSIENT_CAM_SHADER_CU
 
+#include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
 
 __device__ __inline__ void SampleBoxPosition(const BoxParameters& box, const float3& sample, PositionSample& ps) {
     // Use sample.z to determine which face to sample
@@ -173,7 +176,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
                                                         const float3& ray_dir) {
     // printf("TIMEGATED Integrator!\n");
     const MaterialParameters& mat = params.material_pool[material_id];
-    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    BSDFType bsdfType = mat.bsdf_type;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
 
     float3 L = make_float3(0.0f);
@@ -201,7 +204,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd_shadow, opt1, opt2);
-        unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+        unsigned int raytype = static_cast<unsigned int>(RayType::SHADOW_RAY_TYPE);
         optixTrace(params.root, hit_point, laser_dir, params.scene_epsilon, laser_dist, optixGetRayTime(),
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
@@ -231,7 +234,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
             unsigned int opt1;
             unsigned int opt2;
             pointer_as_ints(&prd, opt1, opt2);
-            unsigned int raytype = (unsigned int)LASER_SAMPLE_RAY_TYPE;
+            unsigned int raytype = static_cast<unsigned int>(RayType::LASER_SAMPLE_RAY_TYPE);
             // printf("Hit Point: (%f,%f,%f)\n", hit_point.x, hit_point.y, hit_point.z);
             /*    printf("laser dist: %f t: %f | PL: %f |Target: (%f,%f,%f), o: (%f,%f,%f) d: (%f,%f,%f) | Proj HP:
                (%f,%f,%f)\n", laser_dist, optixGetRayTime(), prd.path_length, prd.laser_hitpoint.x,
@@ -357,7 +360,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
             prd_reflection.path_length = prd_camera->path_length;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+            unsigned int raytype = static_cast<unsigned int>(RayType::TRANSIENT_RAY_TYPE);
             optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
             L += prd_reflection.color;
@@ -401,7 +404,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
                 prd_reflection.laser_focus_point = prd_camera->laser_focus_point;
                 unsigned int opt1, opt2;
                 pointer_as_ints(&prd_reflection, opt1, opt2);
-                unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+                unsigned int raytype = static_cast<unsigned int>(RayType::TRANSIENT_RAY_TYPE);
                 optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
                            OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
                 L += prd_reflection.color;
@@ -457,7 +460,7 @@ static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera
                                                       const float3& ray_dir) {
     // printf("TIMEGATED Integrator!\n");
     const MaterialParameters& mat = params.material_pool[material_id];
-    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    BSDFType bsdfType = mat.bsdf_type;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
     float3 L = make_float3(0.0f);
 
@@ -528,7 +531,7 @@ static __device__ __inline__ void TimeGatedIntegrator(PerRayData_transientCamera
             prd_reflection.path_length = prd_camera->path_length;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+            unsigned int raytype = static_cast<unsigned int>(RayType::TRANSIENT_RAY_TYPE);
             optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
             L += prd_reflection.color;
@@ -556,7 +559,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
     const MaterialParameters& mat = params.material_pool[material_id];
     // printf("d: %d | Hitting Object: %hu | contr: (%f,%f,%f)\n", prd_camera->depth, mat.instance_id,
     // prd_camera->contrib_to_pixel.x, prd_camera->contrib_to_pixel.y, prd_camera->contrib_to_pixel.z);
-    BSDFType bsdfType = (BSDFType)mat.BSDFType;
+    BSDFType bsdfType = mat.bsdf_type;
     float3 hit_point = ray_orig + ray_dir * ray_dist;
     float3 L = make_float3(0.0f);
 
@@ -683,7 +686,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
             prd_reflection.path_length = prd_camera->path_length;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+            unsigned int raytype = static_cast<unsigned int>(RayType::TRANSIENT_RAY_TYPE);
             optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
             L += prd_reflection.color;
@@ -732,7 +735,7 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
                 prd_reflection.path_length = prd_camera->path_length;
                 unsigned int opt1, opt2;
                 pointer_as_ints(&prd_reflection, opt1, opt2);
-                unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+                unsigned int raytype = static_cast<unsigned int>(RayType::TRANSIENT_RAY_TYPE);
                 optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
                            OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
                 L += prd_reflection.color;
@@ -746,6 +749,12 @@ static __device__ __inline__ void TransientPathIntegrator(PerRayData_transientCa
     prd_camera->color += L;
     prd_camera->albedo = mat.Kd;  // Might change
     prd_camera->normal = world_normal;
+}
+
+__device__ __inline__ PerRayData_transientCamera* GetTransientCameraPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
 }
 
 static __device__ __inline__ void TransientCamShader(PerRayData_transientCamera* transCam_prd,
@@ -776,3 +785,5 @@ static __device__ __inline__ void TransientCamShader(PerRayData_transientCamera*
             break;
     }
 }
+
+#endif // TRANSIENT_CAM_SHADER_CU

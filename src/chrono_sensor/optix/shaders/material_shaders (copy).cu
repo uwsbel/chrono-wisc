@@ -200,7 +200,7 @@ static __device__ __inline__ float3 CalculateRefractedColor(PerRayData_camera* p
                 // make_camera_data(make_float3(0), refract_importance, prd_camera.rnd, prd_camera.depth + 1);
                 // float3 refract_dir = refract(optixGetWorldRayDirection(), world_normal, 1.f, 1.f);
                 float3 refract_dir = ray_dir;  // pure transparency without refraction
-                unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+                unsigned int raytype = RayType::CAMERA_RAY_TYPE;
                 optixTrace(params.root, hit_point, refract_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                            OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
                 refracted_color = prd_refraction.color;  // TODO: not sure added here or not
@@ -608,7 +608,7 @@ static __device__ __inline__ float3 CalculateContributionToPixel(PerRayData_came
             prd_reflection.use_gi = prd_camera->use_gi;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+            unsigned int raytype = RayType::CAMERA_RAY_TYPE;
             optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
@@ -719,7 +719,7 @@ static __device__ __inline__ float3 CalculateGIReflectionColor(PerRayData_camera
             prd_reflection.use_gi = prd_camera->use_gi;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+            unsigned int raytype = RayType::CAMERA_RAY_TYPE;
             optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
             gi_reflection_color = prd_reflection.color;  // accumulate indirect lighting color
@@ -768,7 +768,7 @@ static __device__ __inline__ void CameraShader(PerRayData_camera* prd_camera,
                 prd_refraction.depth = prd_camera->depth + 1;
                 unsigned int opt1, opt2;
                 pointer_as_ints(&prd_refraction, opt1, opt2);
-                unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+                unsigned int raytype = RayType::CAMERA_RAY_TYPE;
                 optixTrace(params.root, hit_point, ray_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                            OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
                 prd_camera->color = prd_refraction.color;
@@ -1675,7 +1675,7 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
             prd_reflection.use_gi = prd_camera->use_gi;
             unsigned int opt1, opt2;
             pointer_as_ints(&prd_reflection, opt1, opt2);
-            unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+            unsigned int raytype = RayType::CAMERA_RAY_TYPE;
             optixTrace(params.root, hit_point, sample.wi, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
             L += prd_reflection.color;
@@ -2440,7 +2440,7 @@ extern "C" __global__ void __closesthit__material_shader() {
 
             break;
         case TRANSIENT_RAY_TYPE:
-            PerRayData_transientCamera* transCam_prd = getTransientCameraPRD();
+            PerRayData_transientCamera* transCam_prd = GetTransientCameraPRD();
             switch (transCam_prd->integrator) {
                 case Integrator::TRANSIENT:
                     TransientPathIntegrator(transCam_prd, mat_params, material_id, mat_params->num_blended_materials,
@@ -2460,7 +2460,7 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
 
         case PHYS_CAMERA_RAY_TYPE:
-            PerRayData_phys_camera* prd_phys_camera_ptr = getPhysCameraPRD();
+            PerRayData_phys_camera* prd_phys_camera_ptr = GetPhysCameraPRD();
             prd_phys_camera_ptr->distance = ray_dist;
             if (!mat.use_hapke) {
                 CameraShader(prd_phys_camera_ptr, mat_params, material_id, mat_params->num_blended_materials,
@@ -2472,16 +2472,16 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
 
         case LIDAR_RAY_TYPE:
-            LidarShader(getLidarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            LidarShader(GetLidarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
 
         case RADAR_RAY_TYPE:
-            RadarShader(getRadarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir,
+            RadarShader(GetRadarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir,
                         mat_params->translational_velocity, mat_params->angular_velocity, mat_params->objectId);
             break;
 
         case SHADOW_RAY_TYPE:
-            ShadowShader(getShadowPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            ShadowShader(GetShadowPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
 
         case SEGMENTATION_RAY_TYPE:
@@ -2489,10 +2489,10 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
 
         case DEPTH_RAY_TYPE:
-            DepthShader(getDepthCameraPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+            DepthShader(GetDepthCameraPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
             break;
         case LASER_SAMPLE_RAY_TYPE:
-            PerRayData_laserSampleRay* prd = getLaserPRD();
+            PerRayData_laserSampleRay* prd = getLaserSamplePRD();
             if (prd->sample_laser) {
                 LaserNEEE(prd, mat_params, material_id, mat_params->num_blended_materials, world_normal, uv, tangent,
                           ray_dist, ray_orig, ray_dir);
@@ -2502,7 +2502,7 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
 
         case NORMAL_RAY_TYPE:
-            NormalShader(getNormalCameraPRD(), world_normal);
+            NormalShader(GetNormalCameraPRD(), world_normal);
             break;
     }
 }

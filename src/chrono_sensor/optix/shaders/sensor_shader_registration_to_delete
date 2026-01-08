@@ -1,0 +1,78 @@
+// =============================================================================
+// PROJECT CHRONO - http://projectchrono.org
+//
+// Copyright (c) 2019 projectchrono.org
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file at the top level of the distribution and at
+// http://projectchrono.org/license-chrono.txt.
+//
+// =============================================================================
+// Authors: Bo-Hsun Chen
+// =============================================================================
+//
+// Registration of sensor shaders
+//
+// =============================================================================
+
+
+#include <optix.h>
+#include <cuda_runtime.h>
+
+#include "chrono_sensor/optix/ChOptixDefinitions.h"
+#include "chrono_sensor/optix/shaders/device_utils.h"
+
+// ----------------------------
+// Camera (Hapke / Volumetric)
+// ----------------------------
+// __device__ __inline__ PerRayData_camera* GetCameraPRD();
+// static __device__ __inline__ void CameraHapkeShader(PerRayData_camera* prd_camera, const MaterialRecordParameters* mat_params, unsigned int& material_id, const unsigned int& num_blended_materials, const float3& world_normal, const float2& uv, const float3& tangent, const float& ray_dist, const float3& ray_orig, const float3& ray_dir);
+// static __device__ __inline__ void CameraVolumetricShader(PerRayData_camera* prd_camera, const MaterialRecordParameters* mat_params, unsigned int& material_id, const unsigned int& num_blended_materials, const float3& world_normal, const float2& uv, const float3& tangent, const float& ray_dist, const float3& ray_orig, const float3& ray_dir);
+
+// ----------------------------
+// Depth camera
+// ----------------------------
+__device__ __inline__ PerRayData_depthCamera* GetDepthCameraPRD();
+static __device__ __inline__ void DepthCamShader(PerRayData_depthCamera* prd, const float& ray_dist);
+
+// ----------------------------
+// Segmentation camera
+// ----------------------------
+__device__ __inline__ PerRayData_segment* GetSegmentPRD();
+static __device__ __inline__ void SegmentCamShader(PerRayData_segment* prd, const MaterialParameters& mat);
+
+// ----------------------------
+// Normal camera
+// ----------------------------
+__device__ __inline__ PerRayData_normalCamera* GetNormalCameraPRD();
+static __device__ __inline__ void NormalCamShader(PerRayData_normalCamera* prd, const float3& world_normal);
+
+// ----------------------------
+// LiDAR
+// ----------------------------
+__device__ __inline__ PerRayData_lidar* GetLidarPRD();
+static __device__ __inline__ void LidarShader(PerRayData_lidar* prd_lidar, const MaterialParameters& mat, const float3& world_normal, const float& ray_dist, const float3& ray_dir);
+
+// ----------------------------
+// RADAR
+// ----------------------------
+__device__ __inline__ PerRayData_radar* GetRadarPRD();
+static __device__ __inline__ void RadarShader(PerRayData_radar* prd_radar, const MaterialParameters& mat, const float3& world_normal, const float2& uv, const float3& tangent, const float& ray_dist, const float3& ray_orig, const float3& ray_dir, const float3& translational_velocity, const float3& angular_velocity, const float& objectId);
+
+// ----------------------------
+// Shadow
+// ----------------------------
+__device__ __inline__ PerRayData_shadow* GetShadowPRD();
+static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd, const MaterialParameters& mat, const float3& world_normal, const float2& uv, const float3& tangent, const float& ray_dist, const float3& ray_orig, const float3& ray_dir);
+
+// ----------------------------
+// Transient camera
+// ----------------------------
+__device__ __inline__ PerRayData_transientCamera* GetTransientCameraPRD();
+static __device__ __inline__ void TransientCamShader(PerRayData_transientCamera* transCam_prd, const MaterialRecordParameters* mat_params, unsigned int& material_id, const unsigned int& num_blended_materials, const float3& world_normal, const float2& uv, const float3& tangent, const float& ray_dist, const float3& ray_orig, const float3& ray_dir);
+
+// ----------------------------
+// Laser sample PRD (used by transient integrators / laser sampling path)
+// ----------------------------
+// __device__ __inline__ PerRayData_laserSampleRay* GetLaserPRD();

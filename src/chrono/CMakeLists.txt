@@ -607,6 +607,7 @@ set(Chrono_assets_HEADERS
     assets/ChVisualSystem.h
     assets/ChVisualModel.h
     assets/ChVisualMaterial.h
+    assets/ChVisualBSDFType.h
     assets/ChVisualShape.h
     assets/ChVisualShapes.h
     assets/ChVisualShapeModelFile.h

@@ -400,7 +400,7 @@ int main(int argc, char* argv[]) {
 
     // auto regolith_mat = chrono_types::make_shared<ChVisualMaterial>();
 	// if (use_hapke) {
-	// 	regolith_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+	// 	regolith_mat->SetBSDF(BSDFType::HAPKE);
 	// 	regolith_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     // }
     // else {
@@ -651,7 +651,7 @@ int main(int argc, char* argv[]) {
 			
 			auto regolith_mat = chrono_types::make_shared<ChVisualMaterial>();
 			if (use_hapke) {
-				regolith_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+				regolith_mat->SetBSDF(BSDFType::HAPKE);
 				regolith_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
 			}
 			else {

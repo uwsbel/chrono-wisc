@@ -16,7 +16,17 @@
 //
 // =============================================================================
 
+#ifndef RADAR_SHADER_CU
+#define RADAR_SHADER_CU
+
 #include "chrono_sensor/optix/shaders/device_utils.h"
+
+__device__ __inline__ PerRayData_radar* GetRadarPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_radar*>(ints_as_pointer(opt0, opt1));
+}
+
 
 static __device__ __inline__ void RadarShader(PerRayData_radar* prd_radar,
                                               const MaterialParameters& mat,
@@ -38,3 +48,5 @@ static __device__ __inline__ void RadarShader(PerRayData_radar* prd_radar,
     prd_radar->velocity = translational_velocity + Cross(angular_velocity, r);
     prd_radar->objectId = objectId;
 }
+
+# endif  // RADAR_SHADER_CU

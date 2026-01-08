@@ -398,7 +398,7 @@ int main(int argc, char* argv[]) {
     regolith_material->SetSpecularColor({1, 1, 1});
     regolith_material->SetUseSpecularWorkflow(true);
     regolith_material->SetRoughness(1.0f);
-    regolith_material->SetBSDF((unsigned int)BSDFType::HAPKE);
+    regolith_material->SetBSDF(BSDFType::HAPKE);
     regolith_material->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     regolith_material->SetClassID(255); // first 4 bits in semantic cam, FF00
     regolith_material->SetInstanceID(65280); // last 4 bits in semantic cam, 00FF

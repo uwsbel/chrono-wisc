@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetDiffuseColor({1,1,1}); //0.659, 0.459, 0.051
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
     vis_mat->SetUseSpecularWorkflow(true);
-    vis_mat->SetBSDF((unsigned int)BSDFType::VDBVOL);
+    vis_mat->SetBSDF(BSDFType::VDBVOL);
     vis_mat->SetAbsorptionCoefficient(.001f);
     vis_mat->SetScatteringCoefficient(.01f);
 

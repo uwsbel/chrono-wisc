@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
     //floor->SetFixed(true);
     //sys.Add(floor);
 
-    unsigned int shader = (unsigned int)BSDFType::DIFFUSE;
+    unsigned int shader = BSDFType::DIFFUSE;
     auto red = chrono_types::make_shared<ChVisualMaterial>();
     red->SetDiffuseColor({1, 0, 0});
     red->SetSpecularColor({1.f, 1.f, 1.f});

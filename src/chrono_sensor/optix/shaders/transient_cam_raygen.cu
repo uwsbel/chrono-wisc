@@ -18,9 +18,13 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
+__device__ float gaussian(int dx, int dy, float sigma) {
+    float dist2 = dx * dx + dy * dy;
+    return expf(-dist2 / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
+}
 
 /// Transient camera ray generation program with using a lens distortion model
-extern "C" __global__ void __raygen__transientcamera() {
+extern "C" __global__ void __raygen__transient_camera() {
     //printf("Transient Raygen\n");
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
     const TransientCameraParameters& camera = raygen->specific.transientCamera;
@@ -49,7 +53,7 @@ extern "C" __global__ void __raygen__transientcamera() {
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
-        unsigned int raytype = (unsigned int)LASER_SAMPLE_RAY_TYPE;
+        unsigned int raytype = (unsigned int)RayType::LASER_SAMPLE_RAY_TYPE;
 
         optixTrace(params.root, l.pos, l.spot_dir, params.scene_epsilon, 1e16f, 0,
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype); // Should a ray time be set?
@@ -135,7 +139,7 @@ extern "C" __global__ void __raygen__transientcamera() {
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
-        unsigned int raytype = (unsigned int)TRANSIENT_RAY_TYPE;
+        unsigned int raytype = (unsigned int)RayType::TRANSIENT_RAY_TYPE;
 
         optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse,
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);

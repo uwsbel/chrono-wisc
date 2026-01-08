@@ -75,26 +75,82 @@ void ChOptixPipeline::Cleanup() {
         OPTIX_ERROR_CHECK(optixModuleDestroy(m_cyl_intersection_module));
         m_cyl_intersection_module = 0;
     }
-    if (m_camera_raygen_module) {
-        OPTIX_ERROR_CHECK(optixModuleDestroy(m_camera_raygen_module));
-        m_camera_raygen_module = 0;
+    if (m_material_shaders_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_material_shaders_module));
+        m_material_shaders_module = 0;
     }
-    if (m_lidar_raygen_module) {
-        OPTIX_ERROR_CHECK(optixModuleDestroy(m_lidar_raygen_module));
-        m_lidar_raygen_module = 0;
-    }
-    if (m_radar_raygen_module) {
-        OPTIX_ERROR_CHECK(optixModuleDestroy(m_radar_raygen_module));
-        m_radar_raygen_module = 0;
-    }
-    if (m_material_shading_module) {
-        OPTIX_ERROR_CHECK(optixModuleDestroy(m_material_shading_module));
-        m_material_shading_module = 0;
+    if (m_shader_utils_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_shader_utils_module));
+        m_shader_utils_module = 0;
     }
     if (m_miss_module) {
         OPTIX_ERROR_CHECK(optixModuleDestroy(m_miss_module));
         m_miss_module = 0;
     }
+    // Camera
+    if (m_camera_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_camera_raygen_module));
+        m_camera_raygen_module = 0;
+    }
+    // LiDAR
+    if (m_lidar_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_lidar_raygen_module));
+        m_lidar_raygen_module = 0;
+    }
+    // if (m_lidar_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_lidar_shader_module));
+    //     m_lidar_shader_module = 0;
+    // }
+    // RADAR
+    if (m_radar_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_radar_raygen_module));
+        m_radar_raygen_module = 0;
+    }
+    // if (m_radar_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_radar_shader_module));
+    //     m_radar_shader_module = 0;
+    // }
+    // Transient camera
+    if (m_transient_cam_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_transient_cam_raygen_module));
+        m_transient_cam_raygen_module = 0;
+    }
+    // if (m_transient_cam_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_transient_cam_shader_module));
+    //     m_transient_cam_shader_module = 0;
+    // }
+    // Depth camera
+    if (m_depth_cam_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_depth_cam_raygen_module));
+        m_depth_cam_raygen_module = 0;
+    }
+    // if (m_depth_cam_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_depth_cam_shader_module));
+    //     m_depth_cam_shader_module = 0;
+    // }
+    // Normal camera
+    if (m_normal_cam_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_normal_cam_raygen_module));
+        m_normal_cam_raygen_module = 0;
+    }
+    // if (m_normal_cam_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_normal_cam_shader_module));
+    //     m_normal_cam_shader_module = 0;
+    // }
+    // Segmentation camera
+    if (m_segment_cam_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_segment_cam_raygen_module));
+        m_segment_cam_raygen_module = 0;
+    }
+    // if (m_segment_cam_shader_module) {
+    //     OPTIX_ERROR_CHECK(optixModuleDestroy(m_segment_cam_shader_module));
+    //     m_segment_cam_shader_module = 0;
+    // }
+    if (m_phys_cam_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_phys_cam_raygen_module));
+        m_phys_cam_raygen_module = 0;
+    }
+    //// ---- Register Your Customized Sensor Here (raygen/shader module destruction) ---- ////
 
     #ifdef USE_SENSOR_NVDB
     if (m_nvdb_vol_intersection_module) {
@@ -119,9 +175,9 @@ void ChOptixPipeline::Cleanup() {
     //     OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_camera_fov_lens_raygen_group));
     //     m_camera_fov_lens_raygen_group = 0;
     // }
-    if (m_segmentation_raygen_group) {
-        OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_segmentation_raygen_group));
-        m_segmentation_raygen_group = 0;
+    if (m_segment_cam_raygen_group) {
+        OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_segment_cam_raygen_group));
+        m_segment_cam_raygen_group = 0;
     }
 
     if (m_depthCamera_raygen_group) {
@@ -156,6 +212,8 @@ void ChOptixPipeline::Cleanup() {
         OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_radar_raygen_group));
         m_radar_raygen_group = 0;
     }
+
+    //// ---- Register Your Customized Sensor Here (raygen group) ---- ////
 
     // miss groups
     if (m_miss_group) {
@@ -306,13 +364,30 @@ void ChOptixPipeline::CompileBaseShaders() {
     #endif
 
     // material shaders
-    GetShaderFromFile(m_context, m_material_shading_module, "material_shaders", module_compile_options,
-                      m_pipeline_compile_options);
-    // ray gen shaders
-    GetShaderFromFile(m_context, m_camera_raygen_module, "camera", module_compile_options, m_pipeline_compile_options);
-    GetShaderFromFile(m_context, m_lidar_raygen_module, "lidar", module_compile_options, m_pipeline_compile_options);
-    GetShaderFromFile(m_context, m_radar_raygen_module, "radar", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_material_shaders_module, "material_shaders", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_shader_utils_module, "shader_utils", module_compile_options, m_pipeline_compile_options);
+
+    // Ray-gen shaders
     GetShaderFromFile(m_context, m_miss_module, "miss", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_camera_raygen_module, "camera_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_lidar_raygen_module, "lidar_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_radar_raygen_module, "radar_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_transient_cam_raygen_module, "transient_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_depth_cam_raygen_module, "depth_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_normal_cam_raygen_module, "normal_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_segment_cam_raygen_module, "segment_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_phys_cam_raygen_module, "phys_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    //// ---- Register Your Customized Sensor Here (raygen shader) ---- ////
+    
+
+    // Sensor shaders
+    // GetShaderFromFile(m_context, m_lidar_shader_module, "lidar_shader", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_radar_shader_module, "radar_shader", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_transient_cam_shader_module, "transient_cam_shader", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_depth_cam_shader_module, "depth_cam_shader", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_normal_cam_shader_module, "normal_cam_shader", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_segment_cam_shader_module, "segment_cam_shader", module_compile_options, m_pipeline_compile_options);
+    //// ---- Register Your Customized Sensor Here (sensor shader) ---- ////
 
     auto end_compile = std::chrono::high_resolution_clock::now();
 
@@ -326,6 +401,9 @@ void ChOptixPipeline::CreateOptixProgramGroup(OptixProgramGroup& group,
                                               const char* is_name,
                                               OptixModule ch_module,
                                               const char* ch_name) {
+    const char* temp = (is_name != nullptr) ? is_name : "(null)";
+    std::cout << "Binding " << ch_name << " to " << temp << " ...... "; // debug
+    
     char log[2048];
     size_t sizeof_log = sizeof(log);
 
@@ -356,30 +434,31 @@ void ChOptixPipeline::CreateOptixProgramGroup(OptixProgramGroup& group,
     }
 
     OPTIX_ERROR_CHECK(optixProgramGroupCreate(m_context, &group_desc, 1, &group_options, log, &sizeof_log, &group));
+    std::cout << " Done. " << std::endl; // debug
 }
 
 void ChOptixPipeline::AssembleBaseProgramGroups() {
     // box intersection and shading
     CreateOptixProgramGroup(m_hit_box_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, m_box_intersection_module,
-                            "__intersection__box_intersect", m_material_shading_module,
+                            "__intersection__box_intersect", m_material_shaders_module,
                             "__closesthit__material_shader");
     // sphere intersection and shading
     CreateOptixProgramGroup(m_hit_sphere_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, m_sphere_intersection_module,
-                            "__intersection__sphere_intersect", m_material_shading_module,
+                            "__intersection__sphere_intersect", m_material_shaders_module,
                             "__closesthit__material_shader");
     // cylinder intersection and shading
     CreateOptixProgramGroup(m_hit_cyl_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, m_cyl_intersection_module,
-                            "__intersection__cylinder_intersect", m_material_shading_module,
+                            "__intersection__cylinder_intersect", m_material_shaders_module,
                             "__closesthit__material_shader");
     // mesh shading
     CreateOptixProgramGroup(m_hit_mesh_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, nullptr, nullptr,
-                            m_material_shading_module, "__closesthit__material_shader");
+                            m_material_shaders_module, "__closesthit__material_shader");
 
     #ifdef USE_SENSOR_NVDB
-    // NanoVDB Voulume intersection and shading
-    CreateOptixProgramGroup(m_nvdb_vol_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, m_nvdb_vol_intersection_module,
-                            "__intersection__nvdb_vol_intersect", m_material_shading_module,
-                            "__closesthit__material_shader");
+        // NanoVDB Voulume intersection and shading
+        CreateOptixProgramGroup(m_nvdb_vol_group, OPTIX_PROGRAM_GROUP_KIND_HITGROUP, m_nvdb_vol_intersection_module,
+                                "__intersection__nvdb_vol_intersect", m_material_shaders_module,
+                                "__closesthit__material_shader");
     #endif
 
     // miss shading
@@ -390,33 +469,29 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     CreateOptixProgramGroup(m_radar_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_radar_raygen_module, "__raygen__radar");
                             
-    // camera pinhole raygen
+    // Pinhole camera raygen
     CreateOptixProgramGroup(m_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_camera_raygen_module, "__raygen__camera");
-    
-    // physics-based camera raygen
-    CreateOptixProgramGroup(m_phys_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__phys_camera"); // __raygen__phys_camera in phys_cam.cu
     
     // // camera fov lens raygen
     // CreateOptixProgramGroup(m_camera_fov_lens_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
     //                         m_camera_raygen_module, "__raygen__camera_fov_lens");
     
-
+    // Depth camera raygen
     CreateOptixProgramGroup(m_depthCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__depth_camera");
+                            m_depth_cam_raygen_module, "__raygen__depth_camera");
 
-    // transient raygen
+    // Transient camera raygen
     CreateOptixProgramGroup(m_tranientCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__transient_camera");
+                            m_transient_cam_raygen_module, "__raygen__transient_camera");
 
-    // normal camera single raygen
+    // Normal camera raygen
     CreateOptixProgramGroup(m_normalCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__normal_camera");
+                            m_normal_cam_raygen_module, "__raygen__normal_camera");
 
-    // segmentation pinhole raygen
-    CreateOptixProgramGroup(m_segmentation_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_camera_raygen_module, "__raygen__segment_camera");
+    // Segmentation camera raygen
+    CreateOptixProgramGroup(m_segment_cam_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+                            m_segment_cam_raygen_module, "__raygen__segment_camera");
     
     // segmentation fov lens raygen
     // CreateOptixProgramGroup(m_segmentation_fov_lens_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
@@ -427,7 +502,12 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     // lidar multi raygen
     CreateOptixProgramGroup(m_lidar_multi_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_lidar_raygen_module, "__raygen__lidar_multi");
-    
+
+    // Physics-based camera raygen
+    CreateOptixProgramGroup(m_phys_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+                            m_phys_cam_raygen_module, "__raygen__phys_camera"); // __raygen__phys_camera in phys_cam_raygen.cu
+
+    //// ---- Register Your Customized Sensor Here (program group assembly) ---- ////
 }
 
 void ChOptixPipeline::CreateBaseSBT() {
@@ -550,8 +630,8 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
         // }
 
         case PipelineType::SEGMENTATION: {
-            program_groups.push_back(m_segmentation_raygen_group);
-            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_segmentation_raygen_group, raygen_record.get()));
+            program_groups.push_back(m_segment_cam_raygen_group);
+            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_segment_cam_raygen_group, raygen_record.get()));
             raygen_record->data.specific.segmentation.hFOV = 3.14f / 4;      // default value
             raygen_record->data.specific.segmentation.frame_buffer = {};     // default value
             raygen_record->data.specific.segmentation.lens_model = PINHOLE;  // default value
@@ -933,7 +1013,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
 
         material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
         material.emissive_power = mat->GetEmissivePower();
-        material.BSDFType = mat->GetBSDF();
+        material.bsdf_type = mat->GetBSDF();
         material.absorption_coefficient = mat->GetAbsorptionCoefficient();
         material.scattering_coefficient = mat->GetScatteringCoefficient();
         material.is_hidden_geometry = mat->IsHiddenObject();
@@ -1015,7 +1095,7 @@ unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat)
             material.tex_scale = {1.f, 1.f};
             material.emissive_power = 0.f;
             material.pad = {0.f, 0.f};
-            material.BSDFType = 0;
+            material.bsdf_type = BSDFType::PRINCIPLED;
             material.absorption_coefficient = 0.001f;
             material.scattering_coefficient = 0.01f;
 

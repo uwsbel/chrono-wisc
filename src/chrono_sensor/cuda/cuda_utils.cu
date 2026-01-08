@@ -21,12 +21,12 @@
 #include "cuda_utils.cuh"
 #include <curand_kernel.h>
 
-// #include <Eigen/Dense>
+#include <Eigen/Dense>
 
-#ifdef __CUDACC_VER__
-    #undef __CUDACC_VER__
-    #define __CUDACC_VER__ (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 + __CUDACC_VER_BUILD__)
-#endif
+// #ifdef __CUDACC_VER__
+//     #undef __CUDACC_VER__
+//     #define __CUDACC_VER__ (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 + __CUDACC_VER_BUILD__)
+// #endif
 
 #define EIGEN_USE_GPU
 

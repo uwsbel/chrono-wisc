@@ -26,9 +26,7 @@
 #include "chrono/core/ChVector3.h"
 #include "chrono/assets/ChTexture.h"
 #include "chrono/assets/ChColor.h"
-
-enum class BSDFType {DIFFUSE, SPECULAR, DIELECTRIC, GLOSSY, PRINCIPLED, HAPKE, RETROREFLECTIVE, VDB, VDBHAPKE, VDBVOL};
-
+#include "chrono/assets/ChVisualBSDFType.h"
 namespace chrono {
 
 /// @addtogroup chrono_assets
@@ -135,7 +133,7 @@ class ChApi ChVisualMaterial {
     float GetHapkePhi() const {return hapke_phi;}
     float GetHapkeRoughness() const {return hapke_theta_p;}
 
-    int GetBSDF() const {return BSDFType;}
+    BSDFType GetBSDF() const {return bsdf_type;}
     bool IsHiddenObject() const {return is_hidden_object;}
 
     unsigned short int GetClassID() const { return class_id; }

@@ -17,6 +17,10 @@
 #ifndef CHSENSORDEVICEUTILS_H
 #define CHSENSORDEVICEUTILS_H
 
+#if defined(__CUDACC_VER_MAJOR__) && !defined(__OLD_CUDACC_VER__)
+    #define __OLD_CUDACC_VER__ (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 + __CUDACC_VER_BUILD__)
+#endif
+
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
 
 #include <math_constants.h>
@@ -102,65 +106,23 @@ static __device__ __inline__ float sensor_next_rand(float& rand) {
     return rand;
 }
 
-__device__ __inline__ PerRayData_camera* getCameraPRD() {
+__device__ __inline__ PerRayData_camera* GetCameraPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
     return reinterpret_cast<PerRayData_camera*>(ints_as_pointer(opt0, opt1));
 }
 
-__device__ __inline__ PerRayData_phys_camera* getPhysCameraPRD() {
+__device__ __inline__ PerRayData_phys_camera* GetPhysCameraPRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
     return reinterpret_cast<PerRayData_phys_camera*>(ints_as_pointer(opt0, opt1));
 }
 
-__device__ __inline__ PerRayData_segment* getSegmentPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_segment*>(ints_as_pointer(opt0, opt1));
-}
 
-__device__ __inline__ PerRayData_depthCamera* getDepthCameraPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_depthCamera*>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_transientCamera* getTransientCameraPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_transientCamera *>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_laserSampleRay* getLaserPRD() {
+__device__ __inline__ PerRayData_laserSampleRay* GetLaserSamplePRD() {
     unsigned int opt0 = optixGetPayload_0();
     unsigned int opt1 = optixGetPayload_1();
     return reinterpret_cast<PerRayData_laserSampleRay*>(ints_as_pointer(opt0, opt1));
-}
-
-
-__device__ __inline__ PerRayData_normalCamera* getNormalCameraPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_normalCamera*>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_lidar* getLidarPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_lidar*>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_radar* getRadarPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_radar*>(ints_as_pointer(opt0, opt1));
-}
-
-__device__ __inline__ PerRayData_shadow* getShadowPRD() {
-    unsigned int opt0 = optixGetPayload_0();
-    unsigned int opt1 = optixGetPayload_1();
-    return reinterpret_cast<PerRayData_shadow*>(ints_as_pointer(opt0, opt1));
 }
 
 __device__ __inline__ PerRayData_camera default_camera_prd() {
@@ -720,13 +682,6 @@ __device__ __inline__ float radial_function(const float& rd2, const LensParams& 
         params.a8 * rd18);
     return ru;
 }
-
-__device__ float gaussian(int dx, int dy, float sigma) {
-    float dist2 = dx * dx + dy * dy;
-    return expf(-dist2 / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
-}
-
-
 
 #ifdef USE_SENSOR_NVDB
 __device__ __inline__ float3 make_float3(const nanovdb::Vec3f& a) {

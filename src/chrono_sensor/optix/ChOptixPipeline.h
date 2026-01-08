@@ -217,42 +217,50 @@ class CH_SENSOR_API ChOptixPipeline {
     OptixModule m_box_intersection_module = 0;     // box.cu file
     OptixModule m_sphere_intersection_module = 0;  // sphere.cu file
     OptixModule m_cyl_intersection_module = 0;     // cylinder.cu file
-    OptixModule m_camera_raygen_module = 0;        // camera.cu file
-    OptixModule m_lidar_raygen_module = 0;         // lidar.cu file
-    OptixModule m_radar_raygen_module = 0;         // lidar.cu file
-    OptixModule m_material_shading_module = 0;     // material shader file
+    OptixModule m_material_shaders_module = 0;     // material_shaders.cu file
+    OptixModule m_shader_utils_module = 0;         // shader_utils.cu file
     OptixModule m_miss_module = 0;                 // miss.cu
+    OptixModule m_camera_raygen_module = 0;        // camera_raygen.cu file
+    OptixModule m_lidar_raygen_module = 0;         // lidar_raygen.cu file
+    // OptixModule m_lidar_shader_module = 0;         // lidar_shader.cu file
+    OptixModule m_radar_raygen_module = 0;         // radar_raygen.cu file
+    // OptixModule m_radar_shader_module = 0;         // radar_shader.cu file
+    OptixModule m_transient_cam_raygen_module = 0; // transient_cam_raygen.cu file
+    // OptixModule m_transient_cam_shader_module = 0; // transient_cam_shader.cu file
+    OptixModule m_depth_cam_raygen_module = 0;     // depth_cam_raygen.cu file
+    // OptixModule m_depth_cam_shader_module = 0;     // depth_cam_shader.cu file
+    OptixModule m_normal_cam_raygen_module = 0;    // normal_cam_raygen.cu file
+    // OptixModule m_normal_cam_shader_module = 0;    // normal_cam_shader.cu file
+    OptixModule m_segment_cam_raygen_module = 0;    // segment_cam_raygen.cu file
+    // OptixModule m_segment_cam_shader_module = 0;    // segment_cam_shader.cu file
+    OptixModule m_phys_cam_raygen_module = 0;       // phys_cam_raygen.cu file
+    //// ---- Register Your Customized Sensor Here (OptixProgramGroup) ---- ////
+
 
     #ifdef USE_SENSOR_NVDB
       OptixModule m_nvdb_vol_intersection_module = 0;  // nvdb_vol_intersect.cu
     #endif
 
     // program groups - we only make one of each - do not clear when rebuilding root
-    OptixProgramGroup m_camera_raygen_group = 0;
-    OptixProgramGroup m_phys_camera_raygen_group = 0;
-
-    // OptixProgramGroup m_camera_fov_lens_raygen_group = 0;
-    OptixProgramGroup m_segmentation_raygen_group = 0;
-
-    OptixProgramGroup m_tranientCamera_raygen_group = 0;
-
-    OptixProgramGroup m_depthCamera_raygen_group = 0;
-
-    OptixProgramGroup m_transientCamera_raygen_group = 0;
-    
-    OptixProgramGroup m_normalCamera_raygen_group = 0;
-
-    // OptixProgramGroup m_segmentation_fov_lens_raygen_group = 0;
-    OptixProgramGroup m_lidar_single_raygen_group = 0;
-    OptixProgramGroup m_lidar_multi_raygen_group = 0;
-    OptixProgramGroup m_radar_raygen_group = 0;
-
     OptixProgramGroup m_hit_box_group = 0;
     OptixProgramGroup m_hit_sphere_group = 0;
     OptixProgramGroup m_hit_cyl_group = 0;
     OptixProgramGroup m_hit_mesh_group = 0;
     OptixProgramGroup m_miss_group = 0;
     OptixProgramGroup m_nvdb_vol_group = 0;
+
+    OptixProgramGroup m_camera_raygen_group = 0;
+    OptixProgramGroup m_phys_camera_raygen_group = 0;
+    // OptixProgramGroup m_camera_fov_lens_raygen_group = 0;
+    OptixProgramGroup m_segment_cam_raygen_group = 0;
+    OptixProgramGroup m_tranientCamera_raygen_group = 0;
+    OptixProgramGroup m_depthCamera_raygen_group = 0;    
+    OptixProgramGroup m_normalCamera_raygen_group = 0;
+    // OptixProgramGroup m_segmentation_fov_lens_raygen_group = 0;
+    OptixProgramGroup m_lidar_single_raygen_group = 0;
+    OptixProgramGroup m_lidar_multi_raygen_group = 0;
+    OptixProgramGroup m_radar_raygen_group = 0;
+    //// ---- Register Your Customized Sensor Here (OptixProgramGroup) ---- ////
 
     // compile options - TODO: should probably depend on the pipeline - do not clear for now
     OptixPipelineCompileOptions m_pipeline_compile_options;

@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
     sys.Add(mesh_body);
 
     for (auto mat : mesh_body->GetVisualShape(0)->GetMaterials()) {
-        mat->SetBSDF((int)BSDFType::DIFFUSE);
+        mat->SetBSDF(BSDFType::DIFFUSE);
     }
 
     // auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false);

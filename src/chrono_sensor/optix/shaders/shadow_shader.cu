@@ -16,7 +16,17 @@
 //
 // =============================================================================
 
+#ifndef SHADOW_SHADER_CU
+#define SHADOW_SHADER_CU
+
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
+
+__device__ __inline__ PerRayData_shadow* GetShadowPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_shadow*>(ints_as_pointer(opt0, opt1));
+}
 
 
 static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
@@ -52,10 +62,12 @@ static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
         pointer_as_ints(&prd_shadow, opt1, opt2);
 
         float3 hit_point = ray_orig + ray_dist * ray_dir;
-        unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+        unsigned int raytype = (unsigned int)RayType::SHADOW_RAY_TYPE;
         optixTrace(params.root, hit_point, ray_dir, params.scene_epsilon, prd_shadow.ramaining_dist, optixGetRayTime(),
                    OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
 
         prd->attenuation = prd_shadow.attenuation;
     }
 }
+
+#endif // SHADOW_SHADER_CU

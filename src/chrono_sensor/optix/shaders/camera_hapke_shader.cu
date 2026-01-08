@@ -16,7 +16,11 @@
 //
 // =============================================================================
 
+#ifndef CAMERA_HAPKE_SHADER_CU
+#define CAMERA_HAPKE_SHADER_CU
+
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
 
 static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                                                 const MaterialRecordParameters* mat_params,
@@ -84,7 +88,7 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                     unsigned int opt1;
                     unsigned int opt2;
                     pointer_as_ints(&prd_shadow, opt1, opt2);
-                    unsigned int raytype = (unsigned int)SHADOW_RAY_TYPE;
+                    unsigned int raytype = (unsigned int)RayType::SHADOW_RAY_TYPE;
                     optixTrace(params.root, hit_point, dir_to_light, params.scene_epsilon, dist_to_light,
                                optixGetRayTime(), OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2,
                                raytype);
@@ -208,3 +212,5 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
     // printf("reflected_color:(%.2f,%.2f,%.2f)\n", reflected_color.x, reflected_color.y, reflected_color.z);
     prd_camera->color += reflected_color;
 }
+
+#endif  // CAMERA_HAPKE_SHADER_CU

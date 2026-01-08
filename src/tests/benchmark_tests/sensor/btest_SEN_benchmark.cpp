@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
     //sys.Add(mesh_body);
 
     for (auto mat : trimesh_shape->GetMaterials()) {
-        mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
+        mat->SetBSDF(BSDFType::DIFFUSE);
     }
 
     auto floor_mat = chrono_types::make_shared<ChVisualMaterial>();
@@ -146,14 +146,14 @@ int main(int argc, char* argv[]) {
     floor_mat->SetDiffuseColor({.5, .5, .5});
     floor_mat->SetSpecularColor({.0f, .0f, .0f});
     floor_mat->SetUseSpecularWorkflow(true);
-    floor_mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
+    floor_mat->SetBSDF(BSDFType::DIFFUSE);
 
     auto box_mat = chrono_types::make_shared<ChVisualMaterial>();
     box_mat->SetAmbientColor({0.f, 0.f, 0.f});
     box_mat->SetDiffuseColor({1,0,0});
     box_mat->SetSpecularColor({.0f, .0f, .0f});
     box_mat->SetUseSpecularWorkflow(true);
-    box_mat->SetBSDF((unsigned int)BSDFType::DIFFUSE);
+    box_mat->SetBSDF(BSDFType::DIFFUSE);
     
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(200, 200, .1, 1000, true, false);
     floor->SetPos({0, 0, 0});

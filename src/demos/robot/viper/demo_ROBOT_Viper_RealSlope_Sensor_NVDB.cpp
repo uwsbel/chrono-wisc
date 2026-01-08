@@ -373,7 +373,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::VDB);
+    vis_mat->SetBSDF(BSDFType::VDB);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);
@@ -651,7 +651,7 @@ void createVoxelGrid(std::vector<float> points, ChSystemNSC& sys, std::shared_pt
     vis_mat->SetSpecularColor({1, 1, 1});
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(1.0f);
-    vis_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+    vis_mat->SetBSDF(BSDFType::HAPKE);
     vis_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
     vis_mat->SetClassID(30000);
     vis_mat->SetInstanceID(20000);

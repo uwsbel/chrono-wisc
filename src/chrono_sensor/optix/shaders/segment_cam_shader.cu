@@ -17,6 +17,14 @@
 // =============================================================================
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/shader_utils.cu"
+
+__device__ __inline__ PerRayData_segment* GetSegmentPRD() {
+    unsigned int opt0 = optixGetPayload_0();
+    unsigned int opt1 = optixGetPayload_1();
+    return reinterpret_cast<PerRayData_segment*>(ints_as_pointer(opt0, opt1));
+}
+
 
 static __device__ __inline__ void SegmentCamShader(PerRayData_segment* prd, const MaterialParameters& mat) {
     prd->class_id = mat.class_id;

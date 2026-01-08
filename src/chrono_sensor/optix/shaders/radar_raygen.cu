@@ -50,7 +50,7 @@ extern "C" __global__ void __raygen__radar() {
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd_radar, opt1, opt2);
-    unsigned int raytype = (unsigned int)RADAR_RAY_TYPE;
+    unsigned int raytype = (unsigned int)RayType::RADAR_RAY_TYPE;
     optixTrace(params.root, ray_origin, ray_direction, radar.clip_near, 1.5f * radar.max_distance, t_traverse,
                OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0u, 1u, 0u, opt1, opt2,raytype);
     

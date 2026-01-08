@@ -46,7 +46,7 @@ extern "C" __global__ void __raygen__camera() {
     float3 cam_forward, cam_left, cam_up;
     PerRayData_camera prd;
     for (int sample_idx = 0; sample_idx < num_spp; sample_idx++) {
-       
+    
         //// Get camera's pose (origin of the ray to be launched) ////
         
         // Add motion-blur effect
@@ -101,7 +101,7 @@ extern "C" __global__ void __raygen__camera() {
         unsigned int opt1;
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
-        unsigned int raytype = (unsigned int)CAMERA_RAY_TYPE;
+        unsigned int raytype = (unsigned int)RayType::CAMERA_RAY_TYPE;
         // printf("CameraRayGen: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_origin.x,ray_origin.y,ray_origin.z, ray_direction.x, ray_direction.y, ray_direction.z);
         optixTrace(
             params.root,            // The scene traversable handle (OptixTraversableHandle); basically the top-level acceleration structure (TLAS).

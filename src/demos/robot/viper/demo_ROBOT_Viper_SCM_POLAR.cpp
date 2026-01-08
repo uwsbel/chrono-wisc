@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
     polar_mat->SetRoughness(0.8f);
     polar_mat->SetAnisotropy(1.f);
 	if (enable_hapke) {
-		polar_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+		polar_mat->SetBSDF(BSDFType::HAPKE);
 		polar_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
 	}
     polar_mat->SetClassID(30000);
@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
     decorated_ground_mat->SetRoughness(0.8f);
     decorated_ground_mat->SetAnisotropy(1.f);
 	if (enable_hapke) {
-		decorated_ground_mat->SetBSDF((unsigned int)BSDFType::HAPKE);
+		decorated_ground_mat->SetBSDF(BSDFType::HAPKE);
 		decorated_ground_mat->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
 	}
 
@@ -474,7 +474,7 @@ int main(int argc, char* argv[]) {
         vis_mat2->SetUseSpecularWorkflow(true);
         vis_mat2->SetRoughness(1.0f);
 		if (enable_hapke) {
-			vis_mat2->SetBSDF((unsigned int)BSDFType::HAPKE);
+			vis_mat2->SetBSDF(BSDFType::HAPKE);
     		vis_mat2->SetHapkeParameters(0.32357f, 0.23955f, 0.30452f, 1.80238f, 0.07145f, 0.3f, 23.4f * (CH_PI / 180));
 		}
 
