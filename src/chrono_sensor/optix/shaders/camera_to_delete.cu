@@ -119,7 +119,7 @@ extern "C" __global__ void __raygen__camera() {
         float3 ray_direction = normalize(cam_forward - uv.x * cam_left * h_factor + uv.y * cam_up * h_factor);
 
         // Create per-ray data for camera ray
-        prd = default_camera_prd();
+        prd = DefaultCameraPRD();
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
         if (true) { // camera.use_gi

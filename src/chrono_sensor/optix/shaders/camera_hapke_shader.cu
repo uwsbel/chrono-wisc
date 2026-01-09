@@ -82,7 +82,7 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                 // printf("cos_i:%.2f",cos_i);
                 if (cos_i > 0) {
                     // Cast a shadow ray to see any attenuation of light
-                    PerRayData_shadow prd_shadow = default_shadow_prd();
+                    PerRayData_shadow prd_shadow = DefaultShadowPRD();
                     prd_shadow.depth = prd_camera->depth + 1;
                     prd_shadow.ramaining_dist = dist_to_light;
                     unsigned int opt1;

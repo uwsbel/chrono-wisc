@@ -469,7 +469,7 @@ struct ContextParameters {
     int num_lights;                     ///< the number of point lights in the scene
     float3 ambient_light_color;         ///< the ambient light color and intensity
     float3 fog_color;                   ///< color of fog in the scene
-    float fog_scattering;               ///< scattering coefficient of fog in the scene
+    float fog_scattering;               ///< scattering coefficient of fog in the scene (larger value means denser fog)
     int max_depth;                      ///< maximum traversable depth
     float scene_epsilon;                ///< an epsilon value used for detecting self intersections (“shadow acne”)
     float importance_cutoff;            ///< mimumum value before killing rays

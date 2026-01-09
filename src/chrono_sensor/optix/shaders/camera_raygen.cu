@@ -33,7 +33,7 @@ extern "C" __global__ void __raygen__camera() {
 
     float3 color_result = make_float3(0.f);
     float3 albedo_result = make_float3(0.f);
-    float transparency_result = 0.f;
+    float opacity_result = 0.f;
     float gamma = camera.gamma;
     camera.frame_buffer[pixel_idx] = make_half4(0.f, 0.f, 0.f, 0.f);
 
@@ -92,7 +92,7 @@ extern "C" __global__ void __raygen__camera() {
         float3 ray_direction = normalize(cam_forward - uv.x * cam_left * h_factor + uv.y * cam_up * h_factor);
 
         // Create per-ray data for camera ray
-        prd = default_camera_prd();
+        prd = DefaultCameraPRD();
         prd.integrator = camera.integrator;
         prd.use_gi = camera.use_gi;
         if (true) { // camera.use_gi
@@ -123,13 +123,13 @@ extern "C" __global__ void __raygen__camera() {
         // Aggregate results from this sample
         color_result += prd.color;
         albedo_result += prd.albedo;
-        transparency_result += prd.transparency;
+        opacity_result += prd.transparency;
     }
 
     // Average results over all samples of each pixel
     color_result = color_result * recip_num_spp;
     albedo_result = albedo_result * recip_num_spp;
-    transparency_result = transparency_result * recip_num_spp;
+    opacity_result = opacity_result * recip_num_spp;
     if (camera.use_gi) {
         camera.albedo_buffer[pixel_idx] = make_half4(albedo_result.x, albedo_result.y, albedo_result.z, 0.f);
         
@@ -137,10 +137,10 @@ extern "C" __global__ void __raygen__camera() {
         camera.normal_buffer[pixel_idx] = make_half4(-Dot(cam_left, prd.normal), Dot(cam_up, prd.normal), -Dot(cam_forward, prd.normal), 0.f);
     }
 
-    bool is_transparent = (transparency_result < 1e-6) ? true : false;
+    bool is_transparent = (opacity_result < 1e-6) ? true : false;
 
     // Gamma correction
     camera.frame_buffer[pixel_idx] = make_half4(
-        pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), transparency_result
+        pow(color_result.x, 1.0f / gamma), pow(color_result.y, 1.0f / gamma), pow(color_result.z, 1.0f / gamma), opacity_result
     );
 }

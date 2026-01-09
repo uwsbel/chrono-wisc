@@ -332,7 +332,12 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         m_raygen_record->data.specific.radar.clip_near = radar->GetClipNear();
         m_raygen_record->data.specific.radar.frame_buffer = reinterpret_cast<float*>(bufferOut->Buffer.get());
         m_bufferOut = bufferOut;
-    } else {
+    }
+    
+    //// ---- Register Your Customized Sensor Here ---- ////
+    //// ----(initialize sensor PRD in OptiX accrording to the sensor declared in C++) ---- ////
+    
+    else {
         throw std::runtime_error("This type of sensor not supported yet by OptixRender filter");
     }
     m_bufferOut->Width = m_is_transient ? pOptixSensor->GetWidth()*m_num_bins : pOptixSensor->GetWidth();

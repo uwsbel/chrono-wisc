@@ -54,7 +54,7 @@ static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
     prd->attenuation = prd->attenuation * atten;
 
     if (fmaxf(prd->attenuation) > params.importance_cutoff && prd->depth + 1 < params.max_depth) {
-        PerRayData_shadow prd_shadow = default_shadow_prd();
+        PerRayData_shadow prd_shadow = DefaultShadowPRD();
         prd_shadow.attenuation = prd->attenuation;
         prd_shadow.depth = prd->depth + 1;
         prd_shadow.ramaining_dist = prd->ramaining_dist - ray_dist;

@@ -119,7 +119,7 @@ __device__ __inline__ PerRayData_phys_camera* GetPhysCameraPRD() {
 }
 
 
-__device__ __inline__ PerRayData_camera default_camera_prd() {
+__device__ __inline__ PerRayData_camera DefaultCameraPRD() {
     PerRayData_camera prd = {};
     prd.color = make_float3(0.f, 0.f, 0.f);
     prd.contrib_to_pixel = make_float3(1.f, 1.f, 1.f);
@@ -131,14 +131,6 @@ __device__ __inline__ PerRayData_camera default_camera_prd() {
     prd.use_fog = true;
     prd.transparency = 1.f;
     prd.integrator = Integrator::PATH;
-    return prd;
-};
-
-
-__device__ __inline__ PerRayData_shadow default_shadow_prd() {
-    PerRayData_shadow prd = {make_float3(1.f, 1.f, 1.f),  // default opacity amount
-                             3,                           // default depth
-                             0.f};                        // default distance remaining to light
     return prd;
 };
 
@@ -387,7 +379,7 @@ __device__ __inline__ float luminance(const float3& color) {
     return Dot(color, l);
 }
 
-// assumes v in coming into the surface
+// Assume v in coming into the surface, and returned vector is going out from the surface
 __device__ __inline__ float3 reflect(const float3& v, const float3& n) {
     return 2 * Dot(n, -v) * n + v;
 }
@@ -485,26 +477,18 @@ __device__ __inline__ float4 nlerp(const float4& a, const float4& b, const float
     return normalize(lerp(a, b, t));
 }
 
-__device__ __inline__ float3 sample_hemisphere_dir(const float& z1, const float& z2, const float3& normal) {
+// Cosine-weighted hemisphere sampling
+__device__ __inline__ float3 sample_cosine_hemisphere_dir(const float& z1, const float& z2, const float3& normal) {
     const float radius = sqrtf(z1);
-    const float theta = 2.f * CUDART_PI_F * z2;
-    float x = radius * cosf(theta);
-    float y = radius * sinf(theta);
+    const float phi = 2.f * CUDART_PI_F * z2;
+    float x = radius * cosf(phi);
+    float y = radius * sinf(phi);
     float z = sqrtf(fmaxf(0.f, 1.f - x * x - y * y));
-    float3 binormal = make_float3(0);
 
-    // Prevent normal = (0, 0, 1)
-    if (fabs(normal.x) > fabs(normal.z)) {
-        binormal.x = -normal.y;
-        binormal.y = normal.x;
-        binormal.z = 0;
-    } else {
-        binormal.x = 0;
-        binormal.y = -normal.z;
-        binormal.z = normal.y;
-    }
+    // Address case of normal = (0, 0, 1)
+    float3 binormal = (fabs(normal.x) > fabs(normal.z)) ? make_float3(-normal.y, normal.x, 0) : make_float3(0, -normal.z, normal.y);
+    binormal = normalize(binormal);
 
-    // float3 binormal = make_float3(-normal.y, normal.x, 0);
     float3 tangent = Cross(normal, binormal);
     return x * tangent + y * binormal + z * normal;
 }

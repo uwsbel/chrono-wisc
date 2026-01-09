@@ -223,7 +223,9 @@ int main(int argc, char* argv[]) {
     // Create a sensor manager
     // -----------------------
     auto manager = chrono_types::make_shared<ChSensorManager>(&sys);
+    manager->SetRayRecursions(6);
     manager->SetVerbose(verbose);
+
 
     float intensity = 1.0;
     manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500);

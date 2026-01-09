@@ -199,7 +199,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
         float laser_dist = Length(prd_camera->laser_focus_point - hit_point);
         float3 laser_dir = (prd_camera->laser_focus_point - hit_point) / laser_dist;
         // Shoot shadow ray to test visibility to laser target
-        PerRayData_shadow prd_shadow = default_shadow_prd();
+        PerRayData_shadow prd_shadow = DefaultShadowPRD();
         prd_shadow.depth = prd_camera->depth + 1;
         prd_shadow.ramaining_dist = laser_dist;
         unsigned int opt1;

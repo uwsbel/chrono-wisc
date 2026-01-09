@@ -189,7 +189,7 @@ static __device__ __inline__ float3 CalculateRefractedColor(PerRayData_camera* p
         if (accumulated_transparency < 1.f - 1 / 255.f) {
             float3 refract_importance = prd_camera->contrib_to_pixel * (1 - accumulated_transparency);
             if (fmaxf(refract_importance) > params.importance_cutoff && prd_camera->depth + 1 < params.max_depth) {
-                PerRayData_camera prd_refraction = default_camera_prd();
+                PerRayData_camera prd_refraction = DefaultCameraPRD();
                 prd_refraction.integrator = prd_camera->integrator;
                 prd_refraction.contrib_to_pixel = refract_importance;
                 prd_refraction.rng = prd_camera->rng;
@@ -238,7 +238,7 @@ static __device__ __inline__ float3 CalculateReflectedColor(PerRayData_camera* p
                 // if we think we can see the light, let's see if we are correct
                 if (NdL > 0.0f) {
                     // check shadows
-                    PerRayData_shadow prd_shadow = default_shadow_prd();
+                    PerRayData_shadow prd_shadow = DefaultShadowPRD();
                     prd_shadow.depth = prd_camera->depth + 1;
                     prd_shadow.ramaining_dist = ls.dist;
                     unsigned int opt1;
@@ -353,7 +353,7 @@ static __device__ __inline__ float3 CalculateReflectedColor(PerRayData_camera* p
         //
         //            if (NdL > 0.0f) {
         //                // check shadows
-        //                PerRayData_shadow prd_shadow = default_shadow_prd();
+        //                PerRayData_shadow prd_shadow = DefaultShadowPRD();
         //                prd_shadow.depth = prd_camera->depth + 1;
         //                prd_shadow.ramaining_dist = dist_to_light;
         //                unsigned int opt1;
@@ -600,7 +600,7 @@ static __device__ __inline__ float3 CalculateContributionToPixel(PerRayData_came
     float3 mirror_reflection_color = make_float3(0.0);
     {
         if (luminance(next_contrib_to_pixel) > params.importance_cutoff && prd_camera->depth + 1 < params.max_depth) {
-            PerRayData_camera prd_reflection = default_camera_prd();
+            PerRayData_camera prd_reflection = DefaultCameraPRD();
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -638,7 +638,7 @@ static __device__ __inline__ float3 CalculateGIReflectionColor(PerRayData_camera
         // sample hemisphere for next ray when using global illumination
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
-        float3 next_dir = sample_hemisphere_dir(z1, z2, world_normal);
+        float3 next_dir = sample_cosine_hemisphere_dir(z1, z2, world_normal);
 
         float NdL = Dot(world_normal, next_dir);
         float3 halfway = normalize(next_dir - ray_dir);
@@ -711,7 +711,7 @@ static __device__ __inline__ float3 CalculateGIReflectionColor(PerRayData_camera
         }
 
         if (luminance(next_contrib_to_pixel) > params.importance_cutoff && prd_camera->depth + 1 < params.max_depth) {
-            PerRayData_camera prd_reflection = default_camera_prd();
+            PerRayData_camera prd_reflection = DefaultCameraPRD();
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -761,7 +761,7 @@ static __device__ __inline__ void CameraShader(PerRayData_camera* prd_camera,
         // if this is perfectly transparent, we ignore it and trace the next ray (handles things like tree leaf cards)
         if (transparency < 1e-6) {
             if (prd_camera->depth + 1 < params.max_depth) {
-                PerRayData_camera prd_refraction = default_camera_prd();
+                PerRayData_camera prd_refraction = DefaultCameraPRD();
                 prd_refraction.integrator = prd_camera->integrator;
                 prd_refraction.contrib_to_pixel = prd_camera->contrib_to_pixel;
                 prd_refraction.rng = prd_camera->rng;
@@ -904,7 +904,7 @@ static __device__ __inline__ void ShadowShader(PerRayData_shadow* prd,
     prd->attenuation = prd->attenuation * atten;
 
     if (fmaxf(prd->attenuation) > params.importance_cutoff && prd->depth + 1 < params.max_depth) {
-        PerRayData_shadow prd_shadow = default_shadow_prd();
+        PerRayData_shadow prd_shadow = DefaultShadowPRD();
         prd_shadow.attenuation = prd->attenuation;
         prd_shadow.depth = prd->depth + 1;
         prd_shadow.ramaining_dist = prd->ramaining_dist - ray_dist;
@@ -992,7 +992,7 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                 // printf("cos_i:%.2f",cos_i);
                 if (cos_i > 0) {
                     // Cast a shadow ray to see any attenuation of light
-                    PerRayData_shadow prd_shadow = default_shadow_prd();
+                    PerRayData_shadow prd_shadow = DefaultShadowPRD();
                     prd_shadow.depth = prd_camera->depth + 1;
                     prd_shadow.ramaining_dist = dist_to_light;
                     unsigned int opt1;
@@ -1312,7 +1312,7 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample,
     if (eval)
         return;
 
-    sample.wi = sample_hemisphere_dir(z1, z2, sample.n);
+    sample.wi = sample_cosine_hemisphere_dir(z1, z2, sample.n);
     sample.pdf = LambertianBSDFPdf(sample.wo, sample.wi, sample.n);
 }
 
@@ -1422,7 +1422,7 @@ static __device__ __inline__ float3 ComputeDirectLight(Light& l,
             if (!(fmaxf(bsdf.f) > 0))
                 return Ld;  // If the BSDF is black, direct light contribution  is 0?
             // Shoot shadow rays
-            PerRayData_shadow prd_shadow = default_shadow_prd();
+            PerRayData_shadow prd_shadow = DefaultShadowPRD();
             prd_shadow.depth = depth + 1;
             prd_shadow.ramaining_dist = ls.dist;
             unsigned int opt1;
@@ -1667,7 +1667,7 @@ static __device__ __inline__ void CameraPathIntegrator(PerRayData_camera* prd_ca
             }
 
             // Trace next ray
-            PerRayData_camera prd_reflection = default_camera_prd();
+            PerRayData_camera prd_reflection = DefaultCameraPRD();
             prd_reflection.integrator = prd_camera->integrator;
             prd_reflection.contrib_to_pixel = next_contrib_to_pixel;
             prd_reflection.rng = prd_camera->rng;
@@ -2099,7 +2099,7 @@ static __device__ __inline__ void MITransientIntegrator(PerRayData_transientCame
         float laser_dist = Length(prd_camera->laser_focus_point - hit_point);
         float3 laser_dir = (prd_camera->laser_focus_point - hit_point) / laser_dist;
         // Shoot shadow ray to test visibility to laser target
-        PerRayData_shadow prd_shadow = default_shadow_prd();
+        PerRayData_shadow prd_shadow = DefaultShadowPRD();
         prd_shadow.depth = prd_camera->depth + 1;
         prd_shadow.ramaining_dist = laser_dist;
         unsigned int opt1;

@@ -171,13 +171,15 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
                 //opx_filter->m_denoiser = nullptr;
             }
             
-        } else if (auto cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(sensor)) {
+        }
+        else if (auto cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(sensor)) {
             if (cam->GetUseGI()) {
                 std::cout << "Sensor: " << cam->GetName() << " requested global illumination\n";
                 opx_filter->m_denoiser = chrono_types::make_shared<ChOptixDenoiser>(m_context);
                 //opx_filter->m_denoiser = nullptr;
             } 
         }
+        //// ---- Register Your Customized Sensor Here (if amazing optixDenoiser needed to add) ---- ////
 
         // if transient cameram, populate the transient buffer
         // if (auto trans_sensor = std::dynamic_pointer_cast<ChTransientSensor>(sensor)) {
