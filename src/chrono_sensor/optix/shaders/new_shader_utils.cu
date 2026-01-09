@@ -33,10 +33,8 @@ static __device__ __inline__ float NormalDist(const float& NdH, const float& rou
 }
 
 // algorithm reference: https://www.gdcvault.com/play/1024478/PBR-Diffuse-Lighting-for-GGX
-static __device__ __inline__ float HammonSmith(float NdV, float NdL, const float& roughness) {
-    NdV = abs(NdV);
-    NdL = abs(NdL);
-    float denominator = lerp(2.f * NdV * NdL, NdL + NdV, roughness);
+static __device__ __inline__ float HammonSmith(const float& NdV, const float& NdL, const float& roughness) {
+    float denominator = lerp(2.f * abs(NdV) * abs(NdL), abs(NdL) + abs(NdV), roughness);
     return 0.5f / denominator;
 }
 
@@ -479,7 +477,7 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
                                                               const float3& world_normal,
                                                               const float3& ray_dir,
                                                               const float3& hit_point,
-                                                              const float3& NdV) {
+                                                              const float& NdV) {
     float3 next_contrib_to_pixel = make_float3(0.f);
     float3 next_dir = normalize(reflect(ray_dir, world_normal));
     {
@@ -496,7 +494,7 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
             float roughness = (mat.roughness_tex) ? GetTexValFloat(mat.roughness_tex, mat.tex_scale, uv): mat.roughness;
             float metallic = (mat.metallic_tex) ? GetTexValFloat(mat.metallic_tex, mat.tex_scale, uv) : mat.metallic;
             float opacity = (mat.opacity_tex) ? GetTexValFloat(mat.opacity_tex, mat.tex_scale, uv) : mat.transparency;
-            float mat_blend_weight = (mat.weight_tex) ? GetTexValFloat(mat.weight_tex, mat.tex_scale, uv) : (1.f / num_materials);
+            float mat_blend_weight = (mat.weight_tex) ? GetTexValFloat(mat.weight_tex, mat.tex_scale, uv) : (1.f / num_blended_materials);
 
             float3 F = make_float3(0.0f);
             // === dielectric workflow
@@ -506,7 +504,7 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
                 F = fresnel_schlick(VdH, 5.f, F0, make_float3(1.f) /*make_float3(fresnel_max) it is usually 1*/);
             } else {
                 float3 default_dielectrics_F0 = make_float3(0.04f);
-                F = metallic * subsurface_albedo + (1 - metallic) * default_dielectrics_F0;
+                F = metallic * albedo + (1 - metallic) * default_dielectrics_F0;
             }
 
             float D = NormalDist(NdH, roughness);        // 1/pi omitted
