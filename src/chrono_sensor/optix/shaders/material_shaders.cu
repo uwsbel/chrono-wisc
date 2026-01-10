@@ -33,6 +33,8 @@
 #include "chrono_sensor/optix/shaders/lidar_shader.cu"
 #include "chrono_sensor/optix/shaders/camera_hapke_shader.cu"
 #include "chrono_sensor/optix/shaders/camera_volumetric_shader.cu"
+#include "chrono_sensor/optix/shaders/camera_legacy_shader.cu"
+#include "chrono_sensor/optix/shaders/camera_path_shader.cu"
 
 
 #ifdef USE_SENSOR_NVDB
@@ -40,7 +42,6 @@
     #include <nanovdb/util/Ray.h>
     #include <nanovdb/util/HDDA.h>
 #endif
-
 
 extern "C" __global__ void __closesthit__material_shader() {
     // printf("Material Shader!\n");
@@ -91,6 +92,12 @@ extern "C" __global__ void __closesthit__material_shader() {
     RayType raytype = (RayType)optixGetPayload_2();
 
     switch (raytype) {
+        case RayType::OCCLUSION_RAY_TYPE: {
+            PerRayData_occlusion* prd_occlusion = GetOcclusionPRD();
+            prd_occlusion->occluded = true;
+            break;
+        }
+        
         case RayType::CAMERA_RAY_TYPE: {
             PerRayData_camera* prd_cam = GetCameraPRD();
             // if (prd_cam->depth > 2) {
@@ -100,8 +107,8 @@ extern "C" __global__ void __closesthit__material_shader() {
             // }
             switch (prd_cam->integrator) {
                 case Integrator::PATH:
-                    CameraPathIntegrator(prd_cam, mat_params, material_id, mat_params->num_blended_materials,
-                                         world_normal, uv, tangent, ray_dist, ray_orig, ray_dir);
+                    CameraPathIntegrator(params, prd_cam, mat_params, material_id, world_normal, uv, tangent, ray_dist,
+                                         hit_point, ray_dir);
                     break;
                 case Integrator::VOLUMETRIC:
                     break;
@@ -111,7 +118,7 @@ extern "C" __global__ void __closesthit__material_shader() {
                         case BSDFType::VDBHAPKE: {
                             CameraHapkeShader(GetCameraPRD(), mat_params, material_id,
                                               mat_params->num_blended_materials, world_normal, uv, tangent, ray_dist,
-                                              ray_orig, ray_dir);
+                                              hit_point, ray_dir);
                             break;
                         }
 
@@ -142,7 +149,7 @@ extern "C" __global__ void __closesthit__material_shader() {
             //     case 1:
             //         CameraHapkeShader(GetCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,
             //         world_normal, uv,
-            //                 tangent, ray_dist, ray_orig, ray_dir);
+            //                 tangent, ray_dist, hit_point, ray_dir);
             //         break;
             //     case 2:
             //         CameraDiffuseShader(GetCameraPRD(), mat_params, material_id, mat_params->num_blended_materials,

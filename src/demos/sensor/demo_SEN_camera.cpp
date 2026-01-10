@@ -73,7 +73,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 16;
+int alias_factor = 64;
 
 bool use_gi = true;  // whether cameras should use global illumination
 
@@ -129,7 +129,9 @@ int main(int argc, char* argv[]) {
     auto vis_mat3 = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat3->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat3->SetDiffuseColor({.5, .5, .5});
-    vis_mat3->SetSpecularColor({.0f, .0f, .0f});
+    vis_mat3->SetSpecularColor({1.0f, 1.0f, 1.0f});
+    vis_mat3->SetRoughness(1.0f);
+    vis_mat3->SetMetallic(0.f);
     vis_mat3->SetUseSpecularWorkflow(true);
     vis_mat3->SetClassID(30000);
     vis_mat3->SetInstanceID(30000);
@@ -252,7 +254,7 @@ int main(int argc, char* argv[]) {
     cam->SetName("Camera Sensor");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
-    cam->SetIntegrator(Integrator::LEGACY);
+    cam->SetIntegrator(Integrator::PATH);
 
     // --------------------------------------------------------------------
     // Create a filter graph for post-processing the images from the camera
@@ -282,22 +284,22 @@ int main(int argc, char* argv[]) {
         // Save the current image to a png file at the specified path
         cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "rgb/"));
 
-    // Filter the sensor to grayscale
-    cam->PushFilter(chrono_types::make_shared<ChFilterGrayscale>());
+    // // Filter the sensor to grayscale
+    // cam->PushFilter(chrono_types::make_shared<ChFilterGrayscale>());
 
-    // Render the buffer again to see the new grayscaled image
-    if (vis)
-        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Final Visualization"));
+    // // Render the buffer again to see the new grayscaled image
+    // if (vis)
+    //     cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Final Visualization"));
 
-    // Save the grayscaled image at the specified path
-    if (save)
-        cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "gray/"));
+    // // Save the grayscaled image at the specified path
+    // if (save)
+    //     cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "gray/"));
 
-    // Resizes the image to the provided width and height
-    cam->PushFilter(chrono_types::make_shared<ChFilterImageResize>(image_width / 2, image_height / 2));
+    // // Resizes the image to the provided width and height
+    // cam->PushFilter(chrono_types::make_shared<ChFilterImageResize>(image_width / 2, image_height / 2));
 
-    // Access the grayscaled buffer as R8 pixels
-    cam->PushFilter(chrono_types::make_shared<ChFilterR8Access>());
+    // // Access the grayscaled buffer as R8 pixels
+    // cam->PushFilter(chrono_types::make_shared<ChFilterR8Access>());
 
     // add sensor to the manager
     manager->AddSensor(cam);
@@ -334,7 +336,7 @@ int main(int argc, char* argv[]) {
     cam2->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
 
     // Add the second camera to the sensor manager
-    manager->AddSensor(cam2);
+    // manager->AddSensor(cam2);
 
     // -------------------------------------------------------
     // Create a depth camera that shadows camera2
@@ -359,7 +361,7 @@ int main(int argc, char* argv[]) {
     depth->SetMaxDepth(30.f); // meters
     // Note: With Depth camera, an access filter is already added to the filter graph internally. DO NOT add another.
     // Add the depth camera to the sensor manager
-    manager->AddSensor(depth);
+    // manager->AddSensor(depth);
 
     // -------------------------------------------------------
     // Create a semantic segmentation camera that shadows camera2
@@ -387,7 +389,7 @@ int main(int argc, char* argv[]) {
     seg->PushFilter(chrono_types::make_shared<ChFilterSemanticAccess>());
 
     // Add the second camera to the sensor manager
-    manager->AddSensor(seg);
+    // manager->AddSensor(seg);
 
     manager->Update();
 
@@ -419,33 +421,33 @@ int main(int argc, char* argv[]) {
             {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
             QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
 
-        cam2->SetOffsetPose(chrono::ChFrame<double>(
-            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+        // cam2->SetOffsetPose(chrono::ChFrame<double>(
+        //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
+        //     QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
 
-        seg->SetOffsetPose(chrono::ChFrame<double>(
-            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+        // seg->SetOffsetPose(chrono::ChFrame<double>(
+        //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
+        //     QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
 
-        depth->SetOffsetPose(chrono::ChFrame<double>(
-            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+        // depth->SetOffsetPose(chrono::ChFrame<double>(
+        //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
+        //     QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
             
 
         // Access the depth buffer from depth camera
-        depth_ptr = depth->GetMostRecentBuffer<UserDepthBufferPtr>();
-        if (verbose && depth_ptr->Buffer) {
-            // Print max depth values
-            // float min_depth = depth_ptr->Buffer[0].depth;
-            // float max_depth = depth_ptr->Buffer[0].depth;
-            // for (int i = 0; i < depth_ptr->Height * depth_ptr->Width; i++) {
-            //     max_depth = std::max(max_depth, depth_ptr->Buffer[i].depth);
-            // }
-            float d = depth_ptr->Buffer[depth_ptr->Height * depth_ptr->Width / 2].depth;
-            std::cout << "Depth buffer recieved from depth camera. Camera resolution: " << depth_ptr->Width << "x"
-                      << depth_ptr->Height << ", frame= " << depth_ptr->LaunchedCount << ", t=" << depth_ptr->TimeStamp
-                      << ", depth [" << depth_ptr->Height * depth_ptr->Width / 2 << "] =" << d << "m" << std::endl;
-        }
+        // depth_ptr = depth->GetMostRecentBuffer<UserDepthBufferPtr>();
+        // if (verbose && depth_ptr->Buffer) {
+        //     // Print max depth values
+        //     // float min_depth = depth_ptr->Buffer[0].depth;
+        //     // float max_depth = depth_ptr->Buffer[0].depth;
+        //     // for (int i = 0; i < depth_ptr->Height * depth_ptr->Width; i++) {
+        //     //     max_depth = std::max(max_depth, depth_ptr->Buffer[i].depth);
+        //     // }
+        //     float d = depth_ptr->Buffer[depth_ptr->Height * depth_ptr->Width / 2].depth;
+        //     std::cout << "Depth buffer recieved from depth camera. Camera resolution: " << depth_ptr->Width << "x"
+        //               << depth_ptr->Height << ", frame= " << depth_ptr->LaunchedCount << ", t=" << depth_ptr->TimeStamp
+        //               << ", depth [" << depth_ptr->Height * depth_ptr->Width / 2 << "] =" << d << "m" << std::endl;
+        // }
 
         // Access the RGBA8 buffer from the first camera
         // rgba8_ptr = cam->GetMostRecentBuffer<UserRGBA8BufferPtr>();

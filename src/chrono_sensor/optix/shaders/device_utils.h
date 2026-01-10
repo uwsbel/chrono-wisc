@@ -36,13 +36,14 @@ typedef unsigned long long	uint64;
 #define INV_PI 1/CUDART_PI
 
 struct __device__ LightSample {
-    float3 L;
-    float3 dir;  // wi
-    float3 wo;
-    float3 n;
-    float3 hitpoint;
-    float dist;
-    float pdf;
+    float3 L;        // light luminance, [cd/m^2/sr]
+    float3 dir;      // wi, direction from hit-point to light
+    float3 wo;       // direction from hit-point to viewer
+    float3 n;        // world_normal at hit-point
+    float3 hitpoint; // world position of hit-point
+    float NdL;       // dot(n, dir)
+    float dist;      // distance from hit-point to light
+    float pdf;       // PDF of the light sample. Ex: delta lights have PDF = 1, area lights have PDF = 1 / area.
 };
 
 struct __device__ BSDFSample {
@@ -375,7 +376,7 @@ __device__ __inline__ float3 fresnel_schlick(const float& cos, const float& exp,
 }
 
 __device__ __inline__ float luminance(const float3& color) {
-    const float3 l = {0.30f, 0.59f, 0.11f};
+    static const float3 l = {0.30f, 0.59f, 0.11f};
     return Dot(color, l);
 }
 
@@ -477,21 +478,6 @@ __device__ __inline__ float4 nlerp(const float4& a, const float4& b, const float
     return normalize(lerp(a, b, t));
 }
 
-// Cosine-weighted hemisphere sampling
-__device__ __inline__ float3 sample_cosine_hemisphere_dir(const float& z1, const float& z2, const float3& normal) {
-    const float radius = sqrtf(z1);
-    const float phi = 2.f * CUDART_PI_F * z2;
-    float x = radius * cosf(phi);
-    float y = radius * sinf(phi);
-    float z = sqrtf(fmaxf(0.f, 1.f - x * x - y * y));
-
-    // Address case of normal = (0, 0, 1)
-    float3 binormal = (fabs(normal.x) > fabs(normal.z)) ? make_float3(-normal.y, normal.x, 0) : make_float3(0, -normal.z, normal.y);
-    binormal = normalize(binormal);
-
-    float3 tangent = Cross(normal, binormal);
-    return x * tangent + y * binormal + z * normal;
-}
 
 __device__ __inline__ float3 square_to_uniform_sphere(const float3& sample) {
     float z = 2.f*sample.y - 1.f;

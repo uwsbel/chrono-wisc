@@ -70,7 +70,7 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 2;
+int alias_factor = 16;
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -200,11 +200,11 @@ int main(int argc, char* argv[]) {
     b.mode = BackgroundMode::SOLID_COLOR;
     b.color_zenith = {0,0,0};
     manager->scene->SetBackground(b);
-    //manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {1.f,1.f,1.f}, 5.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {0.01f, 0.01f, 0.01f}, 5.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);
-    manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);
+    // manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));
-    //manager->SetRayRecursions(4);
+    manager->SetRayRecursions(6);
     //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager
@@ -219,13 +219,15 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // supersample factor for antialiasing
                                                          lens_model,    // FOV
-                                                         true,  // use global illumination or not
-                                                         Integrator::PATH);         
+                                                         true,          // use global illumination or not
+                                                         Integrator::PATH, // integrator type
+                                                         2.2,           // gamma correction
+                                                         false);        // whether use fog
     cam->SetName("Global Illum Camera");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
     if (vis)
-        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Global Illumination"));
+        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(image_width, image_height, "Path Integrator"));
     if (save)
         cam->PushFilter(chrono_types::make_shared<ChFilterSave>(out_dir + "globalillum/"));
     manager->AddSensor(cam);
@@ -238,8 +240,10 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // supersample factor for antialiasing
                                                           lens_model,    // FOV
-                                                          true,
-                                                          Integrator::LEGACY);        // use global illumination or not
+                                                          true,          // use global illumination or not
+                                                          Integrator::LEGACY, // integrator type
+                                                          2.2,           // gamma correction
+                                                          false);        // whether use fog
     cam2->SetName("Whitted Camera");
     cam2->SetLag(lag);
     cam2->SetCollectionWindow(exposure_time);

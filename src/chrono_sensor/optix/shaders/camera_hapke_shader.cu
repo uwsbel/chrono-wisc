@@ -12,7 +12,8 @@
 // Authors: Nevindu M. Batagoda
 // =============================================================================
 //
-// LiDAR shader
+// Camera shader based on Hapke's BRDF model for simulating light interaction with
+// particulate surfaces such as planetary regoliths.
 //
 // =============================================================================
 
@@ -30,7 +31,7 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
                                                 const float2& uv,
                                                 const float3& tangent,
                                                 const float& ray_dist,
-                                                const float3& ray_orig,
+                                                const float3& hit_point,
                                                 const float3& ray_dir) {
     // printf("Distance: %.2f\n", ray_dist);
     // prd_camera->color += make_float3(ray_dist, ray_dist, ray_dist);
@@ -58,9 +59,6 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
     float h_c = 1.0f;
     float phi = mat.phi;
     float theta_p = mat.theta_p;
-
-    float3 hit_point = ray_orig + ray_dir * ray_dist;
-
     float cos_e = Dot(world_normal, -ray_dir);
 
     float3 reflected_color = make_float3(0.0f);

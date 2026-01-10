@@ -42,6 +42,7 @@ struct half4 {
 
 /// Ray types, used to determine the shading and miss functions for populating ray information
 enum class RayType {
+    OCCLUSION_RAY_TYPE,    /// occlusion rays for visibility testing
     CAMERA_RAY_TYPE,       /// camera rays
     SHADOW_RAY_TYPE,       /// shadow rays
     LIDAR_RAY_TYPE,        /// lidar rays
@@ -76,18 +77,33 @@ enum class TIMEGATED_MODE {BOX, TENT, COS, SIN, EXPONENTIAL};
 
 enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
 
-enum class LightType { POINT_LIGHT, AREA_LIGHT, SPOT_LIGHT };
+enum class LightType {
+    POINT_LIGHT,
+    SPOT_LIGHT,
+    DIRECTIONAL_LIGHT,
+    RECTANGLE_LIGHT,
+    DISK_LIGHT,
+    ENVIRONMENT_LIGHT,
+    AREA_LIGHT
+    // ---- Register Your Customized Light Here (type definition) ---- //
+};
 
 struct Light {
     
     Light() : parent_id(-1) {}
-    Light(float3 pos, float3 color, float max_range) : type(LightType::POINT_LIGHT), delta(true), pos(pos), color(color), max_range(max_range) {}
+    Light(float3 pos, float3 color, float max_range)
+        : type(LightType::POINT_LIGHT),
+          delta(true), pos(pos),
+          color(color),
+          max_range(max_range),
+          atten_scale(1.0) {}
     Light(float3 pos, float3 color, float max_range, float3 du, float3 dv)
         : type(LightType::AREA_LIGHT),
           delta(false),
           pos(pos),
           color(color),
           max_range(max_range),
+          atten_scale(1.0),
           du(du), dv(dv) {}
     Light(float3 pos, float3 to, float3 color, float max_range, float cos_total_width, float cos_falloff_start)
         : type(LightType::SPOT_LIGHT),
@@ -95,7 +111,8 @@ struct Light {
           pos(pos),
           spot_dir(to),
           color(color), 
-          max_range(max_range), 
+          max_range(max_range),
+          atten_scale(1.0),
           cos_total_width(cos_total_width),
           cos_falloff_start(cos_falloff_start) {}
 
@@ -104,6 +121,7 @@ struct Light {
     float3 pos;
     float3 spot_dir;
     float3 color;
+    float atten_scale; // attenuation scale
     float max_range;
 
     // Area light members
@@ -589,6 +607,11 @@ struct PerRayData_shadow {
     float3 attenuation;    ///< the current attenuation of the light
     int depth;             ///< the current traversal depth of the ray
     float ramaining_dist;  ///< the remaining distance to the light
+};
+
+/// Data associated with a single occlusion ray
+struct PerRayData_occlusion {
+    bool occluded;  ///< whether the ray is occluded
 };
 
 /// Data associated with a single lidar ray
