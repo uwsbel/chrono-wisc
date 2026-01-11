@@ -73,9 +73,10 @@ float lag = .05f;
 // Exposure (in seconds) of each image
 float exposure_time = 0.02f;
 
-int alias_factor = 64;
+int alias_factor = 2;
 
-bool use_gi = true;  // whether cameras should use global illumination
+bool use_gi1 = false;  // whether cameras should use denoiser
+bool use_gi2 = false;  // whether cameras should use global illumination
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -102,6 +103,18 @@ const std::string out_dir = "SENSOR_OUTPUT/CAM_DEMO/";
 int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2020 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
+    alias_factor = std::atoi(argv[1]);
+
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--use_gi1") == 0) {
+            use_gi1 = true;
+			std::cout << "Path camera uses denoiser" << std::endl;
+        }
+        if (std::strcmp(argv[i], "--use_gi2") == 0) {
+            use_gi2 = true;
+			std::cout << "Legacy camera uses global illumination" << std::endl;
+        }
+    }
     // -----------------
     // Create the system
     // -----------------
@@ -129,8 +142,9 @@ int main(int argc, char* argv[]) {
     auto vis_mat3 = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat3->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat3->SetDiffuseColor({.5, .5, .5});
-    vis_mat3->SetSpecularColor({1.0f, 1.0f, 1.0f});
-    vis_mat3->SetRoughness(1.0f);
+    vis_mat3->SetSpecularColor({0.5f, 0.5f, 0.5f});
+    vis_mat3->SetOpacity(1.f);
+    vis_mat3->SetRoughness(1.f);
     vis_mat3->SetMetallic(0.f);
     vis_mat3->SetUseSpecularWorkflow(true);
     vis_mat3->SetClassID(30000);
@@ -153,6 +167,7 @@ int main(int argc, char* argv[]) {
     vis_mat->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat->SetDiffuseColor({0.0, 1.0, 0.0});
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
+    vis_mat->SetOpacity(1.f);
     vis_mat->SetUseSpecularWorkflow(true);
     vis_mat->SetRoughness(.5f);
     vis_mat->SetClassID(30000);
@@ -175,9 +190,11 @@ int main(int argc, char* argv[]) {
     auto vis_mat2 = chrono_types::make_shared<ChVisualMaterial>();
     vis_mat2->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat2->SetDiffuseColor({1.0, 0.0, 0.0});
-    vis_mat2->SetSpecularColor({.0f, .0f, .0f});
+    vis_mat2->SetSpecularColor({1.0f, 1.0f, 1.0f});
+    vis_mat2->SetOpacity(1.f);
     vis_mat2->SetUseSpecularWorkflow(true);
-    vis_mat2->SetRoughness(0.5f);
+    vis_mat2->SetRoughness(0.f);
+    vis_mat2->SetMetallic(1.f);
     vis_mat2->SetClassID(30000);
     vis_mat2->SetInstanceID(20000);
 
@@ -198,6 +215,7 @@ int main(int argc, char* argv[]) {
     vis_mat4->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat4->SetDiffuseColor({0.0, 0.0, 1.0});
     vis_mat4->SetSpecularColor({.0f, .0f, .0f});
+    vis_mat4->SetOpacity(1.f);
     vis_mat4->SetUseSpecularWorkflow(true);
     vis_mat4->SetRoughness(0.5f);
     vis_mat4->SetClassID(30000);
@@ -229,9 +247,9 @@ int main(int argc, char* argv[]) {
     manager->SetVerbose(verbose);
 
 
-    float intensity = 1.0;
+    float intensity = 0.8;
     manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500);
-    manager->scene->SetAmbientLight({0.1f, 0.1f, 0.1f});
+    manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;
     b.mode = BackgroundMode::ENVIRONMENT_MAP;
@@ -250,11 +268,12 @@ int main(int argc, char* argv[]) {
                                                          fov,           // camera's horizontal field of view
                                                          alias_factor,  // super sampling factor
                                                          lens_model,    // lens model type
-                                                         use_gi);
+                                                         use_gi1,       // use OptiX denoiser or not
+                                                         Integrator::PATH,
+                                                         2.2);
     cam->SetName("Camera Sensor");
     cam->SetLag(lag);
     cam->SetCollectionWindow(exposure_time);
-    cam->SetIntegrator(Integrator::PATH);
 
     // --------------------------------------------------------------------
     // Create a filter graph for post-processing the images from the camera
@@ -275,7 +294,10 @@ int main(int argc, char* argv[]) {
 
     // Renders the image at current point in the filter graph
     if (vis)
-        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Global Illumination"));
+        cam->PushFilter(chrono_types::make_shared<ChFilterVisualize>(
+            640, 360,
+            (use_gi1) ? "Path Integrator Denoised" : "Path Integrator"
+        ));
 
     // Provides the host access to this RGBA8 buffer
     cam->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
@@ -317,7 +339,7 @@ int main(int argc, char* argv[]) {
                                                           fov,           // camera's horizontal field of view
                                                           alias_factor,  // supersample factor for antialiasing
                                                           lens_model, 
-                                                          false, 
+                                                          use_gi2, 
                                                           Integrator::LEGACY,
                                                           2.2);  // FOV
     cam2->SetName("Antialiasing Camera Sensor");
@@ -326,7 +348,9 @@ int main(int argc, char* argv[]) {
 
     // Render the antialiased image
     if (vis)
-        cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(640, 360, "Whitted Ray Tracing"));
+        cam2->PushFilter(chrono_types::make_shared<ChFilterVisualize>(
+            640, 360, (use_gi2) ? "Legacy Global Illumination" : "Legacy Whitted Ray Tracing"
+        ));
 
     // Save the antialiased image
     if (save)
@@ -336,7 +360,7 @@ int main(int argc, char* argv[]) {
     cam2->PushFilter(chrono_types::make_shared<ChFilterRGBA8Access>());
 
     // Add the second camera to the sensor manager
-    // manager->AddSensor(cam2);
+    manager->AddSensor(cam2);
 
     // -------------------------------------------------------
     // Create a depth camera that shadows camera2
@@ -421,9 +445,9 @@ int main(int argc, char* argv[]) {
             {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
             QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
 
-        // cam2->SetOffsetPose(chrono::ChFrame<double>(
-        //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-        //     QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+        cam2->SetOffsetPose(chrono::ChFrame<double>(
+            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
+            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
 
         // seg->SetOffsetPose(chrono::ChFrame<double>(
         //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},

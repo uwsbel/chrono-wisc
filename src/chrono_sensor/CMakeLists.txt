@@ -105,6 +105,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/camera_hapke_shader.cu
       optix/shaders/camera_volumetric_shader.cu
       optix/shaders/camera_legacy_shader.cu
+      optix/shaders/camera_simple_legacy_shader.cu
       optix/shaders/camera_path_shader.cu
       optix/shaders/depth_cam_shader.cu
       optix/shaders/lidar_shader.cu

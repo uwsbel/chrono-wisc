@@ -166,9 +166,9 @@ void ChOptixEngine::AssignSensor(std::shared_ptr<ChOptixSensor> sensor) {
         // add a denoiser to the optix render filter if its a camera and global illumination is enabled
         if (auto cam = std::dynamic_pointer_cast<ChCameraSensor>(sensor)) { // TODO: Maybe set this up for TransientSensor as well?
             if (cam->GetUseDenoiser()) {
-                std::cout << "Sensor: " << cam->GetName() << " requested global illumination\n";
+                std::cout << "Sensor: " << cam->GetName() << " requested OptiX denoiser\n";
                 opx_filter->m_denoiser = chrono_types::make_shared<ChOptixDenoiser>(m_context);
-                //opx_filter->m_denoiser = nullptr;
+                // opx_filter->m_denoiser = nullptr;
             }
             
         }
