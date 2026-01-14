@@ -30,9 +30,7 @@ CH_SENSOR_API ChScene::ChScene() {
     m_background.env_tex = "";
 
     m_ambient_light = ChVector3f({.2f, .2f, .2f});
-    //m_pointlights = std::vector<PointLight>();
-    //m_arealights = std::vector<AreaLight>();
-    m_lights = std::vector<Light>();
+    m_lights = std::vector<ChOptixLight>();
     m_num_pointlights = 0;
     m_num_arealights = 0;
 
@@ -55,16 +53,21 @@ CH_SENSOR_API ChScene::ChScene() {
 
 CH_SENSOR_API ChScene::~ChScene() {}
 
+
 CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range) {
-    PointLight p({pos.x(), pos.y(), pos.z()}, {color.R, color.G, color.B}, max_range);
-  /*  p.pos = {pos.x(), pos.y(), pos.z()};
-    p.color = {color.R, color.G, color.B};
-    p.max_range = max_range;*/
-    //m_pointlights.push_back(p);
+    ChOptixPointLight p({pos.x(), pos.y(), pos.z()}, {color.R, color.G, color.B}, max_range);
     m_lights.push_back(p);
     lights_changed = true,
-    m_num_pointlights++;
     return static_cast<unsigned int>(m_lights.size() - 1);
+}
+
+CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, ChVector3f pos, ChColor color, float max_range) {
+    if (id <= m_lights.size()) {
+        m_lights[id].pos = {pos.x(), pos.y(), pos.z()};
+        m_lights[id].color = {color.R, color.G, color.B};
+        m_lights[id].max_range = max_range;
+        lights_changed = true;
+    }
 }
 
 CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv) {
@@ -84,13 +87,17 @@ CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, 
     return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
-CH_SENSOR_API unsigned int ChScene::AddPointLight(const PointLight& p) {
-    //m_pointlights.push_back(p);
-    m_lights.push_back(p);
-    lights_changed = true;
-    m_num_pointlights++;
-    return static_cast<unsigned int>(m_lights.size() - 1);
-}
+
+
+// CH_SENSOR_API unsigned int ChScene::AddPointLight(const PointLight& p) {
+//     //m_pointlights.push_back(p);
+//     m_lights.push_back(p);
+//     lights_changed = true;
+//     m_num_pointlights++;
+//     return static_cast<unsigned int>(m_lights.size() - 1);
+// }
+
+
 
 CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChVector3f pos,
     ChVector3f to,
@@ -179,58 +186,52 @@ ChVector3f ChLerp(ChVector3f& a, ChVector3f& b, double x) {
     return a + (b - a) * x;
 }
 
-CH_SENSOR_API void ChScene::UpdateLight(unsigned int id, ChFramed newpose) {
-    Light* light = &m_lights[id];
-    switch (light->type) {
-        case LightType::SPOT_LIGHT: {
-            if (light->parent_id > 0) { // If light has a parent
-                ChFramed local_frame = GetLightFrame(id);
-                ChFramed parent_frame = GetLightParentFrame(id);
-                ChFramed glob_frame = parent_frame * local_frame;
+// CH_SENSOR_API void ChScene::UpdateLight(unsigned int id, ChFramed newpose) {
+//     Light* light = &m_lights[id];
+//     switch (light->type) {
+//         case LightType::SPOT_LIGHT: {
+//             if (light->parent_id > 0) { // If light has a parent
+//                 ChFramed local_frame = GetLightFrame(id);
+//                 ChFramed parent_frame = GetLightParentFrame(id);
+//                 ChFramed glob_frame = parent_frame * local_frame;
 
-                ChVector3f glob_pos = glob_frame.GetPos();
-                ChVector3f local_dir{1, 0, 0};
-                ChVector3f world_dir = glob_frame.GetRot().Rotate(local_dir);
-                ChVector3f prev_pos = ChVector3f(light->pos.x, light->pos.y, light->pos.z);
-                ChVector3f prev_dir = ChVector3f(light->spot_dir.x, light->spot_dir.y, light->spot_dir.z);
+//                 ChVector3f glob_pos = glob_frame.GetPos();
+//                 ChVector3f local_dir{1, 0, 0};
+//                 ChVector3f world_dir = glob_frame.GetRot().Rotate(local_dir);
+//                 ChVector3f prev_pos = ChVector3f(light->pos.x, light->pos.y, light->pos.z);
+//                 ChVector3f prev_dir = ChVector3f(light->spot_dir.x, light->spot_dir.y, light->spot_dir.z);
 
-                float interpolation_factor = 0.4;
-                ChVector3f interp_pos = glob_pos +  interpolation_factor * (glob_pos - prev_pos);
-                ChVector3f interp_dir = world_dir + interpolation_factor * (world_dir - prev_dir);
+//                 float interpolation_factor = 0.4;
+//                 ChVector3f interp_pos = glob_pos +  interpolation_factor * (glob_pos - prev_pos);
+//                 ChVector3f interp_dir = world_dir + interpolation_factor * (world_dir - prev_dir);
 
-                light->pos = make_float3(interp_pos.x(), interp_pos.y(), interp_pos.z());
-                light->spot_dir = make_float3(interp_dir.x(), interp_dir.y(), interp_dir.z());
-            } else { // Not attached to parent just change pose
-                //std::cout << "Updating Pose of Spot Light" << std::endl;
-                ChVector3f glob_pos = newpose.GetPos();
-                ChVector3f local_dir{1, 0, 0};
-                ChVector3f world_dir = newpose.GetRot().Rotate(local_dir);
-                light->pos = make_float3(glob_pos.x(), glob_pos.y(), glob_pos.z());
-                light->spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
-            }
-            break;
-        }
-        case LightType::AREA_LIGHT: {
-            break;
-        }
-        case LightType::POINT_LIGHT: {
-            ChVector3f glob_pos = newpose.GetPos();
-            light->pos = make_float3(glob_pos.x(), glob_pos.y(), glob_pos.z());
-            break;
-        }
-        default:
-            break;
-    }
-    lights_changed = true;
-}
+//                 light->pos = make_float3(interp_pos.x(), interp_pos.y(), interp_pos.z());
+//                 light->spot_dir = make_float3(interp_dir.x(), interp_dir.y(), interp_dir.z());
+//             } else { // Not attached to parent just change pose
+//                 //std::cout << "Updating Pose of Spot Light" << std::endl;
+//                 ChVector3f glob_pos = newpose.GetPos();
+//                 ChVector3f local_dir{1, 0, 0};
+//                 ChVector3f world_dir = newpose.GetRot().Rotate(local_dir);
+//                 light->pos = make_float3(glob_pos.x(), glob_pos.y(), glob_pos.z());
+//                 light->spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
+//             }
+//             break;
+//         }
+//         case LightType::AREA_LIGHT: {
+//             break;
+//         }
+//         case LightType::POINT_LIGHT: {
+//             ChVector3f glob_pos = newpose.GetPos();
+//             light->pos = make_float3(glob_pos.x(), glob_pos.y(), glob_pos.z());
+//             break;
+//         }
+//         default:
+//             break;
+//     }
+//     lights_changed = true;
+// }
 
-// TODO: Add a Modify Light function
-CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, PointLight p) {
-    if (id <= m_lights.size()) {
-        m_lights[id] = p;
-        lights_changed = true;
-    }
-}
+
 
 CH_SENSOR_API void ChScene::SetBackground(Background b) {
     m_background = b;

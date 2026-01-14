@@ -35,17 +35,6 @@ typedef unsigned long long	uint64;
 
 #define INV_PI 1/CUDART_PI
 
-struct __device__ LightSample {
-    float3 L;        // light luminance, [cd/m^2/sr]
-    float3 dir;      // wi, direction from hit-point to light
-    float3 wo;       // direction from hit-point to viewer
-    float3 n;        // world_normal at hit-point
-    float3 hitpoint; // world position of hit-point
-    float NdL;       // dot(n, dir)
-    float dist;      // distance from hit-point to light
-    float pdf;       // PDF of the light sample. Ex: delta lights have PDF = 1, area lights have PDF = 1 / area.
-};
-
 struct __device__ BSDFSample {
     float3 wo;
     float3 wi;

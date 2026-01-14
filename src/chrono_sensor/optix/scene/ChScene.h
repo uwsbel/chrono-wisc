@@ -36,6 +36,7 @@
 
 #include "chrono_sensor/ChApiSensor.h"
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
 
 #ifdef USE_SENSOR_NVDB
 #include <openvdb/openvdb.h>
@@ -66,16 +67,23 @@ class CH_SENSOR_API ChScene {
     ~ChScene();
 
     /// Add a point light that emits light in all directions.
-    /// @param pos The global position of the light source
-    /// @param color The golor of the light source
+    /// @param pos The global position of the point light
+    /// @param color The color intensity of the point light
     /// @param max_range the range at which the light intensity is equal to 1% of its maximum intensity
     /// @return the index of the light that has been added
     unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range);
 
+    /// Function for modifying an existing point light in the scene
+    /// @param id the index of the point light to be modified
+    /// @param pos the new global position of the point light
+    /// @param color the new color intensity of the point light
+    /// @param max_range the new max range of the point light
+    void ModifyPointLight(unsigned int id, ChVector3f pos, ChColor color, float max_range);
+
     /// Add a point light that emits light in all directions.
     /// @param p A point light the will be added directly
     /// @return the index of the light that has been added
-    unsigned int AddPointLight(const PointLight& p);
+    // unsigned int AddPointLight(const ChOptixPointLight& p);
 
     /// Add an area light that emits light in a particular direction
     /// @param pos The global position of the light source
@@ -103,16 +111,11 @@ class CH_SENSOR_API ChScene {
     /// @return m_pointlights A vector of point lights in the scene currently
     //std::vector<PointLight> GetPointLights() { return m_pointlights; }
 
-    /// Function for gaining access to the vector of area lights and can be used to modify lighting dynamically.
-    /// @return m_arealights A vector of area lights in the scene currently
-    //std::vector<AreaLight> GetAreaLights() { return m_arealights; }
+    /// Function for gaining access to the vector of lights which can be used to modify lighting dynamically.
+    /// @return A vector of lights in the scene currently
+    std::vector<ChOptixLight> GetLights(){return m_lights;}
 
-    std::vector<Light> GetLights(){return m_lights;}
-
-    // /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
-    // /// @param id the index of the point light to be modified
-    // /// @param p the new point light that will replace the values at the given index
-    void ModifyPointLight(unsigned int id, PointLight p);
+    
 
     /// Function for gaining access to the background. Can be used to dynamically change the background color, or
     /// texture
@@ -141,7 +144,7 @@ class CH_SENSOR_API ChScene {
     /// Function for getting the lights changed variable
     bool GetLightsChanged() { return lights_changed; }
 
-    size_t GetLightsSize() { return m_num_pointlights*sizeof(PointLight) + m_num_arealights*sizeof(AreaLight); } // Possibly buggy
+    // size_t GetLightsSize() { return m_num_pointlights*sizeof(PointLight) + m_num_arealights*sizeof(AreaLight); } // Possibly buggy
 
     /// Function for getting the area lights changed variable
     //bool GetAreaLightsChanged() { return arealights_changed; }
@@ -244,7 +247,7 @@ class CH_SENSOR_API ChScene {
     ChFramed GetLightFrame(unsigned int id) {return m_light_frames[id];}
     ChFramed GetLightParentFrame(unsigned int id) { return m_light_parent[id]->GetVisualModelFrame(); } // This is awful...rework the entire lights data strcuture!
 
-    void UpdateLight(unsigned int id, ChFramed newpose = ChFramed());
+    // void UpdateLight(unsigned int id, ChFramed newpose = ChFramed());
     // void SetGVDBVolume(gvdb::VolumeGVDB* gvdb) { m_gvdb = gvdb; }
     // nvdb::VolumeGVDB* GetGVDBVolume() { return m_gvdb; }
 
@@ -255,9 +258,9 @@ class CH_SENSOR_API ChScene {
     // std::vector<PointLight> m_pointlights;  //< list of point lights in the scene
     // std::vector<AreaLight> m_arealights;  //< list of area lights in the scene
 
-    std::vector<Light> m_lights;  //< list of all lights in the scene
-    int m_num_pointlights;         //< number of point lights in the scene
-    int m_num_arealights;          //< number of area lights in the scene
+    std::vector<ChOptixLight> m_lights;  //< list of all lights in the scene
+    // int m_num_pointlights;               //< number of point lights in the scene
+    // int m_num_arealights;                //< number of area lights in the scene
     std::map<unsigned int, ChFramed> m_light_frames;
     std::map<unsigned int, std::shared_ptr<ChBody>> m_light_parent;
     

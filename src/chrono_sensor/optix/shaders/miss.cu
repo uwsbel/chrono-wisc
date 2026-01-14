@@ -35,6 +35,12 @@ extern "C" __global__ void __miss__shader() {
     RayType raytype = (RayType)optixGetPayload_2();
 
     switch (raytype) {
+        case RayType::OCCLUSION_RAY_TYPE: {
+            PerRayData_occlusion* prd = GetOcclusionPRD();
+            prd->occluded = false;
+            break;
+        }
+        
         case RayType::PHYS_CAMERA_RAY_TYPE: 
         case RayType::CAMERA_RAY_TYPE: {
             const CameraMissParameters& camera_miss = miss->camera_miss;

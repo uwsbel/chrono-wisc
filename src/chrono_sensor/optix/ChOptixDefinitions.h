@@ -23,6 +23,8 @@
 #include <curand_kernel.h>
 #include <cuda_fp16.h>
 #include "chrono/assets/ChVisualBSDFType.h"
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
+
 
 #ifdef USE_SENSOR_NVDB
     #include <nanovdb/NanoVDB.h>
@@ -39,6 +41,91 @@ struct half4 {
 
 /// @addtogroup sensor_optix
 /// @{
+
+// enum class LightType {
+//     POINT_LIGHT,
+//     SPOT_LIGHT,
+//     DIRECTIONAL_LIGHT,
+//     RECTANGLE_LIGHT,
+//     DISK_LIGHT,
+//     ENVIRONMENT_LIGHT,
+//     AREA_LIGHT
+//     // ---- Register Your Customized Light Here (type definition) ---- //
+// };
+
+// class ChOptixLight {
+// public:
+// 	/// Constructor of the base OptiX light class for different types of lights used for camera sensor rendering.
+// 	/// @param light_type The type of light being created.
+// 	/// @param delta Whether the light is a delta light source.
+// 	///	@param pos Position of the light in the scene.
+// 	///	@param color Color intensity of the light.
+// 	/// @param max_range Range at which the light intensity is equal to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+// 	__device__ explicit ChOptixLight(
+// 		LightType light_type,
+// 		bool delta,
+// 		float3 pos,
+// 		float3 color,
+// 		float max_range
+// 	) :
+// 		light_type(light_type),
+// 		delta(delta),
+// 		pos(pos),
+// 		color(color),
+// 		max_range(max_range)
+// 	{}
+
+// 	~ChOptixLight() {}
+
+// 	/// @brief Check visibility between the light and the hit point, and sample the light.
+// 	/// @param cntxt_params context parameters
+// 	/// @param prd_camera per-ray data (PRD) of the camera ray
+// 	/// @param light_sample the light sample to be updated
+// 	/// @return True if the light is visible from the hit point, false otherwise
+// 	__device__ virtual bool CheckVisibleAndSampleLight(
+// 		const ContextParameters& cntxt_params,
+// 		const PerRayData_camera* prd_camera,
+// 		LightSample& light_sample
+// 	) const {}
+
+// 	// /// @brief Set the position of the light.
+// 	// /// @param position The new position of the light.
+// 	// void SetLightPos(const ChVector3f& position) {
+// 	// 	this->pos = {position.x(), position.y(), position.z()};
+// 	// }
+
+// 	// /// @brief Set the orientation of the light.
+// 	// /// @param new_x_axis The new x-axis of the light's orientation.
+// 	// /// @param new_y_axis The new y-axis of the light's orientation.
+// 	// /// @param new_z_axis The new z-axis of the light's orientation.
+// 	// void SetLightRot(const ChVector3f& new_x_axis, const ChVector3f& new_y_axis, const ChVector3f& new_z_axis) {
+// 	// 	this->x_axis = {new_x_axis.x(), new_x_axis.y(), new_x_axis.z()};
+// 	// 	this->y_axis = {new_y_axis.x(), new_y_axis.y(), new_y_axis.z()};;
+// 	// 	this->z_axis = {new_z_axis.x(), new_z_axis.y(), new_z_axis.z()};;
+// 	// }
+// 	// /// @brief Set the color intensity of the light.
+// 	// /// @param color The new color intensity of the light.
+// 	// void SetLightColor(const ChColor& color) { this->color = {color.R, color.G, color.B}; }
+
+// 	// /// @brief  Set the maximum range of the light.
+// 	// /// @param new_max_range The new maximum range of the light.
+// 	// void SetLightMaxRange(const float& new_max_range) {
+// 	// 	this->max_range = new_max_range;
+// 	// 	// Calculate the attenuation scale of the light based on its maximum range.
+// 	// 	this->atten_scale = (new_max_range > 0) ? (0.01 * new_max_range * new_max_range) : 1.f;	
+// 	// }
+
+// private:
+// 	LightType type;
+// 	bool delta;
+// 	float3 pos;
+// 	float3 x_axis;
+// 	float3 y_axis;
+// 	float3 z_axis;
+// 	float3 color;
+// 	float max_range;
+// 	float atten_scale;
+// };
 
 /// Ray types, used to determine the shading and miss functions for populating ray information
 enum class RayType {
@@ -77,64 +164,8 @@ enum class TIMEGATED_MODE {BOX, TENT, COS, SIN, EXPONENTIAL};
 
 enum class Integrator {PATH, VOLUMETRIC, TRANSIENT, TIMEGATED, MITRANSIENT, LEGACY};
 
-enum class LightType {
-    POINT_LIGHT,
-    SPOT_LIGHT,
-    DIRECTIONAL_LIGHT,
-    RECTANGLE_LIGHT,
-    DISK_LIGHT,
-    ENVIRONMENT_LIGHT,
-    AREA_LIGHT
-    // ---- Register Your Customized Light Here (type definition) ---- //
-};
+/*
 
-struct Light {
-    
-    Light() : parent_id(-1) {}
-    Light(float3 pos, float3 color, float max_range)
-        : type(LightType::POINT_LIGHT),
-          delta(true), pos(pos),
-          color(color),
-          max_range(max_range),
-          atten_scale(1.0) {}
-    Light(float3 pos, float3 color, float max_range, float3 du, float3 dv)
-        : type(LightType::AREA_LIGHT),
-          delta(false),
-          pos(pos),
-          color(color),
-          max_range(max_range),
-          atten_scale(1.0),
-          du(du), dv(dv) {}
-    Light(float3 pos, float3 to, float3 color, float max_range, float cos_total_width, float cos_falloff_start)
-        : type(LightType::SPOT_LIGHT),
-          delta(true),
-          pos(pos),
-          spot_dir(to),
-          color(color), 
-          max_range(max_range),
-          atten_scale(1.0),
-          cos_total_width(cos_total_width),
-          cos_falloff_start(cos_falloff_start) {}
-
-    LightType type;
-    bool delta;
-    float3 pos;
-    float3 spot_dir;
-    float3 color;
-    float atten_scale; // attenuation scale
-    float max_range;
-
-    // Area light members
-    float3 du;
-    float3 dv;
-
-    // Spot light members
-    float cos_total_width;
-    float cos_falloff_start;
-
-    // parent info
-    int parent_id;
-};
 /// Parameters for an area light
 struct AreaLight : public Light {
 
@@ -156,7 +187,7 @@ struct PointLight : public Light {
     PointLight(float3 pos, float3 color, float max_range)
         : Light(pos, color, max_range) {}
 };
-
+*/
 
 //class Light {
 //
@@ -378,6 +409,7 @@ struct RaygenParameters {
         DepthCameraParameters depthCamera;      /// < the specific data when modeling a depth camera
         TransientCameraParameters transientCamera; /// < the specific data when modeling a transient camera
         NormalCameraParameters normalCamera;    /// < the specific data when modeling a normal camera
+        //// ---- Register Your Customized Sensor Here (register ray-gen parameters) ---- ////
     } specific;                                 ///< the data for the specific sensor
 };
 
@@ -482,7 +514,7 @@ struct MaterialParameters {      // pad to align 16 (swig doesn't support explic
 struct ContextParameters {
     // AreaLight* arealights;              ///< device pointer to the set of area lights in the scene
     // PointLight* lights;                 ///< device pointer to set of point lights in the scene
-    Light* lights;                      ///< device pointer to set of lights in the scene
+    ChOptixLight* lights;                  ///< device pointer to set of lights in the scene
     //int num_arealights;                ///< the number of area lights in the scene
     int num_lights;                     ///< the number of point lights in the scene
     float3 ambient_light_color;         ///< the ambient light color and intensity

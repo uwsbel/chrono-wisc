@@ -25,7 +25,7 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include "chrono_sensor/optix/shaders/shader_utils.cu"
-#include "chrono_sensor/optix/shaders/ChOptixLightClasses.cuh"
+#include "chrono_sensor/optix/shaders/ChOptixLightHubs.cu"
 
 static __device__ __inline__ void RussainRoulette(curandState_t& rng, float3& contrib_to_pixel) {
 	float p = fmaxf(0.05, fminf(fmaxf(contrib_to_pixel), 0.95));
@@ -115,38 +115,6 @@ static __device__ __inline__ bool CheckPointLightVisible(
 		light_sample.pdf = 1.0f; // Delta light
 		return true;
 	}
-}
-
-// Check if the light source is visible to the hitpoint
-static __device__ __inline__ bool CheckLightVisible(
-	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const Light& light, LightSample& light_sample
-) {
-	switch (light.type) {
-        case LightType::POINT_LIGHT:
-            bool flag = CheckPointLightVisible(cntxt_params, prd_camera, light, light_sample);
-			// prd_camera->color = {flag * 1.0, 0.0, 1.0}; // debug
-			return flag;
-            break;
-        case LightType::SPOT_LIGHT:
-            // return CheckSpotLightVisible(cntxt_params, light, light_sample); // TODO
-            // break;
-		case LightType::DIRECTIONAL_LIGHT:
-            // return CheckDirectionalLightVisible(cntxt_params, light, light_sample); // TODO
-            // break;
-		case LightType::RECTANGLE_LIGHT:
-			// return CheckRectangleLightVisible(cntxt_params, light, light_sample); // TODO
-			// break;
-		case LightType::DISK_LIGHT:
-			// return CheckDiskLightVisible(cntxt_params, light, light_sample); // TODO
-			// break;
-		case LightType::ENVIRONMENT_LIGHT:
-			// return CheckEnvironmentLightVisible(cntxt_params, light, light_sample); // TODO
-			// break;
-		default:
-			printf("Light type not recognized in visibility check ...... \n");
-			return false;
-            break;
-    }
 }
 
 // Camera path integrator

@@ -114,6 +114,8 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/segment_cam_shader.cu
       optix/shaders/shadow_shader.cu
       optix/shaders/transient_cam_shader.cu
+      optix/shaders/ChOptixLightHubs.cu
+      optix/shaders/ChOptixPointLight.cu
   )
 
   if(CH_USE_SENSOR_NVDB)
@@ -124,6 +126,7 @@ if(CH_USE_SENSOR_OPTIX)
 
   set(Chrono_sensor_RT_HEADERS
       optix/shaders/device_utils.h
+      optix/shaders/ChOptixLightStructs.h
       # optix/shaders/sensor_shader_registration.h
   )
 

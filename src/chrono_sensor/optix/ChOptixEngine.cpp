@@ -773,6 +773,9 @@ void ChOptixEngine::UpdateCameraParameters(std::vector<int>& to_be_updated, std:
             // update raygen_record parameters
             m_assignedRenderers[id]->m_raygen_record->data.specific.phys_camera.hFOV = p_phys_cam->GetHFOV();
         }
+
+        //// ---- Register Your Customized Sensor Here (if parameters associated with ray-gen data need to be updated after
+        //// ---- sensor initialization) ---- ////
     }
 }
 
@@ -825,8 +828,8 @@ void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std:
  
            
         ChFrame<double> f_offset = sensor->GetOffsetPose();
-        ChFrame<double> f_body_0 = m_cameraStartFrames[i];
-        m_cameraStartFrames_set[i] = false;  // reset this camera frame so that we know it should be packed again
+        ChFrame<double> f_body_0 = m_cameraStartFrames[id];
+        m_cameraStartFrames_set[id] = false;  // reset this camera frame so that we know it should be packed again
         ChFrame<double> f_body_1 = sensor->GetParent()->GetVisualModelFrame();
         ChFrame<double> global_loc_0 = f_body_0 * f_offset;
         ChFrame<double> global_loc_1 = f_body_1 * f_offset;
@@ -834,8 +837,7 @@ void ChOptixEngine::UpdateCameraTransforms(std::vector<int>& to_be_updated, std:
         ChVector3f pos_0 = global_loc_0.GetPos() - scene->GetOriginOffset();
         ChVector3f pos_1 = global_loc_1.GetPos() - scene->GetOriginOffset();
 
-        m_assignedRenderers[id]->m_raygen_record->data.t0 =
-            (float)(m_system->GetChTime() - sensor->GetCollectionWindow());
+        m_assignedRenderers[id]->m_raygen_record->data.t0 = (float)(m_system->GetChTime() - sensor->GetCollectionWindow());
         m_assignedRenderers[id]->m_raygen_record->data.t1 = (float)(m_system->GetChTime());
         m_assignedRenderers[id]->m_raygen_record->data.pos0 = make_float3(pos_0.x(), pos_0.y(), pos_0.z());
         m_assignedRenderers[id]->m_raygen_record->data.rot0 =
@@ -869,16 +871,16 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         scene->ResetBackgroundChanged();
     }
 
-    std::vector<Light> l = scene->GetLights();
+    std::vector<ChOptixLight> l = scene->GetLights();
     // Handle moving lights
-    bool light_moved = false;
-    for (int i = 0; i < l.size(); i++) {
-        Light light = l[i];
-        if (light.type == LightType::SPOT_LIGHT && light.parent_id >= 0) {
-            //std::cout << "Moving Spot Light" << std::endl;
-            scene->UpdateLight(i);
-        }
-    }
+    // bool light_moved = false;
+    // for (int i = 0; i < l.size(); i++) {
+    //     Light light = l[i];
+    //     if (light.type == LightType::SPOT_LIGHT && light.parent_id >= 0) {
+    //         //std::cout << "Moving Spot Light" << std::endl;
+    //         scene->UpdateLight(i);
+    //     }
+    // }
 
     if (true && scene->GetLightsChanged() || scene->GetOriginChanged()) {
 
@@ -887,7 +889,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
             if (m_params.lights)
                 CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
 
-            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(Light));
+            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(ChOptixLight));
         }
 
         for (unsigned int i = 0; i < l.size(); i++) {
@@ -895,7 +897,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
                                    l[i].pos.z - scene->GetOriginOffset().z());
         }
 
-        cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(Light), cudaMemcpyHostToDevice);
+        cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(ChOptixLight), cudaMemcpyHostToDevice);
         m_params.num_lights = static_cast<int>(l.size());
       
         
