@@ -20,7 +20,7 @@ if(CH_USE_SENSOR_OPTIX)
       btest_SEN_perf_meshes
       btest_SEN_instanced_meshes
       # btest_SEN_cornell_box_transient
-      btest_SEN_benchmark
+      # btest_SEN_benchmark
       # btest_SEN_NLOS
   )
 endif()

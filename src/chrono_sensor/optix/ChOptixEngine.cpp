@@ -871,7 +871,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         scene->ResetBackgroundChanged();
     }
 
-    std::vector<ChOptixLight> l = scene->GetLights();
+    std::vector<ChOptixLight> lights = scene->GetLights();
     // Handle moving lights
     // bool light_moved = false;
     // for (int i = 0; i < l.size(); i++) {
@@ -885,20 +885,26 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
     if (true && scene->GetLightsChanged() || scene->GetOriginChanged()) {
 
         // Handling changes to all lights
-        if (l.size() != m_params.num_lights) {  // need new memory in this case
-            if (m_params.lights)
+        if (lights.size() != m_params.num_lights) {  // need new memory in this case
+            if (m_params.lights) {
                 CUDA_ERROR_CHECK(cudaFree(reinterpret_cast<void*>(m_params.lights)));
-
-            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), l.size() * sizeof(ChOptixLight));
+            }
+            cudaMalloc(reinterpret_cast<void**>(&m_params.lights), lights.size() * sizeof(ChOptixLight));
         }
 
-        for (unsigned int i = 0; i < l.size(); i++) {
-            l[i].pos = make_float3(l[i].pos.x - scene->GetOriginOffset().x(), l[i].pos.y - scene->GetOriginOffset().y(),
-                                   l[i].pos.z - scene->GetOriginOffset().z());
+        for (unsigned int i = 0; i < lights.size(); i++) {
+            lights[i].pos = make_float3(
+                lights[i].pos.x - scene->GetOriginOffset().x(),
+                lights[i].pos.y - scene->GetOriginOffset().y(),
+                lights[i].pos.z - scene->GetOriginOffset().z()
+            );
         }
 
-        cudaMemcpy(reinterpret_cast<void*>(m_params.lights), l.data(), l.size() * sizeof(ChOptixLight), cudaMemcpyHostToDevice);
-        m_params.num_lights = static_cast<int>(l.size());
+        cudaMemcpy(
+            reinterpret_cast<void*>(m_params.lights), lights.data(), lights.size() * sizeof(ChOptixLight),
+            cudaMemcpyHostToDevice
+        );
+        m_params.num_lights = static_cast<int>(lights.size());
       
         
         // Handling changes in origin

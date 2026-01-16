@@ -369,7 +369,7 @@ __device__ __inline__ float luminance(const float3& color) {
     return Dot(color, l);
 }
 
-// Assume v in coming into the surface, and returned vector is going out from the surface
+// Assume v in-coming into the surface, and returned vector is going out from the surface
 __device__ __inline__ float3 reflect(const float3& v, const float3& n) {
     return 2 * Dot(n, -v) * n + v;
 }

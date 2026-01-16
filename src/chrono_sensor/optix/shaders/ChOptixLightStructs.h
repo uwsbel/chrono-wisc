@@ -9,7 +9,7 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Bo-Hsun Chen
+// Authors: Nevindu M. Batagoda, Bo-Hsun Chen
 // =============================================================================
 //
 // Registration structs of device-side lights.
@@ -24,10 +24,10 @@
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
 #include <cuda_fp16.h>
-#include "chrono/core/ChVector3.h"
-#include "chrono/assets/ChColor.h"
+// #include "chrono/core/ChVector3.h"
+// #include "chrono/assets/ChColor.h"
 
-using namespace chrono;
+// using namespace chrono;
 
 enum class LightType {
 	POINT_LIGHT,
@@ -51,33 +51,85 @@ struct __device__ LightSample {
     float pdf;       // PDF of the light sample. Ex: delta lights have PDF = 1, area lights have PDF = 1 / area.
 };
 
-// Base light struct
-struct ChOptixLight {
-	int parent_id;			// parent info
-	LightType light_type;	// type of light
-	bool delta;				// whether the light is a delta light source
-	float3 pos; 			// position of the light
-	float3 x_axis;		    // x-axis of the light's orientation
-	float3 y_axis;			// y-axis of the light's orientation
-	float3 z_axis;			// z-axis of the light's orientation
+
+// ---- Register Your Customized Light Here (define light data structs) ---- //
+
+/// Environment light data struct
+struct EnvironmentLightData {
+	cudaTextureObject_t env_map;		// the texture object of the environment map
+};
+
+/// Disk light data struct
+struct DiskLightData {
+	float3 area_dir;			// unit normal vector of the disk light
+	float radius;				// [m], radius of the disk light
+	float3 color;				// color intensity of the light
+	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	// extended parameters
+	float area;					// [m^2], area of the disk light
+};
+
+/// Rectangle light data struct
+struct RectangleLightData {
+	float3 width_vec;			// [m], vector along one edge of the rectangle light
+	float3 height_vec;			// [m], vector along the other edge of the rectangle light. Light direction is: width_vec x height_vec.
+	float3 color;				// color intensity of the light
+	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	// extended parameters
+	float area;					// [m^2], area of the rectangle light
+	float3 area_dir;			// unit direction vector of the rectangle light (normal vector)
+};
+
+/// Directional light data struct
+struct DirectionalLightData {
+	float elevation;	// [rad], elevation angle of the directional light comes from
+	float azimuth;		// [rad], azimuth angle of the directional light comes from
+	float3 color;		// color intensity of the light
+};
+
+/// Spot light data struct
+struct SpotLightData {
+	float3 color;				// color intensity of the light
+	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	float atten_scale;			// [1/1], attenuation scale based on max_range
+	float3 spot_dir;			// unit direction vector of the spotlight
+	float angle_falloff_start;	// [rad], angle at which the spotlight starts to linearly cosine-fall off
+	float angle_range;			// [rad], angle range of the spotlight cosinely falling off to zero.
+};
+
+/// Point light data struct
+struct PointLightData {
 	float3 color;			// color intensity of the light
-	float max_range;		// range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
-	float atten_scale;		// attenuation scale based on max_range
-
-	ChOptixLight(LightType t, bool d, float3 p, float3 c, float r, float a)
-	: parent_id(-1), light_type(t), delta(d), pos(p), color(c), max_range(r), atten_scale(a)
-	{}
+	float max_range;		// [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	float atten_scale;		// [1/1], attenuation scale based on max_range
 };
 
-// Point light struct
-struct ChOptixPointLight : public ChOptixLight {
-	ChOptixPointLight(float3 pos, float3 color, float max_range) 
-	: ChOptixLight(
-		LightType::POINT_LIGHT, true, pos, color, max_range,
-		((max_range > 0) ? (0.01 * max_range * max_range) : 1.f)
-	) {}
+/// Base light struct
+struct ChOptixLight {
+	LightType light_type;			// type of light
+	bool delta;						// whether the light is a delta light source
+	float3 pos; 					// [m], position of the light
+	union {
+		PointLightData point;		// point light specific parameters
+		SpotLightData spot;			// spot light specific parameters
+		DirectionalLightData dir;	// directional light specific parameters
+		RectangleLightData rect;	// rectangle light specific parameters
+		DiskLightData disk;			// disk light specific parameters
+		EnvironmentLightData env;	// environment light specific parameters
+	} specific;						// specific parameters for different light types
 };
 
+
+// // Point light struct
+// struct ChOptixPointLight : public ChOptixLight {
+// 	ChOptixPointLight(float3 pos, float3 color, float max_range) 
+// 	: ChOptixLight(
+// 		LightType::POINT_LIGHT, true, pos, color, max_range,
+// 		((max_range > 0) ? (0.01 * max_range * max_range) : 1.f)
+// 	) {}
+// };
+
+/*
 /// @brief Set the position of the light.
 /// @param position The new position of the light.
 void SetLightPos(ChOptixLight& light, const ChVector3f& position) {
@@ -92,9 +144,10 @@ void SetLightRot(
 	ChOptixLight& light, const ChVector3f& new_x_axis, const ChVector3f& new_y_axis, const ChVector3f& new_z_axis
 ) {
 	light.x_axis = {new_x_axis.x(), new_x_axis.y(), new_x_axis.z()};
-	light.y_axis = {new_y_axis.x(), new_y_axis.y(), new_y_axis.z()};;
-	light.z_axis = {new_z_axis.x(), new_z_axis.y(), new_z_axis.z()};;
+	light.y_axis = {new_y_axis.x(), new_y_axis.y(), new_y_axis.z()};
+	light.z_axis = {new_z_axis.x(), new_z_axis.y(), new_z_axis.z()};
 }
+
 /// @brief Set the color intensity of the light.
 /// @param color The new color intensity of the light.
 void SetLightColor(ChOptixLight& light, const ChColor& color) { light.color = {color.R, color.G, color.B}; }
@@ -106,5 +159,6 @@ void SetLightColor(ChOptixLight& light, const ChColor& color) { light.color = {c
 // 	// Calculate the attenuation scale of the light based on its maximum range.
 // 	light.atten_scale = (new_max_range > 0) ? (0.01 * new_max_range * new_max_range) : 1.f;	
 // }
+*/
 
 #endif  // CHRONO_SENSOR_OPTIX_LIGHT_STRUCTS_H

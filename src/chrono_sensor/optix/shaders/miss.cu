@@ -22,7 +22,7 @@
 #include "chrono_sensor/optix/shaders/normal_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/depth_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/segment_cam_shader.cu"
-#include "chrono_sensor/optix/shaders/transient_cam_shader.cu"
+// #include "chrono_sensor/optix/shaders/transient_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/radar_shader.cu"
 #include "chrono_sensor/optix/shaders/lidar_shader.cu"
 #include "chrono_sensor/optix/shaders/camera_hapke_shader.cu"
@@ -80,51 +80,55 @@ extern "C" __global__ void __miss__shader() {
             break;
         }
 
-        case RayType::TRANSIENT_RAY_TYPE: {
-            const CameraMissParameters& camera_miss = miss->camera_miss;
-            PerRayData_transientCamera* prd = GetTransientCameraPRD();
+        // case RayType::TRANSIENT_RAY_TYPE: {
+        //     const CameraMissParameters& camera_miss = miss->camera_miss;
+        //     PerRayData_transientCamera* prd = GetTransientCameraPRD();
 
-            if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
-                // evironment map assumes z up
-                float3 ray_dir = optixGetWorldRayDirection();
-                float theta = atan2f(ray_dir.x, ray_dir.y);
-                float phi = asinf(ray_dir.z);
-                float tex_x = theta / (2 * CUDART_PI_F);
-                float tex_y = phi / CUDART_PI_F + 0.5;
-                float4 tex = tex2D<float4>(camera_miss.env_map, tex_x, tex_y);
-                // Gamma Correction
-                prd->color = Pow(make_float3(tex.x, tex.y, tex.z), 2.2) * prd->contrib_to_pixel;
-            } else if (camera_miss.mode == BackgroundMode::GRADIENT) {  // gradient
-                // gradient assumes z=up
-                float3 ray_dir = optixGetWorldRayDirection();
-                float mix = max(0.f, ray_dir.z);
-                prd->color =
-                    (mix * camera_miss.color_zenith + (1 - mix) * camera_miss.color_horizon) * prd->contrib_to_pixel;
-            } else {  // default to solid color
-                prd->color = camera_miss.color_zenith * prd->contrib_to_pixel;
-            }
+        //     if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
+        //         // evironment map assumes z up
+        //         float3 ray_dir = optixGetWorldRayDirection();
+        //         float theta = atan2f(ray_dir.x, ray_dir.y);
+        //         float phi = asinf(ray_dir.z);
+        //         float tex_x = theta / (2 * CUDART_PI_F);
+        //         float tex_y = phi / CUDART_PI_F + 0.5;
+        //         float4 tex = tex2D<float4>(camera_miss.env_map, tex_x, tex_y);
+        //         // Gamma Correction
+        //         prd->color = Pow(make_float3(tex.x, tex.y, tex.z), 2.2) * prd->contrib_to_pixel;
+        //     } else if (camera_miss.mode == BackgroundMode::GRADIENT) {  // gradient
+        //         // gradient assumes z=up
+        //         float3 ray_dir = optixGetWorldRayDirection();
+        //         float mix = max(0.f, ray_dir.z);
+        //         prd->color =
+        //             (mix * camera_miss.color_zenith + (1 - mix) * camera_miss.color_horizon) * prd->contrib_to_pixel;
+        //     } else {  // default to solid color
+        //         prd->color = camera_miss.color_zenith * prd->contrib_to_pixel;
+        //     }
 
-            // apply fog model
-            if (prd->use_fog && params.fog_scattering > 0.f) {
-                float blend_alpha = expf(-params.fog_scattering * optixGetRayTmax());
-                prd->color = blend_alpha * prd->color + (1 - blend_alpha) * params.fog_color * prd->contrib_to_pixel;
-            }
-            prd->depth_reached = prd->depth;
-            break;
-        }
+        //     // apply fog model
+        //     if (prd->use_fog && params.fog_scattering > 0.f) {
+        //         float blend_alpha = expf(-params.fog_scattering * optixGetRayTmax());
+        //         prd->color = blend_alpha * prd->color + (1 - blend_alpha) * params.fog_color * prd->contrib_to_pixel;
+        //     }
+        //     prd->depth_reached = prd->depth;
+        //     break;
+        // }
+
         case RayType::LIDAR_RAY_TYPE: {
             // leave as default values
             break;
         }
+
         case RayType::RADAR_RAY_TYPE: {
             // leave as default values
             break;
         }
+
         case RayType::DEPTH_RAY_TYPE: {
             PerRayData_depthCamera* prd = GetDepthCameraPRD();
             prd->depth = prd->max_depth; // set miss hit to max depth
             break;
         }
+
         case RayType::NORMAL_RAY_TYPE: {
             // leave as default values
             break;

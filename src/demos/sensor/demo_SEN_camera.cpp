@@ -123,8 +123,8 @@ int main(int argc, char* argv[]) {
     // ---------------------------------------
     // add a mesh to be visualized by a camera
     // ---------------------------------------
-    auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(GetChronoDataFile("sensor/geometries/regolith/particle_1.obj"),
-                                                                  false, true);
+    auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(GetChronoDataFile("vehicle/audi/audi_chassis.obj"),
+                                                                  true, true);
     mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
 
     auto trimesh_shape = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
@@ -132,14 +132,15 @@ int main(int argc, char* argv[]) {
     trimesh_shape->SetName("Audi Chassis Mesh");
     trimesh_shape->SetMutable(false);
 
-
     auto mesh_body = chrono_types::make_shared<ChBody>();
     mesh_body->SetPos({-6, 0, 0});
     mesh_body->AddVisualShape(trimesh_shape, ChFrame<>(ChVector3d(0, 0, 0)));
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetBSDF(BSDFType::DIFFUSE);
     mesh_body->SetFixed(true);
     sys.Add(mesh_body);
 
     auto vis_mat3 = chrono_types::make_shared<ChVisualMaterial>();
+    // vis_mat3->SetBSDF(BSDFType::DIFFUSE);
     vis_mat3->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat3->SetDiffuseColor({.5, .5, .5});
     vis_mat3->SetSpecularColor({0.5f, 0.5f, 0.5f});
@@ -164,6 +165,7 @@ int main(int argc, char* argv[]) {
     }
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
+    // vis_mat->SetBSDF(BSDFType::DIFFUSE);
     vis_mat->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat->SetDiffuseColor({0.0, 1.0, 0.0});
     vis_mat->SetSpecularColor({1.f, 1.f, 1.f});
@@ -188,6 +190,7 @@ int main(int argc, char* argv[]) {
     
 
     auto vis_mat2 = chrono_types::make_shared<ChVisualMaterial>();
+    // vis_mat2->SetBSDF(BSDFType::SPECULAR);
     vis_mat2->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat2->SetDiffuseColor({1.0, 0.0, 0.0});
     vis_mat2->SetSpecularColor({1.0f, 1.0f, 1.0f});
@@ -212,6 +215,7 @@ int main(int argc, char* argv[]) {
     }
 
     auto vis_mat4 = chrono_types::make_shared<ChVisualMaterial>();
+    // vis_mat4->SetBSDF(BSDFType::DIFFUSE);
     vis_mat4->SetAmbientColor({0.f, 0.f, 0.f});
     vis_mat4->SetDiffuseColor({0.0, 0.0, 1.0});
     vis_mat4->SetSpecularColor({.0f, .0f, .0f});
@@ -429,8 +433,9 @@ int main(int argc, char* argv[]) {
     // ---------------
     // Demonstration shows cameras panning around a stationary mesh.
     // Each camera begins on opposite sides of the object, but rotate at the same speed
-    float orbit_radius = 10.f;
+    float orbit_radius = 15.f;
     float orbit_rate = 0.1f;
+    float orbit_start = 0.f * CH_PI/180.f;
     float ch_time = 0.0f;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
@@ -441,13 +446,14 @@ int main(int argc, char* argv[]) {
 
     while (ch_time < end_time) {
         // Rotate the cameras around the mesh at a fixed rate
+        float orbit_angle = ch_time * orbit_rate + orbit_start;
         cam->SetOffsetPose(chrono::ChFrame<double>(
-            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+            {orbit_radius * cos(orbit_angle), orbit_radius * sin(orbit_angle), 2},
+            QuatFromAngleAxis(orbit_angle + CH_PI, {0, 0, 1})));
 
         cam2->SetOffsetPose(chrono::ChFrame<double>(
-            {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},
-            QuatFromAngleAxis(ch_time * orbit_rate + CH_PI, {0, 0, 1})));
+            {orbit_radius * cos(orbit_angle), orbit_radius * sin(orbit_angle), 2},
+            QuatFromAngleAxis(orbit_angle + CH_PI, {0, 0, 1})));
 
         // seg->SetOffsetPose(chrono::ChFrame<double>(
         //     {orbit_radius * cos(ch_time * orbit_rate), orbit_radius * sin(ch_time * orbit_rate), 2},

@@ -101,7 +101,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/phys_cam_raygen.cu
       optix/shaders/radar_raygen.cu
       optix/shaders/segment_cam_raygen.cu
-      optix/shaders/transient_cam_raygen.cu
+      # optix/shaders/transient_cam_raygen.cu
       optix/shaders/camera_hapke_shader.cu
       optix/shaders/camera_volumetric_shader.cu
       optix/shaders/camera_legacy_shader.cu
@@ -113,7 +113,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/radar_shader.cu
       optix/shaders/segment_cam_shader.cu
       optix/shaders/shadow_shader.cu
-      optix/shaders/transient_cam_shader.cu
+      # optix/shaders/transient_cam_shader.cu
       optix/shaders/ChOptixLightHubs.cu
       optix/shaders/ChOptixPointLight.cu
   )

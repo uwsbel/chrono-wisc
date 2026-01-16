@@ -31,15 +31,12 @@ CH_SENSOR_API ChScene::ChScene() {
 
     m_ambient_light = ChVector3f({.2f, .2f, .2f});
     m_lights = std::vector<ChOptixLight>();
-    m_num_pointlights = 0;
-    m_num_arealights = 0;
 
     lights_changed = true;
     background_changed = true;
 
     m_fog_color = ChVector3f(1.f, 1.f, 1.f);
     m_fog_scattering = 0.f;
-    
 
     m_scene_epsilon = 1e-3f;
     m_dynamic_origin_threshold = 100.f;
@@ -55,38 +52,44 @@ CH_SENSOR_API ChScene::~ChScene() {}
 
 
 CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range) {
-    ChOptixPointLight p({pos.x(), pos.y(), pos.z()}, {color.R, color.G, color.B}, max_range);
-    m_lights.push_back(p);
-    lights_changed = true,
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::POINT_LIGHT;
+    light.pos = {pos.x(), pos.y(), pos.z()};
+    light.delta = true;
+    light.specific.point.color = {color.R, color.G, color.B};
+    light.specific.point.max_range = max_range;
+    light.specific.point.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
+
+    m_lights.push_back(light);
+    lights_changed = true;
+
     return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
-CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, ChVector3f pos, ChColor color, float max_range) {
-    if (id <= m_lights.size()) {
-        m_lights[id].pos = {pos.x(), pos.y(), pos.z()};
-        m_lights[id].color = {color.R, color.G, color.B};
-        m_lights[id].max_range = max_range;
+CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, const ChOptixLight& point_light) {
+    if (id <= m_lights.size() && point_light.light_type == LightType::POINT_LIGHT) {
+        m_lights[id] = point_light;
         lights_changed = true;
     }
 }
 
-CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv) {
-    AreaLight a;
+// CH_SENSOR_API unsigned int ChScene::AddAreaLight(
+//     ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv) {
+//     AreaLight a;
 
-    a.pos = {pos.x(), pos.y(), pos.z()};
-    a.du = {du.x(), du.y(), du.z()};
-    a.dv = {dv.x(), dv.y(), dv.z()};
+//     a.pos = {pos.x(), pos.y(), pos.z()};
+//     a.du = {du.x(), du.y(), du.z()};
+//     a.dv = {dv.x(), dv.y(), dv.z()};
 
-    a.color = {color.R, color.G, color.B};
-    a.max_range = max_range;
-    lights_changed = true;
-    //m_arealights.push_back(a);
-    m_num_arealights++;
-    m_lights.push_back(a);
+//     a.color = {color.R, color.G, color.B};
+//     a.max_range = max_range;
+//     lights_changed = true;
+//     //m_arealights.push_back(a);
+//     m_num_arealights++;
+//     m_lights.push_back(a);
 
-    return static_cast<unsigned int>(m_lights.size() - 1);
-}
-
+//     return static_cast<unsigned int>(m_lights.size() - 1);
+// }
 
 
 // CH_SENSOR_API unsigned int ChScene::AddPointLight(const PointLight& p) {
@@ -99,87 +102,87 @@ CH_SENSOR_API unsigned int ChScene::AddAreaLight(ChVector3f pos, ChColor color, 
 
 
 
-CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChVector3f pos,
-    ChVector3f to,
-    ChColor color,
-    float max_range,
-    float total_width,
-    float falloff_start) {
+// CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChVector3f pos,
+//     ChVector3f to,
+//     ChColor color,
+//     float max_range,
+//     float total_width,
+//     float falloff_start) {
 
-    Light spot;
-    spot.type = LightType::SPOT_LIGHT;
-    spot.pos = {pos.x(), pos.y(), pos.z()};
+//     Light spot;
+//     spot.type = LightType::SPOT_LIGHT;
+//     spot.pos = {pos.x(), pos.y(), pos.z()};
 
-    ChVector3f dir = {to.x() - pos.x(), to.y() - pos.y(), to.z() - pos.z()};
-    dir = dir / dir.Length();
-    //std::cout << "Dir: " << dir << std::endl;
-    spot.spot_dir = {dir.x(), dir.y(), dir.z()};
-    spot.color = {color.R, color.G, color.B};
-    spot.max_range = max_range;
-    spot.cos_total_width = cosf(total_width);
-    spot.cos_falloff_start = cosf(falloff_start);
+//     ChVector3f dir = {to.x() - pos.x(), to.y() - pos.y(), to.z() - pos.z()};
+//     dir = dir / dir.Length();
+//     //std::cout << "Dir: " << dir << std::endl;
+//     spot.spot_dir = {dir.x(), dir.y(), dir.z()};
+//     spot.color = {color.R, color.G, color.B};
+//     spot.max_range = max_range;
+//     spot.cos_total_width = cosf(total_width);
+//     spot.cos_falloff_start = cosf(falloff_start);
 
-    lights_changed = true;
-    m_lights.push_back(spot);
+//     lights_changed = true;
+//     m_lights.push_back(spot);
 
-    return static_cast<unsigned int>(m_lights.size() - 1);
-}
+//     return static_cast<unsigned int>(m_lights.size() - 1);
+// }
 
-CH_SENSOR_API unsigned int ChScene::AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
-    ChFramed offsetPose,
-    ChColor color,
-    float max_range,
-    float total_width,
-    float falloff_start) {
+// CH_SENSOR_API unsigned int ChScene::AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
+//     ChFramed offsetPose,
+//     ChColor color,
+//     float max_range,
+//     float total_width,
+//     float falloff_start) {
 
-    Light spot;
-    spot.type = LightType::SPOT_LIGHT;
-    ChFramed global_frame = parent->GetVisualModelFrame() * offsetPose;
-    ChVector3f frame_pos = global_frame.GetPos() - GetOriginOffset();
-    ChVector3f local_dir(1, 0, 0);
-    ChVector3f world_dir = global_frame.GetRot().Rotate(local_dir);
-    spot.pos = make_float3(frame_pos.x(), frame_pos.y(), frame_pos.z());
-    spot.spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
+//     Light spot;
+//     spot.type = LightType::SPOT_LIGHT;
+//     ChFramed global_frame = parent->GetVisualModelFrame() * offsetPose;
+//     ChVector3f frame_pos = global_frame.GetPos() - GetOriginOffset();
+//     ChVector3f local_dir(1, 0, 0);
+//     ChVector3f world_dir = global_frame.GetRot().Rotate(local_dir);
+//     spot.pos = make_float3(frame_pos.x(), frame_pos.y(), frame_pos.z());
+//     spot.spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
 
-    spot.color = {color.R, color.G, color.B};
-    spot.max_range = max_range;
-    spot.cos_total_width = cosf(total_width);
-    spot.cos_falloff_start = cosf(falloff_start);
+//     spot.color = {color.R, color.G, color.B};
+//     spot.max_range = max_range;
+//     spot.cos_total_width = cosf(total_width);
+//     spot.cos_falloff_start = cosf(falloff_start);
 
-    spot.parent_id = parent->GetIdentifier();
-    lights_changed = true;
-    m_lights.push_back(spot);
+//     spot.parent_id = parent->GetIdentifier();
+//     lights_changed = true;
+//     m_lights.push_back(spot);
 
-    unsigned int id = static_cast<unsigned int>(m_lights.size() - 1);
-    m_light_frames.insert({id,offsetPose});
-    m_light_parent.insert({id,parent});
-    return id;
-}
+//     unsigned int id = static_cast<unsigned int>(m_lights.size() - 1);
+//     m_light_frames.insert({id,offsetPose});
+//     m_light_parent.insert({id,parent});
+//     return id;
+// }
 
 
-CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChFramed offsetPose,
-                                                 ChColor color,
-                                                 float max_range,
-                                                 float total_width,
-                                                 float falloff_start) {
-    Light spot;
-    spot.type = LightType::SPOT_LIGHT;
-    ChVector3f frame_pos = offsetPose.GetPos();
-    ChVector3f local_dir(1, 0, 0);
-    ChVector3f world_dir = offsetPose.GetRot().Rotate(local_dir);
-    spot.pos = make_float3(frame_pos.x(), frame_pos.y(), frame_pos.z());
-    spot.spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
+// CH_SENSOR_API unsigned int ChScene::AddSpotLight(ChFramed offsetPose,
+//                                                  ChColor color,
+//                                                  float max_range,
+//                                                  float total_width,
+//                                                  float falloff_start) {
+//     Light spot;
+//     spot.type = LightType::SPOT_LIGHT;
+//     ChVector3f frame_pos = offsetPose.GetPos();
+//     ChVector3f local_dir(1, 0, 0);
+//     ChVector3f world_dir = offsetPose.GetRot().Rotate(local_dir);
+//     spot.pos = make_float3(frame_pos.x(), frame_pos.y(), frame_pos.z());
+//     spot.spot_dir = make_float3(world_dir.x(), world_dir.y(), world_dir.z());
 
-    spot.color = {color.R, color.G, color.B};
-    spot.max_range = max_range;
-    spot.cos_total_width = cosf(total_width);
-    spot.cos_falloff_start = cosf(falloff_start);
+//     spot.color = {color.R, color.G, color.B};
+//     spot.max_range = max_range;
+//     spot.cos_total_width = cosf(total_width);
+//     spot.cos_falloff_start = cosf(falloff_start);
 
-    lights_changed = true;
-    m_lights.push_back(spot);
+//     lights_changed = true;
+//     m_lights.push_back(spot);
 
-    return static_cast<unsigned int>(m_lights.size() - 1);
-}
+//     return static_cast<unsigned int>(m_lights.size() - 1);
+// }
 
 /// interpolate between two vectors
 ChVector3f ChLerp(ChVector3f& a, ChVector3f& b, double x) {
@@ -230,8 +233,6 @@ ChVector3f ChLerp(ChVector3f& a, ChVector3f& b, double x) {
 //     }
 //     lights_changed = true;
 // }
-
-
 
 CH_SENSOR_API void ChScene::SetBackground(Background b) {
     m_background = b;

@@ -64,7 +64,7 @@ static __device__ inline void CameraHapkeShader(PerRayData_camera* prd_camera,
     float3 reflected_color = make_float3(0.0f);
     {
         for (int i = 0; i < params.num_lights; i++) {
-            Light l = params.lights[i];
+            ChOptixLight l = params.lights[i];
             LightSample ls;
             ls.hitpoint = hit_point;
             ls.wo = -ray_dir;

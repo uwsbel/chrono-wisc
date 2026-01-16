@@ -125,53 +125,55 @@ __device__ __inline__ PerRayData_shadow DefaultShadowPRD() {
     return prd;
 };
 
-static __device__ inline void SamplePointLight(Light pl, LightSample* ls) {
-    ls->dir = normalize(pl.pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
-    float dist = Length(pl.pos - ls->hitpoint);
+static __device__ inline void SamplePointLight(const float3& light_pos, const PointLightData& light_data, LightSample* ls) {
+    ls->dir = normalize(light_pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
+    float dist = Length(light_pos - ls->hitpoint);
     ls->dist = dist;
     ls->pdf = 1.f;
-    float point_light_falloff = (pl.max_range * pl.max_range / (dist * dist + pl.max_range * pl.max_range));
-    ls->L = pl.color * point_light_falloff;
+    float point_light_falloff = (light_data.max_range * light_data.max_range / (dist * dist + light_data.max_range * light_data.max_range));
+    ls->L = light_data.color * point_light_falloff;
 }
 
-static __device__ inline void SampleSpotLight(Light spot, LightSample* ls) {
-    ls->dir = normalize(spot.pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
-    float dist = Length(spot.pos - ls->hitpoint);
-    ls->dist = dist;
-    ls->pdf = 1.f;
+// static __device__ inline void SampleSpotLight(Light spot, LightSample* ls) {
+//     ls->dir = normalize(spot.pos - ls->hitpoint);  // How much slow down due to derefing hitpoint twice?
+//     float dist = Length(spot.pos - ls->hitpoint);
+//     ls->dist = dist;
+//     ls->pdf = 1.f;
 
-    float cos_theta = Dot(spot.spot_dir, -1 * ls->dir);
+//     float cos_theta = Dot(spot.spot_dir, -1 * ls->dir);
 
-    // Replace max range with a high intensity
-    // float point_light_falloff = (spot.max_range * spot.max_range / (dist * dist + spot.max_range * spot.max_range));
-    ls->L = spot.color / (dist * dist);
+//     // Replace max range with a high intensity
+//     // float point_light_falloff = (spot.max_range * spot.max_range / (dist * dist + spot.max_range * spot.max_range));
+//     ls->L = spot.color / (dist * dist);
 
-    float falloff;  // spot light falloff
-    if (cos_theta >= spot.cos_falloff_start) {
-        falloff = 1.f;
-        return;
-    }
-    if (cos_theta < spot.cos_total_width) {
-        falloff = 0.f;
-        ls->L = make_float3(0.f);
-        return;
-    }
+//     float falloff;  // spot light falloff
+//     if (cos_theta >= spot.cos_falloff_start) {
+//         falloff = 1.f;
+//         return;
+//     }
+//     if (cos_theta < spot.cos_total_width) {
+//         falloff = 0.f;
+//         ls->L = make_float3(0.f);
+//         return;
+//     }
 
-    float delta = (cos_theta - spot.cos_total_width) / (spot.cos_falloff_start - spot.cos_total_width);
-    falloff = (delta * delta) * (delta * delta);
+//     float delta = (cos_theta - spot.cos_total_width) / (spot.cos_falloff_start - spot.cos_total_width);
+//     falloff = (delta * delta) * (delta * delta);
 
-    ls->L = ls->L * falloff;
-    // printf("falloff: %f | dist: %f | cosTheta: %f\n", falloff, dist, cos_theta*180/CUDART_PI);
-}
+//     ls->L = ls->L * falloff;
+//     // printf("falloff: %f | dist: %f | cosTheta: %f\n", falloff, dist, cos_theta*180/CUDART_PI);
+// }
 
-static __device__ inline void SampleLight(Light light, LightSample* ls) {
-    switch (light.type) {
-        case LightType::POINT_LIGHT:
-            SamplePointLight(light, ls);
+static __device__ inline void SampleLight(const ChOptixLight& light, LightSample* ls) {
+    switch (light.light_type) {
+        case LightType::POINT_LIGHT: {
+            SamplePointLight(light.pos, light.specific.point, ls);
             break;
+        }
+
         case LightType::SPOT_LIGHT:
             // printf("Sample Spot!\n");
-            SampleSpotLight(light, ls);
+            // SampleSpotLight(light, ls);
             break;
         default:
             break;
@@ -346,7 +348,7 @@ static __device__ __inline__ float ISPowerHeuristic(int nf, float fPdf, int ng, 
 }
 
 // Compute direct lighting contribution from a light source
-static __device__ __inline__ float3 ComputeDirectLight(Light& l,
+static __device__ __inline__ float3 ComputeDirectLight(ChOptixLight& l,
                                                        LightSample& ls,
                                                        const MaterialParameters& mat,
                                                        const float2& uv,

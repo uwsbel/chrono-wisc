@@ -21,15 +21,17 @@
 
 #include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
-#include "chrono_sensor/optix/shaders/ChOptixPointLight.h"
+#include "chrono_sensor/optix/shaders/ChOptixPointLight.cu"
 
 // Check if the light source is visible to the hit-point
-static __device__ __inline__ bool CheckLightVisible(
-	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const Light& light, LightSample& light_sample
+static __device__ __inline__ bool CheckVisibleAndSampleLight(
+	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const ChOptixLight& light, LightSample& light_sample
 ) {
-	switch (light.type) {
+	switch (light.light_type) {
         case LightType::POINT_LIGHT:
-            bool flag = CheckVisibleAndSamplePointLight(cntxt_params, prd_camera, light, light_sample);
+            bool flag = CheckVisibleAndSamplePointLight(
+				cntxt_params, prd_camera, light.specific.point, light.pos, light_sample
+			);
 			// prd_camera->color = {flag * 1.0, 0.0, 1.0}; // debug
 			return flag;
             break;

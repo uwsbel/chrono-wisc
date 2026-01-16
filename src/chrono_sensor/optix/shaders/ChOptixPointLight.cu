@@ -19,8 +19,8 @@
 #ifndef CHRONO_SENSOR_OPTIX_POINT_LIGHT_CU
 #define CHRONO_SENSOR_OPTIX_POINT_LIGHT_CU
 
-#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
-#include "chrono_sensor/optix/ChOptixDefinitions.h"
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h" // for PointLightData, LightSample
+#include "chrono_sensor/optix/ChOptixDefinitions.h" // for PerRayData_camera, ContextParameters
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
 
@@ -29,14 +29,15 @@
 	/// @param prd_camera per-ray data (PRD) of the camera ray
 	/// @param light_sample the light sample to be updated
 	/// @return True if the light is visible from the hit point, false otherwise
-	static __device__ __inline__ bool CheckVisibleAndSampleLight(
-		const ChOptixPointLight& light,
+	static __device__ __inline__ bool CheckVisibleAndSamplePointLight(
 		const ContextParameters& cntxt_params,
 		const PerRayData_camera* prd_camera,
+		const PointLightData& light_data,
+		const float3& light_posi,
 		LightSample& light_sample
 	) {
 		// Direction and distance from hit-point to light
-		light_sample.dir = light.pos - light_sample.hitpoint;
+		light_sample.dir = light_posi - light_sample.hitpoint;
 		light_sample.dist = Length(light_sample.dir);
 		light_sample.dir = light_sample.dir / light_sample.dist;
 		light_sample.NdL = Dot(light_sample.n, light_sample.dir);
@@ -81,8 +82,8 @@
 		}
 		// Caculate the remaining attributes of light sample
 		else {
-			light_sample.L = atten_scale * color / (light_sample.dist * light_sample.dist); // inverse square law
-			light_sample.L = light_sample.L * light_sample.NdL;
+			// light_sample.L = light_sample.NdL * light_data.atten_scale * light_data.color / (light_sample.dist * light_sample.dist); // inverse square law
+			light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
 			light_sample.pdf = 1.0f; // Delta light
 			return true;
 		}

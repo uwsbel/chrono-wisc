@@ -28,7 +28,7 @@
 #include "chrono_sensor/optix/shaders/normal_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/depth_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/segment_cam_shader.cu"
-#include "chrono_sensor/optix/shaders/transient_cam_shader.cu"
+// #include "chrono_sensor/optix/shaders/transient_cam_shader.cu"
 #include "chrono_sensor/optix/shaders/radar_shader.cu"
 #include "chrono_sensor/optix/shaders/lidar_shader.cu"
 #include "chrono_sensor/optix/shaders/camera_hapke_shader.cu"
@@ -167,11 +167,11 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
         }
         
-        case RayType::TRANSIENT_RAY_TYPE: {
-            TransientCamShader(GetTransientCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal,
-                               uv, tangent, ray_dist, ray_orig, ray_dir);
-            break;
-        }
+        // case RayType::TRANSIENT_RAY_TYPE: {
+        //     TransientCamShader(GetTransientCameraPRD(), mat_params, material_id, mat_params->num_blended_materials, world_normal,
+        //                        uv, tangent, ray_dist, ray_orig, ray_dir);
+        //     break;
+        // }
 
         case RayType::PHYS_CAMERA_RAY_TYPE: {
             PerRayData_phys_camera* prd_phys_camera_ptr = GetPhysCameraPRD();
@@ -213,11 +213,11 @@ extern "C" __global__ void __closesthit__material_shader() {
             break;
         }
 
-        case RayType::LASER_SAMPLE_RAY_TYPE: {
-            LaserSampleShader(GetLaserSamplePRD(), mat_params, material_id, mat_params->num_blended_materials,
-                              world_normal, uv, tangent, ray_dist, ray_orig, ray_dir, hit_point);
-            break;
-        }
+        // case RayType::LASER_SAMPLE_RAY_TYPE: {
+        //     LaserSampleShader(GetLaserSamplePRD(), mat_params, material_id, mat_params->num_blended_materials,
+        //                       world_normal, uv, tangent, ray_dist, ray_orig, ray_dir, hit_point);
+        //     break;
+        // }
 
         case RayType::NORMAL_RAY_TYPE: {
             NormalCamShader(GetNormalCameraPRD(), world_normal);

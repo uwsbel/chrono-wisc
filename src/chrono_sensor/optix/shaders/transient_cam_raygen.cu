@@ -17,6 +17,7 @@
 // =============================================================================
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
 
 
 __device__ __inline__ PerRayData_laserSampleRay DefaultLaserSamplePRD() {
@@ -73,8 +74,8 @@ extern "C" __global__ void __raygen__transient_camera() {
     if (camera.integrator == Integrator::MITRANSIENT) {
         // trace laser ray to find laster focusing point
         assert(params.num_lights > 0);
-        Light l = params.lights[0];
-        assert(l.type == LightType::SPOT_LIGHT); // MITRANSIENT assumes only one light source and it should be a Spot Light/Projector (TODO)
+        ChOptixLight l = params.lights[0];
+        assert(l.light_type == LightType::SPOT_LIGHT); // MITRANSIENT assumes only one light source and it should be a Spot Light/Projector (TODO)
 
 
         PerRayData_laserSampleRay prd = DefaultLaserSamplePRD();

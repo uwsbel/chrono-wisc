@@ -262,7 +262,7 @@ int main(int argc, char* argv[]) {
         ChVector3f new_pos = box->GetPos() + ChVector3f(move_rate, 0, 0);
         light_pos = light_pos + ChVector3f(move_rate, 0, 0);
         box->SetPos(new_pos);
-        manager->scene->UpdateLight(spot_id, ChFramed(light_pos, QuatFromAngleY(90 * CH_PI / 180)));
+        // manager->scene->UpdateLight(spot_id, ChFramed(light_pos, QuatFromAngleY(90 * CH_PI / 180)));
       /*  ChQuaternionf new_rot = box->GetRot() * QuatFromAngleAxis(0.1, ChVector3f(0, 0, 1));
         box->SetRot(new_rot);*/
         

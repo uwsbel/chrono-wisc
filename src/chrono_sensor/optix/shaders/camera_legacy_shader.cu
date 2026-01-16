@@ -21,6 +21,7 @@
 
 #include "chrono_sensor/optix/shaders/device_utils.h"
 #include "chrono_sensor/optix/shaders/shader_utils.cu"
+#include "chrono_sensor/optix/shaders/ChOptixLightHubs.cu"
 
 
 // Indirect illumination ray
@@ -46,6 +47,7 @@ static __device__ __inline__ float3 GetDiffuseReflectedColor(PerRayData_camera* 
         float NdH = Dot(world_normal, halfway);
         float VdH = Dot(-ray_dir, halfway);  // Same as LdH
 
+        float3 this_contrib_to_pixel = make_float3(0.f);
         float3 next_contrib_to_pixel = make_float3(0.f);
 
         for (int b = 0; b < num_blended_materials; b++) {
@@ -60,15 +62,18 @@ static __device__ __inline__ float3 GetDiffuseReflectedColor(PerRayData_camera* 
     		float mat_blend_weight = (mat.weight_tex) ? GetTexValFloat(mat.weight_tex, mat.tex_scale, uv) : (1.f / num_blended_materials);
     		float contrib_weight = opacity * mat_blend_weight;  // correct for transparency, light bounces, and blend weight
 
-            next_contrib_to_pixel += prd_camera->contrib_to_pixel * PrincipledBRDF(
+            this_contrib_to_pixel += PrincipledBRDF(
 				albedo, roughness, metallic, specular, contrib_weight, mat.use_specular_workflow, NdV, NdL, NdH, VdH
 			);
+            
         }
+        next_contrib_to_pixel = prd_camera->contrib_to_pixel * this_contrib_to_pixel;
 
         // If mirror_reflection, then it will trace two rays. So each ray's contribution should be halfed
         if (prd_camera->use_gi) {
         // if ((mirror_reflection_color.x < 1e-6) && (mirror_reflection_color.y < 1e-6) && (mirror_reflection_color.z < 1e-6)) {
             next_contrib_to_pixel = next_contrib_to_pixel * .5f;
+            this_contrib_to_pixel = this_contrib_to_pixel * .5f;
         }
 
         if (luminance(next_contrib_to_pixel) > params.importance_cutoff && prd_camera->depth + 1 < params.max_depth) {
@@ -83,7 +88,7 @@ static __device__ __inline__ float3 GetDiffuseReflectedColor(PerRayData_camera* 
             unsigned int raytype = static_cast<unsigned int>(RayType::CAMERA_RAY_TYPE);
             optixTrace(params.root, hit_point, next_dir, params.scene_epsilon, 1e16f, optixGetRayTime(),
                        OptixVisibilityMask(1), OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
-            diffuse_reflected_color = prd_reflection.color;  // accumulate indirect lighting color
+            diffuse_reflected_color = prd_reflection.color ;  // accumulate indirect lighting color
         }
     }
 
@@ -181,6 +186,7 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
                                                               const float3& hit_point,
                                                               const float& NdV) {
     float3 next_contrib_to_pixel = make_float3(0.f);
+    float3 this_contrib_to_pixel = make_float3(0.f);
     float3 next_dir = normalize(reflect(ray_dir, world_normal));
     {
         float NdL = Dot(world_normal, next_dir);
@@ -195,15 +201,18 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
             float3 albedo = (mat.kd_tex) ? Pow(GetTexFloat4ValFloat3(mat.kd_tex, mat.tex_scale, uv), 2.2) : mat.Kd; // transfer texture from sRGB space into linear color space
             float roughness = (mat.roughness_tex) ? GetTexValFloat(mat.roughness_tex, mat.tex_scale, uv): mat.roughness;
             float metallic = (mat.metallic_tex) ? GetTexValFloat(mat.metallic_tex, mat.tex_scale, uv) : mat.metallic;
+            float3 specular = (mat.ks_tex) ? GetTexFloat4ValFloat3(mat.ks_tex, mat.tex_scale, uv) : mat.Ks; // transfer texture from sRGB space into linear color space
             float opacity = (mat.opacity_tex) ? GetTexValFloat(mat.opacity_tex, mat.tex_scale, uv) : mat.transparency;
             float mat_blend_weight = (mat.weight_tex) ? GetTexValFloat(mat.weight_tex, mat.tex_scale, uv) : (1.f / num_blended_materials);
-
+            float weight = opacity * mat_blend_weight; // corrected for opacity, bounce contribution, and blend
+            
+            /*
             float3 F = make_float3(0.0f);
             // === dielectric workflow
             if (mat.use_specular_workflow) {
                 float3 specular = (mat.ks_tex) ? GetTexFloat4ValFloat3(mat.ks_tex, mat.tex_scale, uv) : mat.Ks;
                 float3 F0 = specular * 0.08f;
-                F = fresnel_schlick(VdH, 5.f, F0, make_float3(1.f) /*make_float3(fresnel_max) it is usually 1*/);
+                F = fresnel_schlick(VdH, 5.f, F0, make_float3(1.f));
             } else {
                 float3 default_dielectrics_F0 = make_float3(0.04f);
                 F = metallic * albedo + (1 - metallic) * default_dielectrics_F0;
@@ -217,28 +226,40 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
             // Note only specular part appears here. Energy preserve
             // Since it is not random, PDF is 1 (normally 1/pi),
             // If the camera uses GI, then it will trace two rays. So each ray's contribution should be halfed
+            */
 
-            // corrected for opacity, bounce contribution, and blend
-            float weight = opacity * mat_blend_weight;
+            
+            float mirror_correction = (1.f - roughness) * (1.f - roughness) * metallic * metallic;
+
+            this_contrib_to_pixel += PrincipledBRDF(
+				albedo, roughness, metallic, specular, weight, mat.use_specular_workflow, NdV, NdL, NdH, VdH
+			) * mirror_correction * NdL / (4 * CUDART_PI_F);
+            
+            this_contrib_to_pixel = clamp(this_contrib_to_pixel, make_float3(0), make_float3(1));
 
             // mirror correction accounts for us oversampling this direction
             // following line comes from a heuristic. Perect reflection for metalic smooth objects,
             // no reflection for rough non-metalic objects
-            float mirror_correction = (1.f - roughness) * (1.f - roughness) * metallic * metallic;
+            
 
             // if global illumination, ray contrib will be halved since two rays are propogated
-            if (prd_camera->use_gi) {
-                weight = weight * .5f;
-            }
+            // if (prd_camera->use_gi) {
+            //     weight = weight * .5f;
+            // }
 
-            float3 partial_contrib = mirror_correction * weight * f_ct * NdL / (4 * CUDART_PI_F);
-            partial_contrib = clamp(partial_contrib, make_float3(0), make_float3(1));
-
-            partial_contrib = partial_contrib * prd_camera->contrib_to_pixel;
-
-            next_contrib_to_pixel += partial_contrib;
-            next_contrib_to_pixel = clamp(next_contrib_to_pixel, make_float3(0), make_float3(1));
+            // float3 partial_contrib = mirror_correction * weight * f_ct * NdL / (4 * CUDART_PI_F);
+            // partial_contrib = clamp(partial_contrib, make_float3(0), make_float3(1));
+            // partial_contrib = partial_contrib * prd_camera->contrib_to_pixel;
+            // next_contrib_to_pixel += partial_contrib;
+            // next_contrib_to_pixel = clamp(next_contrib_to_pixel, make_float3(0), make_float3(1));
         }
+        // partial_contrib = partial_contrib * prd_camera->contrib_to_pixel;
+        if (prd_camera->use_gi) {
+            this_contrib_to_pixel = this_contrib_to_pixel * .5f;
+        }
+        next_contrib_to_pixel = prd_camera->contrib_to_pixel * this_contrib_to_pixel;
+        next_contrib_to_pixel = clamp(next_contrib_to_pixel, make_float3(0), make_float3(1));
+
     }
 
     float3 specular_reflection_color = make_float3(0.0);
@@ -271,7 +292,7 @@ static __device__ __inline__ float3 GetSpecularReflectedColor(const ContextParam
                 raytype                     // The ray type index (used when you have multiple ray types, e.g., radiance rays, shadow rays, etc.)
             );
 
-            specular_reflection_color = prd_reflection.color;
+            specular_reflection_color = prd_reflection.color;  // accumulate specular reflection color
         }
     }
 
@@ -292,12 +313,12 @@ static __device__ __inline__ float3 GetLightReflectedColor(PerRayData_camera* pr
     float3 light_reflected_color = make_float3(0.0f);
     // Iterate over all lights
     for (int i = 0; i < params.num_lights; i++) {
-        Light l = params.lights[i];
+        ChOptixLight light = params.lights[i];
         LightSample ls;
         ls.hitpoint = hit_point;
         ls.wo = -ray_dir;
         ls.n = world_normal;
-        SampleLight(l, &ls);
+        SampleLight(light, &ls);
         if (ls.pdf > 0 && fmaxf(ls.L) > 0) {
             float NdL = Dot(world_normal, ls.dir);
             // if we think we can see the light, let's see if we are correct

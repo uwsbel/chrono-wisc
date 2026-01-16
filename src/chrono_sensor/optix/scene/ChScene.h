@@ -78,7 +78,10 @@ class CH_SENSOR_API ChScene {
     /// @param pos the new global position of the point light
     /// @param color the new color intensity of the point light
     /// @param max_range the new max range of the point light
-    void ModifyPointLight(unsigned int id, ChVector3f pos, ChColor color, float max_range);
+    void ModifyPointLight(unsigned int id, const ChOptixLight& point_light);
+
+    // /// Function to raise the flag that light data has been changed
+    // CH_SENSOR_API void RaiseLightUpdateFlag() { lights_changed = true; }
 
     /// Add a point light that emits light in all directions.
     /// @param p A point light the will be added directly
@@ -113,7 +116,7 @@ class CH_SENSOR_API ChScene {
 
     /// Function for gaining access to the vector of lights which can be used to modify lighting dynamically.
     /// @return A vector of lights in the scene currently
-    std::vector<ChOptixLight> GetLights(){return m_lights;}
+    std::vector<ChOptixLight> GetLights() {return m_lights;}
 
     
 
@@ -258,7 +261,7 @@ class CH_SENSOR_API ChScene {
     // std::vector<PointLight> m_pointlights;  //< list of point lights in the scene
     // std::vector<AreaLight> m_arealights;  //< list of area lights in the scene
 
-    std::vector<ChOptixLight> m_lights;  //< list of all lights in the scene
+    std::vector<ChOptixLight> m_lights;     //< list of all lights in the scene
     // int m_num_pointlights;               //< number of point lights in the scene
     // int m_num_arealights;                //< number of area lights in the scene
     std::map<unsigned int, ChFramed> m_light_frames;

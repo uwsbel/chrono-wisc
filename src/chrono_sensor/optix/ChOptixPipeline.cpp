@@ -372,7 +372,7 @@ void ChOptixPipeline::CompileBaseShaders() {
     GetShaderFromFile(m_context, m_camera_raygen_module, "camera_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_lidar_raygen_module, "lidar_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_radar_raygen_module, "radar_raygen", module_compile_options, m_pipeline_compile_options);
-    GetShaderFromFile(m_context, m_transient_cam_raygen_module, "transient_cam_raygen", module_compile_options, m_pipeline_compile_options);
+    // GetShaderFromFile(m_context, m_transient_cam_raygen_module, "transient_cam_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_depth_cam_raygen_module, "depth_cam_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_normal_cam_raygen_module, "normal_cam_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_segment_cam_raygen_module, "segment_cam_raygen", module_compile_options, m_pipeline_compile_options);
@@ -479,8 +479,8 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
                             m_depth_cam_raygen_module, "__raygen__depth_camera");
 
     // Transient camera raygen
-    CreateOptixProgramGroup(m_tranientCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
-                            m_transient_cam_raygen_module, "__raygen__transient_camera");
+    // CreateOptixProgramGroup(m_tranientCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+    //                         m_transient_cam_raygen_module, "__raygen__transient_camera");
 
     // Normal camera raygen
     CreateOptixProgramGroup(m_normalCamera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,

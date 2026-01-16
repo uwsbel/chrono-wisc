@@ -129,12 +129,15 @@ int main(int argc, char* argv[]) {
     auto mesh_body = chrono_types::make_shared<ChBody>();
     mesh_body->SetPos({0, 0, 0});
     mesh_body->AddVisualShape(trimesh_shape);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetBSDF(BSDFType::DIFFUSE);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetRoughness(1.0f);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetMetallic(0.f);
     mesh_body->SetFixed(true);
     sys.Add(mesh_body);
 
-    for (auto mat : mesh_body->GetVisualShape(0)->GetMaterials()) {
-        mat->SetBSDF(BSDFType::DIFFUSE);
-    }
+    // for (auto mat : mesh_body->GetVisualShape(0)->GetMaterials()) {
+    //     mat->SetBSDF(BSDFType::DIFFUSE);
+    // }
 
     // auto box_body = chrono_types::make_shared<ChBodyEasyBox>(1, 1, 1, 1000, true, false);
     // // auto box_body = chrono_types::make_shared<ChBodyEasySphere>(.5, 1000, true, false);
@@ -218,7 +221,7 @@ int main(int argc, char* argv[]) {
     manager->scene->SetBackground(b);
 
     float intensity = 0.8;
-    manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {intensity, intensity, intensity}, 5.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {intensity, intensity, intensity}, 25.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);
     // manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));
