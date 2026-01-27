@@ -67,18 +67,44 @@ class CH_SENSOR_API ChScene {
     ~ChScene();
 
     /// Add a point light that emits light in all directions.
-    /// @param pos The global position of the point light
-    /// @param color The color intensity of the point light
-    /// @param max_range the range at which the light intensity is equal to 1% of its maximum intensity
+    /// @param pos The world position of the point light
+    /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
     /// @return the index of the light that has been added
-    unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range);
+    unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color = false);
 
     /// Function for modifying an existing point light in the scene
     /// @param id the index of the point light to be modified
-    /// @param pos the new global position of the point light
-    /// @param color the new color intensity of the point light
-    /// @param max_range the new max range of the point light
+    /// @param point_light the new point light
     void ModifyPointLight(unsigned int id, const ChOptixLight& point_light);
+
+    /// Add a directional light that emits light in a particular direction.
+    /// @param color [W/m^2] or [lumen/m^2], color irradiance of the light
+    /// @param elevation [rad], elevation angle of the directional light comes from
+    /// @param azimuth [rad], azimuth angle of the directional light comes from
+    /// @return the index of the light that has been added
+    unsigned int AddDirectionalLight(ChColor color, float elevation, float azimuth);
+
+    /// Function for modifying an existing directional light in the scene
+    /// @param id the index of the directional light to be modified
+    /// @param directional_light the new directional light
+    void ModifyDirectionalLight(unsigned int id, const ChOptixLight& directional_light);
+
+
+    /// @brief Add a spot light that emits light in a particular direction.
+    /// @param pos [m], the world position of the spot light
+    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param angle_falloff_start [rad], angle at which the spotlight starts to linearly fall off
+    /// @param angle_range [rad], angle range of the spotlight falling off to zero.
+    /// @param const_color whether to use constant color (no attenuation with distance)
+    /// @return the index of the light that has been added
+    unsigned int AddSpotLight(
+      ChVector3f pos, ChColor color, float max_range, float angle_falloff_start, float angle_range, bool const_color
+    );
+
+    /// Spot light data struct
+
 
     // /// Function to raise the flag that light data has been changed
     // CH_SENSOR_API void RaiseLightUpdateFlag() { lights_changed = true; }

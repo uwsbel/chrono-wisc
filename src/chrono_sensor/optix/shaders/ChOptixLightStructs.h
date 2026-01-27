@@ -61,10 +61,11 @@ struct EnvironmentLightData {
 
 /// Disk light data struct
 struct DiskLightData {
-	float3 area_dir;			// unit normal vector of the disk light
+	float3 light_dir;			// unit normal vector of the disk light
 	float radius;				// [m], radius of the disk light
 	float3 color;				// color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	bool const_color;			// whether to use constant color (no attenuation with distance)
 	// extended parameters
 	float area;					// [m^2], area of the disk light
 };
@@ -75,48 +76,55 @@ struct RectangleLightData {
 	float3 height_vec;			// [m], vector along the other edge of the rectangle light. Light direction is: width_vec x height_vec.
 	float3 color;				// color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	bool const_color;			// whether to use constant color (no attenuation with distance)
 	// extended parameters
 	float area;					// [m^2], area of the rectangle light
-	float3 area_dir;			// unit direction vector of the rectangle light (normal vector)
+	float3 light_dir;			// unit direction vector of the rectangle light (normal vector)
 };
 
 /// Directional light data struct
 struct DirectionalLightData {
+	float3 color;		// [W/sr/m^2], color radiance of the light
 	float elevation;	// [rad], elevation angle of the directional light comes from
 	float azimuth;		// [rad], azimuth angle of the directional light comes from
-	float3 color;		// color intensity of the light
+	// extended parameters
+	float3 light_dir;	// unit direction vector of the directional light
 };
 
 /// Spot light data struct
 struct SpotLightData {
-	float3 color;				// color intensity of the light
+	float3 color;				// [cd/sec] or [W], color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
-	float atten_scale;			// [1/1], attenuation scale based on max_range
-	float3 spot_dir;			// unit direction vector of the spotlight
+	float3 light_dir;			// unit direction vector of the spotlight
 	float angle_falloff_start;	// [rad], angle at which the spotlight starts to linearly cosine-fall off
 	float angle_range;			// [rad], angle range of the spotlight cosinely falling off to zero.
+	bool const_color;			// whether to use constant color (no attenuation with distance)
+	// extended parameters
+	float atten_scale;			// [1/1], attenuation scale based on max_range
+	float angle_atten_rate;		// [1/rad], angular attenuation rate from "angle_falloff_start" to "angle_range"
 };
 
 /// Point light data struct
 struct PointLightData {
-	float3 color;			// color intensity of the light
+	float3 color;			// [cd/sec] or [W], color intensity of the light
 	float max_range;		// [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	float atten_scale;		// [1/1], attenuation scale based on max_range
+	bool const_color;		// whether to use constant color (no attenuation with distance)
 };
 
 /// Base light struct
 struct ChOptixLight {
-	LightType light_type;			// type of light
-	bool delta;						// whether the light is a delta light source
-	float3 pos; 					// [m], position of the light
+	LightType light_type;					// type of light
+	bool delta;								// whether the light is a delta light source
+	float3 pos; 							// [m], position of the light
 	union {
-		PointLightData point;		// point light specific parameters
-		SpotLightData spot;			// spot light specific parameters
-		DirectionalLightData dir;	// directional light specific parameters
-		RectangleLightData rect;	// rectangle light specific parameters
-		DiskLightData disk;			// disk light specific parameters
-		EnvironmentLightData env;	// environment light specific parameters
-	} specific;						// specific parameters for different light types
+		PointLightData point;				// point light specific parameters
+		SpotLightData spot;					// spot light specific parameters
+		DirectionalLightData directional;	// directional light specific parameters
+		RectangleLightData rect;			// rectangle light specific parameters
+		DiskLightData disk;					// disk light specific parameters
+		EnvironmentLightData env;			// environment light specific parameters
+	} specific;								// specific parameters for different light types
 };
 
 

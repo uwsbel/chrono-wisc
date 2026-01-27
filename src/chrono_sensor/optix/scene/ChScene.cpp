@@ -43,21 +43,22 @@ CH_SENSOR_API ChScene::ChScene() {
     m_dynamic_origin_offset = false;
     m_sprites = std::vector <std::shared_ptr<ChBody>>();
 
-
-
     //m_nvdb = nullptr;
 }
 
 CH_SENSOR_API ChScene::~ChScene() {}
 
-
-CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range) {
+/// Point light ///
+CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color) {
     ChOptixLight light{};   // zero-initialize everything
     light.light_type  = LightType::POINT_LIGHT;
     light.pos = {pos.x(), pos.y(), pos.z()};
     light.delta = true;
     light.specific.point.color = {color.R, color.G, color.B};
     light.specific.point.max_range = max_range;
+    light.specific.point.const_color = const_color;
+    
+    // Calculate extended parameters
     light.specific.point.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
 
     m_lights.push_back(light);
@@ -72,6 +73,73 @@ CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, const ChOptixLight
         lights_changed = true;
     }
 }
+
+/// Directional light ///
+CH_SENSOR_API unsigned int ChScene::AddDirectionalLight(ChColor color, float elevation, float azimuth) {
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::DIRECTIONAL_LIGHT;
+    light.pos = {0.f, 0.f, 0.f};
+    light.delta = true;
+    light.specific.directional.color = {color.R, color.G, color.B};
+    light.specific.directional.elevation = elevation;
+    light.specific.directional.azimuth = azimuth;
+
+    // Calculate extended parameters
+    light.specific.directional.light_dir = {cosf(elevation) * cosf(azimuth), cosf(elevation) * sinf(azimuth), sinf(elevation)};
+
+    m_lights.push_back(light);
+    lights_changed = true;
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
+}
+
+CH_SENSOR_API void ChScene::ModifyDirectionalLight(unsigned int id, const ChOptixLight& directional_light) {
+    if (id <= m_lights.size() && directional_light.light_type == LightType::DIRECTIONAL_LIGHT) {
+        m_lights[id] = directional_light;
+        lights_changed = true;
+    }
+}
+
+/// Spot light ///
+CH_SENSOR_API unsigned int ChScene::AddSpotLight(
+    ChVector3f pos, ChColor color, float max_range, float angle_falloff_start, float angle_range, bool const_color
+) {
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::SPOT_LIGHT;
+    light.pos = {pos.x(), pos.y(), pos.z()};
+    light.delta = true;
+    light.specific.spot.color = {color.R, color.G, color.B};
+    light.specific.spot.max_range = max_range;
+    light.specific.spot.const_color = const_color;
+    light.specific.spot.angle_range = angle_range;
+    if (angle_falloff_start < angle_range) {
+        light.specific.spot.angle_falloff_start = angle_falloff_start;
+        light.specific.spot.angle_atten_rate = 1.f / (angle_range - angle_falloff_start);
+    }
+    // ineffective value of angle_falloff_start, set to no angular attenuation
+    else {
+        light.specific.spot.angle_falloff_start = angle_range;
+        light.specific.spot.angle_atten_rate = 0.f;
+    }
+
+    // Calculate extended parameters
+    light.specific.spot.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
+
+    m_lights.push_back(light);
+    lights_changed = true;
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
+}
+
+CH_SENSOR_API void ChScene::ModifySpotLight(unsigned int id, const ChOptixLight& spot_light) {
+    if (id <= m_lights.size() && spot_light.light_type == LightType::SPOT_LIGHT) {
+        m_lights[id] = spot_light;
+        lights_changed = true;
+    }
+}
+
+//// ---- Register Your Customized Light Types Here (AddLight and ModifyLight functions) ---- ////
+
 
 // CH_SENSOR_API unsigned int ChScene::AddAreaLight(
 //     ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv) {
