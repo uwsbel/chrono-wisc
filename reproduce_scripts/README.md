@@ -1,0 +1,2 @@
+# Purpose
+These were the shell scripts that were used to run the Bayesian Optimization setup on the NCSA cluster through NSF Access. The scripts are pretty raw but they give a good idea about the arguments that the Bayesian Optimization takes. These scripts must be placed in the same folder as the python scripts. If you are using the structure in this repository, they must be placed in `<path_to_clone>/src/demos/python/vehicle`.
