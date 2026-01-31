@@ -116,6 +116,11 @@ if(CH_USE_SENSOR_OPTIX)
       # optix/shaders/transient_cam_shader.cu
       optix/shaders/ChOptixLightHubs.cu
       optix/shaders/ChOptixPointLight.cu
+      optix/shaders/ChOptixSpotLight.cu
+      optix/shaders/ChOptixDirectionalLight.cu
+      # ---- Register Your Customized Sensor Raygen Here (Cmake compiling) ---- #
+      # ---- Register Your Customized Sensor Shader Here (Cmake compiling) ---- #
+      # ---- Register Your Customized Light Type Here (Cmake compiling) ---- #
   )
 
   if(CH_USE_SENSOR_NVDB)

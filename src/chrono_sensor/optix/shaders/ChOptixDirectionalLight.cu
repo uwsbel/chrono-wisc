@@ -9,37 +9,34 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Nevindu M. Batagoda, Bo-Hsun Chen
+// Authors: Bo-Hsun Chen
 // =============================================================================
 //
-// Device-side functions related to point light in OptiX shaders.
+// Device-side functions related to directional light in OptiX shaders.
 //
 // =============================================================================
 
-#ifndef CHRONO_SENSOR_OPTIX_POINT_LIGHT_CU
-#define CHRONO_SENSOR_OPTIX_POINT_LIGHT_CU
+#ifndef CHRONO_SENSOR_OPTIX_DIRECTIONAL_LIGHT_CU
+#define CHRONO_SENSOR_OPTIX_DIRECTIONAL_LIGHT_CU
 
-#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h" // for PointLightData, LightSample
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h" // for DirectionalLightData, LightSample
 #include "chrono_sensor/optix/ChOptixDefinitions.h" // for PerRayData_camera, ContextParameters
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
 
-	/// @brief Check visibility between the point light and the hit point, and sample the light.
+	/// @brief Check visibility between the hit point along the directional light direction, and sample the light.
 	/// @param cntxt_params context parameters
 	/// @param prd_camera per-ray data (PRD) of the camera ray
 	/// @param light_sample the light sample to be updated
 	/// @return True if the light is visible from the hit point, false otherwise
-	static __device__ __inline__ bool CheckVisibleAndSamplePointLight(
+	static __device__ __inline__ bool CheckVisibleAndSampleDirectionalLight(
 		const ContextParameters& cntxt_params,
 		const PerRayData_camera* prd_camera,
-		const PointLightData& light_data,
-		const float3& light_posi,
+		const DirectionalLightData& light_data,
 		LightSample& light_sample
 	) {
 		// Direction and distance from hit-point to light
-		light_sample.dir = light_posi - light_sample.hitpoint;
-		light_sample.dist = Length(light_sample.dir);
-		light_sample.dir = light_sample.dir / light_sample.dist;
+		light_sample.dir = light_data.light_dir;
 		light_sample.NdL = Dot(light_sample.n, light_sample.dir);
 		
 		// Light is below the surface
@@ -63,7 +60,7 @@
 			light_sample.hitpoint, 		// origin of the traced ray
 			light_sample.dir,          	// direction of the traced ray
 			cntxt_params.scene_epsilon, // minimum intersection distance to avoid self-intersection (“shadow acne”)
-			light_sample.dist,			// A very large max distance (effectively “infinite” for the scene scale)
+			1e16f,						// A very large max distance (effectively “infinite” for the scene scale)
 			optixGetRayTime(),          // time value for launching this ray
 			OptixVisibilityMask(1),     // Only intersects geometry whose instance mask matches 1
 			OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT, // terminate on first hit is ideal for occlusion rays
@@ -82,12 +79,10 @@
 		}
 		// Caculate the remaining attributes of light sample
 		else {
-			float atten_amount = (light_data.const_color) ? 1.0f : (light_data.atten_scale / (light_sample.dist * light_sample.dist)); // inverse square law
-			// light_sample.L = light_sample.NdL * atten_amount * light_data.color; 
-			light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
+			light_sample.L = light_sample.NdL * light_data.color;
 			light_sample.pdf = 1.0f; // Delta light
 			return true;
 		}
 	}
 
-#endif  // CHRONO_SENSOR_OPTIX_POINT_LIGHT_CU
+#endif  // CHRONO_SENSOR_OPTIX_DIRECTIONAL_LIGHT_CU

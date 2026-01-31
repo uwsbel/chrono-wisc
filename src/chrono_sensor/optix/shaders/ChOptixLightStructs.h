@@ -66,7 +66,7 @@ struct DiskLightData {
 	float3 color;				// color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
-	// extended parameters
+	// Extended parameters
 	float area;					// [m^2], area of the disk light
 };
 
@@ -77,7 +77,7 @@ struct RectangleLightData {
 	float3 color;				// color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
-	// extended parameters
+	// Extended parameters
 	float area;					// [m^2], area of the rectangle light
 	float3 light_dir;			// unit direction vector of the rectangle light (normal vector)
 };
@@ -87,8 +87,8 @@ struct DirectionalLightData {
 	float3 color;		// [W/sr/m^2], color radiance of the light
 	float elevation;	// [rad], elevation angle of the directional light comes from
 	float azimuth;		// [rad], azimuth angle of the directional light comes from
-	// extended parameters
-	float3 light_dir;	// unit direction vector of the directional light
+	// Extended parameters
+	float3 light_dir;	// unit direction vector from the hit-point to the directional light
 };
 
 /// Spot light data struct
@@ -99,7 +99,7 @@ struct SpotLightData {
 	float angle_falloff_start;	// [rad], angle at which the spotlight starts to linearly cosine-fall off
 	float angle_range;			// [rad], angle range of the spotlight cosinely falling off to zero.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
-	// extended parameters
+	// Extended parameters
 	float atten_scale;			// [1/1], attenuation scale based on max_range
 	float angle_atten_rate;		// [1/rad], angular attenuation rate from "angle_falloff_start" to "angle_range"
 };
@@ -124,6 +124,7 @@ struct ChOptixLight {
 		RectangleLightData rect;			// rectangle light specific parameters
 		DiskLightData disk;					// disk light specific parameters
 		EnvironmentLightData env;			// environment light specific parameters
+		// ---- Register Your Customized Light Here (register light data struct) ---- //
 	} specific;								// specific parameters for different light types
 };
 

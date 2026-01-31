@@ -79,7 +79,7 @@ class CH_SENSOR_API ChScene {
     void ModifyPointLight(unsigned int id, const ChOptixLight& point_light);
 
     /// Add a directional light that emits light in a particular direction.
-    /// @param color [W/m^2] or [lumen/m^2], color irradiance of the light
+    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
     /// @param elevation [rad], elevation angle of the directional light comes from
     /// @param azimuth [rad], azimuth angle of the directional light comes from
     /// @return the index of the light that has been added
@@ -103,8 +103,10 @@ class CH_SENSOR_API ChScene {
       ChVector3f pos, ChColor color, float max_range, float angle_falloff_start, float angle_range, bool const_color
     );
 
-    /// Spot light data struct
-
+    /// @brief Function for modifying an existing spot light in the scene
+    /// @param id the index of the spot light to be modified
+    /// @param spot_light the new spot light
+    void ModifySpotLight(unsigned int id, const ChOptixLight& spot_light);
 
     // /// Function to raise the flag that light data has been changed
     // CH_SENSOR_API void RaiseLightUpdateFlag() { lights_changed = true; }
