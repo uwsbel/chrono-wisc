@@ -62,7 +62,7 @@ using std::endl;
 
 // CRM terrain patch type
 enum class PatchType { RECTANGULAR, MARKER_DATA, HEIGHT_MAP };
-PatchType patch_type = PatchType::RECTANGULAR;
+PatchType patch_type = PatchType::MARKER_DATA;
 
 // Terrain dimensions (for RECTANGULAR or HEIGHT_MAP patch type)
 double terrain_length = 20;
