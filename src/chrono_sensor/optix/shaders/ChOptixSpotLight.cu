@@ -45,7 +45,7 @@
 		
 		// Check if the hit point is within the spot light angle range and light is below the surface
 		if ((light_sample.NdL < 0) || (2.f * angle > light_data.angle_range)) {
-			// light_sample.L = {0.f, 0.f, 0.f};
+			light_sample.L = make_float3(0.f, 0.f, 0.f);
 			return false;
 		}
 
@@ -78,8 +78,8 @@
 		);
 		
 		// If the light is occluded or the light intensity is negligible		
-		if (fmaxf(light_sample.L) < 1e-6f || prd_occ.occluded) {
-			light_sample.L = {0.f, 0.f, 0.f};
+		if (prd_occ.occluded) {
+			light_sample.L = make_float3(0.f, 0.f, 0.f);
 			return false;
 		}
 		// Caculate the remaining attributes of light sample

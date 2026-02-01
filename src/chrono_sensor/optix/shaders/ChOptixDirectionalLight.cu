@@ -41,7 +41,7 @@
 		
 		// Light is below the surface
 		if (light_sample.NdL < 0) {
-			// light_sample.L = {0.f, 0.f, 0.f};
+			light_sample.L = make_float3(0.f, 0.f, 0.f);
 			return false;  
 		}
 
@@ -73,9 +73,9 @@
 			raytype                     // The ray type index (used when you have multiple ray types, e.g., radiance rays, shadow rays, etc.)
 		);
 		
-		// If the light is occluded or the light intensity is negligible		
-		if (fmaxf(light_sample.L) < 1e-6f || prd_occ.occluded) {
-			light_sample.L = {0.f, 0.f, 0.f};
+		// If the light is occluded
+		if (prd_occ.occluded) {
+			light_sample.L = make_float3(0.f, 0.f, 0.f);
 			return false;
 		}
 		// Caculate the remaining attributes of light sample

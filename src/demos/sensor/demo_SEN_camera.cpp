@@ -258,12 +258,12 @@ int main(int argc, char* argv[]) {
 
 
     float intensity = 1.0f;
-    manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
+    // manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
     // manager->scene->AddDirectionalLight({intensity, intensity, intensity}, light_elevation * CH_PI/180, light_azimuth * CH_PI/180); 
     // AddSpotLight(pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
-    // manager->scene->AddSpotLight(
-    //     {3.f, 3.f, 3.f}, {intensity, intensity, intensity}, 5.20f, {-1.f, -1.f, -1.f}, 30.f * CH_PI/180, 90.f * CH_PI/180, false
-    // );
+    manager->scene->AddSpotLight(
+        {-5.f, 5.f, 5.f}, {intensity, intensity, intensity}, 8.67f, {1.f, -1.f, -1.f}, 60.f * CH_PI/180, 90.f * CH_PI/180, false
+    );
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;
