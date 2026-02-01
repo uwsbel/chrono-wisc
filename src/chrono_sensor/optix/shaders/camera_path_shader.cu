@@ -174,7 +174,7 @@ static __device__ __inline__ void CameraPathIntegrator(
 			// prd_camera->color = {0., 1.0, 0.}; // debug
 		}
 		else {
-			// prd_camera->color = {1.0, 0., 0.}; // debug
+			prd_camera->color = make_float3(0.f, 0.f, 0.f);
 		}
 	}
 	// }

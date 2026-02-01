@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
     manager->scene->SetBackground(b);
 
     float intensity = 0.8;
-    manager->scene->AddPointLight({0.0f, 0.0f, 3.8f}, {intensity, intensity, intensity}, 25.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
+    manager->scene->AddPointLight({0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 25.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);
     // manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));

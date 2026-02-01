@@ -31,7 +31,7 @@
 	/// @return True if the light is visible from the hit point, false otherwise
 	static __device__ __inline__ bool CheckVisibleAndSamplePointLight(
 		const ContextParameters& cntxt_params,
-		const PerRayData_camera* prd_camera,
+		PerRayData_camera* prd_camera, // debug
 		const PointLightData& light_data,
 		const float3& light_posi,
 		LightSample& light_sample

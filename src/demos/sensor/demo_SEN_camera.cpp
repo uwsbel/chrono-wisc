@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
     auto mesh_body = chrono_types::make_shared<ChBody>();
     mesh_body->SetPos({-6, 0, 0});
     mesh_body->AddVisualShape(trimesh_shape, ChFrame<>(ChVector3d(0, 0, 0)));
-    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetBSDF(BSDFType::DIFFUSE);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetBSDF(BSDFType::SPECULAR);
     mesh_body->GetVisualShape(0)->GetMaterial(0)->SetRoughness(1.f);
     mesh_body->GetVisualShape(0)->GetMaterial(0)->SetMetallic(0.f);
     mesh_body->SetFixed(true);
@@ -257,18 +257,22 @@ int main(int argc, char* argv[]) {
     manager->SetVerbose(verbose);
 
 
-    float intensity = 0.8;
-    // manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
+    float intensity = 1.0f;
+    manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
     // manager->scene->AddDirectionalLight({intensity, intensity, intensity}, light_elevation * CH_PI/180, light_azimuth * CH_PI/180); 
     // AddSpotLight(pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
-    manager->scene->AddSpotLight(
-        {3.f, 3.f, 3.f}, {intensity, intensity, intensity}, 5.20f, {-1.f, -1.f, -1.f}, 30.f * CH_PI/180, 90.f * CH_PI/180, false
-    );
+    // manager->scene->AddSpotLight(
+    //     {3.f, 3.f, 3.f}, {intensity, intensity, intensity}, 5.20f, {-1.f, -1.f, -1.f}, 30.f * CH_PI/180, 90.f * CH_PI/180, false
+    // );
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;
-    b.mode = BackgroundMode::ENVIRONMENT_MAP;
-    b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    // b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    // b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    
+    b.mode = BackgroundMode::SOLID_COLOR;
+    b.color_zenith = ChVector3f(0.f, 0.f, 0.f);
+
     manager->scene->SetBackground(b);
 
     // ------------------------------------------------

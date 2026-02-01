@@ -27,7 +27,8 @@
 
 // Check if the light source is visible to the hit-point
 static __device__ __inline__ bool CheckVisibleAndSampleLight(
-	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const ChOptixLight& light, LightSample& light_sample
+	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const ChOptixLight& light,
+	LightSample& light_sample
 ) {
 	switch (light.light_type) {
         case LightType::POINT_LIGHT: {
