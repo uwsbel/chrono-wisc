@@ -318,7 +318,8 @@ static __device__ __inline__ float3 GetLightReflectedColor(PerRayData_camera* pr
         ls.hitpoint = hit_point;
         ls.wo = -ray_dir;
         ls.n = world_normal;
-        SampleLight(light, &ls);
+        // SampleLight(light, &ls);
+        CheckVisibleAndSampleLight(params, prd_camera, light, ls);
         if (ls.pdf > 0 && fmaxf(ls.L) > 0) {
             float NdL = Dot(world_normal, ls.dir);
             // if we think we can see the light, let's see if we are correct

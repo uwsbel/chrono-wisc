@@ -44,6 +44,7 @@
 		
 		// Light is below the surface
 		if (light_sample.NdL < 0) {
+			// light_sample.L = {0.f, 0.f, 0.f};
 			return false;  
 		}
 
@@ -82,9 +83,9 @@
 		}
 		// Caculate the remaining attributes of light sample
 		else {
-			float atten_amount = (light_data.const_color) ? 1.0f : (light_data.atten_scale / (light_sample.dist * light_sample.dist)); // inverse square law
-			// light_sample.L = light_sample.NdL * atten_amount * light_data.color; 
-			light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
+			float intense_amount = (light_data.const_color) ? 1.0f : (light_data.atten_scale / (light_sample.dist * light_sample.dist)); // inverse square law
+			light_sample.L = light_sample.NdL * intense_amount * light_data.color; 
+			// light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
 			light_sample.pdf = 1.0f; // Delta light
 			return true;
 		}

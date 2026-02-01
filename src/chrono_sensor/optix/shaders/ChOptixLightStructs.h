@@ -72,8 +72,8 @@ struct DiskLightData {
 
 /// Rectangle light data struct
 struct RectangleLightData {
-	float3 width_vec;			// [m], vector along one edge of the rectangle light
-	float3 height_vec;			// [m], vector along the other edge of the rectangle light. Light direction is: width_vec x height_vec.
+	float3 length_vec;			// [m], vector along one edge of the rectangle light
+	float3 width_vec;			// [m], vector along the other edge of the rectangle light. Light direction is: length_vec x width_vec.
 	float3 color;				// color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
@@ -96,8 +96,8 @@ struct SpotLightData {
 	float3 color;				// [cd/sec] or [W], color intensity of the light
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	float3 light_dir;			// unit direction vector of the spotlight
-	float angle_falloff_start;	// [rad], angle at which the spotlight starts to linearly cosine-fall off
-	float angle_range;			// [rad], angle range of the spotlight cosinely falling off to zero.
+	float angle_falloff_start;	// [rad], angle at which the spotlight starts to linearly fall off
+	float angle_range;			// [rad], angle range of the spotlight falling off to zero.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
 	// Extended parameters
 	float atten_scale;			// [1/1], attenuation scale based on max_range

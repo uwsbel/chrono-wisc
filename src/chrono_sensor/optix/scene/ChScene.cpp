@@ -102,7 +102,7 @@ CH_SENSOR_API void ChScene::ModifyDirectionalLight(unsigned int id, const ChOpti
 
 /// Spot light ///
 CH_SENSOR_API unsigned int ChScene::AddSpotLight(
-    ChVector3f pos, ChColor color, float max_range, float angle_falloff_start, float angle_range, bool const_color
+    ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float angle_falloff_start, float angle_range, bool const_color
 ) {
     ChOptixLight light{};   // zero-initialize everything
     light.light_type  = LightType::SPOT_LIGHT;
@@ -110,16 +110,17 @@ CH_SENSOR_API unsigned int ChScene::AddSpotLight(
     light.delta = true;
     light.specific.spot.color = {color.R, color.G, color.B};
     light.specific.spot.max_range = max_range;
+    light.specific.spot.light_dir = {light_dir.x(), light_dir.y(), light_dir.z()};
     light.specific.spot.const_color = const_color;
     light.specific.spot.angle_range = angle_range;
-    if (angle_falloff_start < angle_range) {
+    if (angle_falloff_start < angle_range - 1e-6f) {
         light.specific.spot.angle_falloff_start = angle_falloff_start;
         light.specific.spot.angle_atten_rate = 1.f / (angle_range - angle_falloff_start);
     }
     // ineffective value of angle_falloff_start, set to no angular attenuation
     else {
         light.specific.spot.angle_falloff_start = angle_range;
-        light.specific.spot.angle_atten_rate = 0.f;
+        light.specific.spot.angle_atten_rate = -1.f;
     }
 
     // Calculate extended parameters

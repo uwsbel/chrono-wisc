@@ -27,7 +27,7 @@
 #include "chrono_sensor/optix/shaders/shader_utils.cu"
 #include "chrono_sensor/optix/shaders/ChOptixLightHubs.cu"
 
-static __device__ __inline__ void RussainRoulette(curandState_t& rng, float3& contrib_to_pixel) {
+static __device__ __inline__ void RussianRoulette(curandState_t& rng, float3& contrib_to_pixel) {
 	float p = fmaxf(0.05, fminf(fmaxf(contrib_to_pixel), 0.95));
 	contrib_to_pixel = (curand_uniform(&rng) > p) ? make_float3(0.f) : (contrib_to_pixel / p);
 }
@@ -297,7 +297,7 @@ static __device__ __inline__ void CameraPathIntegrator(
 			
 			// Go through Russian roulette (RR)
 			if (prd_camera->depth > 3 && fmaxf(next_contrib_to_pixel) < 0.1f) {
-				RussainRoulette(prd_camera->rng, next_contrib_to_pixel);
+				RussianRoulette(prd_camera->rng, next_contrib_to_pixel);
 			}
 
 			// Determine if terminating the next ray

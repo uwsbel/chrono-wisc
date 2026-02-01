@@ -104,6 +104,10 @@ int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2020 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
     alias_factor = std::atoi(argv[1]);
+    // float light_elevation = std::atof(argv[2]); // [deg]
+    // float light_azimuth = std::atof(argv[3]); // [deg]
+    
+    
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--use_gi1") == 0) {
@@ -136,6 +140,8 @@ int main(int argc, char* argv[]) {
     mesh_body->SetPos({-6, 0, 0});
     mesh_body->AddVisualShape(trimesh_shape, ChFrame<>(ChVector3d(0, 0, 0)));
     mesh_body->GetVisualShape(0)->GetMaterial(0)->SetBSDF(BSDFType::DIFFUSE);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetRoughness(1.f);
+    mesh_body->GetVisualShape(0)->GetMaterial(0)->SetMetallic(0.f);
     mesh_body->SetFixed(true);
     sys.Add(mesh_body);
 
@@ -152,7 +158,7 @@ int main(int argc, char* argv[]) {
     vis_mat3->SetInstanceID(30000);
 
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(20, 20, .1, 1000, true, false);
-    floor->SetPos({0, 0, -1});
+    floor->SetPos({0, 0, -0.6});
     floor->SetFixed(true);
     sys.Add(floor);
     {
@@ -252,7 +258,12 @@ int main(int argc, char* argv[]) {
 
 
     float intensity = 0.8;
-    manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500);
+    // manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
+    // manager->scene->AddDirectionalLight({intensity, intensity, intensity}, light_elevation * CH_PI/180, light_azimuth * CH_PI/180); 
+    // AddSpotLight(pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
+    manager->scene->AddSpotLight(
+        {3.f, 3.f, 3.f}, {intensity, intensity, intensity}, 5.20f, {-1.f, -1.f, -1.f}, 30.f * CH_PI/180, 90.f * CH_PI/180, false
+    );
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;

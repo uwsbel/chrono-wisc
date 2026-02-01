@@ -71,7 +71,7 @@ class CH_SENSOR_API ChScene {
     /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
     /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
     /// @return the index of the light that has been added
-    unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color = false);
+    unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color = true);
 
     /// Function for modifying an existing point light in the scene
     /// @param id the index of the point light to be modified
@@ -100,7 +100,7 @@ class CH_SENSOR_API ChScene {
     /// @param const_color whether to use constant color (no attenuation with distance)
     /// @return the index of the light that has been added
     unsigned int AddSpotLight(
-      ChVector3f pos, ChColor color, float max_range, float angle_falloff_start, float angle_range, bool const_color
+      ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float angle_falloff_start, float angle_range, bool const_color = true
     );
 
     /// @brief Function for modifying an existing spot light in the scene

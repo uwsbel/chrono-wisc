@@ -41,6 +41,7 @@
 		
 		// Light is below the surface
 		if (light_sample.NdL < 0) {
+			// light_sample.L = {0.f, 0.f, 0.f};
 			return false;  
 		}
 

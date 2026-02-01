@@ -19,12 +19,12 @@
 #ifndef CHRONO_SENSOR_OPTIX_SPOT_LIGHT_CU
 #define CHRONO_SENSOR_OPTIX_SPOT_LIGHT_CU
 
-#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h" // for PointLightData, LightSample
+#include "chrono_sensor/optix/shaders/ChOptixLightStructs.h" // for SpotLightData, LightSample
 #include "chrono_sensor/optix/ChOptixDefinitions.h" // for PerRayData_camera, ContextParameters
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
 
-	/// @brief Check visibility between the point light and the hit point, and sample the light.
+	/// @brief Check visibility between the spot light and the hit point, and sample the light.
 	/// @param cntxt_params context parameters
 	/// @param prd_camera per-ray data (PRD) of the camera ray
 	/// @param light_sample the light sample to be updated
@@ -41,10 +41,12 @@
 		light_sample.dist = Length(light_sample.dir);
 		light_sample.dir = light_sample.dir / light_sample.dist;
 		light_sample.NdL = Dot(light_sample.n, light_sample.dir);
+		float angle = acosf(Dot(normalize(light_data.light_dir), -light_sample.dir)); // [rad]
 		
-		// Light is below the surface
-		if (light_sample.NdL < 0) {
-			return false;  
+		// Check if the hit point is within the spot light angle range and light is below the surface
+		if ((light_sample.NdL < 0) || (2.f * angle > light_data.angle_range)) {
+			// light_sample.L = {0.f, 0.f, 0.f};
+			return false;
 		}
 
 		// Trace shadow ray toward the light to check for occlusion		
@@ -82,8 +84,18 @@
 		}
 		// Caculate the remaining attributes of light sample
 		else {
-			float atten_amount = (light_data.const_color) ? 1.0f : (light_data.atten_scale / (light_sample.dist * light_sample.dist)); // inverse square law
-			light_sample.L = light_sample.NdL * atten_amount * light_data.color; 
+			float dist_intense_amount = light_data.atten_scale / (light_sample.dist * light_sample.dist); // inverse square law
+			// Angle attenuation. If angle_atten_rate < 0, no angle attenuation, else linear attenuation
+			float angle_intense_amount = (light_data.angle_atten_rate < 0) ? 1.f : clamp(
+				// (cosf(angle) - cosf(0.5f * light_data.angle_range)) / (cosf(0.5f * light_data.angle_falloff_start) - cosf(0.5f * light_data.angle_range)), // another cosine-based attenuation formula
+				light_data.angle_atten_rate * (light_data.angle_range - 2.f * angle),
+				0.f, 1.f
+			);
+			angle_intense_amount *= angle_intense_amount; // square the angle attenuation
+			// float angle_intense_amount = cosf(clamp((0.5f * light_data.angle_range - angle) / (0.5f * light_data.angle_range - 0.5f * light_data.angle_falloff_start), 0.f, 1.f));
+			// angle_intense_amount = (angle_intense_amount < 0) ? 1.f : angle_intense_amount;
+			float intense_amount = (light_data.const_color) ? 1.f : (dist_intense_amount * angle_intense_amount);
+			light_sample.L = light_sample.NdL * intense_amount * light_data.color; 
 			// light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
 			light_sample.pdf = 1.0f; // Delta light
 			return true;
