@@ -72,14 +72,15 @@ struct DiskLightData {
 
 /// Rectangle light data struct
 struct RectangleLightData {
-	float3 length_vec;			// [m], vector along one edge of the rectangle light
-	float3 width_vec;			// [m], vector along the other edge of the rectangle light. Light direction is: length_vec x width_vec.
-	float3 color;				// color intensity of the light
-	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
-	bool const_color;			// whether to use constant color (no attenuation with distance)
+	float3 length_vec;		// [m], one edge vector of the rectangle light
+	float3 width_vec;		// [m], the other edge vector of the rectangle light perpendicular to length_vec. Light direction is: length_vec x width_vec.
+	float3 color;			// color intensity of the light
+	float max_range;		// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+	bool const_color;		// whether to use constant color (no attenuation with distance)
 	// Extended parameters
-	float area;					// [m^2], area of the rectangle light
-	float3 light_dir;			// unit direction vector of the rectangle light (normal vector)
+	float atten_scale;			// [1/1], attenuation scale based on max_range
+	float area;				// [m^2], area of the rectangle light
+	float3 light_dir;		// unit direction vector of the rectangle light (normal vector)
 };
 
 /// Directional light data struct
@@ -121,7 +122,7 @@ struct ChOptixLight {
 		PointLightData point;				// point light specific parameters
 		SpotLightData spot;					// spot light specific parameters
 		DirectionalLightData directional;	// directional light specific parameters
-		RectangleLightData rect;			// rectangle light specific parameters
+		RectangleLightData rectangle;		// rectangle light specific parameters
 		DiskLightData disk;					// disk light specific parameters
 		EnvironmentLightData env;			// environment light specific parameters
 		// ---- Register Your Customized Light Here (register light data struct) ---- //

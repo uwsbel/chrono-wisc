@@ -66,26 +66,26 @@ class CH_SENSOR_API ChScene {
     /// Class destructor
     ~ChScene();
 
-    /// Add a point light that emits light in all directions.
+    /// @brief Add a point light that emits light in all directions.
     /// @param pos The world position of the point light
     /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
     /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
     /// @return the index of the light that has been added
     unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color = true);
 
-    /// Function for modifying an existing point light in the scene
+    /// @brief Function for modifying an existing point light in the scene
     /// @param id the index of the point light to be modified
     /// @param point_light the new point light
     void ModifyPointLight(unsigned int id, const ChOptixLight& point_light);
 
-    /// Add a directional light that emits light in a particular direction.
-    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
+    /// @brief Add a directional light that emits light in a particular direction.
+    /// @param color [W/m^2] or [lumen/m^2], color irradiance of the light
     /// @param elevation [rad], elevation angle of the directional light comes from
     /// @param azimuth [rad], azimuth angle of the directional light comes from
     /// @return the index of the light that has been added
     unsigned int AddDirectionalLight(ChColor color, float elevation, float azimuth);
 
-    /// Function for modifying an existing directional light in the scene
+    /// @brief Function for modifying an existing directional light in the scene
     /// @param id the index of the directional light to be modified
     /// @param directional_light the new directional light
     void ModifyDirectionalLight(unsigned int id, const ChOptixLight& directional_light);
@@ -93,9 +93,9 @@ class CH_SENSOR_API ChScene {
 
     /// @brief Add a spot light that emits light in a particular direction.
     /// @param pos [m], the world position of the spot light
-    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
+    /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
     /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
-    /// @param angle_falloff_start [rad], angle at which the spotlight starts to linearly fall off
+    /// @param angle_falloff_start [m], angle at which the spotlight starts to linearly fall off
     /// @param angle_range [rad], angle range of the spotlight falling off to zero.
     /// @param const_color whether to use constant color (no attenuation with distance)
     /// @return the index of the light that has been added
@@ -107,7 +107,27 @@ class CH_SENSOR_API ChScene {
     /// @param id the index of the spot light to be modified
     /// @param spot_light the new spot light
     void ModifySpotLight(unsigned int id, const ChOptixLight& spot_light);
+    
+    /// @brief Add a rectangle light that emits light omni-directionally from a rectangle area.
+    /// @param pos [m], the world position of the rectangle light
+    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param length_vec [m], one edge vector of the rectangle light
+    /// @param width_vec [m], the other edge vector of the rectangle light perpendicular to length_vec. Light direction is: length_vec x width_vec.
+    /// @param const_color whether to use constant color (no attenuation with distance)
+    /// @return the index of the added light
+    unsigned int AddRectangleLight(
+      ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color = true
+    );
 
+    /// @brief Function for modifying an existing rectangle light in the scene
+    /// @param id the index of the rectangle light to be modified
+    /// @param spot_light the new rectangle light
+    void ModifyRectangleLight(unsigned int id, const ChOptixLight& rectangle_light);
+
+    
+
+    /* Old code to be deleted
     // /// Function to raise the flag that light data has been changed
     // CH_SENSOR_API void RaiseLightUpdateFlag() { lights_changed = true; }
 
@@ -123,24 +143,26 @@ class CH_SENSOR_API ChScene {
     /// @param du the x vector of the area light
     /// @param dv the y vector of the ara light
     /// @return the index of the light that has been added
-    unsigned int AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv);
+    // unsigned int AddAreaLight(ChVector3f pos, ChColor color, float max_range, ChVector3f du, ChVector3f dv);
 
-    unsigned int AddSpotLight(ChVector3f pos, ChVector3f to, ChColor color, float max_range, float total_width, float falloff_start);
-    unsigned int AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
-                                       ChFramed offsetPose,
-                                       ChColor color,
-                                       float max_range,
-                                       float total_width,
-                                       float falloff_start);
+    // unsigned int AddSpotLight(ChVector3f pos, ChVector3f to, ChColor color, float max_range, float total_width, float falloff_start);
+    // unsigned int AddSpotLight(std::shared_ptr<chrono::ChBody> parent,
+    //                                    ChFramed offsetPose,
+    //                                    ChColor color,
+    //                                    float max_range,
+    //                                    float total_width,
+    //                                    float falloff_start);
 
-    unsigned int AddSpotLight(ChFramed offsetPose,
-                                       ChColor color,
-                                       float max_range,
-                                       float total_width,
-                                       float falloff_start);
+    // unsigned int AddSpotLight(ChFramed offsetPose,
+    //                                    ChColor color,
+    //                                    float max_range,
+    //                                    float total_width,
+    //                                    float falloff_start);
+
     /// Function for gaining access to the vector of point lights and can be used to modify lighting dynamically.
     /// @return m_pointlights A vector of point lights in the scene currently
     //std::vector<PointLight> GetPointLights() { return m_pointlights; }
+    */
 
     /// Function for gaining access to the vector of lights which can be used to modify lighting dynamically.
     /// @return A vector of lights in the scene currently

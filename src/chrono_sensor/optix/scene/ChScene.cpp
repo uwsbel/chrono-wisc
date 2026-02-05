@@ -139,6 +139,38 @@ CH_SENSOR_API void ChScene::ModifySpotLight(unsigned int id, const ChOptixLight&
     }
 }
 
+/// Rectangle light ///
+CH_SENSOR_API unsigned int ChScene::AddRectangleLight(
+    ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color
+) {
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::RECTANGLE_LIGHT;
+    light.pos = make_float3(pos.x(), pos.y(), pos.z());
+    light.delta = false;
+    light.specific.rectangle.color = {color.R, color.G, color.B};
+    light.specific.rectangle.max_range = max_range;
+    light.specific.rectangle.length_vec = make_float3(length_vec.x(), length_vec.y(), length_vec.z());
+    light.specific.rectangle.width_vec = make_float3(width_vec.x(), width_vec.y(), width_vec.z());
+    light.specific.spot.const_color = const_color;
+
+    // Calculate extended parameters
+    light.specific.rectangle.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
+    light.specific.rectangle.area = length_vec.Length() * width_vec.Length();
+    light.specific.rectangle.light_dir = Cross(light.specific.rectangle.length_vec, light.specific.rectangle.width_vec);
+    
+    m_lights.push_back(light);
+    lights_changed = true;
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
+}
+
+CH_SENSOR_API void ChScene::ModifyRectangleLight(unsigned int id, const ChOptixLight& spot_light) {
+    if (id <= m_lights.size() && spot_light.light_type == LightType::RECTANGLE_LIGHT) {
+        m_lights[id] = spot_light;
+        lights_changed = true;
+    }
+}
+
 //// ---- Register Your Customized Light Types Here (AddLight and ModifyLight functions) ---- ////
 
 
