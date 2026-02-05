@@ -132,6 +132,7 @@ set(Chrono_CASCADE_AVAILABLE        @CH_ENABLE_MODULE_CASCADE@)
 set(Chrono_IRRLICHT_AVAILABLE       @CH_ENABLE_MODULE_IRRLICHT@)
 set(Chrono_MATLAB_AVAILABLE         @CH_ENABLE_MODULE_MATLAB@)
 set(Chrono_PARDISOMKL_AVAILABLE     @CH_ENABLE_MODULE_PARDISO_MKL@)
+set(Chrono_CUDSS_AVAILABLE          @CH_ENABLE_MODULE_CUDSS@)
 set(Chrono_MUMPS_AVAILABLE          @CH_ENABLE_MODULE_MUMPS@)
 set(Chrono_MULTICORE_AVAILABLE      @CH_ENABLE_MODULE_MULTICORE@)
 set(Chrono_POSTPROCESS_AVAILABLE    @CH_ENABLE_MODULE_POSTPROCESS@)
@@ -167,6 +168,7 @@ set(Chrono_CASCADE_DEPENDENCIES        "@DEPENDENCIES_CASCADE@")
 set(Chrono_IRRLICHT_DEPENDENCIES       "@DEPENDENCIES_IRRLICHT@")
 set(Chrono_MATLAB_DEPENDENCIES         "@DEPENDENCIES_MATLAB@")
 set(Chrono_PARDISOMKL_DEPENDENCIES     "@DEPENDENCIES_PARDISO_MKL@")
+set(Chrono_CUDSS_DEPENDENCIES          "@DEPENDENCIES_CUDSS@")
 set(Chrono_MUMPS_DEPENDENCIES          "@DEPENDENCIES_MUMPS@")
 set(Chrono_MULTICORE_DEPENDENCIES      "@DEPENDENCIES_MULTICORE@")
 set(Chrono_POSTPROCESS_DEPENDENCIES    "@DEPENDENCIES_POSTPROCESS@")
@@ -945,6 +947,36 @@ foreach(COMPONENT_UPPER ${Chrono_COMPONENTS})
       list(PREPEND CHRONO_LIB_NAMES "Chrono_mumps")
       if (NOT CHRONO_STATIC)
         list(APPEND CHRONO_DLL_NAMES "Chrono_mumps.dll")
+      endif()
+    endif()
+
+  elseif(${COMPONENT_UPPER} STREQUAL "CUDSS")
+
+    # Find CUDA toolkit
+    find_package(CUDAToolkit QUIET)
+
+    if(NOT CUDAToolkit_FOUND)
+      message("WARNING: Could not find CUDA toolkit")
+      set(CHRONO_${COMPONENT_UPPER}_FOUND OFF)
+    else()
+      # Find cuDSS library
+      set(CUDSS_DIR "@CUDSS_DIR@" CACHE PATH "Path to cuDSS installation.")
+      find_library(CUDSS_LIBRARY
+          NAMES cudss
+          HINTS
+              ${CUDAToolkit_LIBRARY_DIR}
+              ${CUDSS_DIR}/lib
+              ${CUDSS_DIR}/lib64
+      )
+
+      if(NOT CUDSS_LIBRARY)
+        message("WARNING: Could not find cuDSS library")
+        set(CHRONO_${COMPONENT_UPPER}_FOUND OFF)
+      else()
+        list(PREPEND CHRONO_LIB_NAMES "Chrono_cudss")
+        if (NOT CHRONO_STATIC)
+          list(APPEND CHRONO_DLL_NAMES "Chrono_cudss.dll")
+        endif()
       endif()
     endif()
 

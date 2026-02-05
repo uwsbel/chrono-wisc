@@ -32,6 +32,7 @@ class ChSolver_Type_enum_mapper : public ChSolver {
     CH_ENUM_VAL(Type::SPARSE_QR);
     CH_ENUM_VAL(Type::PARDISO_MKL);
     CH_ENUM_VAL(Type::MUMPS);
+    CH_ENUM_VAL(Type::CUDSS);
     CH_ENUM_VAL(Type::GMRES);
     CH_ENUM_VAL(Type::MINRES);
     CH_ENUM_VAL(Type::BICGSTAB);
@@ -91,6 +92,8 @@ std::string ChSolver::GetTypeAsString(Type type) {
             return "PARDISO_MKL";
         case Type::MUMPS:
             return "MUMPS";
+        case Type::CUDSS:
+            return "CUDSS";
         case Type::GMRES:
             return "GMRES";
         case Type::MINRES:

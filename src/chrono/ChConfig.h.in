@@ -40,6 +40,9 @@
 // If module PARDISO_MKL was enabled, define CHRONO_PARDISO_MKL
 @CHRONO_PARDISO_MKL@
 
+// If module CUDSS was enabled, define CHRONO_CUDSS
+@CHRONO_CUDSS@
+
 // If module MUMPS was enabled, define CHRONO_MUMPS
 @CHRONO_MUMPS@
 

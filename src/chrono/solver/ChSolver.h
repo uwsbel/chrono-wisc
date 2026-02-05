@@ -48,6 +48,7 @@ class ChApi ChSolver {
         SPARSE_QR,    ///< Sparse left-looking rank-revealing QR factorization
         PARDISO_MKL,  ///< Pardiso MKL (super-nodal sparse direct solver)
         MUMPS,        ///< Mumps (MUltifrontal Massively Parallel sparse direct Solver)
+        CUDSS,        ///< cuDSS (NVIDIA GPU sparse direct solver)
         // Iterative linear solvers
         GMRES,     ///< Generalized Minimal RESidual Algorithm
         MINRES,    ///< MINimum RESidual method
