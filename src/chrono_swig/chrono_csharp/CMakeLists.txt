@@ -430,6 +430,9 @@ if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
   if(CH_ENABLE_MODULE_FSI_SPH)
     target_link_libraries(Chrono_csharp_vehicle PRIVATE Chrono_fsi Chrono_fsisph)
   endif()
+  if(CH_ENABLE_MODULE_FSI_SPH)
+    add_dependencies(Chrono_csharp_vehicle Chrono_csharp_fsi)
+  endif()
 
   set_target_properties(Chrono_csharp_vehicle PROPERTIES 
                         PROJECT_LABEL "Chrono_csharp_vehicle"
@@ -535,6 +538,63 @@ if(CH_ENABLE_MODULE_SENSOR)
   if (DBG_SCRIPT)
     message("Module name:     Chrono_csharp_sensor")
     message("SWIG_REAL_NAME:  Chrono_csharp_sensor")
+  endif()
+
+endif()
+
+#-----------------------------------------------------------------------------
+# MODULE for the FSI csharp wrapper
+#-----------------------------------------------------------------------------
+
+if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_FSI_SPH)
+
+  message(STATUS "Add C# FSI module")
+
+  set(CMAKE_SWIG_OUTDIR "${CHRONO_SWIG_OUTDIR}/fsi")
+
+  set(INTERFACE_FILE_FSI ChModuleFsi_csharp.i)
+
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set_source_files_properties(${INTERFACE_FILE_FSI} PROPERTIES COMPILE_FLAGS "-D_WIN32")
+  endif()
+  set_source_files_properties(${INTERFACE_FILE_FSI} PROPERTIES CPLUSPLUS ON)
+  if(MSVC)
+    set_source_files_properties(${INTERFACE_FILE_FSI} PROPERTIES COMPILE_OPTIONS "-w401,503")
+  endif()
+
+  swig_add_library(Chrono_csharp_fsi LANGUAGE csharp SOURCES ${INTERFACE_FILE_FSI})
+  target_link_libraries(Chrono_csharp_fsi PRIVATE Chrono_core Chrono_fsi Chrono_fsisph)
+
+  set_target_properties(Chrono_csharp_fsi PROPERTIES
+                        PROJECT_LABEL "Chrono_csharp_fsi"
+                        OUTPUT_NAME   "Chrono_csharp_fsi"
+                        LIBRARY_OUTPUT_DIRECTORY "${LIB_OUT_DIR}"
+                        SWIG_USE_TARGET_INCLUDE_DIRECTORIES TRUE
+                        )
+
+  target_compile_definitions(Chrono_csharp_fsi PRIVATE "CH_IGNORE_DEPRECATED")
+  target_compile_definitions(Chrono_csharp_fsi PRIVATE "IGNORE_DEPRECATED_WARNING")
+
+  add_dependencies(Chrono_csharp_fsi Chrono_core)
+  add_dependencies(Chrono_csharp_fsi Chrono_fsi)
+  add_dependencies(Chrono_csharp_fsi Chrono_fsisph)
+  add_dependencies(Chrono_csharp_fsi Chrono_csharp_core)
+
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS Chrono_csharp_fsi
+            EXPORT ChronoTargets
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib)
+  else()
+    install(TARGETS Chrono_csharp_fsi
+            EXPORT ChronoTargets
+            LIBRARY DESTINATION lib)
+  endif()
+
+  if (DBG_SCRIPT)
+    message("Module name:     Chrono_csharp_fsi")
+    message("SWIG_REAL_NAME:  Chrono_csharp_fsi")
   endif()
 
 endif()
@@ -697,6 +757,12 @@ install(DIRECTORY ${CHRONO_SWIG_OUTDIR}/sensor/
         FILES_MATCHING PATTERN "*.cs")
 endif()
 
+if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_FSI_SPH)
+install(DIRECTORY ${CHRONO_SWIG_OUTDIR}/fsi/
+        DESTINATION include/chrono_csharp
+        FILES_MATCHING PATTERN "*.cs")
+endif()
+
 install(DIRECTORY ${CHRONO_SWIG_OUTDIR}/robot/
         DESTINATION include/chrono_csharp
         FILES_MATCHING PATTERN "*.cs")
@@ -801,6 +867,9 @@ if(CH_USE_CSHARP_WRAPPER)
   if(CH_ENABLE_MODULE_ROS)
     list(APPEND CHRONO_CSHARP_MODULE_SOURCE_DIRS "${PROJECT_BINARY_DIR}/chrono_csharp/ros")
   endif()
+  if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_FSI_SPH)
+    list(APPEND CHRONO_CSHARP_MODULE_SOURCE_DIRS "${PROJECT_BINARY_DIR}/chrono_csharp/fsi")
+  endif()
 
   set(_chrono_csharp_module_dirs_arg "")
   if(CHRONO_CSHARP_MODULE_SOURCE_DIRS)
@@ -846,6 +915,9 @@ if(CH_USE_CSHARP_WRAPPER)
   endif()
   if(CH_ENABLE_MODULE_ROS)
     add_dependencies(Chrono_csharp_wrapper Chrono_csharp_ros)
+  endif()
+  if(CH_ENABLE_MODULE_FSI AND CH_ENABLE_MODULE_FSI_SPH)
+    add_dependencies(Chrono_csharp_wrapper Chrono_csharp_fsi)
   endif()
 
   if(WIN32)

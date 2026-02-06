@@ -122,6 +122,27 @@ using namespace chrono::fsi;
 %shared_ptr(chrono::fsi::sph::ParticleDensityColorCallback)
 %shared_ptr(chrono::fsi::sph::ParticleHeightColorCallback)
 
+#ifdef SWIGCSHARP
+%import "chrono_swig/interface/core/ChClassFactory.i"
+%import "chrono_swig/interface/core/ChVector2.i"
+%import "chrono_swig/interface/core/ChVector3.i"
+%import "chrono_swig/interface/core/ChMatrix.i"
+%import "chrono_swig/interface/core/ChCoordsys.i"
+%import "chrono_swig/interface/core/ChFrame.i"
+%import "chrono_swig/interface/core/ChPhysicsItem.i"
+%import "chrono_swig/interface/core/ChVisualMaterial.i"
+%import "chrono_swig/interface/core/ChVisualShape.i"
+%import "chrono_swig/interface/core/ChVisualModel.i"
+%import "chrono_swig/interface/core/ChColor.i"
+%import "chrono_swig/interface/core/ChColormap.i"
+%import "chrono_swig/interface/core/ChSystem.i"
+%import "chrono_swig/interface/core/ChBody.i"
+%import "chrono_swig/interface/core/ChGeometry.i"
+%import "chrono_swig/interface/core/ChBodyGeometry.i"
+%import "chrono_swig/interface/core/ChParticleCloud.i"
+#endif
+
+#ifdef SWIGPYTHON
 %import(module="pychrono.core") "chrono_swig/interface/core/ChClassFactory.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVector2.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChVector3.i"
@@ -141,6 +162,7 @@ using namespace chrono::fsi;
 %import(module="pychrono.core") "chrono_swig/interface/core/ChGeometry.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChBodyGeometry.i"
 %import(module="pychrono.core") "chrono_swig/interface/core/ChParticleCloud.i"
+#endif
 #ifdef CHRONO_VSG
 %import(module="pychrono.vsg3d") "chrono_swig/interface/vsg/ChVisualSystemVSG.i"
 #endif

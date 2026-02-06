@@ -10,6 +10,11 @@ using namespace chrono::fsi::sph;
 
 %}
 
+#ifdef SWIGCSHARP
+%rename(BoxSideEnum) chrono::fsi::sph::BoxSide::Enum;
+%rename(CylSideEnum) chrono::fsi::sph::CylSide::Enum;
+#endif
+
 %rename(PeriodicSide_NONE) chrono::fsi::sph::PeriodicSide::NONE;
 %rename(PeriodicSide_X) chrono::fsi::sph::PeriodicSide::X;
 %rename(PeriodicSide_Y) chrono::fsi::sph::PeriodicSide::Y;

@@ -368,6 +368,7 @@ inline const char* ChUtils_GetFilename() {
 // physics/  classes
 %include "ChControllers.i"
 %include "ChLoadable.i"
+%include "ChUpdateFlags.i"
 %include "ChObject.i"
 %include "ChPhysicsItem.i"
 %include "../../../chrono/physics/ChIndexedNodes.h"
