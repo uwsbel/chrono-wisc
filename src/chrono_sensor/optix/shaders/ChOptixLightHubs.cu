@@ -89,14 +89,15 @@ static __device__ __inline__ bool CheckVisibleAndSampleLight(
     }
 }
 
-static __device__ __inline__ void VisualizeNonDeltaLight(
-	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const ChOptixLight& light,
-	LightSample& light_sample
+static __device__ __inline__ bool CheckVisualizeNonDeltaLight(
+	const ContextParameters& cntxt_params, const float3& ray_o, const float3& ray_d, const ChOptixLight& light,
+	float& t_hit, float3& color, float3& light_albedo, float3& light_normal
 ) {
 	switch (light.light_type) {
         case LightType::RECTANGLE_LIGHT: {
-			// bool flag = VisualizeRectangleLight()
-			return;
+			light_albedo = light.specific.rectangle.color;
+			light_normal = light.specific.rectangle.light_dir;
+			return CheckVisualizeRectangleLight(cntxt_params, ray_o, ray_d, light.specific.rectangle, light.pos, t_hit, color);
 			break;
 		}
 

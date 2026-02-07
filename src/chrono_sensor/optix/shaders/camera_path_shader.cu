@@ -121,12 +121,44 @@ static __device__ __inline__ void RussianRoulette(curandState_t& rng, float3& co
 static __device__ __inline__ void CameraPathIntegrator(
 	const ContextParameters& cntxt_params, PerRayData_camera* prd_camera, const MaterialRecordParameters* mat_params,
 	unsigned int& material_id, const float3& world_normal, const float2& uv, const float3& tangent,
-	const float& ray_dist, const float3& hit_point, const float3& ray_dir
+	const float& ray_dist, const float3& hit_point, const float3& ray_dir, const float3& ray_origin
 ) {
 	// if (prd_camera->depth >= 3)
 	//     printf("PI| d: %d | contr: (%f,%f,%f)\n", prd_camera->depth, prd_camera->contrib_to_pixel.x,
 	//            prd_camera->contrib_to_pixel.y, prd_camera->contrib_to_pixel.z);
 	
+	// Visualize non-delta light
+	if (prd_camera->depth == 2) {
+		bool hit_non_delta_light = false;
+		float min_t_hit = 1e16f;
+		float3 viz_light_color = make_float3(0.f);
+		float3 light_albedo = make_float3(0.f);
+		float3 light_normal = make_float3(0.f);
+
+		for (unsigned int light_idx = 0; light_idx < cntxt_params.num_lights; light_idx++) {
+			ChOptixLight light = cntxt_params.lights[light_idx];
+			if (light.delta == false) {
+				float t_hit = 1e17f;
+				float3 color = make_float3(0.f);
+				if (CheckVisualizeNonDeltaLight(cntxt_params, ray_origin, ray_dir, light, t_hit, color, light_albedo, light_normal)) {
+					hit_non_delta_light = true;
+					if (t_hit < min_t_hit) {
+						min_t_hit = t_hit;
+						viz_light_color = color;
+					}
+				}
+			}
+		}
+
+		if (hit_non_delta_light && min_t_hit < ray_dist) {
+			prd_camera->color = viz_light_color;
+			prd_camera->albedo = light_albedo;
+			prd_camera->normal = light_normal;
+			return;
+		}
+	}
+
+
 	// Get material parameters
 	const MaterialParameters& mat = params.material_pool[material_id];
 	BSDFType bsdf_type = mat.bsdf_type;

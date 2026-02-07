@@ -228,10 +228,10 @@ int main(int argc, char* argv[]) {
     //     {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.00f, {0.f, 0.f, -1.f}, 60.f * CH_PI/180, 120.f * CH_PI/180, false
     // );
     
-    intensity = 15.0;
+    intensity = 100.0f;
     // (ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color)
     manager->scene->AddRectangleLight(
-        {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.0f, {3.0f, 0.0f, 0.0f}, {0.0f, -3.0f, 0.0f}
+        {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {2.0f, 0.0f, 0.0f}, {0.0f, -2.0f, 0.0f}, true
     );
 
     // manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);

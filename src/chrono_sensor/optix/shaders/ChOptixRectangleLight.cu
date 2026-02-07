@@ -23,39 +23,49 @@
 #include "chrono_sensor/optix/ChOptixDefinitions.h"				// for PerRayData_camera, ContextParameters
 #include "chrono_sensor/optix/shaders/device_utils.h"
 
-
+/// @brief Analytically check whether a ray intersects with a rectangle. If it does, return the hit distance `t_hit` and hit point `p_hit`.
+/// @param ray_o origin of the ray
+/// @param ray_d direction of the ray (should be normalized)
+/// @param rect_center center position of the rectangle
+/// @param length_vec vector of the length side of the rectangle
+/// @param width_vec vector of the width side of the rectangle
+/// @param rect_n normal vector of the rectangle (should be normalized), pointing toward the light-emitting direction
+/// @param t_hit output hit distance along the ray (from ray_o to p_hit); valid only if the function returns true
+/// @param p_hit output hit point on the rectangle; valid only if the function returns true
+/// @return True if the ray intersects the rectangle, false otherwise
 static __device__ __inline__ bool IntersectRectangle(
 	const float3& ray_o, const float3& ray_d, const float3& rect_center,
 	const float3& length_vec, const float3& width_vec, const float3& rect_n,
 	float& t_hit, float3& p_hit
 ) {
 	const float denom = Dot(ray_d, rect_n);
-	if (fabsf(denom) < 1e-7f) {
+	if (fabsf(denom) < 1e-8f) {
+		t_hit = 0.f;
 		return false;
 	}
 
-	const float t = Dot(rect_center - ray_o, rect_n) / denom;
-	if (t <= 0.0f)
+	t_hit = Dot(rect_center - ray_o, rect_n) / denom;
+	if (t_hit <= 0.f) {
+		t_hit = 0.f;
 		return false;
+	}
 
-	const float3 p = ray_o + t * ray_d;
+	p_hit = ray_o + t_hit * ray_d;
 
 	// Check bounds in parallelogram coordinates:
 	// p = center + a * length_vec + b * width_vec, with a,b in [-0.5, 0.5]
-	const float3 rel = p - rect_center;
+	const float3 rel = p_hit - rect_center;
 	const float a = Dot(rel, length_vec) / Dot(length_vec, length_vec);
-	const float b = Dot(rel, width_vec) / Dot(width_vec, width_vec);
+	const float b = Dot(rel,  width_vec) / Dot( width_vec,  width_vec);
 
 	if (a < -0.5f || a > 0.5f || b < -0.5f || b > 0.5f) {
 		return false;
 	}
 
-	t_hit = t;
-	p_hit = p;
 	return true;
 }
 
-// ---- main function ----
+//// ---- main function ---- ////
 
 /// @brief Check visibility between the rectangle light and the hit point, and sample the light.
 /// @param cntxt_params context parameters
@@ -198,62 +208,81 @@ static __device__ __inline__ bool CheckVisibleAndSampleRectangleLight(
 
 		return true;
 	}
+}
 
-	/*
-	// Direction and distance from hit-point to light
-	light_sample.dir = light_posi - light_sample.hitpoint;
-	light_sample.dist = Length(light_sample.dir);
-	light_sample.dir = light_sample.dir / light_sample.dist;
-	light_sample.NdL = Dot(light_sample.n, light_sample.dir);
-	
-	// Light is below the surface
-	if (light_sample.NdL < 0) {
-		light_sample.L = make_float3(0.f, 0.f, 0.f);
-		return false;  
+
+static __device__ __inline__ bool CheckVisualizeRectangleLight(			
+	const ContextParameters& cntxt_params,
+	const float3& ray_o,
+	const float3& ray_d, 
+	const RectangleLightData& light_data,
+	const float3& light_posi,
+	float& t_hit,
+	float3& color
+) {	
+	float3 p_hit = make_float3(0.f, 0.f, 0.f);
+	// Examine if the ray intersects the rectangle light
+	if(IntersectRectangle(
+		ray_o, ray_d, light_posi, light_data.length_vec, light_data.width_vec, light_data.light_dir, t_hit, p_hit
+	)) {
+		// // Trace occlusion ray toward the sampled point on the rectangle (distance-limited)
+		// PerRayData_occlusion prd_occ;
+		// prd_occ.occluded = false;
+
+		// unsigned int opt1, opt2;
+		// pointer_as_ints(&prd_occ, opt1, opt2);
+
+		// unsigned int raytype = (unsigned int)RayType::OCCLUSION_RAY_TYPE;
+
+		// optixTrace(
+		// 	cntxt_params.root,          // The scene traversable handle (OptixTraversableHandle); basically the top-level acceleration structure (TLAS).
+		// 	ray_o,						// origin of the traced ray
+		// 	ray_d,						// direction of the traced ray
+		// 	cntxt_params.scene_epsilon, // minimum intersection distance to avoid self-intersection (“shadow acne”)
+		// 	t_hit,						// A very large max distance (effectively “infinite” for the scene scale)
+		// 	optixGetRayTime(),          // time value for launching this ray
+		// 	OptixVisibilityMask(1),     // Only intersects geometry whose instance mask matches 1
+		// 	OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT, // terminate on first hit is ideal for occlusion rays
+		// 	0,                          // SBT offset (used when you have multiple SBT records for the same ray type). It selects the first “ray type slot”
+		// 	1,                          // SBT stride (used when you have multiple SBT records for the same ray type). It usually means “one ray type stride”
+		// 	0,                          // missSBTIndex. It selects the first miss program
+		// 	opt1,                       // Final payloads; the per-ray data pointer (first 32 bits); optixGetPayload_0() = opt1
+		// 	opt2,                       // Final payloads; the per-ray data pointer (second 32 bits); optixGetPayload_1() = opt2
+		// 	raytype                     // The ray type index (used when you have multiple ray types, e.g., radiance rays, shadow rays, etc.)
+		// );
+		
+		// // The ray direction intersects with the rectangle light but is occluded by other geometry
+		// if (prd_occ.occluded) {
+		// 	t_hit = 0.f;
+		// 	color = make_float3(0.f, 0.f, 0.f);
+		// 	return false;
+		// }
+		// // The ray direction intersects with the rectangle light and is not occluded by other geometry
+		// else {
+
+		float cos_on_light = Dot(light_data.light_dir, -ray_d);
+		
+		// The ray hits the back face of the rectangle light
+		if (cos_on_light < 0.f) {
+			color = make_float3(0.f, 0.f, 0.f);
+		}
+		// The ray hits the front face of the rectangle light
+		else {
+			float geom_term = cos_on_light * ((light_data.const_color) ? 1.f : (light_data.atten_scale / (t_hit * t_hit)));
+			color = geom_term * light_data.color;
+		}
+		
+		return true;
+		
+		// }
+		
 	}
-
-	// Trace shadow ray toward the light to check for occlusion		
-	PerRayData_occlusion prd_occ;
-	prd_occ.occluded = false;
-
-	unsigned int opt1;
-	unsigned int opt2;
-	pointer_as_ints(&prd_occ, opt1, opt2);
-
-	// Payload 2: ray type (if your code uses it)
-	unsigned int raytype = (unsigned int)RayType::OCCLUSION_RAY_TYPE;
-
-	optixTrace(
-		cntxt_params.root,          // The scene traversable handle (OptixTraversableHandle); basically the top-level acceleration structure (TLAS).
-		light_sample.hitpoint, 		// origin of the traced ray
-		light_sample.dir,          	// direction of the traced ray
-		cntxt_params.scene_epsilon, // minimum intersection distance to avoid self-intersection (“shadow acne”)
-		light_sample.dist,			// A very large max distance (effectively “infinite” for the scene scale)
-		optixGetRayTime(),          // time value for launching this ray
-		OptixVisibilityMask(1),     // Only intersects geometry whose instance mask matches 1
-		OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT, // terminate on first hit is ideal for occlusion rays
-		0,                          // SBT offset (used when you have multiple SBT records for the same ray type). It selects the first “ray type slot”
-		1,                          // SBT stride (used when you have multiple SBT records for the same ray type). It usually means “one ray type stride”
-		0,                          // missSBTIndex. It selects the first miss program
-		opt1,                       // Final payloads; the per-ray data pointer (first 32 bits); optixGetPayload_0() = opt1
-		opt2,                       // Final payloads; the per-ray data pointer (second 32 bits); optixGetPayload_1() = opt2
-		raytype                     // The ray type index (used when you have multiple ray types, e.g., radiance rays, shadow rays, etc.)
-	);
-	
-	// If the light is occluded
-	if (prd_occ.occluded) {
-		light_sample.L = make_float3(0.f, 0.f, 0.f);
+	// Ray does not intersect the rectangle light at all
+	else {
+		t_hit = 0.f;
+		color = make_float3(0.f, 0.f, 0.f);
 		return false;
 	}
-	// Caculate the remaining attributes of light sample
-	else {
-		float intense_amount = (light_data.const_color) ? 1.0f : (light_data.atten_scale / (light_sample.dist * light_sample.dist)); // inverse square law
-		light_sample.L = light_sample.NdL * intense_amount * light_data.color; 
-		// light_sample.L = light_sample.NdL * light_data.color * (light_data.max_range * light_data.max_range / (light_sample.dist * light_sample.dist + light_data.max_range * light_data.max_range));
-		light_sample.pdf = 1.0f; // Delta light
-		return true;
-	}
-	*/
 }
 
 #endif  // CHRONO_SENSOR_OPTIX_RECTANGLE_LIGHT_CU

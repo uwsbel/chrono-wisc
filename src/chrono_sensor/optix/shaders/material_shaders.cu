@@ -63,7 +63,8 @@ extern "C" __global__ void __closesthit__material_shader() {
     const MaterialParameters& mat = params.material_pool[material_id];
     if (optixIsTriangleHit()) {
         GetTriangleData(object_normal, material_id, uv, tangent, mat_params->mesh_pool_id);
-    } else {
+    }
+    else {
         object_normal = make_float3(__int_as_float(optixGetAttribute_0()), __int_as_float(optixGetAttribute_1()),
                                     __int_as_float(optixGetAttribute_2()));
         uv = make_float2(__int_as_float(optixGetAttribute_3()), __int_as_float(optixGetAttribute_4()));
@@ -82,7 +83,8 @@ extern "C" __global__ void __closesthit__material_shader() {
     float3 world_normal;
     if (mat.bsdf_type == BSDFType::VDB || mat.bsdf_type == BSDFType::VDBHAPKE) {
         world_normal = object_normal;
-    } else {
+    }
+    else {
         world_normal = normalize(optixTransformNormalFromObjectToWorldSpace(object_normal));
     }
 
@@ -108,7 +110,7 @@ extern "C" __global__ void __closesthit__material_shader() {
             switch (prd_cam->integrator) {
                 case Integrator::PATH:
                     CameraPathIntegrator(params, prd_cam, mat_params, material_id, world_normal, uv, tangent, ray_dist,
-                                         hit_point, ray_dir);
+                                         hit_point, ray_dir, ray_orig);
                     break;
                 case Integrator::VOLUMETRIC:
                     break;
