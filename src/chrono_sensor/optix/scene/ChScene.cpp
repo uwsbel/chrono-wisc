@@ -106,11 +106,12 @@ CH_SENSOR_API unsigned int ChScene::AddSpotLight(
 ) {
     ChOptixLight light{};   // zero-initialize everything
     light.light_type  = LightType::SPOT_LIGHT;
-    light.pos = {pos.x(), pos.y(), pos.z()};
+    light.pos = make_float3(pos.x(), pos.y(), pos.z());
     light.delta = true;
-    light.specific.spot.color = {color.R, color.G, color.B};
+    light.specific.spot.color = make_float3(color.R, color.G, color.B);
     light.specific.spot.max_range = max_range;
-    light.specific.spot.light_dir = {light_dir.x(), light_dir.y(), light_dir.z()};
+    ChVector3f nrmlz_light_dir = light_dir.GetNormalized();
+    light.specific.spot.light_dir = make_float3(nrmlz_light_dir.x(), nrmlz_light_dir.y(), nrmlz_light_dir.z());
     light.specific.spot.const_color = const_color;
     light.specific.spot.angle_range = angle_range;
     if (angle_falloff_start < angle_range - 1e-6f) {
@@ -155,8 +156,10 @@ CH_SENSOR_API unsigned int ChScene::AddRectangleLight(
 
     // Calculate extended parameters
     light.specific.rectangle.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
-    light.specific.rectangle.area = length_vec.Length() * width_vec.Length();
-    light.specific.rectangle.light_dir = Cross(light.specific.rectangle.length_vec, light.specific.rectangle.width_vec);
+    ChVector3f light_dir = Vcross(length_vec, width_vec);
+    light.specific.rectangle.area = light_dir.Length();
+    light_dir = light_dir / light_dir.Length();
+    light.specific.rectangle.light_dir = make_float3(light_dir.x(), light_dir.y(), light_dir.z());
     
     m_lights.push_back(light);
     lights_changed = true;

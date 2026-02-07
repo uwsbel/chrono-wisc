@@ -40,7 +40,7 @@ static __device__ __inline__ float3 GetDiffuseReflectedColor(PerRayData_camera* 
         // Sample hemisphere for next ray when using global illumination
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
-        float3 next_dir = sample_cosine_hemisphere_dir(z1, z2, world_normal);
+        float3 next_dir = SampleCosineHemisphereDir(z1, z2, world_normal);
 
         float NdL = Dot(world_normal, next_dir);
         float3 halfway = normalize(next_dir - ray_dir);
@@ -319,7 +319,7 @@ static __device__ __inline__ float3 GetLightReflectedColor(PerRayData_camera* pr
         ls.wo = -ray_dir;
         ls.n = world_normal;
         // SampleLight(light, &ls);
-        CheckVisibleAndSampleLight(params, prd_camera, light, ls);
+        CheckVisibleAndSampleLight(params, light, ls, prd_camera);
         if (ls.pdf > 0 && fmaxf(ls.L) > 0) {
             float NdL = Dot(world_normal, ls.dir);
             // if we think we can see the light, let's see if we are correct

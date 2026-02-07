@@ -92,9 +92,10 @@ class CH_SENSOR_API ChScene {
 
 
     /// @brief Add a spot light that emits light in a particular direction.
-    /// @param pos [m], the world position of the spot light
-    /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
-    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param pos the world position of the spot light
+    /// @param color color radiance of the light
+    /// @param max_range range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param light_dir the direction in which the spotlight points (no need to be normalized)
     /// @param angle_falloff_start [m], angle at which the spotlight starts to linearly fall off
     /// @param angle_range [rad], angle range of the spotlight falling off to zero.
     /// @param const_color whether to use constant color (no attenuation with distance)

@@ -220,18 +220,25 @@ int main(int argc, char* argv[]) {
     b.color_zenith = {0,0,0};
     manager->scene->SetBackground(b);
 
-    float intensity = 0.8;
+    float intensity = 1.0;
     // manager->scene->AddPointLight({0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 25.0f); //2.0f / 2, 1.8902f / 2, 1.7568f / 2
     
-    manager->scene->AddSpotLight(
-        {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.00f, {0.f, 0.f, -1.f}, 60.f * CH_PI/180, 120.f * CH_PI/180, false
-    );
+    // intensity = 10.0;
+    // manager->scene->AddSpotLight(
+    //     {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.00f, {0.f, 0.f, -1.f}, 60.f * CH_PI/180, 120.f * CH_PI/180, false
+    // );
     
+    intensity = 15.0;
+    // (ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color)
+    manager->scene->AddRectangleLight(
+        {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.0f, {3.0f, 0.0f, 0.0f}, {0.0f, -3.0f, 0.0f}
+    );
+
     // manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);
     // manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);
     //manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0, 0, -1}, {1e1,1e1,1e1}, 5.0f, 10*(CH_PI/180), 5*(CH_PI/180));
     manager->SetRayRecursions(6);
-    //manager->scene->AddAreaLight({0.0f, 0.0f, 3.8f}, {2.0f/2, 1.8902f/2, 1.7568f/2}, 5.0f, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f});
+    
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
     // -------------------------------------------------------
     // Create a camera and add it to the sensor manager

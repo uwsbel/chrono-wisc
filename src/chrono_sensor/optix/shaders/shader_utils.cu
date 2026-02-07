@@ -28,7 +28,7 @@ __device__ __inline__ PerRayData_occlusion* GetOcclusionPRD() {
 }
 
 // Cosine-weighted hemisphere surface sampling
-__device__ __inline__ float3 sample_cosine_hemisphere_dir(const float& z1, const float& z2, const float3& normal) {
+__device__ __inline__ float3 SampleCosineHemisphereDir(const float& z1, const float& z2, const float3& normal) {
     const float radius = sqrtf(z1);
     const float phi = 2.f * CUDART_PI_F * z2;
     float x = radius * cosf(phi);
@@ -254,7 +254,7 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample,
     if (eval)
         return;
 
-    sample.wi = sample_cosine_hemisphere_dir(z1, z2, sample.n);
+    sample.wi = SampleCosineHemisphereDir(z1, z2, sample.n);
     
     // Probability density function (PDF) of the Labertian BSDF for the sampled direction
     sample.pdf = LambertianBSDFPdf(sample.wo, sample.wi, sample.n);

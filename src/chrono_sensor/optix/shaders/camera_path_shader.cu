@@ -163,7 +163,7 @@ static __device__ __inline__ void CameraPathIntegrator(
 		light_sample.hitpoint = hit_point;
 		light_sample.wo = -ray_dir;
 		light_sample.n = world_normal;
-		if(CheckVisibleAndSampleLight(cntxt_params, prd_camera, light, light_sample)) {
+		if(CheckVisibleAndSampleLight(cntxt_params, light, light_sample, prd_camera)) {
 			halfway = normalize(light_sample.dir - ray_dir);
 			NdH = Dot(world_normal, halfway);
 			VdH = Dot(-ray_dir, halfway); // dot(V, H) = dot(H, L), since H is halfway between L and V
@@ -235,7 +235,7 @@ static __device__ __inline__ void CameraPathIntegrator(
 			// Diffuse reflected ray
 			if (weight_idx == 0) {
 				// Just use cosine sampling to sample hemisphere for next ray
-				next_dir = sample_cosine_hemisphere_dir(curand_uniform(&prd_camera->rng), curand_uniform(&prd_camera->rng), world_normal);
+				next_dir = SampleCosineHemisphereDir(curand_uniform(&prd_camera->rng), curand_uniform(&prd_camera->rng), world_normal);
 			}
 			// Specular reflected ray
 			else if (weight_idx == 1) {

@@ -104,9 +104,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Copyright (c) 2020 projectchrono.org\nChrono version: " << CHRONO_VERSION << std::endl;
 
     alias_factor = std::atoi(argv[1]);
-    // float light_elevation = std::atof(argv[2]); // [deg]
-    // float light_azimuth = std::atof(argv[3]); // [deg]
-    
     
 
     for (int i = 1; i < argc; ++i) {
@@ -258,12 +255,18 @@ int main(int argc, char* argv[]) {
 
 
     float intensity = 1.0f;
-    // manager->scene->AddPointLight({100, 100, 100}, {intensity, intensity, intensity}, 500, false);
+    // manager->scene->AddPointLight({0, 0, 2}, {intensity, intensity, intensity}, 500, true);
+    
+    // float light_elevation = std::atof(argv[2]); // [deg]
+    // float light_azimuth = std::atof(argv[3]); // [deg]
     // manager->scene->AddDirectionalLight({intensity, intensity, intensity}, light_elevation * CH_PI/180, light_azimuth * CH_PI/180); 
-    // AddSpotLight(pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
+    
+    intensity = 6.0f;
+    // (pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
     manager->scene->AddSpotLight(
         {-5.f, 5.f, 5.f}, {intensity, intensity, intensity}, 8.67f, {1.f, -1.f, -1.f}, 60.f * CH_PI/180, 90.f * CH_PI/180, false
     );
+    
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;
@@ -450,7 +453,7 @@ int main(int argc, char* argv[]) {
     // Each camera begins on opposite sides of the object, but rotate at the same speed
     float orbit_radius = 15.f;
     float orbit_rate = 0.1f;
-    float orbit_start = 0.f * CH_PI/180.f;
+    float orbit_start = 45.f * CH_PI/180.f;
     float ch_time = 0.0f;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();

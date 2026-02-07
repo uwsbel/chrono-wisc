@@ -638,7 +638,7 @@ static __device__ __inline__ float3 CalculateGIReflectionColor(PerRayData_camera
         // sample hemisphere for next ray when using global illumination
         float z1 = curand_uniform(&prd_camera->rng);
         float z2 = curand_uniform(&prd_camera->rng);
-        float3 next_dir = sample_cosine_hemisphere_dir(z1, z2, world_normal);
+        float3 next_dir = SampleCosineHemisphereDir(z1, z2, world_normal);
 
         float NdL = Dot(world_normal, next_dir);
         float3 halfway = normalize(next_dir - ray_dir);
@@ -1312,7 +1312,7 @@ static __device__ __inline__ void LambertianBSDFSample(BSDFSample& sample,
     if (eval)
         return;
 
-    sample.wi = sample_cosine_hemisphere_dir(z1, z2, sample.n);
+    sample.wi = SampleCosineHemisphereDir(z1, z2, sample.n);
     sample.pdf = LambertianBSDFPdf(sample.wo, sample.wi, sample.n);
 }
 
