@@ -67,6 +67,7 @@ struct DiskLightData {
 	float max_range;			// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	bool const_color;			// whether to use constant color (no attenuation with distance)
 	// Extended parameters
+	float atten_scale;			// [1/1], attenuation scale based on max_range
 	float area;					// [m^2], area of the disk light
 };
 
@@ -78,7 +79,7 @@ struct RectangleLightData {
 	float max_range;		// [m], distance range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
 	bool const_color;		// whether to use constant color (no attenuation with distance)
 	// Extended parameters
-	float atten_scale;			// [1/1], attenuation scale based on max_range
+	float atten_scale;		// [1/1], attenuation scale based on max_range
 	float area;				// [m^2], area of the rectangle light
 	float3 light_dir;		// unit direction vector of the rectangle light (normal vector)
 };

@@ -74,7 +74,8 @@ CH_SENSOR_API void ChScene::ModifyPointLight(unsigned int id, const ChOptixLight
     }
 }
 
-/// Directional light ///
+/// ---- Directional light ---- ///
+
 CH_SENSOR_API unsigned int ChScene::AddDirectionalLight(ChColor color, float elevation, float azimuth) {
     ChOptixLight light{};   // zero-initialize everything
     light.light_type  = LightType::DIRECTIONAL_LIGHT;
@@ -100,7 +101,8 @@ CH_SENSOR_API void ChScene::ModifyDirectionalLight(unsigned int id, const ChOpti
     }
 }
 
-/// Spot light ///
+/// ---- Spot light ---- ///
+
 CH_SENSOR_API unsigned int ChScene::AddSpotLight(
     ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float angle_falloff_start, float angle_range, bool const_color
 ) {
@@ -140,7 +142,8 @@ CH_SENSOR_API void ChScene::ModifySpotLight(unsigned int id, const ChOptixLight&
     }
 }
 
-/// Rectangle light ///
+/// ---- Rectangle light ---- ///
+
 CH_SENSOR_API unsigned int ChScene::AddRectangleLight(
     ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color
 ) {
@@ -152,7 +155,7 @@ CH_SENSOR_API unsigned int ChScene::AddRectangleLight(
     light.specific.rectangle.max_range = max_range;
     light.specific.rectangle.length_vec = make_float3(length_vec.x(), length_vec.y(), length_vec.z());
     light.specific.rectangle.width_vec = make_float3(width_vec.x(), width_vec.y(), width_vec.z());
-    light.specific.spot.const_color = const_color;
+    light.specific.rectangle.const_color = const_color;
 
     // Calculate extended parameters
     light.specific.rectangle.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
@@ -167,9 +170,42 @@ CH_SENSOR_API unsigned int ChScene::AddRectangleLight(
     return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
-CH_SENSOR_API void ChScene::ModifyRectangleLight(unsigned int id, const ChOptixLight& spot_light) {
-    if (id <= m_lights.size() && spot_light.light_type == LightType::RECTANGLE_LIGHT) {
-        m_lights[id] = spot_light;
+CH_SENSOR_API void ChScene::ModifyRectangleLight(unsigned int id, const ChOptixLight& rectangle_light) {
+    if (id <= m_lights.size() && rectangle_light.light_type == LightType::RECTANGLE_LIGHT) {
+        m_lights[id] = rectangle_light;
+        lights_changed = true;
+    }
+}
+
+/// ---- Disk light ---- ///
+
+CH_SENSOR_API unsigned int ChScene::AddDiskLight(
+   ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float radius, bool const_color
+) {
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::DISK_LIGHT;
+    light.pos = make_float3(pos.x(), pos.y(), pos.z());
+    light.delta = false;
+    light.specific.disk.color = {color.R, color.G, color.B};
+    light.specific.disk.max_range = max_range;
+    ChVector3f nrmlz_light_dir = light_dir.GetNormalized();
+    light.specific.disk.light_dir = make_float3(nrmlz_light_dir.x(), nrmlz_light_dir.y(), nrmlz_light_dir.z());
+    light.specific.disk.radius = radius;
+    light.specific.disk.const_color = const_color;
+
+    // Calculate extended parameters
+    light.specific.disk.atten_scale = (max_range > 0) ? (0.01 * max_range * max_range) : 1.f;
+    light.specific.disk.area = CH_PI * radius * radius;
+    
+    m_lights.push_back(light);
+    lights_changed = true;
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
+}
+
+CH_SENSOR_API void ChScene::ModifyDiskLight(unsigned int id, const ChOptixLight& disk_light) {
+    if (id <= m_lights.size() && disk_light.light_type == LightType::DISK_LIGHT) {
+        m_lights[id] = disk_light;
         lights_changed = true;
     }
 }

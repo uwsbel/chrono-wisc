@@ -121,6 +121,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/ChOptixSpotLight.cu
       optix/shaders/ChOptixDirectionalLight.cu
       optix/shaders/ChOptixRectangleLight.cu
+      optix/shaders/ChOptixDiskLight.cu
       # ---- Register Your Customized Light Type Here (Cmake compiling) ---- #
   )
 

@@ -25,6 +25,8 @@
 #include "chrono_sensor/optix/shaders/ChOptixDirectionalLight.cu"
 #include "chrono_sensor/optix/shaders/ChOptixSpotLight.cu"
 #include "chrono_sensor/optix/shaders/ChOptixRectangleLight.cu"
+#include "chrono_sensor/optix/shaders/ChOptixDiskLight.cu"
+//// ---- Register Your Customized Light Type Here (include the corresponding .cu file) ---- ////
 
 // Check if the light source is visible to the hit-point
 static __device__ __inline__ bool CheckVisibleAndSampleLight(
@@ -71,9 +73,14 @@ static __device__ __inline__ bool CheckVisibleAndSampleLight(
 			break;
 		}
 		
-		case LightType::DISK_LIGHT:
-			// return CheckDiskLightVisible(cntxt_params, light, light_sample); // TODO
-			// break;
+		case LightType::DISK_LIGHT: {
+            bool flag = CheckVisibleAndSampleDiskLight(
+				cntxt_params, light.specific.disk, light.pos, light_sample, prd_camera
+			);
+			// prd_camera->color = {flag * 1.0, 0.0, 1.0}; // debug
+			return flag;
+			break;
+		}
 		
 		case LightType::ENVIRONMENT_LIGHT:
 			// return CheckEnvironmentLightVisible(cntxt_params, light, light_sample); // TODO
@@ -102,8 +109,9 @@ static __device__ __inline__ bool CheckVisualizeNonDeltaLight(
 		}
 
 		case LightType::DISK_LIGHT: {
-			// bool flag = VisualizeDiskLight()
-			return;
+			light_albedo = light.specific.disk.color;
+			light_normal = light.specific.disk.light_dir;
+			return CheckVisualizeDiskLight(cntxt_params, ray_o, ray_d, light.specific.disk, light.pos, t_hit, color);
 			break;
 		}
 

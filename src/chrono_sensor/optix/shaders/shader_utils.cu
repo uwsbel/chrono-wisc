@@ -38,8 +38,8 @@ __device__ __inline__ float3 SampleCosineHemisphereDir(const float& z1, const fl
     // Address case of normal = (0, 0, 1)
     float3 binormal = (fabs(normal.x) > fabs(normal.z)) ? make_float3(-normal.y, normal.x, 0) : make_float3(0, -normal.z, normal.y);
     binormal = normalize(binormal);
-
     float3 tangent = Cross(normal, binormal);
+    
     return x * tangent + y * binormal + z * normal;
 }
 

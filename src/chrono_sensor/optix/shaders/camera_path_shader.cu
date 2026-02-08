@@ -262,6 +262,12 @@ static __device__ __inline__ void CameraPathIntegrator(
 			// weight_idx = 1;
 		}
 
+		// debug
+		// weight_idx_start = 1;
+		// weight_idx_end = 2;
+		// weights[0] = 0.f; // diffuse weight
+		// weights[1] = 1.f; // specular weight
+
 		for (int weight_idx = weight_idx_start; weight_idx < weight_idx_end; ++weight_idx) {
 			float3 next_dir;
 			// Diffuse reflected ray

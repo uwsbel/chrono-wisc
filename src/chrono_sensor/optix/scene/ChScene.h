@@ -69,14 +69,15 @@ class CH_SENSOR_API ChScene {
     /// @brief Add a point light that emits light in all directions.
     /// @param pos The world position of the point light
     /// @param color [W/sr/m^2] or [lumen/sr/m^2], color radiance of the light
-    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity.
+    /// If set to -1, follows inverse square law.
     /// @return the index of the light that has been added
     unsigned int AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color = true);
 
     /// @brief Function for modifying an existing point light in the scene
-    /// @param id the index of the point light to be modified
+    /// @param light_ID the index of the point light to be modified
     /// @param point_light the new point light
-    void ModifyPointLight(unsigned int id, const ChOptixLight& point_light);
+    void ModifyPointLight(unsigned int light_ID, const ChOptixLight& point_light);
 
     /// @brief Add a directional light that emits light in a particular direction.
     /// @param color [W/m^2] or [lumen/m^2], color irradiance of the light
@@ -86,15 +87,16 @@ class CH_SENSOR_API ChScene {
     unsigned int AddDirectionalLight(ChColor color, float elevation, float azimuth);
 
     /// @brief Function for modifying an existing directional light in the scene
-    /// @param id the index of the directional light to be modified
+    /// @param light_ID the index of the directional light to be modified
     /// @param directional_light the new directional light
-    void ModifyDirectionalLight(unsigned int id, const ChOptixLight& directional_light);
+    void ModifyDirectionalLight(unsigned int light_ID, const ChOptixLight& directional_light);
 
 
     /// @brief Add a spot light that emits light in a particular direction.
     /// @param pos the world position of the spot light
     /// @param color color radiance of the light
-    /// @param max_range range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param max_range range at which the light intensity falls to 1% of its maximum color intensity.
+    /// If set to -1, follows inverse square law.
     /// @param light_dir the direction in which the spotlight points (no need to be normalized)
     /// @param angle_falloff_start [m], angle at which the spotlight starts to linearly fall off
     /// @param angle_range [rad], angle range of the spotlight falling off to zero.
@@ -105,16 +107,17 @@ class CH_SENSOR_API ChScene {
     );
 
     /// @brief Function for modifying an existing spot light in the scene
-    /// @param id the index of the spot light to be modified
+    /// @param light_ID the index of the spot light to be modified
     /// @param spot_light the new spot light
-    void ModifySpotLight(unsigned int id, const ChOptixLight& spot_light);
+    void ModifySpotLight(unsigned int light_ID, const ChOptixLight& spot_light);
     
-    /// @brief Add a rectangle light that emits light omni-directionally from a rectangle area.
+    /// @brief Add a rectangle light that emits light forward from a rectangle area.
     /// @param pos [m], the world position of the rectangle light
     /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
-    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity. If set to -1, follows inverse square law.
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity.
+    /// If set to -1, follows inverse square law.
     /// @param length_vec [m], one edge vector of the rectangle light
-    /// @param width_vec [m], the other edge vector of the rectangle light perpendicular to length_vec. Light direction is: length_vec x width_vec.
+    /// @param width_vec [m], the other edge vector of the rectangle light perpendicular to `length_vec`. Light direction is: length_vec x width_vec.
     /// @param const_color whether to use constant color (no attenuation with distance)
     /// @return the index of the added light
     unsigned int AddRectangleLight(
@@ -122,10 +125,27 @@ class CH_SENSOR_API ChScene {
     );
 
     /// @brief Function for modifying an existing rectangle light in the scene
-    /// @param id the index of the rectangle light to be modified
-    /// @param spot_light the new rectangle light
-    void ModifyRectangleLight(unsigned int id, const ChOptixLight& rectangle_light);
+    /// @param light_ID the index of the rectangle light to be modified
+    /// @param rectangle_light the new rectangle light
+    void ModifyRectangleLight(unsigned int light_ID, const ChOptixLight& rectangle_light);
 
+    /// @brief Add a disk light that emits light forward from a circular area.
+    /// @param pos [m], the world position of the rectangle light
+    /// @param color [W/m^2] or [lumen/m^2], color radiance of the light
+    /// @param max_range [m], range at which the light intensity falls to 1% of its maximum color intensity.
+    /// If set to -1, follows inverse square law.
+    /// @param light_dir the direction in which the disk light points (no need to be normalized)
+    /// @param radius [m], radius of the disk light
+    /// @param const_color whether to use constant color (no attenuation with distance)
+    /// @return the index of the added light
+    unsigned int AddDiskLight(
+      ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float radius, bool const_color = true
+    );
+
+    /// @brief Function for modifying an existing disk light in the scene
+    /// @param light_ID the index of the disk light to be modified
+    /// @param disk_light the new disk light
+    void ModifyDiskLight(unsigned int light_ID, const ChOptixLight& disk_light);
     
 
     /* Old code to be deleted
