@@ -46,7 +46,16 @@ CH_SENSOR_API ChScene::ChScene() {
     //m_nvdb = nullptr;
 }
 
-CH_SENSOR_API ChScene::~ChScene() {}
+CH_SENSOR_API ChScene::~ChScene() {
+    // free environment light CDF arrays if they exist
+    for (int light_idx = 0; light_idx < m_lights.size(); light_idx++) {
+        if (m_lights[light_idx].light_type == LightType::ENVIRONMENT_LIGHT) {
+            cudaFree(m_lights[light_idx].specific.environment.dev_cdf_lat);
+            cudaFree(m_lights[light_idx].specific.environment.dev_cdf_lon);
+        }
+         // ---- Register Your Customized Light Here (add destructor code if necessary) ---- //
+    }
+}
 
 /// Point light ///
 CH_SENSOR_API unsigned int ChScene::AddPointLight(ChVector3f pos, ChColor color, float max_range, bool const_color) {
@@ -208,6 +217,117 @@ CH_SENSOR_API void ChScene::ModifyDiskLight(unsigned int id, const ChOptixLight&
         m_lights[id] = disk_light;
         lights_changed = true;
     }
+}
+
+/// ---- Environment light ---- ///
+
+/// @brief Build the cumulative distribution function (CDF) for importance sampling of the environment map on the device.
+/// @param img the environment map image data, assumed to be in RGB format with 8 bits per channel
+/// @param dev_cdf_lat device pointer to the CDF for latitude sampling, size = height x 2 Bytes, to be filled in this function
+/// @param cdf_lon device pointer to the CDF for longitude sampling, size = height x width x 2 Bytes, to be filled in this function 
+void BuildCDFOnDevice(const ByteImageData& img, EnvironmentLightData& env_light_data) {
+    
+    const int img_w = img.w;
+    const int img_h = img.h;
+    const int num_chs = img.c;
+    std::vector<float> cdf_lat_float(img_h, 0.f);
+    std::vector<float> cdf_lon_float(img_w * img_h, 0.f);
+    std::vector<unsigned short> host_cdf_lat(img_h, 0);
+    std::vector<unsigned short> host_cdf_lon(img_w * img_h, 0);
+
+    float max_luminance = 0.f;
+    float min_luminance = 1.f;
+    for (int v = 0; v < img_h; ++v) {
+        // sin(polar) for importance sampling, polar in 0 --> pi, so sin(polar) is: 0 --> 1 --> 0
+        // equivalent to cos(elevation), elevation in pi/2 --> -pi/2, so cos(elevation) is: 0 --> 1 --> 0
+        float cos_elev = cosf((static_cast<float>(v) / (img_h - 1) - 0.5f) * CH_PI);
+        
+        // Calculate the CDF for longitude (u) sampling at this latitude (v)
+        for (int u = 0; u < img_w; ++u) {
+            unsigned char red   = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 0];
+            unsigned char green = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 1];
+            unsigned char blue  = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 2];
+            
+            // Convert RGB to luminance using Rec. 709 luma coefficients
+            float luminance = (static_cast<float>(red) / 255.f * 0.2126f +
+                               static_cast<float>(green) / 255.f * 0.7152f +
+                               static_cast<float>(blue) / 255.f * 0.0722f);
+            if (luminance > max_luminance) max_luminance = luminance;
+            if (luminance < min_luminance) min_luminance = luminance;
+            if (u == 0) {
+                cdf_lon_float[v * img_w + u] = luminance;
+            }
+            else {
+                cdf_lon_float[v * img_w + u] = cdf_lon_float[v * img_w + u - 1] + luminance;
+            }
+        }
+
+        // Calculate the marginal CDF for latitude sampling at this latitude (v)
+        if (v == 0) {
+            cdf_lat_float[v] = cos_elev * cdf_lon_float[v * img_w + img_w - 1];
+        }
+        else {
+            cdf_lat_float[v] = cdf_lat_float[v - 1] + cos_elev * cdf_lon_float[v * img_w + img_w - 1];
+        }
+
+        // Normalize the longitude CDF by the marginal CDF at this latitude (v) to [0, 65535]-scale
+        for (int u = 0; u < img_w; ++u) {
+            float denom = cdf_lon_float[v * img_w + img_w - 1];
+            if (denom > 0.f) {
+                host_cdf_lon[v * img_w + u] = static_cast<unsigned short>(
+                    cdf_lon_float[v * img_w + u] / denom * 65535.f
+                );
+            }
+            else {
+                host_cdf_lon[v * img_w + u] = 0;
+            }
+        }
+        // printf("last value in host_cdf_lon: %d\n", host_cdf_lon[v * img_w + img_w - 1]); // debug
+    }
+
+    printf("Max luminance: %f, Min luminance: %f\n", max_luminance, min_luminance);
+    
+    // Normalize the latitude CDF to [0, 65535]-scale
+    for (int v = 0; v < img_h; ++v) {
+        float denom = cdf_lat_float[img_h - 1];
+        if (denom > 0.f) {
+            host_cdf_lat[v] = static_cast<unsigned short>(cdf_lat_float[v] / denom * 65535.f);
+        }
+        else {
+            host_cdf_lat[v] = 0;
+        }
+        // printf("value in host_cdf_lat is %d\n", host_cdf_lat[v]); // debug
+    }
+
+    // Copy CDFs to device memory
+    cudaMalloc((void**)&env_light_data.dev_cdf_lat, sizeof(unsigned short) * img_h);
+    cudaMalloc((void**)&env_light_data.dev_cdf_lon, sizeof(unsigned short) * img_w * img_h);
+    cudaMemcpy(env_light_data.dev_cdf_lat, host_cdf_lat.data(), sizeof(unsigned short) * img_h, cudaMemcpyHostToDevice);
+    cudaMemcpy(env_light_data.dev_cdf_lon, host_cdf_lon.data(), sizeof(unsigned short) * img_w * img_h, cudaMemcpyHostToDevice);
+}
+
+CH_SENSOR_API unsigned int ChScene::AddEnvironmentLight(std::string env_tex_path, float intensity_scale) {
+    ChOptixLight light{};   // zero-initialize everything
+    light.light_type  = LightType::ENVIRONMENT_LIGHT;
+    light.pos = {0.f, 0.f, 0.f};
+    light.delta = false;
+    light.specific.environment.intensity_scale = intensity_scale;
+
+    // Calculate extended parameters
+    // Note: the environment map sampler will be set in ChOptixPipeline when processing the light data
+    ByteImageData img = LoadByteImage(env_tex_path);
+    printf("Environment light texture loaded, with resolution %d x %d\n", img.w, img.h);
+
+    // Extended parameters
+    light.specific.environment.width = img.w;
+    light.specific.environment.height = img.h;
+
+    BuildCDFOnDevice(img, light.specific.environment);
+
+    m_lights.push_back(light);
+    lights_changed = true;
+
+    return static_cast<unsigned int>(m_lights.size() - 1);
 }
 
 //// ---- Register Your Customized Light Types Here (AddLight and ModifyLight functions) ---- ////

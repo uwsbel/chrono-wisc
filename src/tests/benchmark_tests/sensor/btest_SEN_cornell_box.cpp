@@ -230,9 +230,14 @@ int main(int argc, char* argv[]) {
     
     intensity = 50.0f;
     // (ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color)
-    manager->scene->AddRectangleLight(
+    unsigned int rectangle_light_idx = manager->scene->AddRectangleLight(
         {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {2.0f, 0.0f, 0.0f}, {0.0f, -2.0f, 0.0f}, true
     );
+
+    ChOptixLight rectangle_light = manager->scene->GetLights()[rectangle_light_idx];
+
+    std::cout << "Size of ChOptixLight: " << sizeof(rectangle_light) << " bytes.\n";
+    std::cout << "Size of ChOptixLight.specific: " << sizeof(rectangle_light.specific) << " bytes.\n";
 
     // intensity = 50.0f;
     // // (ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float radius, bool const_color)

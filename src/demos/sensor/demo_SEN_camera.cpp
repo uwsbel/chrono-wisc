@@ -157,7 +157,6 @@ int main(int argc, char* argv[]) {
     auto floor = chrono_types::make_shared<ChBodyEasyBox>(20, 20, .1, 1000, true, false);
     floor->SetPos({0, 0, -0.6});
     floor->SetFixed(true);
-    sys.Add(floor);
     {
         auto shape = floor->GetVisualModel()->GetShapeInstances()[0].shape;
         if (shape->GetNumMaterials() == 0) {
@@ -166,6 +165,8 @@ int main(int argc, char* argv[]) {
             shape->GetMaterials()[0] = vis_mat3;
         }
     }
+    sys.Add(floor);
+    
 
     auto vis_mat = chrono_types::make_shared<ChVisualMaterial>();
     // vis_mat->SetBSDF(BSDFType::DIFFUSE);
@@ -261,22 +262,29 @@ int main(int argc, char* argv[]) {
     // float light_azimuth = std::atof(argv[3]); // [deg]
     // manager->scene->AddDirectionalLight({intensity, intensity, intensity}, light_elevation * CH_PI/180, light_azimuth * CH_PI/180); 
     
-    intensity = 6.0f;
-    // (pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
-    manager->scene->AddSpotLight(
-        {-5.f, 5.f, 5.f}, {intensity, intensity, intensity}, 8.67f, {1.f, -1.f, -1.f}, 60.f * CH_PI/180, 90.f * CH_PI/180, false
-    );
+    // intensity = 6.0f;
+    // // (pos, color, max_range, light_dir, angle_falloff_start, angle_range, const_color)
+    // manager->scene->AddSpotLight(
+    //     {-5.f, 5.f, 5.f}, {intensity, intensity, intensity}, 8.67f, {1.f, -1.f, -1.f}, 60.f * CH_PI/180, 90.f * CH_PI/180, false
+    // );
     
     manager->scene->SetAmbientLight({0.f, 0.f, 0.f});
 
     Background b;
-    // b.mode = BackgroundMode::ENVIRONMENT_MAP;
-    // b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    b.mode = BackgroundMode::ENVIRONMENT_MAP;
+    b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    // b.env_tex = GetChronoDataFile("sensor/textures/dreifaltigkeitsberg_2k.hdr");
+    // b.env_tex = GetChronoDataFile("sensor/textures/envmap_180_045_nvDiffRec_exp_nrmlz.hdr");
+    // b.env_tex = GetChronoDataFile("sensor/textures/UVChecker_byValle_4K.png");
     
-    b.mode = BackgroundMode::SOLID_COLOR;
-    b.color_zenith = ChVector3f(0.f, 0.f, 0.f);
+    // b.mode = BackgroundMode::SOLID_COLOR;
+    // b.color_zenith = ChVector3f(0.f, 0.f, 0.f);
 
     manager->scene->SetBackground(b);
+
+    manager->Update();
+
+    manager->scene->AddEnvironmentLight(b.env_tex, 10.f);
 
     // ------------------------------------------------
     // Create a camera and add it to the sensor manager
@@ -453,7 +461,7 @@ int main(int argc, char* argv[]) {
     // Each camera begins on opposite sides of the object, but rotate at the same speed
     float orbit_radius = 15.f;
     float orbit_rate = 0.1f;
-    float orbit_start = 45.f * CH_PI/180.f;
+    float orbit_start = 0.f * CH_PI/180.f;
     float ch_time = 0.0f;
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();

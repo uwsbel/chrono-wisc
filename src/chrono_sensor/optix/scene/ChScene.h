@@ -30,12 +30,14 @@
 // #include <optix.h>
 // #include <optix_world.h>
 // #include <optixu/optixu_math_namespace.h>
+#include <cuda_runtime.h>
 
 #include "chrono/physics/ChBody.h"
 #include "chrono/assets/ChColor.h"
 
 #include "chrono_sensor/ChApiSensor.h"
 #include "chrono_sensor/optix/ChOptixDefinitions.h"
+#include "chrono_sensor/optix/ChOptixUtils.h"
 #include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
 
 #ifdef USE_SENSOR_NVDB
@@ -146,6 +148,12 @@ class CH_SENSOR_API ChScene {
     /// @param light_ID the index of the disk light to be modified
     /// @param disk_light the new disk light
     void ModifyDiskLight(unsigned int light_ID, const ChOptixLight& disk_light);
+    
+    /// @brief Add the environment light that emits light from all directions based on an environment map.
+    /// @param env_tex_path the full path of the environment map texture.
+    /// @param intensity_scale a scale factor for the intensity of the environment light. Default value is 1.0 (no scaling).
+    /// @return the index of the light that has been added
+    unsigned int AddEnvironmentLight(std::string env_tex_path, float intensity_scale = 1.f);
     
 
     /* Old code to be deleted

@@ -893,6 +893,11 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChScene> scene) {
         }
 
         for (unsigned int i = 0; i < lights.size(); i++) {
+            if (lights[i].light_type == LightType::ENVIRONMENT_LIGHT) {
+                // Reuse miss sampler
+                lights[i].specific.environment.env_map = m_pipeline->GetBackgroundTexSampler();
+            }
+
             lights[i].pos = make_float3(
                 lights[i].pos.x - scene->GetOriginOffset().x(),
                 lights[i].pos.y - scene->GetOriginOffset().y(),

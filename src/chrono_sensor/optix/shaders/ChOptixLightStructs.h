@@ -24,6 +24,7 @@
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
 #include <cuda_fp16.h>
+
 // #include "chrono/core/ChVector3.h"
 // #include "chrono/assets/ChColor.h"
 
@@ -56,7 +57,13 @@ struct __device__ LightSample {
 
 /// Environment light data struct
 struct EnvironmentLightData {
-	cudaTextureObject_t env_map;		// the texture object of the environment map
+    float intensity_scale;				// [1/1], scale factor for the intensity of the environment light
+    // Extended parameters for importance sampling
+	cudaTextureObject_t env_map;		// CUDA texture object for the environment map
+	int width;							// [px], width of the environment map
+    int height;							// [px], height of the environment map
+    unsigned short* dev_cdf_lat;	// device pointer to the CDF for latitude sampling, size = height x 2 Bytes
+    unsigned short* dev_cdf_lon;	// device pointer to the CDF for longitude sampling, size = height x width x 2 Bytes
 };
 
 /// Disk light data struct
@@ -125,7 +132,7 @@ struct ChOptixLight {
 		DirectionalLightData directional;	// directional light specific parameters
 		RectangleLightData rectangle;		// rectangle light specific parameters
 		DiskLightData disk;					// disk light specific parameters
-		EnvironmentLightData env;			// environment light specific parameters
+		EnvironmentLightData environment;	// environment light specific parameters
 		// ---- Register Your Customized Light Here (register light data struct) ---- //
 	} specific;								// specific parameters for different light types
 };

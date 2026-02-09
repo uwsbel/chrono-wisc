@@ -54,10 +54,10 @@ extern "C" __global__ void __miss__shader() {
             if (camera_miss.mode == BackgroundMode::ENVIRONMENT_MAP && camera_miss.env_map) {
                 // evironment map assumes z up
                 float3 ray_dir = optixGetWorldRayDirection();
-                float theta = atan2f(ray_dir.x, ray_dir.y);
-                float phi = asinf(ray_dir.z);
-                float tex_x = theta / (2 * CUDART_PI_F);
-                float tex_y = phi / CUDART_PI_F + 0.5;
+                float azimuth = atan2f(ray_dir.y, ray_dir.x); // in [-pi, pi]
+                float elevation = asinf(ray_dir.z); // in [-pi/2, pi/2]
+                float tex_x = azimuth / (2 * CUDART_PI_F) + 0.5f; // in [0, 1]
+                float tex_y = elevation / CUDART_PI_F + 0.5; // in [0, 1]
                 float4 tex = tex2D<float4>(camera_miss.env_map, tex_x, tex_y);
                 // Gamma Correction
                 prd->color = Pow(make_float3(tex.x, tex.y, tex.z), 2.2) * prd->contrib_to_pixel;

@@ -26,6 +26,8 @@
 #include "chrono_sensor/optix/shaders/ChOptixSpotLight.cu"
 #include "chrono_sensor/optix/shaders/ChOptixRectangleLight.cu"
 #include "chrono_sensor/optix/shaders/ChOptixDiskLight.cu"
+#include "chrono_sensor/optix/shaders/ChOptixEnvironmentLight.cu"
+
 //// ---- Register Your Customized Light Type Here (include the corresponding .cu file) ---- ////
 
 // Check if the light source is visible to the hit-point
@@ -82,10 +84,15 @@ static __device__ __inline__ bool CheckVisibleAndSampleLight(
 			break;
 		}
 		
-		case LightType::ENVIRONMENT_LIGHT:
-			// return CheckEnvironmentLightVisible(cntxt_params, light, light_sample); // TODO
-			// break;
-		
+		case LightType::ENVIRONMENT_LIGHT: {
+            bool flag = CheckVisibleAndSampleEnvironmentLight(
+				cntxt_params, light.specific.environment, light_sample, prd_camera
+			);
+			// prd_camera->color = {flag * 1.0, 0.0, 1.0}; // debug
+			return flag;
+			break;
+		}
+
 		//// ---- Register Your Customized Light Type Here (check visibility and sample light) ---- ////
 		
 		default: {
@@ -116,14 +123,13 @@ static __device__ __inline__ bool CheckVisualizeNonDeltaLight(
 		}
 
 		case LightType::ENVIRONMENT_LIGHT: {
-			// bool flag = VisualizeEnvironmentLight()
-			return;
+			return false;
 			break;
 		}
 
 		default: {
 			printf("Light type not recognized in non-delta light visualization ...... \n");
-			return;
+			return false;
 			break;
 		}
 	}

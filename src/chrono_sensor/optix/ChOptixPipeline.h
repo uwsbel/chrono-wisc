@@ -188,6 +188,10 @@ class CH_SENSOR_API ChOptixPipeline {
     /// @param b a new background to use for the scene. The old background will be removed
     void UpdateBackground(Background b);
 
+     /// @brief Access the background texture sampler
+     /// @return the background texture CUDA sampler
+     cudaTextureObject_t GetBackgroundTexSampler() const { return md_miss_texture_sampler; }
+
   private:
     void CompileBaseShaders();
     void AssembleBaseProgramGroups();

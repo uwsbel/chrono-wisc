@@ -122,6 +122,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/ChOptixDirectionalLight.cu
       optix/shaders/ChOptixRectangleLight.cu
       optix/shaders/ChOptixDiskLight.cu
+      optix/shaders/ChOptixEnvironmentLight.cu
       # ---- Register Your Customized Light Type Here (Cmake compiling) ---- #
   )
 
@@ -815,3 +816,4 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/stb
 #      install(FILES "${GLFW_DLL}" DESTINATION bin)
 #    endif()
 #endif()
+

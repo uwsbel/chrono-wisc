@@ -1600,6 +1600,7 @@ void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
         img_data = std::vector<unsigned char>(img.h * img.w * 4);
         for (int i = 0; i < img.h; i++) {
             for (int j = 0; j < img.w; j++) {
+                // flip the image to match typical texturing and add an alpha channel of 255
                 img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 0];
                 img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 1];
                 img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 2];
@@ -1649,7 +1650,7 @@ void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
     texture_description.filterMode = cudaFilterModeLinear;
     // texture_description.filterMode = cudaFilterModePoint;
     texture_description.readMode = cudaReadModeNormalizedFloat;
-    texture_description.normalizedCoords = 1;
+    texture_description.normalizedCoords = 1; // texture coordinates are mapped to a floating-point range of [0.0, 1.0) rather than the absolute pixel/texel dimensions [0, N-1]
     texture_description.maxAnisotropy = 1;
     texture_description.maxMipmapLevelClamp = 99;
     texture_description.minMipmapLevelClamp = 0;
