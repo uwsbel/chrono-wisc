@@ -272,9 +272,9 @@ int main(int argc, char* argv[]) {
 
     Background b;
     b.mode = BackgroundMode::ENVIRONMENT_MAP;
-    b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
+    // b.env_tex = GetChronoDataFile("sensor/textures/quarry_01_4k.hdr");
     // b.env_tex = GetChronoDataFile("sensor/textures/dreifaltigkeitsberg_2k.hdr");
-    // b.env_tex = GetChronoDataFile("sensor/textures/envmap_180_045_nvDiffRec_exp_nrmlz.hdr");
+    b.env_tex = GetChronoDataFile("sensor/textures/envmap_180_045_nvDiffRec_exp_nrmlz.hdr");
     // b.env_tex = GetChronoDataFile("sensor/textures/UVChecker_byValle_4K.png");
     
     // b.mode = BackgroundMode::SOLID_COLOR;
@@ -284,7 +284,7 @@ int main(int argc, char* argv[]) {
 
     manager->Update();
 
-    manager->scene->AddEnvironmentLight(b.env_tex, 10.f);
+    manager->scene->AddEnvironmentLight(b.env_tex, 1000.f);
 
     // ------------------------------------------------
     // Create a camera and add it to the sensor manager

@@ -228,22 +228,17 @@ int main(int argc, char* argv[]) {
     //     {0.0f, 0.0f, 4.0f - 1e-6f}, {intensity, intensity, intensity}, 8.00f, {0.f, 0.f, -1.f}, 60.f * CH_PI/180, 120.f * CH_PI/180, false
     // );
     
-    intensity = 50.0f;
-    // (ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color)
-    unsigned int rectangle_light_idx = manager->scene->AddRectangleLight(
-        {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {2.0f, 0.0f, 0.0f}, {0.0f, -2.0f, 0.0f}, true
-    );
-
-    ChOptixLight rectangle_light = manager->scene->GetLights()[rectangle_light_idx];
-
-    std::cout << "Size of ChOptixLight: " << sizeof(rectangle_light) << " bytes.\n";
-    std::cout << "Size of ChOptixLight.specific: " << sizeof(rectangle_light.specific) << " bytes.\n";
-
     // intensity = 50.0f;
-    // // (ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float radius, bool const_color)
-    // manager->scene->AddDiskLight(
-    //     {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {0.f, 0.f, -1.f}, 1.f, true
+    // //-- (ChVector3f pos, ChColor color, float max_range, ChVector3f length_vec, ChVector3f width_vec, bool const_color)
+    // unsigned int rectangle_light_idx = manager->scene->AddRectangleLight(
+    //     {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {2.0f, 0.0f, 0.0f}, {0.0f, -2.0f, 0.0f}, true
     // );
+
+    intensity = 50.0f;
+    // (ChVector3f pos, ChColor color, float max_range, ChVector3f light_dir, float radius, bool const_color)
+    manager->scene->AddDiskLight(
+        {0.0f, 0.0f, 4.24f}, {intensity, intensity, intensity}, 8.0f, {0.f, 0.f, -1.f}, 1.f, true
+    );
 
     // manager->scene->AddSpotLight({0.0f, 0.0f, 3.8f}, {0,0,-1}, {10.f, 10.f, 10.f}, 5.0f, CH_PI/6, CH_PI/12);
     // manager->scene->AddSpotLight(ChFramed({0, 0, 3.8f}, QuatFromAngleY(90*CH_PI/180)), {10,10,10}, 5.f, CH_PI/6, CH_PI/12);

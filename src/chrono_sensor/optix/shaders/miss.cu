@@ -56,8 +56,8 @@ extern "C" __global__ void __miss__shader() {
                 float3 ray_dir = optixGetWorldRayDirection();
                 float azimuth = atan2f(ray_dir.y, ray_dir.x); // in [-pi, pi]
                 float elevation = asinf(ray_dir.z); // in [-pi/2, pi/2]
-                float tex_x = azimuth / (2 * CUDART_PI_F) + 0.5f; // in [0, 1]
-                float tex_y = elevation / CUDART_PI_F + 0.5; // in [0, 1]
+                float tex_x =   azimuth / (2 * CUDART_PI_F) + 0.5f; // in [0, 1]
+                float tex_y = elevation /      CUDART_PI_F  + 0.5f; // in [0, 1]
                 float4 tex = tex2D<float4>(camera_miss.env_map, tex_x, tex_y);
                 // Gamma Correction
                 prd->color = Pow(make_float3(tex.x, tex.y, tex.z), 2.2) * prd->contrib_to_pixel;

@@ -19,6 +19,7 @@
 #include "chrono/utils/ChUtils.h"
 
 #include "chrono_sensor/optix/scene/ChScene.h"
+// #include <iomanip> // debug
 
 namespace chrono {
 namespace sensor {
@@ -281,11 +282,13 @@ void BuildCDFOnDevice(const ByteImageData& img, EnvironmentLightData& env_light_
             else {
                 host_cdf_lon[v * img_w + u] = 0;
             }
+            // std::cout << std::setw(6) << host_cdf_lon[v * img_w + u]; // debug    
         }
+        // printf("\n"); // debug
         // printf("last value in host_cdf_lon: %d\n", host_cdf_lon[v * img_w + img_w - 1]); // debug
     }
 
-    printf("Max luminance: %f, Min luminance: %f\n", max_luminance, min_luminance);
+    printf("\nMax luminance: %f, Min luminance: %f\n\n", max_luminance, min_luminance);
     
     // Normalize the latitude CDF to [0, 65535]-scale
     for (int v = 0; v < img_h; ++v) {
@@ -296,14 +299,19 @@ void BuildCDFOnDevice(const ByteImageData& img, EnvironmentLightData& env_light_
         else {
             host_cdf_lat[v] = 0;
         }
-        // printf("value in host_cdf_lat is %d\n", host_cdf_lat[v]); // debug
+        // std::cout << std::setw(6) << host_cdf_lat[v]; // debug
     }
+    // printf("\n"); // debug
 
     // Copy CDFs to device memory
-    cudaMalloc((void**)&env_light_data.dev_cdf_lat, sizeof(unsigned short) * img_h);
-    cudaMalloc((void**)&env_light_data.dev_cdf_lon, sizeof(unsigned short) * img_w * img_h);
-    cudaMemcpy(env_light_data.dev_cdf_lat, host_cdf_lat.data(), sizeof(unsigned short) * img_h, cudaMemcpyHostToDevice);
-    cudaMemcpy(env_light_data.dev_cdf_lon, host_cdf_lon.data(), sizeof(unsigned short) * img_w * img_h, cudaMemcpyHostToDevice);
+    CUDA_ERROR_CHECK(cudaMalloc((void**)&env_light_data.dev_cdf_lat, sizeof(unsigned short) * img_h));
+    CUDA_ERROR_CHECK(cudaMalloc((void**)&env_light_data.dev_cdf_lon, sizeof(unsigned short) * img_w * img_h));
+    CUDA_ERROR_CHECK(cudaMemcpy(
+        env_light_data.dev_cdf_lat, host_cdf_lat.data(), sizeof(unsigned short) * img_h, cudaMemcpyHostToDevice
+    ));
+    CUDA_ERROR_CHECK(cudaMemcpy(
+        env_light_data.dev_cdf_lon, host_cdf_lon.data(), sizeof(unsigned short) * img_w * img_h, cudaMemcpyHostToDevice
+    ));
 }
 
 CH_SENSOR_API unsigned int ChScene::AddEnvironmentLight(std::string env_tex_path, float intensity_scale) {
