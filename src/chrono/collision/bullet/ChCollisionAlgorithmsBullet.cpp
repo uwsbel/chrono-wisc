@@ -1148,7 +1148,7 @@ void cbtChTriangleShapeCollisionAlgorithm::processCollision(const cbtCollisionOb
     if ((pA2 == pA3) && (pB2 == pB3) && triA->owns_e1() && triB->owns_e1()) {
         double mu = 0, mv = 0;
         ChVector3d cA, cB, D;
-        if (utils::LineLineIntersect(pA1, pA2, pB1, pB2, &cA, &cB, &mu, &mv)) {
+        if (utils::LineLineIntersect(pA1, pA2, pB1, pB2, cA, cB, mu, mv)) {
             D = cB - cA;
             double dist = D.Length();
             if (dist < max_allowed_dist && dist > min_allowed_dist && mu > 0 && mu < 1 && mv > 0 && mv < 1) {
@@ -1216,8 +1216,7 @@ void cbtChTriangleShapeCollisionAlgorithm::processCollision(const cbtCollisionOb
     const double edge_tol = 1e-3;
     //  +edge_tol to discard flat edges with some tolerance:
     const double beta_convex_limit = CH_PI_2 + edge_tol;
-    //  +/- edge_tol to inflate arc of acceptance of edge vs edge, to cope with singular cases (e.g. flat cube vs flat
-    //  cube)
+    //  +/- edge_tol to inflate arc of acceptance of edge vs edge, to cope with singular cases (e.g. flat cube vs flat cube)
     const double alpha_lo_limit = -edge_tol;
     const double CH_C_PI_mtol = CH_PI - edge_tol;
     const double CH_C_PI_2_ptol = CH_PI_2 + edge_tol;
@@ -1231,7 +1230,7 @@ void cbtChTriangleShapeCollisionAlgorithm::processCollision(const cbtCollisionOb
 
         if (triA_owns_edge_i && triB_owns_edge_i) {
             if (beta_Ai > beta_convex_limit && beta_Bi > beta_convex_limit) {
-                if (utils::LineLineIntersect(pAi, pAj, pBi, pBj, &cA, &cB, &mu, &mv)) {
+                if (utils::LineLineIntersect(pAi, pAj, pBi, pBj, cA, cB, mu, mv)) {
                     D = cB - cA;
                     dist = D.Length();
                     if (dist < max_edge_dist_earlyout && mu > 0 && mu < 1 && mv > 0 && mv < 1) {
