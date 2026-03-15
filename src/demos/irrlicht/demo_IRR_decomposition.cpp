@@ -9,20 +9,17 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Alessandro Tasora
+// Authors: Alessandro Tasora, Dario Fusai
 // =============================================================================
 //
 // A small interactive editor to test the convex decomposition settings.
 //
 // =============================================================================
 
-#include <cstdlib>
-
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/core/ChRandom.h"
 #include "chrono/collision/ChConvexDecomposition.h"
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
-#include <irrlicht.h>
 
 // Use the namespaces of Chrono
 using namespace chrono;
