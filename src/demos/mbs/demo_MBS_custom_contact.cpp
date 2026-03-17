@@ -71,14 +71,25 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
     enum class Method { ADD_ALL_CONTACTS, ADD_AVERAGE_CONTACT, ADD_CONTACT_LOADS };
 
     CustomContact(std::shared_ptr<ChBody> body1, std::shared_ptr<ChBody> body2, Method method)
-        : body1(body1), body2(body2), method(method) {}
+        : body1(body1), body2(body2), method(method) {
+        auto body1_model = body1->GetCollisionModel();
+        const auto& shapes_list = body1_model->GetShapeInstances();
+
+        left_sphere_ptr = shapes_list[0].shape.get();
+        right_sphere_ptr = shapes_list[1].shape.get();
+    }
 
     // Clear the list of cached collisions.
     // Must be called at each step, before integration.
-    void Reset() { collisions.clear(); }
+    void Reset() { 
+        collisions_left.clear(); 
+        collisions_right.clear();
+    }
 
     // Get the number of cached collisions at the current step.
-    size_t GetNumCollisions() const { return collisions.size(); }
+    size_t GetNumCollisions() const { 
+        return collisions_left.size() + collisions_right.size();
+    }
 
     // Implement NarrowphaseCallback interface.
     // This function is called during collision detection for each identified pair of collision points.
@@ -87,7 +98,11 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
         if ((body1.get() == cinfo.modelA->GetContactable() && body2.get() == cinfo.modelB->GetContactable()) ||
             (body1.get() == cinfo.modelB->GetContactable() && body2.get() == cinfo.modelA->GetContactable())) {
             if (cinfo.distance < 0) {
-                collisions.push_back(cinfo);
+                if (left_sphere_ptr == cinfo.shapeA || left_sphere_ptr == cinfo.shapeB) {
+                    collisions_left.push_back(cinfo);
+                } else {
+                    collisions_right.push_back(cinfo);
+                }
             }
             return false;
         }
@@ -98,7 +113,7 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
     // Implement CustomCollisionCallback interface
     virtual void OnCustomCollision(ChSystem* sys) override {
         // Process current list of collisions between the tagged bodies
-        if (collisions.empty())
+        if (collisions_left.empty() || collisions_right.empty())
             return;
 
         // Generate contacts between tagged bodies:
@@ -107,55 +122,62 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
         switch (method) {
             case Method::ADD_ALL_CONTACTS: {
                 // Add a contact for each detected collision pair
-                for (const auto& collision : collisions)
+                for (const auto& collision : collisions_left)
                     sys->GetContactContainer()->AddContact(collision);
 
+                for (const auto& collision : collisions_right)
+                    sys->GetContactContainer()->AddContact(collision);
                 break;
             }
 
             case Method::ADD_AVERAGE_CONTACT: {
                 // Get contact materials
-                auto matA = collisions[0].shapeA->GetMaterial();
-                auto matB = collisions[0].shapeB->GetMaterial();
+                auto calculate_average_contact = [&](const std::vector<ChCollisionInfo>& collisions) {
+                    if (collisions.empty())
+                        return;
+                    auto matA = collisions[0].shapeA->GetMaterial();
+                    auto matB = collisions[0].shapeB->GetMaterial();
 
-                // Calculate one equivalent collision (average everything)
-                auto num_collisions = collisions.size();
+                    // Calculate one equivalent collision (average everything)
+                    auto num_collisions = collisions.size();
 
-                ChCollisionInfo cinfo_avg;
-                cinfo_avg.modelA = collisions[0].modelA;
-                cinfo_avg.modelB = collisions[0].modelB;
-                cinfo_avg.shapeA = nullptr;
-                cinfo_avg.shapeB = nullptr;
+                    ChCollisionInfo cinfo_avg;
+                    cinfo_avg.modelA = collisions[0].modelA;
+                    cinfo_avg.modelB = collisions[0].modelB;
+                    cinfo_avg.shapeA = nullptr;
+                    cinfo_avg.shapeB = nullptr;
 
-                cinfo_avg.vpA = VNULL;
-                cinfo_avg.vpB = VNULL;
-                cinfo_avg.vN = VNULL;
-                cinfo_avg.distance = 0;
+                    cinfo_avg.vpA = VNULL;
+                    cinfo_avg.vpB = VNULL;
+                    cinfo_avg.vN = VNULL;
+                    cinfo_avg.distance = 0;
 
-                for (const auto& cinfo : collisions) {
-                    assert(cinfo.distance < 0);
+                    for (const auto& cinfo : collisions) {
+                        assert(cinfo.distance < 0);
 
-                    if (body1.get() == cinfo.modelA->GetContactable()) {
-                        cinfo_avg.vpA += cinfo.vpA;
-                        cinfo_avg.vpB += cinfo.vpB;
-                        cinfo_avg.vN += cinfo.vN;
-                    } else {
-                        cinfo_avg.vpA += cinfo.vpB;
-                        cinfo_avg.vpB += cinfo.vpA;
-                        cinfo_avg.vN -= cinfo.vN;
+                        if (body1.get() == cinfo.modelA->GetContactable()) {
+                            cinfo_avg.vpA += cinfo.vpA;
+                            cinfo_avg.vpB += cinfo.vpB;
+                            cinfo_avg.vN += cinfo.vN;
+                        } else {
+                            cinfo_avg.vpA += cinfo.vpB;
+                            cinfo_avg.vpB += cinfo.vpA;
+                            cinfo_avg.vN -= cinfo.vN;
+                        }
+                        cinfo_avg.distance += cinfo.distance;
                     }
-                    cinfo_avg.distance += cinfo.distance;
-                }
 
-                cinfo_avg.distance /= num_collisions;
-                cinfo_avg.vpA /= num_collisions;
-                cinfo_avg.vpB /= num_collisions;
-                cinfo_avg.vN /= num_collisions;
-                cinfo_avg.vN.Normalize();
+                    cinfo_avg.distance /= num_collisions;
+                    cinfo_avg.vpA /= num_collisions;
+                    cinfo_avg.vpB /= num_collisions;
+                    cinfo_avg.vN /= num_collisions;
+                    cinfo_avg.vN.Normalize();
 
-                // Add a single equivalent contact
-                sys->GetContactContainer()->AddContact(cinfo_avg, matA, matB);
-
+                    // Add a single equivalent contact
+                    sys->GetContactContainer()->AddContact(cinfo_avg, matA, matB);
+                };
+                calculate_average_contact(collisions_left);
+                calculate_average_contact(collisions_right);
                 break;
             }
         }
@@ -177,62 +199,67 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
         double cr_eff = 0.01;
         double eff_radius = 0.5;
 
-        // Generate contact forces between the two bodies using the cached collision information
-        for (const auto& cinfo : collisions) {
-            // Extract collision information
-            auto delta = -cinfo.distance;
-            auto normal_dir = cinfo.vN;
-            auto p1 = cinfo.vpA;
-            auto p2 = cinfo.vpB;
-            auto objA = cinfo.modelA->GetContactable();
-            auto objB = cinfo.modelB->GetContactable();
-            auto vel1 = objA->GetContactPointSpeed(p1);
-            auto vel2 = objB->GetContactPointSpeed(p2);
+        auto process_loads = [&](const std::vector<ChCollisionInfo>& collisions) {
+            // Generate contact forces between the two bodies using the cached collision information
+            for (const auto& cinfo : collisions) {
+                // Extract collision information
+                auto delta = -cinfo.distance;
+                auto normal_dir = cinfo.vN;
+                auto p1 = cinfo.vpA;
+                auto p2 = cinfo.vpB;
+                auto objA = cinfo.modelA->GetContactable();
+                auto objB = cinfo.modelB->GetContactable();
+                auto vel1 = objA->GetContactPointSpeed(p1);
+                auto vel2 = objB->GetContactPointSpeed(p2);
 
-            // Calculate relative normal and tangential velocities
-            ChVector3d relvel = vel2 - vel1;
-            double relvel_n_mag = relvel.Dot(normal_dir);
-            ChVector3d relvel_n = relvel_n_mag * normal_dir;
-            ChVector3d relvel_t = relvel - relvel_n;
-            double relvel_t_mag = relvel_t.Length();
+                // Calculate relative normal and tangential velocities
+                ChVector3d relvel = vel2 - vel1;
+                double relvel_n_mag = relvel.Dot(normal_dir);
+                ChVector3d relvel_n = relvel_n_mag * normal_dir;
+                ChVector3d relvel_t = relvel - relvel_n;
+                double relvel_t_mag = relvel_t.Length();
 
-            // Hertz contact
-            double eff_mass = objA->GetContactableMass() * objB->GetContactableMass() /
-                              (objA->GetContactableMass() + objB->GetContactableMass());
-            double sqrt_Rd = std::sqrt(eff_radius * delta);
-            double Sn = 2 * E_eff * sqrt_Rd;
-            double St = 8 * G_eff * sqrt_Rd;
-            double loge = std::log(cr_eff);
-            double beta = loge / std::sqrt(loge * loge + CH_PI * CH_PI);
-            double kn = CH_2_3 * Sn;
-            double kt = St;
-            double gn = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(Sn * eff_mass);
-            double gt = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(St * eff_mass);
+                // Hertz contact
+                double eff_mass = objA->GetContactableMass() * objB->GetContactableMass() /
+                                  (objA->GetContactableMass() + objB->GetContactableMass());
+                double sqrt_Rd = std::sqrt(eff_radius * delta);
+                double Sn = 2 * E_eff * sqrt_Rd;
+                double St = 8 * G_eff * sqrt_Rd;
+                double loge = std::log(cr_eff);
+                double beta = loge / std::sqrt(loge * loge + CH_PI * CH_PI);
+                double kn = CH_2_3 * Sn;
+                double kt = St;
+                double gn = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(Sn * eff_mass);
+                double gt = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(St * eff_mass);
 
-            // Tangential displacement
-            auto delta_t = relvel_t_mag * GetChTime();
+                // Tangential displacement
+                auto delta_t = relvel_t_mag * GetChTime();
 
-            // Normal and tangential contact forces
-            double forceN = kn * delta - gn * relvel_n_mag;
-            double forceT = kt * delta_t + gt * relvel_t_mag;
+                // Normal and tangential contact forces
+                double forceN = kn * delta - gn * relvel_n_mag;
+                double forceT = kt * delta_t + gt * relvel_t_mag;
 
-            // If the resulting normal contact force is negative, the two shapes are moving
-            // away from each other so fast that no contact force is generated.
-            if (forceN < 0)
-                return;
+                // If the resulting normal contact force is negative, the two shapes are moving
+                // away from each other so fast that no contact force is generated.
+                if (forceN < 0)
+                    return;
 
-            // Coulomb law
-            forceT = std::min<double>(forceT, mu_eff * std::abs(forceN));
+                // Coulomb law
+                forceT = std::min<double>(forceT, mu_eff * std::abs(forceN));
 
-            // Accumulate normal and tangential forces
-            ChVector3d force = forceN * normal_dir;
-            if (relvel_t_mag >= 1e-4)
-                force -= (forceT / relvel_t_mag) * relvel_t;
+                // Accumulate normal and tangential forces
+                ChVector3d force = forceN * normal_dir;
+                if (relvel_t_mag >= 1e-4)
+                    force -= (forceT / relvel_t_mag) * relvel_t;
 
-            // Add contact forces to load container
-            Add(chrono_types::make_shared<ChLoadBodyForce>(body1, -force, false, cinfo.vpA, false));
-            Add(chrono_types::make_shared<ChLoadBodyForce>(body2, +force, false, cinfo.vpA, false));
-        }
+                // Add contact forces to load container
+                Add(chrono_types::make_shared<ChLoadBodyForce>(body1, -force, false, cinfo.vpA, false));
+                Add(chrono_types::make_shared<ChLoadBodyForce>(body2, +force, false, cinfo.vpA, false));
+            }
+        };
+
+        process_loads(collisions_left);
+        process_loads(collisions_right);
 
         // Perform a full update of the load container
         ChLoadContainer::Update(ChTime, UpdateFlags::UPDATE_ALL);
@@ -242,7 +269,10 @@ class CustomContact : public ChCollisionSystem::NarrowphaseCallback,  // interce
     Method method;
     std::shared_ptr<ChBody> body1;
     std::shared_ptr<ChBody> body2;
-    std::vector<ChCollisionInfo> collisions;
+    std::vector<ChCollisionInfo> collisions_left;
+    std::vector<ChCollisionInfo> collisions_right;
+    ChCollisionShape* left_sphere_ptr;
+    ChCollisionShape* right_sphere_ptr;
 };
 
 // -----------------------------------------------------------------------------
@@ -265,26 +295,39 @@ int main(int argc, char* argv[]) {
     auto mat = mat_data.CreateMaterial(ChContactMethod::SMC);
 
     // Custom body tags
-    int tag_ball = 1;
+    int tag_dumbbell = 1;
     int tag_plate = 2;
 
     // Create the mesh object
-    double radius = 1;
-    double mass = 300;
-    ChMatrix33d inertia;
-    auto sphere = utils::ChBodyGeometry::SphereShape(VNULL, radius, 0);
-    inertia = mass * ChSphere::CalcGyration(radius);
+    double radius = 0.5;
+    double single_sphere_mass = 300;
+    double offset = 1.0;
+    ChMatrix33d single_sphere_inertia = single_sphere_mass * ChSphere::CalcGyration(radius);
+    double parallel_shift = single_sphere_mass * (offset * offset);
 
-    auto ball = chrono_types::make_shared<ChBody>();
-    ball->SetTag(tag_ball);
-    ball->SetMass(mass);
-    ball->SetInertia(inertia);
-    ball->SetPos(ChVector3d(0, 0, 2));
-    ball->SetFixed(false);
-    ball->EnableCollision(true);
-    sys.AddBody(ball);
-    utils::AddTriangleMeshGeometry(ball.get(), mat, GetChronoDataFile("models/sphere.obj"));
-    ball->GetVisualShape(0)->SetColor(ChColor(0.1f, 0.5f, 0.9f));
+    ChMatrix33d inertia;
+    inertia.setZero();
+
+    // Set X, Y, and Z axsis inertia
+    inertia(0, 0) = 2.0 * single_sphere_inertia(0, 0);
+    inertia(1, 1) = 2.0 * (single_sphere_inertia(1, 1) + parallel_shift);
+    inertia(2, 2) = 2.0 * (single_sphere_inertia(2, 2) + parallel_shift);
+
+    auto dumbbell = chrono_types::make_shared<ChBody>();
+    dumbbell->SetTag(tag_dumbbell);
+    dumbbell->SetMass(single_sphere_mass * 2);
+    dumbbell->SetInertia(inertia);
+    dumbbell->SetPos(ChVector3d(0, 0, 2));
+    dumbbell->SetFixed(false);
+    dumbbell->EnableCollision(true);
+    sys.AddBody(dumbbell);
+    utils::AddTriangleMeshGeometry(dumbbell.get(), mat, GetChronoDataFile("models/sphere.obj"),
+                                   "LEFT_SPHERE", ChVector3d(-1, 0, 0));
+    utils::AddTriangleMeshGeometry(dumbbell.get(), mat, GetChronoDataFile("models/sphere.obj"), "RIGHT_SPHERE",
+                                   ChVector3d(1, 0, 0));
+    dumbbell->GetVisualShape(0)->SetColor(ChColor(0.1f, 0.5f, 0.9f));
+    dumbbell->GetVisualShape(1)->SetColor(ChColor(0.1f, 0.5f, 0.9f));
+
 
     // Create the bottom plate body (fixed to ground)
     auto plate = chrono_types::make_shared<ChBody>();
@@ -310,7 +353,7 @@ int main(int argc, char* argv[]) {
     // Add callback object to system (as a ChLoadContainer).
     // This will be used to override Chrono only for the ball-plate interaction.
     auto custom_contact =
-        chrono_types::make_shared<CustomContact>(ball, plate, CustomContact::Method::ADD_CONTACT_LOADS);
+        chrono_types::make_shared<CustomContact>(dumbbell, plate, CustomContact::Method::ADD_CONTACT_LOADS);
     sys.GetCollisionSystem()->RegisterNarrowphaseCallback(custom_contact);
     sys.RegisterCustomCollisionCallback(custom_contact);
     sys.Add(custom_contact);
