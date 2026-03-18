@@ -12,7 +12,7 @@
 // Authors: Radu Serban
 // =============================================================================
 //
-// Demo for single-wheel rig cosimulation framework
+// Demo for single-wheel rig co-simulation framework
 //
 // Global reference frame: Z up, X towards the front, and Y pointing to the left
 //
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
 
     if (num_procs != 3) {
         if (rank == 0)
-            std::cout << "\n\nSingle wheel cosimulation code must be run on exactly 3 ranks!\n\n" << std::endl;
+            std::cout << "\n\nSingle wheel co-simulation code must be run on exactly 3 ranks!\n\n" << std::endl;
         MPI_Finalize();
         return 1;
     }
@@ -243,8 +243,8 @@ int main(int argc, char** argv) {
         if (verbose)
             cout << "[Rig node    ] rank = " << rank << " running on: " << procname << endl;
 
-        ////auto dbp_rig = chrono_types::make_shared<ChVehicleCosimDBPRigImposedSlip>(act_type, base_vel, slip);
-        auto dbp_rig = chrono_types::make_shared<ChVehicleCosimDBPRigImposedAngVel>(base_vel, 1.0);
+        auto dbp_rig = chrono_types::make_shared<ChVehicleCosimDBPRigImposedSlip>(act_type, base_vel, slip);
+        ////auto dbp_rig = chrono_types::make_shared<ChVehicleCosimDBPRigImposedAngVel>(base_vel, 1.0);
         dbp_rig->SetDBPFilterWindow(dbp_filter_window);
 
         auto mbs = new ChVehicleCosimRigNode();
@@ -303,7 +303,6 @@ int main(int argc, char** argv) {
                     hht->SetAbsTolerances(1e-2);
                     hht->SetStepControl(false);
                     hht->SetMinStepSize(1e-4);
-                    ////hht->SetVerbose(true);
                 }
 
                 node = tire;
