@@ -443,7 +443,8 @@ inline const char* ChUtils_GetFilename() {
 
 // Utils
 // for hulls and meshing
-%include "../../../chrono/collision/ChConvexDecomposition.h"
+// %include "../../../chrono/collision/ChConvexDecomposition.h"
+%include "ChConvexDecomposition.i"
 
 %include "../../../chrono/input_output/ChCheckpoint.h"
 %include "../../../chrono/input_output/ChCheckpointASCII.h"
