@@ -119,8 +119,7 @@ void MyTerrain::OnInitialize(unsigned int num_tires) {
     mat_terrain->SetKt(4e5f);
     mat_terrain->SetGt(4e1f);
 
-    utils::AddBoxGeometry(ground.get(), mat_terrain, ChVector3d(m_dimX, m_dimY, 0.2), ChVector3d(0, 0, -0.1),
-                          ChQuaternion<>(1, 0, 0, 0), true);
+    utils::AddBoxGeometry(ground.get(), mat_terrain, ChVector3d(m_dimX, m_dimY, 0.2), ChVector3d(0, 0, -0.1), ChQuaternion<>(1, 0, 0, 0), true);
 
     // Shared proxy contact material
     auto mat_proxy = chrono_types::make_shared<ChContactMaterialSMC>();
@@ -147,7 +146,7 @@ void MyTerrain::OnInitialize(unsigned int num_tires) {
         m_bodies[i]->SetInertiaXX(ChVector3d(0.1, 0.1, 0.1));
         m_bodies[i]->EnableCollision(true);
 
-        utils::AddCylinderGeometry(m_bodies[i].get(), mat_proxy, tire_radius, tire_width / 2);
+        utils::AddCylinderGeometry(m_bodies[i].get(), mat_proxy, tire_radius, tire_width / 2, VNULL, Q_ROTATE_Y_TO_Z);
 
         m_system->AddBody(m_bodies[i]);
     }
@@ -167,6 +166,7 @@ void MyTerrain::OnInitialize(unsigned int num_tires) {
         m_vis->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
         m_vis->EnableShadows();
         m_vis->Initialize();
+        m_vis->ToggleAbsFrameVisibility();
     }
 #endif
 }
@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
     if (num_procs != 3) {
         if (rank == 0)
             std::cout << "\n\nSingle wheel cosimulation code must be run on exactly 3 ranks!\n\n" << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
+        MPI_Finalize();
         return 1;
     }
 
@@ -348,8 +348,7 @@ int main(int argc, char** argv) {
             node->Synchronize(is, time);
             node->Advance(step_size);
             if (verbose)
-                cout << "Node" << rank << " sim time = " << node->GetStepExecutionTime() << "  ["
-                     << node->GetTotalExecutionTime() << "]" << endl;
+                cout << "Node" << rank << " sim time = " << node->GetStepExecutionTime() << "  [" << node->GetTotalExecutionTime() << "]" << endl;
 
             if (is % output_steps == 0) {
                 node->OutputData(output_frame);
