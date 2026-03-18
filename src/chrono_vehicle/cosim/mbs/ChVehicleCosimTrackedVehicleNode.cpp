@@ -47,8 +47,7 @@ namespace vehicle {
 
 class TrackedVehicleDBPDriver : public ChDriver {
   public:
-    TrackedVehicleDBPDriver(std::shared_ptr<ChTrackedVehicle> vehicle, std::shared_ptr<ChFunction> dbp_mot_func)
-        : ChDriver(*vehicle), m_vehicle(vehicle), m_func(dbp_mot_func) {}
+    TrackedVehicleDBPDriver(std::shared_ptr<ChTrackedVehicle> vehicle, std::shared_ptr<ChFunction> dbp_mot_func) : ChDriver(*vehicle), m_vehicle(vehicle), m_func(dbp_mot_func) {}
 
     virtual void Synchronize(double time) override {
         m_steering = 0;
@@ -65,9 +64,7 @@ class TrackedVehicleDBPDriver : public ChDriver {
 
 // -----------------------------------------------------------------------------
 
-ChVehicleCosimTrackedVehicleNode::ChVehicleCosimTrackedVehicleNode(const std::string& vehicle_json,
-                                                                   const std::string& engine_json,
-                                                                   const std::string& transmission_json)
+ChVehicleCosimTrackedVehicleNode::ChVehicleCosimTrackedVehicleNode(const std::string& vehicle_json, const std::string& engine_json, const std::string& transmission_json)
     : ChVehicleCosimTrackedMBSNode(), m_init_yaw(0), m_chassis_fixed(false) {
     m_vehicle = chrono_types::make_shared<TrackedVehicle>(m_system, vehicle_json);
     auto engine = ReadEngineJSON(engine_json);
@@ -75,8 +72,7 @@ ChVehicleCosimTrackedVehicleNode::ChVehicleCosimTrackedVehicleNode(const std::st
     m_powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
 }
 
-ChVehicleCosimTrackedVehicleNode::ChVehicleCosimTrackedVehicleNode(std::shared_ptr<ChTrackedVehicle> vehicle,
-                                                                   std::shared_ptr<ChPowertrainAssembly> powertrain)
+ChVehicleCosimTrackedVehicleNode::ChVehicleCosimTrackedVehicleNode(std::shared_ptr<ChTrackedVehicle> vehicle, std::shared_ptr<ChPowertrainAssembly> powertrain)
     : ChVehicleCosimTrackedMBSNode(), m_init_yaw(0), m_chassis_fixed(false) {
     // Ensure the vehicle system has a null ChSystem
     if (vehicle->GetSystem())
@@ -129,9 +125,8 @@ void ChVehicleCosimTrackedVehicleNode::InitializeMBS(const ChVector2d& terrain_s
         vsys_vsg->SetBackgroundColor(ChColor(0.455f, 0.525f, 0.640f));
         vsys_vsg->SetCameraAngleDeg(40);
         vsys_vsg->SetLightIntensity(1.0f);
-        vsys_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
-        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), CSYSNORM,
-                          ChColor(0.4f, 0.4f, 0.4f));
+        vsys_vsg->SetLightDirection(CH_PI_4, CH_PI_4);
+        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), CSYSNORM, ChColor(0.4f, 0.4f, 0.4f));
         vsys_vsg->SetImageOutputDirectory(m_node_out_dir + "/images");
         vsys_vsg->SetImageOutput(m_writeRT);
         vsys_vsg->Initialize();
@@ -258,8 +253,7 @@ void ChVehicleCosimTrackedVehicleNode::OnOutputData(int frame) {
         // Body states
         m_outf << pos.x() << del << pos.y() << del << pos.z() << del;
         // Solver statistics (for last integration step)
-        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve()
-               << del << m_system->GetTimerUpdate() << del;
+        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve() << del << m_system->GetTimerUpdate() << del;
         m_outf << endl;
     }
 

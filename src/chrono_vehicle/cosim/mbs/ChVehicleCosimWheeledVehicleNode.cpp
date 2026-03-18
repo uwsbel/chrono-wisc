@@ -68,9 +68,7 @@ class WheeledVehicleDBPDriver : public ChDriver {
 
 // -----------------------------------------------------------------------------
 
-ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json,
-                                                                   const std::string& engine_json,
-                                                                   const std::string& transmission_json)
+ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::string& vehicle_json, const std::string& engine_json, const std::string& transmission_json)
     : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     m_vehicle = chrono_types::make_shared<WheeledVehicle>(m_system, vehicle_json);
     auto engine = ReadEngineJSON(engine_json);
@@ -79,8 +77,7 @@ ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(const std::st
     m_terrain = chrono_types::make_shared<ChTerrain>();
 }
 
-ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle,
-                                                                   std::shared_ptr<ChPowertrainAssembly> powertrain)
+ChVehicleCosimWheeledVehicleNode::ChVehicleCosimWheeledVehicleNode(std::shared_ptr<ChWheeledVehicle> vehicle, std::shared_ptr<ChPowertrainAssembly> powertrain)
     : ChVehicleCosimWheeledMBSNode(), m_num_spindles(0), m_init_yaw(0) {
     // Ensure the vehicle system has a null ChSystem
     if (vehicle->GetSystem())
@@ -136,9 +133,8 @@ void ChVehicleCosimWheeledVehicleNode::InitializeMBS(const ChVector2d& terrain_s
         vsys_vsg->SetBackgroundColor(ChColor(0.455f, 0.525f, 0.640f));
         vsys_vsg->SetCameraAngleDeg(40);
         vsys_vsg->SetLightIntensity(1.0f);
-        vsys_vsg->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
-        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0),
-                          ChCoordsysd({terrain_size.x() / 2, 0, 0}, QUNIT), ChColor(0.4f, 0.4f, 0.4f));
+        vsys_vsg->SetLightDirection(CH_PI_4, CH_PI_4);
+        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), ChCoordsysd({terrain_size.x() / 2, 0, 0}, QUNIT), ChColor(0.4f, 0.4f, 0.4f));
         vsys_vsg->SetImageOutputDirectory(m_node_out_dir + "/images");
         vsys_vsg->SetImageOutput(m_writeRT);
         vsys_vsg->Initialize();
@@ -167,8 +163,7 @@ void ChVehicleCosimWheeledVehicleNode::ApplyTireInfo(const std::vector<ChVector3
     int itire = 0;
     for (auto& axle : m_vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
-            auto tire = chrono_types::make_shared<DummyTire>(itire, tire_info[itire].x(), tire_info[itire].y(),
-                                                             tire_info[itire].z());
+            auto tire = chrono_types::make_shared<DummyTire>(itire, tire_info[itire].x(), tire_info[itire].y(), tire_info[itire].z());
             m_vehicle->InitializeTire(tire, wheel, VisualizationType::NONE);
             m_tires.push_back(tire);
             itire++;
@@ -288,8 +283,7 @@ void ChVehicleCosimWheeledVehicleNode::OnOutputData(int frame) {
         }
 
         // Solver statistics (for last integration step)
-        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve()
-               << del << m_system->GetTimerUpdate() << endl;
+        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve() << del << m_system->GetTimerUpdate() << endl;
     }
 
     // Create and write frame output file.
@@ -315,8 +309,7 @@ void ChVehicleCosimWheeledVehicleNode::WriteBodyInformation(ChWriterCSV& csv) {
     for (auto& axle : m_vehicle->GetAxles()) {
         for (auto& wheel : axle->GetWheels()) {
             auto spindle_body = wheel->GetSpindle();
-            csv << spindle_body->GetPos() << spindle_body->GetRot() << spindle_body->GetPosDt()
-                << spindle_body->GetRotDt() << endl;
+            csv << spindle_body->GetPos() << spindle_body->GetRot() << spindle_body->GetPosDt() << spindle_body->GetRotDt() << endl;
         }
     }
 }

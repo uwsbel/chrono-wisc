@@ -132,8 +132,8 @@ void ChVehicleCosimViperNode::InitializeMBS(const ChVector2d& terrain_size, doub
         vsys_vsg->SetWindowSize(ChVector2i(1280, 720));
         vsys_vsg->SetWindowPosition(ChVector2i(100, 300));
         vsys_vsg->AddCamera(m_cam_pos, m_cam_target);
-        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), CSYSNORM,
-                          ChColor(0.1f, 0.3f, 0.1f));
+        vsys_vsg->SetLightDirection(CH_PI_4, CH_PI_4);
+        vsys_vsg->AddGrid(1.0, 1.0, (int)(terrain_size.x() / 1.0), (int)(terrain_size.y() / 1.0), CSYSNORM, ChColor(0.1f, 0.3f, 0.1f));
         vsys_vsg->Initialize();
 
         m_vsys = vsys_vsg;
@@ -230,8 +230,7 @@ void ChVehicleCosimViperNode::OnOutputData(int frame) {
         // Body states
         m_outf << pos.x() << del << pos.y() << del << pos.z() << del;
         // Solver statistics (for last integration step)
-        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve()
-               << del << m_system->GetTimerUpdate() << del;
+        m_outf << m_system->GetTimerStep() << del << m_system->GetTimerLSsetup() << del << m_system->GetTimerLSsolve() << del << m_system->GetTimerUpdate() << del;
         m_outf << endl;
     }
 
