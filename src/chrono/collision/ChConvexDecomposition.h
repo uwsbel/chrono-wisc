@@ -9,7 +9,7 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Alessandro Tasora
+// Authors: Alessandro Tasora, Dario Fusai
 // =============================================================================
 
 #ifndef CH_CONVEX_DECOMPOSITION_H
@@ -29,76 +29,75 @@ namespace chrono {
 /// Base interface class for convex decomposition.
 class ChApi ChConvexDecomposition {
   public:
-    /// Basic constructor
+    /// Basic constructor.
     ChConvexDecomposition();
 
-    /// Destructor
+    /// Destructor.
     virtual ~ChConvexDecomposition();
 
-    /// Reset the input mesh data
-    virtual void Reset(void) = 0;
+    /// Reset the input mesh data.
+    virtual void Reset() = 0;
 
     /// Add a triangle, by passing three points for vertices.
-    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside)
+    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside).
     virtual bool AddTriangle(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3) = 0;
 
     /// Add a triangle, by passing a  ChTriangle object (that will be copied, not referenced).
-    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside)
+    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside).
     virtual bool AddTriangle(const ChTriangle& t1);
 
     /// Add a triangle mesh, by passing an entire ChTriangleMesh object.
-    /// Note: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition)
+    /// Note: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition).
     virtual bool AddTriangleMesh(const ChTriangleMesh& tm);
 
     /// Perform the convex decomposition.
     virtual int ComputeConvexDecomposition() = 0;
 
-    /// Get the number of computed hulls after the convex decomposition
+    /// Get the number of computed hulls after the convex decomposition.
     virtual unsigned int GetHullCount() = 0;
 
-    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object
-    /// that is passed as a parameter.
+    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object that is passed as a parameter.
+    /// Note: passed ChTriangleMesh is cleared before populating it.
     virtual bool GetConvexHullResult(unsigned int hullIndex, ChTriangleMesh& convextrimesh) = 0;
 
     /// Get the n-th computed convex hull, by filling a vector of points of the vertices of the n-th hull
     /// that is passed as a parameter.
+    /// Note: passed vector of points is cleared before populating it.
     virtual bool GetConvexHullResult(unsigned int hullIndex, std::vector<ChVector3d>& convexhull) = 0;
 
-    /// Write the convex decomposition to a ".chulls" file,
-    /// where each hull is a sequence of x y z coords. Can throw exceptions.
+    /// Write the convex decomposition to a ".chulls" file, where each hull is a sequence of x y z coords.
     virtual bool WriteConvexHullsAsChullsFile(std::ostream& mstream);
 
-    /// Save the computed convex hulls as a Wavefront file using the
-    /// '.obj' file format, with each hull as a separate group.
-    /// May throw exceptions if file locked etc.
+    /// Save the computed convex hulls as a Wavefront file using the '.obj' file format, with each hull as a separate
+    /// group.
     virtual void WriteConvexHullsAsWavefrontObj(std::ostream& mstream) = 0;
 };
 
 /// Class for wrapping the HACD convex decomposition code by Khaled Mamou.
 class ChApi ChConvexDecompositionHACD : public ChConvexDecomposition {
   public:
-    /// Basic constructor
+    /// Basic constructor.
     ChConvexDecompositionHACD();
 
-    /// Destructor
+    /// Destructor.
     virtual ~ChConvexDecompositionHACD();
 
-    /// Reset the input mesh data
-    virtual void Reset(void);
+    /// Reset the input mesh data.
+    virtual void Reset() override;
 
     /// Add a triangle, by passing three points for vertices.
-    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside)
-    virtual bool AddTriangle(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3);
+    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside).
+    virtual bool AddTriangle(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3) override;
 
     /// Add a triangle, by passing a  ChTriangle object (that will be copied, not referenced).
     /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside)
     // virtual bool AddTriangle(const ChTriangle& t1);
 
     /// Add a triangle mesh soup, by passing an entire ChTriangleMesh object.
-    /// Note 1: the triangle mesh does not need connectivity information (a basic 'triangle soup' is enough)
+    /// Note 1: the triangle mesh does not need connectivity information (a basic 'triangle soup' is enough).
     /// Note 2: all vertices must be properly ordered (oriented triangles, normals pointing outside).
-    /// Note 3: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition)
-    virtual bool AddTriangleMesh(const ChTriangleMesh& tm);
+    /// Note 3: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition).
+    virtual bool AddTriangleMesh(const ChTriangleMesh& tm) override;
 
     /// Set the parameters for this convex decomposition algorithm.
     /// Use this function before calling ComputeConvexDecomposition().
@@ -117,26 +116,26 @@ class ChApi ChConvexDecompositionHACD : public ChConvexDecomposition {
 
     /// Perform the convex decomposition.
     /// This operation is time consuming, and it may take a while to complete.
-    /// Quality of the results can depend a lot on the parameters. Also, meshes
-    /// with triangles that are not well oriented (normals always pointing outside)
-    /// or with gaps/holes, may give wrong results.
-    virtual int ComputeConvexDecomposition();
+    /// Quality of the results can depend a lot on the parameters.
+    /// Also, meshes with triangles that are not well oriented (normals always pointing outside) or with gaps/holes, may
+    /// give wrong results.
+    virtual int ComputeConvexDecomposition() override;
 
-    /// Get the number of computed hulls after the convex decomposition
-    virtual unsigned int GetHullCount();
+    /// Get the number of computed hulls after the convex decomposition.
+    virtual unsigned int GetHullCount() override;
 
-    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object
-    /// that is passed as a parameter.
-    virtual bool GetConvexHullResult(unsigned int hullIndex, ChTriangleMesh& convextrimesh);
+    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object that is passed as a parameter.
+    /// Note: passed ChTriangleMesh is cleared before populating it.
+    virtual bool GetConvexHullResult(unsigned int hullIndex, ChTriangleMesh& convextrimesh) override;
 
     /// Get the n-th computed convex hull, by filling a vector of points of the vertices of the n-th hull
     /// that is passed as a parameter.
-    virtual bool GetConvexHullResult(unsigned int hullIndex, std::vector<ChVector3d>& convexhull);
+    /// Note: passed vector of points is cleared before populating it.
+    virtual bool GetConvexHullResult(unsigned int hullIndex, std::vector<ChVector3d>& convexhull) override;
 
-    /// Save the computed convex hulls as a Wavefront file using the
-    /// '.obj' file format, with each hull as a separate group.
-    /// May throw exceptions if file locked etc.
-    virtual void WriteConvexHullsAsWavefrontObj(std::ostream& mstream);
+    /// Save the computed convex hulls as a Wavefront file using the '.obj' file format, with each hull as a separate
+    /// group.
+    virtual void WriteConvexHullsAsWavefrontObj(std::ostream& mstream) override;
 
   private:
     HACD::HACD* myHACD;
@@ -147,23 +146,23 @@ class ChApi ChConvexDecompositionHACD : public ChConvexDecomposition {
 /// Class for wrapping the HACD convex decomposition code revisited by John Ratcliff.
 class ChApi ChConvexDecompositionHACDv2 : public ChConvexDecomposition {
   public:
-    /// Basic constructor
+    /// Basic constructor.
     ChConvexDecompositionHACDv2();
 
-    /// Destructor
+    /// Destructor.
     virtual ~ChConvexDecompositionHACDv2();
 
-    /// Reset the input mesh data
-    virtual void Reset(void);
+    /// Reset the input mesh data.
+    virtual void Reset() override;
 
     /// Add a triangle, by passing three points for vertices.
-    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside)
-    virtual bool AddTriangle(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3);
+    /// Note: the vertices must be properly ordered (oriented triangle, normal pointing outside).
+    virtual bool AddTriangle(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3) override;
 
     /// Add a triangle mesh soup, by passing an entire ChTriangleMesh object.
-    /// Note 1: the triangle mesh does not need connectivity information (a basic 'triangle soup' is enough)
+    /// Note 1: the triangle mesh does not need connectivity information (a basic 'triangle soup' is enough).
     /// Note 2: all vertices must be properly ordered (oriented triangles, normals pointing outside).
-    /// Note 3: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition)
+    /// Note 3: the triangles must define closed volumes (holes, gaps in edges, etc. may trouble the decomposition).
     virtual bool AddTriangleMesh(const ChTriangleMesh& tm);
 
     /// Set the parameters for this convex decomposition algorithm.
@@ -178,26 +177,26 @@ class ChApi ChConvexDecompositionHACDv2 : public ChConvexDecomposition {
 
     /// Perform the convex decomposition.
     /// This operation is time consuming, and it may take a while to complete.
-    /// Quality of the results can depend a lot on the parameters. Also, meshes
-    /// with triangles that are not well oriented (normals always pointing outside)
+    /// Quality of the results can depend a lot on the parameters.
+    /// Also, meshes with triangles that are not well oriented (normals always pointing outside)
     /// or with gaps/holes, may give wrong results.
-    virtual int ComputeConvexDecomposition();
+    virtual int ComputeConvexDecomposition() override;
 
-    /// Get the number of computed hulls after the convex decomposition
-    virtual unsigned int GetHullCount();
+    /// Get the number of computed hulls after the convex decomposition.
+    virtual unsigned int GetHullCount() override;
 
-    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object
-    /// that is passed as a parameter.
-    virtual bool GetConvexHullResult(unsigned int hullIndex, ChTriangleMesh& convextrimesh);
+    /// Get the n-th computed convex hull, by filling a ChTriangleMesh object that is passed as a parameter.
+    /// Note: passed ChTriangleMesh is cleared before populating it.
+    virtual bool GetConvexHullResult(unsigned int hullIndex, ChTriangleMesh& convextrimesh) override;
 
     /// Get the n-th computed convex hull, by filling a vector of points of the vertices of the n-th hull
     /// that is passed as a parameter.
-    virtual bool GetConvexHullResult(unsigned int hullIndex, std::vector<ChVector3d>& convexhull);
+    /// Note: passed vector of points is cleared before populating it.
+    virtual bool GetConvexHullResult(unsigned int hullIndex, std::vector<ChVector3d>& convexhull) override;
 
-    /// Save the computed convex hulls as a Wavefront file using the
-    /// '.obj' file format, with each hull as a separate group.
-    /// May throw exceptions if file locked etc.
-    virtual void WriteConvexHullsAsWavefrontObj(std::ostream& mstream);
+    /// Save the computed convex hulls as a Wavefront file using the '.obj' file format, with each hull as a separate
+    /// group.
+    virtual void WriteConvexHullsAsWavefrontObj(std::ostream& mstream) override;
 
   private:
     HACD::HACD_API::Desc descriptor;
