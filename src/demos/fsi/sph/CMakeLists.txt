@@ -11,7 +11,6 @@ set(DEMOS ${DEMOS}
    demo_FSI-SPH_EmbeddedObject
    demo_FSI-SPH_BaffleFlow
    demo_FSI-SPH_CouetteFlow
-   demo_FSI-SPH_Flap
    demo_FSI-SPH_AngleRepose
    demo_FSI-SPH_RassorDrum
    demo_FSI-SPH_Cone_Drop
