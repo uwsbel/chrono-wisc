@@ -30,6 +30,10 @@
 
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeChrono.h"
 
+#ifdef CHRONO_VSG
+    #include "chrono_vsg/ChVisualSystemVSG.h"
+#endif
+
 #include "chrono_thirdparty/rapidjson/document.h"
 
 namespace chrono {
@@ -125,7 +129,9 @@ class CH_VEHICLE_API ChVehicleCosimTerrainNodeGranularDEM : public ChVehicleCosi
     dem::ChSystemDemMesh* m_systemDEM;  ///< Chrono::Dem system
     bool m_constructed;                 ///< system construction completed?
 
-    std::shared_ptr<ChVisualSystem> m_vsys;  ///< run-time visualization system
+#ifdef CHRONO_VSG
+    std::shared_ptr<vsg3d::ChVisualSystemVSG> m_vsys;  ///< run-time visualization system
+#endif
 
     dem::CHDEM_TIME_INTEGRATOR m_integrator_type;
     dem::CHDEM_FRICTION_MODE m_tangential_model;

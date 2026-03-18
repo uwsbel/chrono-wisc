@@ -29,6 +29,10 @@
 
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeChrono.h"
 
+#ifdef CHRONO_VSG
+    #include "chrono_vsg/ChVisualSystemVSG.h"
+#endif
+
 #include "chrono_thirdparty/rapidjson/document.h"
 
 namespace chrono {
@@ -139,7 +143,9 @@ class CH_VEHICLE_API ChVehicleCosimTerrainNodeGranularOMP : public ChVehicleCosi
     ChSystemMulticore* m_system;  ///< containing system
     bool m_constructed;           ///< system construction completed?
 
-    std::shared_ptr<ChVisualSystem> m_vsys;  ///< run-time visualization system
+#ifdef CHRONO_VSG
+    std::shared_ptr<vsg3d::ChVisualSystemVSG> m_vsys;  ///< run-time visualization system
+#endif
 
     double m_thick;  ///< container wall thickness
 
@@ -193,10 +199,7 @@ class CH_VEHICLE_API ChVehicleCosimTerrainNodeGranularOMP : public ChVehicleCosi
 
     void WriteParticleInformation(ChWriterCSV& csv);
 
-    static ChVector3d CalcBarycentricCoords(const ChVector3d& v1,
-                                            const ChVector3d& v2,
-                                            const ChVector3d& v3,
-                                            const ChVector3d& vP);
+    static ChVector3d CalcBarycentricCoords(const ChVector3d& v1, const ChVector3d& v2, const ChVector3d& v3, const ChVector3d& vP);
 };
 
 /// @} vehicle_cosim_chrono
