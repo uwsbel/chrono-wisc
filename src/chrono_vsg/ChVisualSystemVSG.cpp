@@ -1039,36 +1039,38 @@ void ChVisualSystemVSG::Render() {
     // Dynamic data transfer CPU->GPU for COM symbol size and body labels
     // Only update if COM symbols are actually visible to avoid unnecessary cpu to gpu data transfers
     // otherwise this is effectively marking dirty even if the symbols are hidden! (extra work)
-    if (m_show_com_symbols && !m_com_symbols_empty) {
-        auto symbol_size = m_scale_multiplier * m_com_frame_scale * m_com_symbol_ratio;
-
+    {
         std::vector<ChVector3d> c_pos;
         for (auto sys : m_systems)
             CollectActiveBodyCOMPositions(sys->GetAssembly(), c_pos);
-        assert(!c_pos.empty());
 
-        ConvertPositions(c_pos, m_com_symbol_positions, symbol_size);
-        m_com_symbol_positions->dirty();
+        if (m_show_com_symbols && !m_com_symbols_empty) {
+            auto symbol_size = m_scale_multiplier * m_com_frame_scale * m_com_symbol_ratio;
 
-        if (m_com_size_changed) {
-            m_com_symbol_vertices->set(0, vsg::vec3(-symbol_size / 2, -symbol_size / 2, 0));
-            m_com_symbol_vertices->set(1, vsg::vec3(+symbol_size / 2, -symbol_size / 2, 0));
-            m_com_symbol_vertices->set(2, vsg::vec3(+symbol_size / 2, +symbol_size / 2, 0));
-            m_com_symbol_vertices->set(3, vsg::vec3(-symbol_size / 2, +symbol_size / 2, 0));
-            m_com_symbol_vertices->dirty();
-            m_com_size_changed = false;
+            ConvertPositions(c_pos, m_com_symbol_positions, symbol_size);
+            m_com_symbol_positions->dirty();
+
+            if (m_com_size_changed) {
+                m_com_symbol_vertices->set(0, vsg::vec3(-symbol_size / 2, -symbol_size / 2, 0));
+                m_com_symbol_vertices->set(1, vsg::vec3(+symbol_size / 2, -symbol_size / 2, 0));
+                m_com_symbol_vertices->set(2, vsg::vec3(+symbol_size / 2, +symbol_size / 2, 0));
+                m_com_symbol_vertices->set(3, vsg::vec3(-symbol_size / 2, +symbol_size / 2, 0));
+                m_com_symbol_vertices->dirty();
+                m_com_size_changed = false;
+            }
         }
 
-        assert(!m_body_labels.empty());
-        auto label_size = m_body_labels_scale * m_label_size;
+        if (m_show_body_labels) {
+            assert(!m_body_labels.empty());
+            auto label_size = m_body_labels_scale * m_label_size;
 
-        for (size_t iPos = 0; iPos < c_pos.size(); iPos++) {
-            m_body_labels_layout[iPos]->horizontal = vsg::vec3(label_size, 0, 0);
-            m_body_labels_layout[iPos]->vertical = vsg::vec3(0, label_size, 0);
-            m_body_labels_layout[iPos]->position =
-                vsg::vec3(c_pos[iPos].x(), c_pos[iPos].y() - label_size / 2, c_pos[iPos].z());
-            m_body_labels_layout[iPos]->color = vsg::vec4CH(m_body_labels_color, 1.0f);
-            m_body_labels_text[iPos]->setup(0, m_options);
+            for (size_t iPos = 0; iPos < c_pos.size(); iPos++) {
+                m_body_labels_layout[iPos]->horizontal = vsg::vec3(label_size, 0, 0);
+                m_body_labels_layout[iPos]->vertical = vsg::vec3(0, label_size, 0);
+                m_body_labels_layout[iPos]->position = vsg::vec3(c_pos[iPos].x(), c_pos[iPos].y() - label_size / 2, c_pos[iPos].z());
+                m_body_labels_layout[iPos]->color = vsg::vec4CH(m_body_labels_color, 1.0f);
+                m_body_labels_text[iPos]->setup(0, m_options);
+            }
         }
     }
 
