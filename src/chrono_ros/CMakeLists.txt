@@ -45,6 +45,17 @@ else()
   return()
 endif()
 
+# ROS2 with FastDDS as the RMW middleware may pull in fastcdr/fastrtps as
+# imported targets scoped to this directory. Promote them to IMPORTED_GLOBAL so
+# that consumers of Chrono_ros (e.g. the Python SWIG ros module) can evaluate
+# generator expressions, see Fast-CDR#251
+foreach(_dds_target IN ITEMS fastcdr fastrtps foonathan_memory foonathan_memory_node_size_debugger eProsima_atomic)
+  if(TARGET ${_dds_target})
+    set_property(TARGET ${_dds_target} PROPERTY IMPORTED_GLOBAL TRUE)
+  endif()
+endforeach()
+unset(_dds_target)
+
 # Set list of ROS2 targets
 set(ROS2_TARGETS 
     rclcpp::rclcpp
