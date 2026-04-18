@@ -12,11 +12,11 @@ Building Chrono from sources requires a C++ compiler and the [CMake](https://cma
 
 #### Recommended compilers {#compilers}
 
-- Windows: **MSVC** Visual Studio 2019 or newer.
+- Windows: **MSVC** Visual Studio 2022 or newer.
   ([VS 2022 Community Edition](https://visualstudio.microsoft.com/downloads/) free download)<br>
   Note: the C++ compiler is not installed by default; make sure to install the C++ toolchain during VS setup.
-- Linux: **GNU** C++ compiler for Linux-based platforms (version 4.9 or newer)
-- Linux: **LLVM Clang** C and C++ compiler (version 1.6 or newer)
+- Linux: **GNU** C++ compiler for Linux-based platforms (version 11 or newer)
+- Linux: **LLVM Clang** C and C++ compiler (version 14 or newer)
 - MacOS: **Clang** through Xcode Package.
   ([Xcode](https://apps.apple.com/us/app/xcode/id497799835?mt=12/) free download)
 
@@ -61,9 +61,9 @@ For users with multiple side-by-side CUDA installations, the desired version can
 
 The Thrust library is used, with different back-ends, in various Chrono features and modules. For example, the multicore collision detection library (alternative to the default Bullet-based collision detection), as well as the Chrono::Multicore module require Thrust with the OpenMP back-end. The Chrono::FSI module requires Thrust with the CUDA-backend.
 
-The easiest way to obtain the Thrust (headers-only) library is as part of a recent CUDA distribution. This allows using the latest Thrust version (2.2.0 in CUDA 12.3; 2.7.0 in CUDA 12.8).
+The easiest way to obtain the Thrust (headers-only) library is as part of a recent CUDA distribution. This allows using the latest Thrust version (e.g., 2.8.2 in CUDA 12.9.0).
 
-It is possible to use Thrust stand-alone (e.g., for use on machines without an NVIDIA GPU to enable the Chrono::Multicore module). However, that requires using an older version of Thrust from its [GitHub repository](https://github.com/NVIDIA/thrust). Note that the latest version available there is 2.1.0.
+It is possible to use Thrust stand-alone (e.g., for use on machines without an NVIDIA GPU to enable the Chrono::Multicore module). However, that requires using an older version of Thrust from its [GitHub repository](https://github.com/NVIDIA/thrust). Note that the latest version available there is 2.1.0, but the latest version that works with Chrono without any modifications is **1.7.1**.
 
 #### MPI support {#mpi}
 

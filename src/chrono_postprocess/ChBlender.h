@@ -107,10 +107,16 @@ class ChApiPostProcess ChBlender : public ChPostProcessBase {
     /// Set transformation from Chrono frame to Blender
     void SetBlenderFrame(const ChFrame<> mframe) { this->blender_frame = mframe; }
     /// Set transformation from Chrono frame to Blender (in Blender, Z is up axis). Default.
-    void SetBlenderUp_is_ChronoY() { this->blender_frame = ChFrame<>(VNULL, Q_ROTATE_Y_TO_Z); }
+    void SetBlenderUp_is_ChronoY() {
+        this->blender_frame = ChFrame<>(VNULL, Q_ROTATE_Y_TO_Z);
+        this->camera_up = ChVector3d(0, 1, 0);
+    }
     /// Set transformation from Chrono frame to Blender (in Blender, Z is up axis). Useful when using Chrono::Vehicle,
     /// based on SAE standard with Z up.
-    void SetBlenderUp_is_ChronoZ() { this->blender_frame = ChFrame<>(VNULL, QUNIT); }
+    void SetBlenderUp_is_ChronoZ() {
+        this->blender_frame = ChFrame<>(VNULL, QUNIT);
+        this->camera_up = ChVector3d(0, 0, 1);
+    }
 
     /// Set the filename of the output Blender script.
     /// If not set, it defaults to "render_frames.assets.py".

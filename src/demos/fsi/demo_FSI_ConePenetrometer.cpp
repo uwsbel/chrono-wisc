@@ -511,8 +511,8 @@ int main(int argc, char* argv[]) {
                         /*render*/ true,
                         /*render_fps*/ 200,
                         /*write_marker_files*/ false,
-                        /*mu_s*/ 0.67,
-                        /*mu_2*/ 0.67,
+                        /*mu_s*/ 0.58,
+                        /*mu_2*/ 0.58,
                         /*cohesions*/ 0,
                         /*densities*/ 1600,
                         /*y_modulus*/ 1e6,
@@ -597,8 +597,8 @@ void SimulateMaterial(int i, const SimParams& params, const ConeProperties& cone
         double angle_mus = std::atan(params.mu_s);
         mat_props.mcc_M = (6 * std::sin(angle_mus)) / (3 - std::sin(angle_mus));
         // mat_props.mcc_M = 1.34;
-        mat_props.mcc_kappa = 0.0125;
-        mat_props.mcc_lambda = 0.075;
+        mat_props.mcc_kappa = 0.00625;
+        mat_props.mcc_lambda = 0.025;
     }
 
     sysSPH.SetElasticSPH(mat_props);

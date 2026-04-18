@@ -34,6 +34,7 @@
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 #include "chrono/assets/ChVisualShapeTriangleMesh.h"
 #include "chrono/collision/ChCollisionShapeTriangleMesh.h"
+#include "chrono_postprocess/ChBlender.h"
 
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
@@ -55,6 +56,8 @@
 #include <cmath>
 #include <array>
 #include <vector>
+#include <thread>
+#include <chrono>
 
 #ifdef CHRONO_VSG
     #include "chrono_vsg/ChVisualSystemVSG.h"
@@ -93,7 +96,7 @@ const double ROCK_EMBED_FRACTION = 0.4;  // fraction of height below surface whe
 const double ROCK_DENSITY = 2500.0;      // kg/m^3
 const double ROCK_SCALE_MIN = 0.6;
 const double ROCK_SCALE_MAX = 1.0;
-const double ROCK_CLEARANCE = 0.05;  // meters above surface
+const double ROCK_CLEARANCE = 0.05;         // meters above surface
 const double ROCK_FOOTPAD_CLEARANCE = 0.1;  // meters
 
 // Footpad parameters
@@ -251,6 +254,11 @@ int main(int argc, char* argv[]) {
     double lambda = 0.04;
     double pre_pressure_scale = 2.0;
     bool no_vis = false;
+    bool flat_terrain = false;
+    bool blender_output = false;
+    bool particle_output = false;
+    bool add_landerbody_bce = ADD_LANDERBODY_BCE;
+    bool add_landerlegs_bce = ADD_LANDERLEGS_BCE;
     double gravity_polar_deg = 0.0;
     double gravity_azimuth_deg = 0.0;
     double gravity_magnitude = LUNAR_GRAVITY;
@@ -259,7 +267,14 @@ int main(int argc, char* argv[]) {
     cli.AddOption<double>("Physics", "pre_pressure_scale", "Pre-pressure scale", std::to_string(pre_pressure_scale));
     cli.AddOption<double>("Physics", "kappa", "kappa", std::to_string(kappa));
     cli.AddOption<double>("Physics", "lambda", "lambda", std::to_string(lambda));
-    cli.AddOption<bool>("Visualization", "no_vis", "Disable visualization", "false");
+    cli.AddOption<std::string>("Visualization", "no_vis", "Disable visualization", "false");
+    cli.AddOption<std::string>("Terrain", "flat_terrain", "Use a flat 6 x 6 x 0.3 m terrain patch", "false");
+    cli.AddOption<std::string>("Output", "blender_output", "Save Blender assets and per-frame state files", "false");
+    cli.AddOption<std::string>("Output", "particle_output", "Save CRM particle and rigid-body CSV output", "false");
+    cli.AddOption<std::string>("FSI", "lander_body_bce", "Add BCE markers for the lander body",
+                               add_landerbody_bce ? "true" : "false");
+    cli.AddOption<std::string>("FSI", "lander_legs_bce", "Add BCE markers for the lander legs",
+                               add_landerlegs_bce ? "true" : "false");
     cli.AddOption<double>("Physics", "gravity_polar_deg", "Gravity polar angle (degrees)",
                           std::to_string(gravity_polar_deg));
     cli.AddOption<double>("Physics", "gravity_azimuth_deg", "Gravity azimuth angle (degrees)",
@@ -273,11 +288,17 @@ int main(int argc, char* argv[]) {
     pre_pressure_scale = cli.GetAsType<double>("pre_pressure_scale");
     kappa = cli.GetAsType<double>("kappa");
     lambda = cli.GetAsType<double>("lambda");
-    no_vis = cli.GetAsType<bool>("no_vis");
+    no_vis = parse_bool(cli.GetAsType<std::string>("no_vis"));
+    flat_terrain = parse_bool(cli.GetAsType<std::string>("flat_terrain"));
+    blender_output = parse_bool(cli.GetAsType<std::string>("blender_output"));
+    particle_output = parse_bool(cli.GetAsType<std::string>("particle_output"));
+    add_landerbody_bce = parse_bool(cli.GetAsType<std::string>("lander_body_bce"));
+    add_landerlegs_bce = parse_bool(cli.GetAsType<std::string>("lander_legs_bce"));
     gravity_polar_deg = cli.GetAsType<double>("gravity_polar_deg");
     gravity_azimuth_deg = cli.GetAsType<double>("gravity_azimuth_deg");
     gravity_planet = cli.GetAsType<std::string>("gravity_planet");
     bool enable_vis = !no_vis;
+    double terrain_surface_top = flat_terrain ? TERRAIN_SIZE_Z : TERRAIN_HEIGHT_MAX;
 
     // Convert to lowercase for case-insensitive comparison
     std::transform(gravity_planet.begin(), gravity_planet.end(), gravity_planet.begin(), ::tolower);
@@ -321,7 +342,7 @@ int main(int argc, char* argv[]) {
 
     // Position the lander: place it just above the ground (GROUND_CLEARANCE)
     // The lowest point (footpad or leg end) will be at platform_top + GROUND_CLEARANCE
-    double platform_top = TERRAIN_HEIGHT_MAX;
+    double platform_top = terrain_surface_top;
     ChVector3d lowest_point_pos(0, 0, platform_top);
     ChFrame<> lander_pos(lowest_point_pos, QUNIT);
     lander.SetFootpadParameters(FOOTPAD_DIAMETER, FOOTPAD_HEIGHT, FOOTPAD_OFFSET, FOOTPAD_MASS);
@@ -402,9 +423,10 @@ int main(int argc, char* argv[]) {
     sph_params.use_variable_time_step = true;
     sph_params.use_delta_sph = true;
     fsi.SetSPHParameters(sph_params);
+    fsi.SetOutputLevel(OutputLevel::STATE);
 
     fsi.RegisterParticlePropertiesCallback(
-        chrono_types::make_shared<SPHPropertiesCallbackWithPressureScale>(TERRAIN_HEIGHT_MAX, pre_pressure_scale));
+        chrono_types::make_shared<SPHPropertiesCallbackWithPressureScale>(terrain_surface_top, pre_pressure_scale));
 
     // Add the footpads as FSI bodies
     auto footpads = lander.GetFootpads();
@@ -416,7 +438,7 @@ int main(int argc, char* argv[]) {
     for (auto& footpad : footpads) {
         fsi.AddRigidBody(footpad, geometry, false);
     }
-    if (ADD_LANDERLEGS_BCE) {
+    if (add_landerlegs_bce) {
         auto leg_length = lander.GetLegLength();
         auto leg_radius = lander.GetLegRadius();
         auto leg_geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
@@ -427,7 +449,7 @@ int main(int argc, char* argv[]) {
             fsi.AddRigidBody(leg, leg_geometry, false);
         }
     }
-    if (ADD_LANDERBODY_BCE) {
+    if (add_landerbody_bce) {
         auto cylinder_length = lander.GetCylinderLength();
         auto cylinder_radius = lander.GetCylinderRadius();
         auto cylinder_geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
@@ -437,7 +459,7 @@ int main(int argc, char* argv[]) {
         fsi.AddRigidBody(lander_body, cylinder_geometry, false);
     }
     if (USE_ACTIVE_DOMAIN) {
-        if (ADD_LANDERBODY_BCE) {
+        if (add_landerbody_bce) {
             // Make box bigger
             auto cylinder_length = lander.GetCylinderLength();
             active_box_dim.z() = cylinder_length;
@@ -448,158 +470,162 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Constructing terrain..." << std::endl;
-    // NOTE: This demo generates a randomized heightmap at runtime.
-    // Dependencies: Python 3 + numpy + Pillow (optional: noise for faster Perlin).
-    const std::string heightmap_script = GetChronoDataFile("robot/lander/generate_heightmap.py");
-    const std::string heightmap_file = GetChronoDataFile("robot/lander/terrain_heightmap.png");
-    const auto heightmap_dir = filesystem::path(heightmap_file).parent_path();
-    if (!filesystem::create_subdirectory(heightmap_dir)) {
-        std::cerr << "Error creating heightmap directory " << heightmap_dir.str() << std::endl;
-        return 1;
-    }
-    if (!filesystem::path(heightmap_script).exists()) {
-        std::cerr << "Heightmap generator script not found at " << heightmap_script << std::endl;
-        return 1;
-    }
-
-    std::random_device rd;
-    unsigned int heightmap_seed = rd();
-    std::cout << "Generating heightmap (seed=" << heightmap_seed << ")..." << std::endl;
-    if (!GenerateHeightmap(heightmap_script, heightmap_file, HEIGHTMAP_RESOLUTION, TERRAIN_SIZE_X, TERRAIN_SIZE_Y,
-                           TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX, MAX_CRATERS, MAX_CRATER_DIAMETER, MAX_CRATER_DEPTH,
-                           USE_NOISE_LIB, heightmap_seed)) {
-        std::cerr << "Heightmap generation failed. Check that Python and dependencies are available." << std::endl;
-        return 1;
-    }
-
-    HeightmapData heightmap_data;
-    if (!LoadHeightmap(heightmap_file, heightmap_data)) {
-        return 1;
-    }
-
-    // Spawn randomized rocks using mesh libraries from the data folder.
-    const std::array<std::string, 8> rock_mesh_library = {
-        "robot/curiosity/rocks/rock1.obj", "robot/curiosity/rocks/rock2.obj", "robot/curiosity/rocks/rock3.obj",
-        "sensor/offroad/rock1.obj",        "sensor/offroad/rock2.obj",        "sensor/offroad/rock3.obj",
-        "sensor/offroad/rock4.obj",        "sensor/offroad/rock5.obj",
-    };
-
-    std::mt19937 rock_rng(heightmap_seed);
-    std::uniform_int_distribution<int> rock_mesh_dist(0, static_cast<int>(rock_mesh_library.size()) - 1);
-    std::uniform_real_distribution<double> rock_scale_dist(ROCK_SCALE_MIN, ROCK_SCALE_MAX);
-    const double half_x = TERRAIN_SIZE_X * 0.5;
-    const double half_y = TERRAIN_SIZE_Y * 0.5;
-    const double footpad_radius = lander.GetFootpadRadius();
-    std::vector<ChVector3d> footpad_positions;
-    footpad_positions.reserve(4);
-    for (const auto& footpad : lander.GetFootpads()) {
-        if (footpad)
-            footpad_positions.push_back(footpad->GetPos());
-    }
-
-    for (int i = 0; i < NUM_ROCKS; i++) {
-        const auto& rock_file = rock_mesh_library[rock_mesh_dist(rock_rng)];
-        const std::string rock_mesh_file = GetChronoDataFile(rock_file);
-        double rock_scale = rock_scale_dist(rock_rng);
-
-        auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(rock_mesh_file, false, false);
-        if (!trimesh) {
-            std::cerr << "Cannot load rock mesh " << rock_mesh_file << std::endl;
+    if (flat_terrain) {
+        fsi.Construct(ChVector3d(TERRAIN_SIZE_X, TERRAIN_SIZE_Y, TERRAIN_SIZE_Z), ChVector3d(0, 0, 0), BoxSide::Z_NEG);
+    } else {
+        // NOTE: This demo generates a randomized heightmap at runtime.
+        // Dependencies: Python 3 + numpy + Pillow (optional: noise for faster Perlin).
+        const std::string heightmap_script = GetChronoDataFile("robot/lander/generate_heightmap.py");
+        const std::string heightmap_file = GetChronoDataFile("robot/lander/terrain_heightmap.png");
+        const auto heightmap_dir = filesystem::path(heightmap_file).parent_path();
+        if (!filesystem::create_subdirectory(heightmap_dir)) {
+            std::cerr << "Error creating heightmap directory " << heightmap_dir.str() << std::endl;
+            return 1;
+        }
+        if (!filesystem::path(heightmap_script).exists()) {
+            std::cerr << "Heightmap generator script not found at " << heightmap_script << std::endl;
             return 1;
         }
 
-        auto aabb_unscaled = trimesh->GetBoundingBox();
-        ChVector3d size_unscaled = aabb_unscaled.max - aabb_unscaled.min;
-        double max_dim = std::max({size_unscaled.x(), size_unscaled.y(), size_unscaled.z(), 1e-6});
-        double scale_base = 1.0 / max_dim;
-        double scale_factor = rock_scale;
-        if (scale_factor > 1.0) {
-            scale_factor = 1.0;
+        std::random_device rd;
+        unsigned int heightmap_seed = rd();
+        std::cout << "Generating heightmap (seed=" << heightmap_seed << ")..." << std::endl;
+        if (!GenerateHeightmap(heightmap_script, heightmap_file, HEIGHTMAP_RESOLUTION, TERRAIN_SIZE_X, TERRAIN_SIZE_Y,
+                               TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX, MAX_CRATERS, MAX_CRATER_DIAMETER,
+                               MAX_CRATER_DEPTH, USE_NOISE_LIB, heightmap_seed)) {
+            std::cerr << "Heightmap generation failed. Check that Python and dependencies are available." << std::endl;
+            return 1;
         }
-        rock_scale = scale_base * scale_factor;
 
-        trimesh->Transform(VNULL, ChMatrix33<>(rock_scale));
-        auto aabb = trimesh->GetBoundingBox();
-        ChVector3d size = aabb.max - aabb.min;
+        HeightmapData heightmap_data;
+        if (!LoadHeightmap(heightmap_file, heightmap_data)) {
+            return 1;
+        }
 
-        double margin_x = std::min(half_x - 0.01, 0.5 * size.x());
-        double margin_y = std::min(half_y - 0.01, 0.5 * size.y());
-        std::uniform_real_distribution<double> rock_x_dist(-half_x + margin_x, half_x - margin_x);
-        std::uniform_real_distribution<double> rock_y_dist(-half_y + margin_y, half_y - margin_y);
+        // Spawn randomized rocks using mesh libraries from the data folder.
+        const std::array<std::string, 8> rock_mesh_library = {
+            "robot/curiosity/rocks/rock1.obj", "robot/curiosity/rocks/rock2.obj", "robot/curiosity/rocks/rock3.obj",
+            "sensor/offroad/rock1.obj",        "sensor/offroad/rock2.obj",        "sensor/offroad/rock3.obj",
+            "sensor/offroad/rock4.obj",        "sensor/offroad/rock5.obj",
+        };
 
-        double rock_x = 0;
-        double rock_y = 0;
-        bool placed = false;
-        const double rock_xy_radius = 0.5 * std::sqrt(size.x() * size.x() + size.y() * size.y());
-        for (int attempt = 0; attempt < 50; attempt++) {
-            rock_x = rock_x_dist(rock_rng);
-            rock_y = rock_y_dist(rock_rng);
-            bool overlaps_footpad = false;
-            for (const auto& pos : footpad_positions) {
-                double dx = rock_x - pos.x();
-                double dy = rock_y - pos.y();
-                double min_sep = rock_xy_radius + footpad_radius + ROCK_FOOTPAD_CLEARANCE;
-                if (dx * dx + dy * dy < min_sep * min_sep) {
-                    overlaps_footpad = true;
+        std::mt19937 rock_rng(heightmap_seed);
+        std::uniform_int_distribution<int> rock_mesh_dist(0, static_cast<int>(rock_mesh_library.size()) - 1);
+        std::uniform_real_distribution<double> rock_scale_dist(ROCK_SCALE_MIN, ROCK_SCALE_MAX);
+        const double half_x = TERRAIN_SIZE_X * 0.5;
+        const double half_y = TERRAIN_SIZE_Y * 0.5;
+        const double footpad_radius = lander.GetFootpadRadius();
+        std::vector<ChVector3d> footpad_positions;
+        footpad_positions.reserve(4);
+        for (const auto& footpad : lander.GetFootpads()) {
+            if (footpad)
+                footpad_positions.push_back(footpad->GetPos());
+        }
+
+        for (int i = 0; i < NUM_ROCKS; i++) {
+            const auto& rock_file = rock_mesh_library[rock_mesh_dist(rock_rng)];
+            const std::string rock_mesh_file = GetChronoDataFile(rock_file);
+            double rock_scale = rock_scale_dist(rock_rng);
+
+            auto trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(rock_mesh_file, false, false);
+            if (!trimesh) {
+                std::cerr << "Cannot load rock mesh " << rock_mesh_file << std::endl;
+                return 1;
+            }
+
+            auto aabb_unscaled = trimesh->GetBoundingBox();
+            ChVector3d size_unscaled = aabb_unscaled.max - aabb_unscaled.min;
+            double max_dim = std::max({size_unscaled.x(), size_unscaled.y(), size_unscaled.z(), 1e-6});
+            double scale_base = 1.0 / max_dim;
+            double scale_factor = rock_scale;
+            if (scale_factor > 1.0) {
+                scale_factor = 1.0;
+            }
+            rock_scale = scale_base * scale_factor;
+
+            trimesh->Transform(VNULL, ChMatrix33<>(rock_scale));
+            auto aabb = trimesh->GetBoundingBox();
+            ChVector3d size = aabb.max - aabb.min;
+
+            double margin_x = std::min(half_x - 0.01, 0.5 * size.x());
+            double margin_y = std::min(half_y - 0.01, 0.5 * size.y());
+            std::uniform_real_distribution<double> rock_x_dist(-half_x + margin_x, half_x - margin_x);
+            std::uniform_real_distribution<double> rock_y_dist(-half_y + margin_y, half_y - margin_y);
+
+            double rock_x = 0;
+            double rock_y = 0;
+            bool placed = false;
+            const double rock_xy_radius = 0.5 * std::sqrt(size.x() * size.x() + size.y() * size.y());
+            for (int attempt = 0; attempt < 50; attempt++) {
+                rock_x = rock_x_dist(rock_rng);
+                rock_y = rock_y_dist(rock_rng);
+                bool overlaps_footpad = false;
+                for (const auto& pos : footpad_positions) {
+                    double dx = rock_x - pos.x();
+                    double dy = rock_y - pos.y();
+                    double min_sep = rock_xy_radius + footpad_radius + ROCK_FOOTPAD_CLEARANCE;
+                    if (dx * dx + dy * dy < min_sep * min_sep) {
+                        overlaps_footpad = true;
+                        break;
+                    }
+                }
+                if (!overlaps_footpad) {
+                    placed = true;
                     break;
                 }
             }
-            if (!overlaps_footpad) {
-                placed = true;
-                break;
+            if (!placed) {
+                std::cerr << "Failed to place rock " << (i + 1) << " without overlapping footpads" << std::endl;
             }
+            double rock_z_surface = SampleHeightmap(heightmap_data, TERRAIN_SIZE_X, TERRAIN_SIZE_Y,
+                                                    {TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX}, rock_x, rock_y);
+            double rock_z = rock_z_surface + 0.5 * size.z() + ROCK_CLEARANCE;
+            if (EMBED_ROCKS) {
+                double embed_fraction = std::clamp(ROCK_EMBED_FRACTION, 0.0, 1.0);
+                rock_z = rock_z_surface + (0.5 - embed_fraction) * size.z();
+            }
+
+            // Approximate inertia using the rock's AABB.
+            double volume = std::max(1e-6, size.x() * size.y() * size.z());
+            double mass = ROCK_DENSITY * volume;
+            double Ixx = mass * (size.y() * size.y() + size.z() * size.z()) / 12.0;
+            double Iyy = mass * (size.x() * size.x() + size.z() * size.z()) / 12.0;
+            double Izz = mass * (size.x() * size.x() + size.y() * size.y()) / 12.0;
+
+            auto rock_body = chrono_types::make_shared<ChBody>();
+            rock_body->SetName("Rock" + std::to_string(i + 1));
+            rock_body->SetPos(ChVector3d(rock_x, rock_y, rock_z));
+            rock_body->SetRot(RandomQuaternion(rock_rng));
+            rock_body->SetMass(mass);
+            rock_body->SetInertiaXX(ChVector3d(Ixx, Iyy, Izz));
+            rock_body->SetFixed(false);
+            rock_body->EnableCollision(true);
+
+            auto rock_coll =
+                chrono_types::make_shared<ChCollisionShapeTriangleMesh>(contact_material, trimesh, false, false);
+            rock_body->AddCollisionShape(rock_coll);
+
+            auto rock_vis = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
+            rock_vis->SetMesh(trimesh, false);
+            rock_body->AddVisualShape(rock_vis);
+
+            sys.AddBody(rock_body);
+            ChVector3d interior_point = 0.5 * (aabb.min + aabb.max);
+            auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
+            geometry->coll_meshes.push_back(
+                utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, trimesh, interior_point, 1.0, 0.0, 0));
+            fsi.AddRigidBody(rock_body, geometry, EMBED_ROCKS);
         }
-        if (!placed) {
-            std::cerr << "Failed to place rock " << (i + 1) << " without overlapping footpads" << std::endl;
-        }
-        double rock_z_surface = SampleHeightmap(heightmap_data, TERRAIN_SIZE_X, TERRAIN_SIZE_Y,
-                                                {TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX}, rock_x, rock_y);
-        double rock_z = rock_z_surface + 0.5 * size.z() + ROCK_CLEARANCE;
-        if (EMBED_ROCKS) {
-            double embed_fraction = std::clamp(ROCK_EMBED_FRACTION, 0.0, 1.0);
-            rock_z = rock_z_surface + (0.5 - embed_fraction) * size.z();
-        }
 
-        // Approximate inertia using the rock's AABB.
-        double volume = std::max(1e-6, size.x() * size.y() * size.z());
-        double mass = ROCK_DENSITY * volume;
-        double Ixx = mass * (size.y() * size.y() + size.z() * size.z()) / 12.0;
-        double Iyy = mass * (size.x() * size.x() + size.z() * size.z()) / 12.0;
-        double Izz = mass * (size.x() * size.x() + size.y() * size.y()) / 12.0;
-
-        auto rock_body = chrono_types::make_shared<ChBody>();
-        rock_body->SetName("Rock" + std::to_string(i + 1));
-        rock_body->SetPos(ChVector3d(rock_x, rock_y, rock_z));
-        rock_body->SetRot(RandomQuaternion(rock_rng));
-        rock_body->SetMass(mass);
-        rock_body->SetInertiaXX(ChVector3d(Ixx, Iyy, Izz));
-        rock_body->SetFixed(false);
-        rock_body->EnableCollision(true);
-
-        auto rock_coll =
-            chrono_types::make_shared<ChCollisionShapeTriangleMesh>(contact_material, trimesh, false, false);
-        rock_body->AddCollisionShape(rock_coll);
-
-        auto rock_vis = chrono_types::make_shared<ChVisualShapeTriangleMesh>();
-        rock_vis->SetMesh(trimesh, false);
-        rock_body->AddVisualShape(rock_vis);
-
-        sys.AddBody(rock_body);
-        ChVector3d interior_point = 0.5 * (aabb.min + aabb.max);
-        auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
-        geometry->coll_meshes.push_back(
-            utils::ChBodyGeometry::TrimeshShape(VNULL, QUNIT, trimesh, interior_point, 1.0, 0.0, 0));
-        fsi.AddRigidBody(rock_body, geometry, EMBED_ROCKS);
+        fsi.Construct(heightmap_file,                            // height map image file
+                      TERRAIN_SIZE_X, TERRAIN_SIZE_Y,            // length (X) and width (Y)
+                      {TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX},  // height range
+                      TERRAIN_SIZE_Z,                            // depth
+                      true,                                      // uniform depth
+                      ChVector3d(0, 0, 0),                       // patch center
+                      BoxSide::ALL & ~BoxSide::Z_POS             // bottom wall
+        );
     }
-
-    fsi.Construct(heightmap_file,                            // height map image file
-                  TERRAIN_SIZE_X, TERRAIN_SIZE_Y,            // length (X) and width (Y)
-                  {TERRAIN_HEIGHT_MIN, TERRAIN_HEIGHT_MAX},  // height range
-                  TERRAIN_SIZE_Z,                            // depth
-                  true,                                      // uniform depth
-                  ChVector3d(0, 0, 0),                       // patch center
-                  BoxSide::ALL & ~BoxSide::Z_POS             // bottom wall
-    );
 
     // std::string terrain_dir = "terrain/sph/cube";
     // std::string sph_file = vehicle::GetVehicleDataFile(terrain_dir + "/fluid0.txt");
@@ -642,14 +668,39 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Create particles and fsi directories for marker output
-    if (!filesystem::create_directory(filesystem::path(out_dir + "particles"))) {
-        std::cerr << "Error creating directory " << out_dir + "particles" << std::endl;
-        return 1;
+    std::string particles_dir;
+    std::string fsi_dir;
+    if (particle_output) {
+        particles_dir = out_dir + "particles";
+        fsi_dir = out_dir + "fsi";
+        if (!filesystem::create_directory(filesystem::path(particles_dir))) {
+            std::cerr << "Error creating directory " << particles_dir << std::endl;
+            return 1;
+        }
+        if (!filesystem::create_directory(filesystem::path(fsi_dir))) {
+            std::cerr << "Error creating directory " << fsi_dir << std::endl;
+            return 1;
+        }
     }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "fsi"))) {
-        std::cerr << "Error creating directory " << out_dir + "fsi" << std::endl;
-        return 1;
+
+    const ChVector3d camera_target = lander.GetBody()->GetPos();
+    const ChVector3d camera_position = camera_target + ChVector3d(13.5, -13.5, 0.0);
+
+    std::string blender_dir;
+    postprocess::ChBlender blender_exporter(&sys);
+    if (blender_output) {
+        blender_dir = out_dir + "blender";
+        if (!filesystem::create_directory(filesystem::path(blender_dir))) {
+            std::cerr << "Error creating directory " << blender_dir << std::endl;
+            return 1;
+        }
+
+        blender_exporter.SetBlenderUp_is_ChronoZ();
+        blender_exporter.SetBasePath(blender_dir);
+        blender_exporter.SetCamera(camera_position, camera_target, 50);
+        blender_exporter.SetPictureSize(1920, 1080);
+        blender_exporter.AddAll();
+        blender_exporter.ExportScript();
     }
 
     // Get SPH system for saving particles and markers
@@ -668,8 +719,8 @@ int main(int argc, char* argv[]) {
     if (enable_vis) {
 #ifdef CHRONO_VSG
         // FSI plugin
-        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(TERRAIN_HEIGHT_MIN,
-                                                                                   TERRAIN_HEIGHT_MAX + FOOTPAD_HEIGHT);
+        auto col_callback = chrono_types::make_shared<ParticleHeightColorCallback>(
+            TERRAIN_HEIGHT_MIN, terrain_surface_top + FOOTPAD_HEIGHT);
 
         auto visFSI = chrono_types::make_shared<ChSphVisualizationVSG>(sysFSI.get());
         visFSI->EnableFluidMarkers(true);
@@ -685,7 +736,7 @@ int main(int argc, char* argv[]) {
         visVSG->SetWindowSize(ChVector2i(1920, 1080));
         visVSG->SetWindowPosition(100, 100);
         visVSG->SetCameraVertical(CameraVerticalDir::Z);
-        visVSG->AddCamera(ChVector3d(6, -6, 6.0), ChVector3d(0, 0, TERRAIN_HEIGHT_MAX + 2.0));
+        visVSG->AddCamera(camera_position, camera_target);
         visVSG->SetLightIntensity(1.0f);
         visVSG->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
         visVSG->SetBackgroundColor(ChColor(0.1f, 0.1f, 0.15f));  // Dark blue-gray (space-like)
@@ -706,6 +757,11 @@ int main(int argc, char* argv[]) {
     if (!enable_vis) {
         std::cout << "Visualization: DISABLED (--no_vis flag set)" << std::endl;
     }
+    std::cout << "Terrain mode: " << (flat_terrain ? "Flat box" : "Heightmap with rocks") << std::endl;
+    std::cout << "Blender output: " << (blender_output ? "ENABLED" : "disabled") << std::endl;
+    std::cout << "CRM particle output: " << (particle_output ? "ENABLED" : "disabled") << std::endl;
+    std::cout << "Lander body BCE: " << (add_landerbody_bce ? "ENABLED" : "disabled") << std::endl;
+    std::cout << "Lander legs BCE: " << (add_landerlegs_bce ? "ENABLED" : "disabled") << std::endl;
     std::cout << "Lander mass: " << lander.GetLanderMass() << " kg" << std::endl;
     std::cout << "Cylinder: length=" << lander.GetCylinderLength() << " m, diameter=" << lander.GetCylinderDiameter()
               << " m" << std::endl;
@@ -726,20 +782,36 @@ int main(int argc, char* argv[]) {
     // Simulation loop variables
     double t = 0;
     int render_frame = 0;
-    int csv_frame = 0;
+    int output_frame = 1;
+
+    auto write_output = [&](double time, bool export_blender_frame) {
+        ChVector3d pos = lander.GetBody()->GetPos();
+        ChVector3d vel = lander.GetBody()->GetPosDt();
+        ChVector3d ang_vel = lander.GetBody()->GetAngVelParent();
+
+        csv_output << time << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << vel.x() << "," << vel.y()
+                   << "," << vel.z() << "," << ang_vel.x() << "," << ang_vel.y() << "," << ang_vel.z() << std::endl;
+
+        if (particle_output) {
+            sysSPH->SaveParticleData(particles_dir);
+            sysSPH->SaveSolidData(fsi_dir, time);
+        }
+
+        if (export_blender_frame) {
+            blender_exporter.ExportData();
+        }
+
+        std::cout << "Time: " << sys.GetChTime() << " s, "
+                  << "Position: (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ") m, "
+                  << "Velocity z: " << vel.z() << " m/s" << std::endl;
+    };
+
+    write_output(t, false);
 
     while (t < t_end) {
-        // Write CSV data at output FPS
-        if (t >= csv_frame / output_fps) {
-            ChVector3d pos = lander.GetBody()->GetPos();
-            ChVector3d vel = lander.GetBody()->GetPosDt();
-            ChVector3d ang_vel = lander.GetBody()->GetAngVelParent();
-            csv_output << t << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << vel.x() << "," << vel.y()
-                       << "," << vel.z() << "," << ang_vel.x() << "," << ang_vel.y() << "," << ang_vel.z() << std::endl;
-            csv_frame++;
-            std::cout << "Time: " << sys.GetChTime() << " s, "
-                      << "Position: (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ") m, "
-                      << "Velocity z: " << vel.z() << " m/s" << std::endl;
+        if (t >= output_frame / output_fps) {
+            write_output(t, blender_output);
+            output_frame++;
         }
 
         // Render and save snapshots
@@ -768,6 +840,17 @@ int main(int argc, char* argv[]) {
         std::cout << "Snapshots saved to: " << out_dir << "snapshots/" << std::endl;
     }
     std::cout << "CSV data saved to: " << csv_file << std::endl;
+    if (blender_output) {
+        std::cout << "Blender data saved to: " << blender_dir << std::endl;
+    }
+    if (particle_output) {
+        std::cout << "CRM particle data saved to: " << particles_dir << std::endl;
+    }
+
+    if (particle_output) {
+        // Particle CSV writers run in detached worker threads inside the FSI module.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
 
     return 0;
 }

@@ -267,18 +267,19 @@ int main(int argc, char* argv[]) {
                         /*kernel_type*/ "wendland",
                         /*artificial_viscosity*/ 0.2,
                         /*max_pressure*/ 30 * 1000,  // 30 kPa
-                        /*plate_diameter*/ 0.102,    // 19 cm
+                                                     // /*plate_diameter*/ 0.102,    // 19 cm
+                        /*plate_diameter*/ 0.19,     // 19 cm
                         /*container_height*/ 0.024,  // 2.4 cm
                         /*verbose*/ true,
                         /*output*/ true,
                         /*output_fps*/ 10,
-                        /*snapshots*/ true,
-                        /*render*/ true,
+                        /*snapshots*/ false,
+                        /*render*/ false,
                         /*render_fps*/ 100,
                         /*write_marker_files*/ false,
                         /*mu_s*/ 0.6593,
                         /*mu_2*/ 0.6593,
-                        /*cohesions*/ 30000,
+                        /*cohesions*/ 0,
                         /*densities*/ 1670,
                         /*y_modulus*/ 1e6,
                         /*integration_scheme*/ "rk2",
@@ -318,12 +319,12 @@ int main(int argc, char* argv[]) {
 }
 
 void SimulateMaterial(int i, const SimParams& params) {
-    double t_end = 3.5;
+    double t_end = 3.1;
     double max_pressure_time = 3;
     std::cout << "t_end: " << t_end << std::endl;
 
     // double container_diameter = params.plate_diameter * 1.5;  // Plate is 20 cm in diameter
-    double container_diameter = 0.3;                    // Plate is 10 cm in diameter
+    double container_diameter = 0.584;                  // Actual container diameter is 58.4 cm
     double container_height = params.container_height;  // configurable via CLI
     double cyl_length = 0.018;                          // To prevent effect of sand falling on top of the plate
 
@@ -362,8 +363,8 @@ void SimulateMaterial(int i, const SimParams& params) {
         double angle_mus = std::atan(params.mu_s);
         mat_props.mcc_M = (6 * std::sin(angle_mus)) / (3 - std::sin(angle_mus));
         // mat_props.mcc_M = 1.34;
-        mat_props.mcc_kappa = 0.01;
-        mat_props.mcc_lambda = 0.02;
+        mat_props.mcc_kappa = 0.00625;
+        mat_props.mcc_lambda = 0.025;
     }
 
     sysSPH.SetElasticSPH(mat_props);
@@ -525,6 +526,12 @@ void SimulateMaterial(int i, const SimParams& params) {
             return oss.str();
         }();
 
+        // Width string in cm with 1 decimal place
+        const std::string widthCmStr = [&]() {
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(1) << (container_diameter * 100.0) << "cm";
+            return oss.str();
+        }();
         // Format plate diameter in cm
         const std::string plateDiameterStr = [&]() {
             std::ostringstream oss;
@@ -543,7 +550,14 @@ void SimulateMaterial(int i, const SimParams& params) {
         const std::string rheologyModelStr = params.rheology_model_crm;
         const std::string prePressureScaleStr = toString(params.pre_pressure_scale);
         base_dir = GetChronoOutputPath() + "FSI_NormalBevameter_GRC1_" + heightCmStr + "_" + rheologyModelStr + "_" +
-                   prePressureScaleStr + "/";
+                   widthCmStr;
+
+        if (rheologyModelStr == "MU_OF_I") {
+            base_dir += "/";
+        } else if (rheologyModelStr == "MCC") {
+            base_dir += "_pre_pressure_scale_" + prePressureScaleStr + "/";
+        }
+
         if (!filesystem::create_directory(filesystem::path(base_dir))) {
             std::cerr << "Error creating directory " << base_dir << std::endl;
             return;

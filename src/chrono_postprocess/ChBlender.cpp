@@ -12,6 +12,7 @@
 // Authors: Alessandro Tasora
 // =============================================================================
 
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -338,7 +339,11 @@ void ChBlender::ExportScript(const std::string& filename) {
                         << "bpy.context.scene.collection.objects.unlink(new_object)\n"
                         << std::endl;
             ChVector3d cdirzm = camera_aim - camera_location;
-            ChVector3d cdirx = Vcross(cdirzm, VECT_Y);
+            ChVector3d cup = camera_up;
+            if (Vcross(cdirzm, cup).Length() < 1e-10) {
+                cup = std::abs(cdirzm.z()) < 0.9 * cdirzm.Length() ? ChVector3d(0, 0, 1) : ChVector3d(0, 1, 0);
+            }
+            ChVector3d cdirx = Vcross(cdirzm, cup);
             ChVector3d cdiry = Vcross(cdirx, cdirzm);
             ChMatrix33<> cmrot;
             cmrot.SetFromDirectionAxes(cdirx.GetNormalized(), cdiry.GetNormalized(), -cdirzm.GetNormalized());

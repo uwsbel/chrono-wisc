@@ -11,6 +11,9 @@ where the given location is assumed to be expressed in the current world frame.
 
 See the definition of the base class [ChTerrain](@ref chrono::vehicle::ChTerrain).
 
+For a quick user-facing comparison between SPH-based CRM terrain and SCM terrain (with API-focused usage guidance),
+see [CRM Deformable Terrain (SPH) for Vehicle Users](@ref vehicle_terrain_crm).
+
 
 Note however that these quantities are relevant only for the interaction with the so-called [semi-empirical tire models](@ref vehicle_tire_empirical).  As such, they are not used for the case of deformable terrain (SCM, granular, or FEA-based) which can only work in conjunction with [rigid](@ref wheeled_tire_rigid) or [FEA](@ref wheeled_tire_fea) tire models and with tracked vehicles (as they rely on the underlying Chrono collision and contact system).
 
@@ -48,7 +51,7 @@ A height-map patch is specified through a gray-scale BMP image (like the one sho
 **Location-dependent coefficient of friction**. The rigid terrain model supports the definition of a `FrictionFunctor` object. If no such functor is provided, [RigidTerrain::GetCoefficientFriction](@ref chrono::vehicle::RigidTerrain::GetCoefficientFriction) uses the ray-casting approach to identify the correct patch and the (constant) coefficient of friction for that patch is returned. If a functor is provided, RigidTerrain::GetCoefficientFriction simply returns its value.  However, processing of contacts with the terrain (e.g., when using rigid tires or a tracked vehicle) is relatively expensive: at each invocation of the collision detection algorithm (i.e., once per simulation step) the list of all contacts in the Chrono system is traversed to intercept all contacts that involve a rigid terrain patch collision model; for these contacts, the composite material properties are modified to account for the terrain coefficient of friction at the point of contact.
 
 A rigid terrain can be constructed programmatically, defining one patch at a time, or else specified in a JSON file like the following one:
-\include "../../data/vehicle/terrain/RigidPatches.json"
+\include "data/vehicle/terrain/RigidPatches.json"
 
 
 ## CRG terrain {#vehicle_terrain_crg}
@@ -56,7 +59,7 @@ A rigid terrain can be constructed programmatically, defining one patch at a tim
 [CRGTerrain](@ref chrono::vehicle::CRGTerrain) is a procedural terrain model constructed from an [OpenCRG](http://opencrg.org) road specification.  To use this terrain model, the user must install the OpenCRG SDK and enable its use during CMake configuration (see the Chrono::Vehicle [installation instruction](@ref module_vehicle_installation)).
 
 The CRG terrain creates a road profile (a 3D path with an associated width) from a specification file such as the one listed below and implements the functions [CRGTerrain::GetHeight](@ref chrono::vehicle::CRGTerrain::GetHeight) and [CRGTerrain::GetNormal](@ref chrono::vehicle::CRGTerrain::GetNormal) to use this specification.  Note that a `crg` specification file can be either ASCII or binary.
-\include "../../data/vehicle/terrain/crg_roads/handmade_curved_minimalist.crg"
+\include "data/vehicle/terrain/crg_roads/handmade_curved_minimalist.crg"
 
 The CRG terrain can be visualized as a triangular mesh (representing the road "ribbon") or else as a set of 3D Bezier curves (representing the center line and the road sides).  Other features of CRGTerrain include:
 - ability to export the road mesh (as a triangle mesh)
@@ -105,7 +108,7 @@ Some other features of the Chrono SCM implementation are:
 
 Since the interaction with this terrain type is done through the underlying Chrono contact system, it can be used in conjunction with [rigid](@ref wheeled_tire_rigid) or [FEA](@ref wheeled_tire_fea) tire models and with tracked vehicles.
 
-## Granular terrain {#vehicle_terrain_granular}
+## Deformable DEM (granular dyynamics) {#vehicle_terrain_granular}
 
 [GranularTerrain](@ref chrono::vehicle::GranularTerrain) implements a rectangular patch of granular material and leverages Chrono's extensive support for so-called Discrete Element Method (DEM) simulations. Currently, this terrain model is limited to monodisperse spherical granular material.
 
@@ -135,3 +138,13 @@ This terrain model permits:
 Since the interaction with this terrain type is done through the underlying Chrono contact system, it can be used in conjunction with [rigid](@ref wheeled_tire_rigid) or [FEA](@ref wheeled_tire_fea) tire models and with tracked vehicles.
 
 <img src="http://www.projectchrono.org/assets/manual/vehicle/terrain/FEA_terrain.png" width="600" />
+
+## Deformable CRM (SPH-based Continuous Representation Model) {#vehicle_terrain_crm}
+
+[CRMTerrain](@ref chrono::vehicle::CRMTerrain) provides a deformable terrain model based on the so-called Continuous Representation Model (CRM) approach which involves solving a set of PDEs describing soil dynamics. These PDEs are solved using the [Chrono::FSI-SPH](group__fsisph.html) module with the appropriate underlying dynamics.
+
+CRMTerrain provides a very attractive alternative to granular dynamics as it gives sdimilar accuracy and fidelity of soil dynamics with much better computational performance.
+
+Further details on using a CRM terrain with Chrono::Vehicle is provided in:
+* @subpage vehicle_terrain_crm_api_
+* @subpage vehicle_terrain_crm_performance

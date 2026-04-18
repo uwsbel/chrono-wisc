@@ -54,6 +54,7 @@ double smalldis = 1.0e-9;
 double bxDim = 5.0 + smalldis;
 double byDim = 0.8 + smalldis;
 double bzDim = 0.2 + smalldis;
+constexpr double kDefaultContainerDepth = 0.18;
 
 // Variables from DEM sim
 double safe_x = 1.0;
@@ -91,6 +92,7 @@ struct SimParams {
     double wheel_AngVel;
     double gravity_G;
     double grouser_height;
+    double container_depth;
     int sim_number;
     bool snapshots;  // Whether to save snapshot image files
 
@@ -104,6 +106,7 @@ struct SimParams {
     bool output;
     double out_fps;
     bool write_marker_files;
+    double marker_fps;
     double print_fps;
     bool render;
     double render_fps;
@@ -378,6 +381,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     cli.AddOption<double>("Physics", "wheel_AngVel", "Wheel angular velocity", std::to_string(params.wheel_AngVel));
     cli.AddOption<double>("Physics", "gravity_G", "Gravity", std::to_string(params.gravity_G));
     cli.AddOption<double>("Physics", "grouser_height", "Grouser height", std::to_string(params.grouser_height));
+    cli.AddOption<double>("Physics", "container_depth", "Container depth", std::to_string(params.container_depth));
     cli.AddOption<int>("Simulation", "sim_number", "Simulation number", std::to_string(params.sim_number));
     cli.AddOption<std::string>("Physics", "rheology_model_crm", "Rheology model (MU_OF_I/MCC)",
                                params.rheology_model_crm);
@@ -393,6 +397,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     cli.AddOption<double>("Output", "out_fps", "Output frequency", std::to_string(params.out_fps));
     std::string write_marker_files_str = params.write_marker_files ? "true" : "false";
     cli.AddOption<std::string>("Output", "write_marker_files", "Enable writing marker files", write_marker_files_str);
+    cli.AddOption<double>("Output", "marker_fps", "Marker file output frequency", std::to_string(params.marker_fps));
     cli.AddOption<double>("Output", "print_fps", "Print frequency", std::to_string(params.print_fps));
     cli.AddOption<bool>("Visualization", "no_vis", "Disable run-time visualization");
     cli.AddOption<double>("Visualization", "render_fps", "Render frequency", std::to_string(params.render_fps));
@@ -416,6 +421,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     params.wheel_AngVel = cli.GetAsType<double>("wheel_AngVel");
     params.gravity_G = cli.GetAsType<double>("gravity_G");
     params.grouser_height = cli.GetAsType<double>("grouser_height");
+    params.container_depth = cli.GetAsType<double>("container_depth");
     params.sim_number = cli.GetAsType<int>("sim_number");
     params.rheology_model_crm = cli.GetAsType<std::string>("rheology_model_crm");
     params.pre_pressure_scale = cli.GetAsType<double>("pre_pressure_scale");
@@ -425,6 +431,7 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     params.output = parse_bool(cli.GetAsType<std::string>("output"));
     params.out_fps = cli.GetAsType<double>("out_fps");
     params.write_marker_files = parse_bool(cli.GetAsType<std::string>("write_marker_files"));
+    params.marker_fps = cli.GetAsType<double>("marker_fps");
     params.print_fps = cli.GetAsType<double>("print_fps");
     params.render = !cli.GetAsType<bool>("no_vis");
     params.render_fps = cli.GetAsType<double>("render_fps");
@@ -462,6 +469,7 @@ int main(int argc, char* argv[]) {
                         /*wheel_AngVel*/ 0.1,
                         /*gravity_G*/ 9.8,
                         /*grouser_height*/ 0.01,
+                        /*container_depth*/ kDefaultContainerDepth,
                         /*sim_number*/ 0,
                         /*snapshots*/ false,
                         /*rheology_model_crm*/ "MU_OF_I",
@@ -471,11 +479,16 @@ int main(int argc, char* argv[]) {
                         /*output*/ true,
                         /*out_fps*/ 100,
                         /*write_marker_files*/ false,
+                        /*marker_fps*/ 10,
                         /*print_fps*/ 100,
                         /*render*/ false,
                         /*render_fps*/ 100};
 
     if (!GetProblemSpecs(argc, argv, params)) {
+        return 1;
+    }
+    if (params.container_depth <= 0.0) {
+        std::cerr << "container_depth must be > 0. Provided: " << params.container_depth << std::endl;
         return 1;
     }
 
@@ -506,6 +519,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Wheel Angular Velocity: " << params.wheel_AngVel << std::endl;
     std::cout << "Gravity Magnitude: " << params.gravity_G << std::endl;
     std::cout << "Grouser Height: " << params.grouser_height << std::endl;
+    std::cout << "Container Depth: " << params.container_depth << std::endl;
     params.slope_angle = params.slope_angle / 180.0 * CH_PI;
 
     // Create formatted output directory path with appropriate precision
@@ -528,6 +542,9 @@ int main(int argc, char* argv[]) {
         ss << "_pre_pressure_scale_" << std::setprecision(1) << params.pre_pressure_scale;
         ss << "_kappa_" << std::setprecision(2) << params.kappa;
         ss << "_lambda_" << std::setprecision(2) << params.lambda;
+    }
+    if (std::abs(params.container_depth - kDefaultContainerDepth) > 1e-9) {
+        ss << "_depth_" << std::setprecision(3) << params.container_depth;
     }
     ss << "/";
     out_dir = ss.str();
@@ -652,6 +669,7 @@ int main(int argc, char* argv[]) {
 
     double iniSpacing = params.initial_spacing;
     double kernelLength = params.initial_spacing * params.d0_multiplier;
+    bzDim = params.container_depth + 2.0 * iniSpacing;
 
     // Initial Position of wheel
     ChVector3d wheel_IniPos(-bxDim / 2 + wheel_radius * 2.0, 0.0, wheel_radius + 3 * iniSpacing + bzDim / 2);
@@ -689,6 +707,7 @@ int main(int argc, char* argv[]) {
 
     sysSPH.SetActiveDomain(ChVector3d(0.9, 0.8, 0.9));
     sysSPH.SetActiveDomainDelay(1.0);
+    sysSPH.SetOutputLevel(OutputLevel::STATE_PRESSURE);
     // Construction of the FSI system must be finalized before running
     sysFSI.Initialize();
 
@@ -767,13 +786,13 @@ int main(int argc, char* argv[]) {
     double time = 0.0;
     int render_frame = 0;
     int output_frame = 0;
+    int marker_frame = 0;
     int print_frame = 0;
     // Some things that even DEM domes
     double x1 = wheel->GetPos().x();
     double z1 = x1 * std::sin(params.slope_angle);
     double x2 = x1;
     double z_adv = 0;
-    int counter = 0;
 
     ChTimer timer;
     timer.start();
@@ -809,13 +828,16 @@ int main(int argc, char* argv[]) {
                    << "\t" << force.x() << "\t" << force.y() << "\t" << force.z() << "\t" << torque.x() << "\t"
                    << torque.y() << "\t" << torque.z() << "\n";
             myDBP_Torque << time << "\t" << force.x() << "\t" << torque.z() << "\n";
-            if (params.write_marker_files) {
-                sysSPH.SaveParticleData(out_dir + "/particles");
-                sysSPH.SaveSolidData(out_dir + "/fsi", time);
-                std::string filename = out_dir + "/vtk/wheel." + std::to_string(counter++) + ".vtk";
-                WriteWheelVTK(filename, wheel_mesh, wheel->GetFrameRefToAbs());
-            }
             output_frame++;
+        }
+
+        if (params.output && params.write_marker_files && time >= marker_frame / params.marker_fps) {
+            std::cout << "-------- Marker Output" << std::endl;
+            sysSPH.SaveParticleData(out_dir + "/particles");
+            sysSPH.SaveSolidData(out_dir + "/fsi", time);
+            std::string filename = out_dir + "/vtk/wheel." + std::to_string(marker_frame) + ".vtk";
+            WriteWheelVTK(filename, wheel_mesh, wheel->GetFrameRefToAbs());
+            marker_frame++;
         }
 
         // Render SPH particles
