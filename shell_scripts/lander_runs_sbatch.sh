@@ -5,7 +5,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=48:00:00
 #SBATCH --mem=32G
-#SBATCH --account=wecind
 #SBATCH --partition=gpu-h100
 #SBATCH --array=0-167%8
 #SBATCH -o lander_%A_%a.out
@@ -75,4 +74,3 @@ fi
 
 echo "Simulation completed successfully!"
 echo "=========================================="
-

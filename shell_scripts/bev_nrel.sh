@@ -4,7 +4,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --mem=64G
-#SBATCH --account=wecind
 #SBATCH -o bev20.out
 #SBATCH -e bev20.err
 #SBATCH --partition=gpu-h100

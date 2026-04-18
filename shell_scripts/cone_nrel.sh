@@ -4,7 +4,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=48:00:00
 #SBATCH --mem=64G
-#SBATCH --account=wecind
 #SBATCH -o cone10.out
 #SBATCH -e cone10.err
 #SBATCH --partition=gpu-h100
