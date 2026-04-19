@@ -225,7 +225,8 @@ CH_SENSOR_API void ChScene::ModifyDiskLight(unsigned int id, const ChOptixLight&
 /// @param img the environment map image data, assumed to be in RGB format with 8 bits per channel
 /// @param dev_cdf_lat device pointer to the CDF for latitude sampling, size = height x 2 Bytes, to be filled in this function
 /// @param cdf_lon device pointer to the CDF for longitude sampling, size = height x width x 2 Bytes, to be filled in this function 
-void BuildCDFOnDevice(const ByteImageData& img, EnvironmentLightData& env_light_data) {
+template <typename T>
+void BuildCDFOnDevice(const ImageData<T>& img, EnvironmentLightData& env_light_data) {
     
     const int img_w = img.w;
     const int img_h = img.h;
@@ -244,14 +245,24 @@ void BuildCDFOnDevice(const ByteImageData& img, EnvironmentLightData& env_light_
         
         // Calculate the CDF for longitude (u) sampling at this latitude (v)
         for (int u = 0; u < img_w; ++u) {
-            unsigned char red   = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 0];
-            unsigned char green = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 1];
-            unsigned char blue  = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 2];
+            float luminance = 0.f;
+            if (std::is_same_v<T, float>) {
+                // For float image, assume the color channels are already in linear space and represent radiance
+                float red   = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 0];
+                float green = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 1];
+                float blue  = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 2];
+                luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
+            }
+            else {
+                unsigned char red   = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 0];
+                unsigned char green = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 1];
+                unsigned char blue  = img.data[num_chs * ((img_h - v - 1) * img_w + u) + 2];
+                // Convert RGB to luminance using Rec. 709 luma coefficients
+                luminance = (static_cast<float>(red) / 255.f * 0.2126f +
+                             static_cast<float>(green) / 255.f * 0.7152f +
+                             static_cast<float>(blue) / 255.f * 0.0722f);
+            }
             
-            // Convert RGB to luminance using Rec. 709 luma coefficients
-            float luminance = (static_cast<float>(red) / 255.f * 0.2126f +
-                               static_cast<float>(green) / 255.f * 0.7152f +
-                               static_cast<float>(blue) / 255.f * 0.0722f);
             if (luminance > max_luminance) max_luminance = luminance;
             if (luminance < min_luminance) min_luminance = luminance;
             if (u == 0) {
@@ -322,14 +333,31 @@ CH_SENSOR_API unsigned int ChScene::AddEnvironmentLight(std::string env_tex_path
 
     // Calculate extended parameters
     // Note: the environment map sampler will be set in ChOptixPipeline when processing the light data
-    ByteImageData img = LoadByteImage(env_tex_path);
-    printf("Environment light texture loaded, with resolution %d x %d\n", img.w, img.h);
+    std::string ext = env_tex_path.substr(env_tex_path.size() - 3);
+    if ((ext == "exr") || (ext == "EXR")) {
+        FloatImageData img_float = LoadFloatImage(env_tex_path);
+        if (img_float.c != 3) {
+            throw std::runtime_error("Environment map image must have 3 channels (RGB).");
+        }
+        // Extended parameters
+        light.specific.environment.width = img_float.w;
+        light.specific.environment.height = img_float.h;
+        
+        BuildCDFOnDevice(img_float, light.specific.environment);
+    }
+    else {
+        ByteImageData img_byte = LoadByteImage(env_tex_path);
+        if (img_byte.c != 3) {
+            throw std::runtime_error("Environment map image must have 3 channels (RGB).");
+        }
+        // Extended parameters
+        light.specific.environment.width = img_byte.w;
+        light.specific.environment.height = img_byte.h;
+        
+        BuildCDFOnDevice(img_byte, light.specific.environment);
+    }
 
-    // Extended parameters
-    light.specific.environment.width = img.w;
-    light.specific.environment.height = img.h;
-
-    BuildCDFOnDevice(img, light.specific.environment);
+    printf("Environment light texture loaded, with resolution %d x %d\n", light.specific.environment.width, light.specific.environment.height);
 
     m_lights.push_back(light);
     lights_changed = true;

@@ -85,7 +85,8 @@ struct ProgramString {
 };
 
 /// Stores image data.
-struct ByteImageData {
+template <typename T>
+struct ImageData {
     /// image width
     int w;
     /// image height
@@ -93,8 +94,10 @@ struct ByteImageData {
     ///
     int c;
     /// image pixel values
-    std::vector<unsigned char> data;
+    std::vector<T> data;
 };
+using ByteImageData  = ImageData<unsigned char>;
+using FloatImageData = ImageData<float>;
 
 /// Launches ray generation program.
 /// @param context optix device context
@@ -127,8 +130,13 @@ CH_SENSOR_API void GetShaderFromPtx(OptixDeviceContext context,
 */
 
 /// Loads image to struct ByteImageData, returns an empty struct with 0 values if loading failed.
-/// @param filename
+/// @param filename the file name of the image to be loaded
 CH_SENSOR_API ByteImageData LoadByteImage(const std::string& filename);
+
+/// @brief Loads a float image from a file.
+/// @param filename the file name of the image to be loaded
+/// @return the loaded float image data, or an empty struct with 0 values if loading failed
+CH_SENSOR_API FloatImageData LoadFloatImage(const std::string& filename);
 
 /*
 /// Creates an empty optix transform::node

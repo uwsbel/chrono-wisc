@@ -537,6 +537,10 @@ endif()
 
 if(CH_USE_SENSOR_OPENEXR)
   target_link_libraries(Chrono_sensor PUBLIC OpenEXR::OpenEXR)
+
+  # Some OpenEXR builds do not propagate libdeflate cleanly to downstream targets.
+  find_library(LIBDEFLATE_LIBRARY NAMES deflate libdeflate REQUIRED)
+  target_link_libraries(Chrono_sensor PUBLIC ${LIBDEFLATE_LIBRARY})
 endif()
 
 # print cxx compiler flags\

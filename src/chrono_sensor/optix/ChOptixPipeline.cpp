@@ -1266,6 +1266,121 @@ void ChOptixPipeline::UpdateObjectVelocity() {
                                 cudaMemcpyHostToDevice));
 }
 
+/// @brief Check if a file name ends with .exr (case insensitive)
+/// @param file_name The file name to check
+/// @return True if the file name ends with .exr, false otherwise
+inline bool EndsWithEXR(const std::string& file_name) {
+    if (file_name.size() < 3)
+        return false;
+
+    std::string ext = file_name.substr(file_name.size() - 3);
+    return ((ext == "exr") || (ext == "EXR"));
+}
+
+/// @brief Create a CUDA texture sampler from image data, with handling for different numbers of channels and optional vertical mirroring
+/// @tparam T data type of the image (e.g. float or unsigned char)
+/// @param d_tex_sampler device texture sampler to be created
+/// @param d_img_array device image array to be created for texture sampler
+/// @param img image data to be copied to the device and used for texture sampler
+/// @param data_type string indicating the data type of the image (e.g. "float" or "unsingned char")
+/// @param mirror whether to mirror the image vertically when copying to the device (to match typical texturing UV coordinates)
+template <typename T>
+void CreateDeviceTextureTyped(cudaTextureObject_t& d_tex_sampler,
+                              cudaArray_t& d_img_array,
+                              const ImageData<T>& img,
+                              std::string data_type,
+                              bool mirror) {
+    
+    // If image is not 4 channels, make it so
+    std::vector<T> img_data;
+    int32_t pitch;
+    cudaChannelFormatDesc channel_desc;
+
+    if (img.c == 4) {
+        // need to flip the image to match typical texturing
+        img_data = std::vector<T>(img.h * img.w * 4);
+        for (int i = 0; i < img.h; i++) {
+            for (int j = 0; j < img.w; j++) {
+                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 0];
+                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 1];
+                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 2];
+                img_data[i * img.w * 4 + j * 4 + 3] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 3];
+            }
+        }
+        channel_desc = (std::is_same_v<T, float>) ? cudaCreateChannelDesc<float4>() : cudaCreateChannelDesc<uchar4>();
+        pitch = img.w * 4 * sizeof(T);
+    } else if (img.c == 3) {
+        img_data = std::vector<T>(img.h * img.w * 4);
+        for (int i = 0; i < img.h; i++) {
+            for (int j = 0; j < img.w; j++) {
+                // Flip the image to match typical texturing UV coordinates and add an alpha channel of 255
+                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 0];
+                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 1];
+                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 2];
+                img_data[i * img.w * 4 + j * 4 + 3] = (std::is_same_v<T, float>) ? 1.f : 255;
+            }
+        }
+        channel_desc = (std::is_same_v<T, float>) ? cudaCreateChannelDesc<float4>() : cudaCreateChannelDesc<uchar4>();
+        pitch = img.w * 4 * sizeof(T);
+    } else if (img.c == 2) {
+        img_data = std::vector<T>(img.h * img.w * 4);
+        for (int i = 0; i < img.h; i++) {
+            for (int j = 0; j < img.w; j++) {
+                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
+                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
+                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
+                img_data[i * img.w * 4 + j * 4 + 3] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 1];
+            }
+        }
+        channel_desc = (std::is_same_v<T, float>) ? cudaCreateChannelDesc<float4>() : cudaCreateChannelDesc<uchar4>();
+        pitch = img.w * 4 * sizeof(T);
+    } else if (img.c == 1) {
+        img_data = std::vector<T>(img.h * img.w);
+        for (int i = 0; i < img.h; i++) {
+            for (int j = 0; j < img.w; j++) {
+                img_data[i * img.w + j] = img.data[(img.h - i - 1) * img.w + j];
+            }
+        }
+        channel_desc = (std::is_same_v<T, float>) ? cudaCreateChannelDesc<float>() : cudaCreateChannelDesc<unsigned char>();
+        pitch = img.w * sizeof(T);
+    } else {
+        throw std::runtime_error("Error: invalid img channel size=" + std::to_string(img.c));
+    }
+
+    CUDA_ERROR_CHECK(cudaMallocArray(&d_img_array, &channel_desc, img.w, img.h));
+    CUDA_ERROR_CHECK(cudaMemcpy2DToArray(d_img_array, 0, 0, img_data.data(), pitch, pitch, img.h, cudaMemcpyHostToDevice));
+    // m_img_textures.push_back(d_img_array);
+
+    cudaResourceDesc resource_description = {};
+    resource_description.resType = cudaResourceTypeArray;
+    resource_description.res.array.array = d_img_array;
+
+    cudaTextureDesc texture_description = {};
+    texture_description.addressMode[0] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
+    texture_description.addressMode[1] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
+    texture_description.addressMode[2] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
+    texture_description.filterMode = cudaFilterModeLinear;
+    // texture_description.filterMode = cudaFilterModePoint;
+    texture_description.readMode = (std::is_same_v<T, float>) ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
+    texture_description.normalizedCoords = 1; // texture coordinates are mapped to a floating-point range of [0.0, 1.0) rather than the absolute pixel/texel dimensions [0, N-1]
+    texture_description.maxAnisotropy = 1;
+    texture_description.maxMipmapLevelClamp = 99;
+    texture_description.minMipmapLevelClamp = 0;
+    texture_description.mipmapFilterMode = cudaFilterModePoint;
+    // texture_description.mipmapFilterMode = cudaFilterModeLinear;
+    // texture_description.borderColor[0] = 1.0f;
+    texture_description.sRGB = 0;
+
+    // Create texture sampler
+    CUDA_ERROR_CHECK(cudaCreateTextureObject(&d_tex_sampler, &resource_description, &texture_description, nullptr));
+}
+
+/// @brief Create a CUDA texture sampler from an image file, with caching to avoid reloading the same texture multiple times, and optional vertical mirroring
+/// @param d_tex_sampler The CUDA texture object to be created
+/// @param d_img_array The CUDA array that will hold the image data for the texture
+/// @param file_name The file name of the image to be loaded as a texture
+/// @param mirror Whether to mirror the image vertically when loading (to match typical UV coordinate system)
+/// @param exclude_from_material_cleanup Whether to exclude this texture from being cleaned up when materials are cleaned up (used for shared textures, like background environment map)
 void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
                                           cudaArray_t& d_img_array,
                                           std::string file_name,
@@ -1282,92 +1397,19 @@ void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
         d_img_array = m_img_textures[file_name];
         return;
     }
-
-    ByteImageData img = LoadByteImage(file_name);
-
-    // if image is not 4 channels, make it so
-    std::vector<unsigned char> img_data;
-    int32_t pitch;
-    cudaChannelFormatDesc channel_desc;
-
-    if (img.c == 4) {
-        // need to flip the image to match typical texturing
-        img_data = std::vector<unsigned char>(img.h * img.w * 4);
-        for (int i = 0; i < img.h; i++) {
-            for (int j = 0; j < img.w; j++) {
-                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 0];
-                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 1];
-                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 2];
-                img_data[i * img.w * 4 + j * 4 + 3] = img.data[(img.h - i - 1) * img.w * 4 + j * 4 + 3];
-            }
-        }
-        channel_desc = cudaCreateChannelDesc<uchar4>();
-        pitch = img.w * 4 * sizeof(unsigned char);
-    } else if (img.c == 3) {
-        img_data = std::vector<unsigned char>(img.h * img.w * 4);
-        for (int i = 0; i < img.h; i++) {
-            for (int j = 0; j < img.w; j++) {
-                // Flip the image to match typical texturing UV coordinates and add an alpha channel of 255
-                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 0];
-                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 1];
-                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 3 + j * 3 + 2];
-                img_data[i * img.w * 4 + j * 4 + 3] = 255;
-            }
-        }
-        channel_desc = cudaCreateChannelDesc<uchar4>();
-        pitch = img.w * 4 * sizeof(unsigned char);
-    } else if (img.c == 2) {
-        img_data = std::vector<unsigned char>(img.h * img.w * 4);
-        for (int i = 0; i < img.h; i++) {
-            for (int j = 0; j < img.w; j++) {
-                img_data[i * img.w * 4 + j * 4 + 0] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
-                img_data[i * img.w * 4 + j * 4 + 1] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
-                img_data[i * img.w * 4 + j * 4 + 2] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 0];
-                img_data[i * img.w * 4 + j * 4 + 3] = img.data[(img.h - i - 1) * img.w * 2 + j * 2 + 1];
-            }
-        }
-        channel_desc = cudaCreateChannelDesc<uchar4>();
-        pitch = img.w * 4 * sizeof(unsigned char);
-    } else if (img.c == 1) {
-        img_data = std::vector<unsigned char>(img.h * img.w);
-        for (int i = 0; i < img.h; i++) {
-            for (int j = 0; j < img.w; j++) {
-                img_data[i * img.w + j] = img.data[(img.h - i - 1) * img.w + j];
-            }
-        }
-        channel_desc = cudaCreateChannelDesc<unsigned char>();
-        pitch = img.w * sizeof(unsigned char);
+    if (EndsWithEXR(file_name)) {
+        FloatImageData img_float = LoadFloatImage(file_name);
+        // Debug
+        float min_val = *(std::min_element(img_float.data.begin(), img_float.data.end()));
+        float max_val = *(std::max_element(img_float.data.begin(), img_float.data.end()));
+        printf("\nLoaded EXR image with width=%d, height=%d, channels=%d, min=%f, max=%f\n\n",
+                img_float.w, img_float.h, img_float.c, min_val, max_val);
+        CreateDeviceTextureTyped(d_tex_sampler, d_img_array, img_float, "float", mirror);
     } else {
-        throw std::runtime_error("Error: invalid img channel size=" + std::to_string(img.c));
-    }
+        ByteImageData img_byte = LoadByteImage(file_name);
+        CreateDeviceTextureTyped(d_tex_sampler, d_img_array, img_byte, "unsigned char", mirror);
 
-    CUDA_ERROR_CHECK(cudaMallocArray(&d_img_array, &channel_desc, img.w, img.h));
-    CUDA_ERROR_CHECK(
-        cudaMemcpy2DToArray(d_img_array, 0, 0, img_data.data(), pitch, pitch, img.h, cudaMemcpyHostToDevice));
-    // m_img_textures.push_back(d_img_array);
-
-    cudaResourceDesc resource_description = {};
-    resource_description.resType = cudaResourceTypeArray;
-    resource_description.res.array.array = d_img_array;
-
-    cudaTextureDesc texture_description = {};
-    texture_description.addressMode[0] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
-    texture_description.addressMode[1] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
-    texture_description.addressMode[2] = mirror ? cudaAddressModeMirror : cudaAddressModeWrap;
-    texture_description.filterMode = cudaFilterModeLinear;
-    // texture_description.filterMode = cudaFilterModePoint;
-    texture_description.readMode = cudaReadModeNormalizedFloat;
-    texture_description.normalizedCoords = 1; // texture coordinates are mapped to a floating-point range of [0.0, 1.0) rather than the absolute pixel/texel dimensions [0, N-1]
-    texture_description.maxAnisotropy = 1;
-    texture_description.maxMipmapLevelClamp = 99;
-    texture_description.minMipmapLevelClamp = 0;
-    texture_description.mipmapFilterMode = cudaFilterModePoint;
-    // texture_description.mipmapFilterMode = cudaFilterModeLinear;
-    // texture_description.borderColor[0] = 1.0f;
-    texture_description.sRGB = 0;
-
-    // Create texture sampler
-    CUDA_ERROR_CHECK(cudaCreateTextureObject(&d_tex_sampler, &resource_description, &texture_description, nullptr));
+    }    
 
     // push this to the vectors for cleanup unless specifically specified not to (background image)
     if (!exclude_from_material_cleanup) {
