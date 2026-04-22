@@ -20,6 +20,7 @@
 
 #include "chrono/core/ChDataPath.h"
 #include "chrono_thirdparty/filesystem/path.h"
+#include "chrono_sensor/utils/ChOpenExrUtils.h"
 
 #ifdef CHRONO_HAS_CXX17
     #include <filesystem>

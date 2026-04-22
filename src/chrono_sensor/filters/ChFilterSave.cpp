@@ -18,6 +18,7 @@
 #include "chrono_sensor/filters/ChFilterSave.h"
 #include "chrono_sensor/sensors/ChOptixSensor.h"
 #include "chrono_sensor/utils/CudaMallocHelper.h"
+#include "chrono_sensor/utils/ChOpenExrUtils.h"
 
 #include "chrono_thirdparty/stb/stb_image_write.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -162,9 +163,9 @@ CH_SENSOR_API void ChFilterSave::Apply() {
                         m_depth_in->Width * m_depth_in->Height * sizeof(PixelDepth), cudaMemcpyDeviceToHost,
                         m_cuda_stream);
         cudaStreamSynchronize(m_cuda_stream);
-        // write the depth map
-        filename.replace(filename.length() - 3, 3, "bin");
-        if (!WriteFloatToBinary(filename, m_host_depth->Width, m_host_depth->Height, m_host_depth->Buffer.get())) {
+        // Write the depth map to an EXR file
+        filename.replace(filename.length() - 3, 3, "exr");
+        if (!WriteFloatToExr(filename, m_host_depth->Width, m_host_depth->Height, 1, m_host_depth->Buffer.get())) {
             std::cerr << "Failed to write depth map to " << filename << "\n";
         }
     }

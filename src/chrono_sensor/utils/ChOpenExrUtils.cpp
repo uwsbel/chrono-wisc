@@ -151,8 +151,11 @@ bool WriteFloatToExr(const std::string& file_path, uint16_t width, uint16_t heig
         Imf::Header header(width, height);
 
         // Define channels
-        header.channels().insert("R", Imf::Channel(Imf::FLOAT));
-        if (num_chs == 3) {
+        if (num_chs == 1) {
+            header.channels().insert("Y", Imf::Channel(Imf::FLOAT));
+        }
+        else if (num_chs == 3) {
+            header.channels().insert("R", Imf::Channel(Imf::FLOAT));
             header.channels().insert("G", Imf::Channel(Imf::FLOAT));
             header.channels().insert("B", Imf::Channel(Imf::FLOAT));
         }
@@ -163,18 +166,29 @@ bool WriteFloatToExr(const std::string& file_path, uint16_t width, uint16_t heig
         const uint64_t xStride = sizeof(float) * num_chs;
         const uint64_t yStride = sizeof(float) * num_chs * width;
 
-        // R channel starts at float_data[0]
-        frameBuffer.insert(
-            "R",
-            Imf::Slice(
-                Imf::FLOAT,
-                reinterpret_cast<char*>(const_cast<float*>(float_data)),
-                xStride,
-                yStride
-            )
-        );
+        if (num_chs == 1) {
+            frameBuffer.insert(
+                "Y",
+                Imf::Slice(
+                    Imf::FLOAT,
+                    reinterpret_cast<char*>(const_cast<float*>(float_data)),
+                    xStride,
+                    yStride
+                )
+            );
+        }
+        else if (num_chs == 3) {
+            // R channel starts at float_data[0]
+            frameBuffer.insert(
+                "R",
+                Imf::Slice(
+                    Imf::FLOAT,
+                    reinterpret_cast<char*>(const_cast<float*>(float_data)),
+                    xStride,
+                    yStride
+                )
+            );
 
-        if (num_chs == 3) {
             // G channel starts at float_data[1]
             frameBuffer.insert(
                 "G",

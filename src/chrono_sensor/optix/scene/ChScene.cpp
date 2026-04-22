@@ -17,6 +17,7 @@
 
 #include "chrono/physics/ChSystem.h"
 #include "chrono/utils/ChUtils.h"
+#include "chrono_sensor/utils/ChOpenExrUtils.h"
 
 #include "chrono_sensor/optix/scene/ChScene.h"
 

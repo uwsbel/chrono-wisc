@@ -133,11 +133,6 @@ CH_SENSOR_API void GetShaderFromPtx(OptixDeviceContext context,
 /// @param filename the file name of the image to be loaded
 CH_SENSOR_API ByteImageData LoadByteImage(const std::string& filename);
 
-/// @brief Loads a float image from a file.
-/// @param filename the file name of the image to be loaded
-/// @return the loaded float image data, or an empty struct with 0 values if loading failed
-CH_SENSOR_API FloatImageData LoadFloatImage(const std::string& filename);
-
 /*
 /// Creates an empty optix transform::node
 /// @param context the optix context

@@ -63,47 +63,6 @@ extern "C" __global__ void __raygen__camera() {
         get_cam_ray_direction(ray_origin, ray_direction, cam_forward, cam_left, cam_up, raygen, camera.lens_model, camera.lens_parameters,
                               camera.hFOV, px_2D_idx, img_size, t_frac, jitter);
 
-        //// ============= ////
-        /*
-        const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent during the frame
-        float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
-        float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
-        
-        basis_from_quaternion(ray_quat, cam_forward, cam_left, cam_up);
-
-        //// Get (u, v) location on the view plane ////
-        // Last jitter must be at the center of the pixel
-        float2 jitter = (sample_idx == num_spp - 1) ? make_float2(0.5f, 0.5f) : make_float2(curand_uniform(&rng), curand_uniform(&rng)); 
-        
-        // UV ~ [{(j + Unif(0, 1)) / img_w * 2 - 1} in range[-1, 1], {(i + Unif(0, 1)) / img_h * 2 - 1} in range[-1, 1]]
-        float2 uv = (make_float2(px_2D_idx.x, px_2D_idx.y) + jitter) / make_float2(img_size.x, img_size.y) * 2.f - make_float2(1.f);
-        
-        // Bo-Hsun TODO: This should be added here or after the lens distortion model?
-        // Correct the aspect ratio
-        uv.y *= (float)(img_size.y) / (float)(img_size.x);  
-
-        // Apply lens distortion model
-        if (camera.lens_model == CameraLensModelType::FOV_LENS && ((uv.x) > 1e-5 || abs(uv.y) > 1e-5)) {
-            float focal = 1.f / tanf(camera.hFOV / 2.0);
-            float2 uv_nrmlz = uv / focal;
-            float rd = sqrtf(uv_nrmlz.x * uv_nrmlz.x + uv_nrmlz.y * uv_nrmlz.y);
-            float ru = tanf(rd * camera.hFOV) / (2 * tanf(camera.hFOV / 2.0));
-            uv = uv_nrmlz * (ru / rd) * focal;
-        } else if (camera.lens_model == CameraLensModelType::RADIAL) {
-            float recip_focal = tanf(camera.hFOV / 2.0);
-            float2 uv_nrmlz = uv * recip_focal;
-            float rd2 = uv_nrmlz.x * uv_nrmlz.x + uv_nrmlz.y * uv_nrmlz.y;
-            float distortion_ratio = radial_function(rd2, camera.lens_parameters);
-            uv = uv_nrmlz * distortion_ratio / recip_focal;
-        }
-        
-        // Compute ray direction
-        // const float h_factor = camera.hFOV / CUDART_PI_F * 2.0; // bug here
-        const float h_factor = tanf(camera.hFOV / 2.f);
-        float3 ray_direction = normalize(cam_forward - uv.x * cam_left * h_factor + uv.y * cam_up * h_factor);
-        */
-        //// ============= ////
-
         // Create per-ray data for camera ray
         PerRayData_camera prd = DefaultCameraPRD();
         prd.integrator = camera.integrator;
