@@ -58,8 +58,13 @@ endif()
 #--------------------------------------------------------------
 
 message(STATUS "Add demo programs for FSI module")
-	
+		
 foreach(PROGRAM ${DEMOS})
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROGRAM}.cpp")
+        message(STATUS "  Skipping ${PROGRAM}: source file not found")
+        continue()
+    endif()
+
     add_executable(${PROGRAM} ${PROGRAM}.cpp)
     source_group("" FILES ${PROGRAM}.cpp)
 

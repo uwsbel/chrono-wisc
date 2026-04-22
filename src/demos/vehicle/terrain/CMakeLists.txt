@@ -109,6 +109,11 @@ endif()
 foreach(PROGRAM ${DEMOS})
     # MESSAGE(STATUS "...add ${PROGRAM}")
 
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROGRAM}.cpp")
+        message(STATUS "  Skipping ${PROGRAM}: source file not found")
+        continue()
+    endif()
+
     add_executable(${PROGRAM} ${PROGRAM}.cpp ${UTILS})
     source_group("" FILES ${PROGRAM}.cpp ${UTILS})
 

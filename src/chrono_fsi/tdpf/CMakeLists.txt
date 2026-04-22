@@ -48,6 +48,23 @@ set(FSITDPF_HC_FILES
     ${CH_HYDROCHRONO_DIR}/include/hydroc/chloadaddedmass.h
     ${CH_HYDROCHRONO_DIR}/src/chloadaddedmass.cpp
 )
+
+set(FSITDPF_HC_MISSING_FILES "")
+foreach(_hc_file ${FSITDPF_HC_FILES})
+    if(NOT EXISTS "${_hc_file}")
+        list(APPEND FSITDPF_HC_MISSING_FILES "${_hc_file}")
+    endif()
+endforeach()
+
+if(FSITDPF_HC_MISSING_FILES)
+    message(WARNING
+        "HydroChrono sources not found; disabling Chrono::FSI TDPF submodule.\n"
+        "Missing files:\n  ${FSITDPF_HC_MISSING_FILES}"
+    )
+    set(CH_ENABLE_MODULE_FSI_TDPF OFF CACHE BOOL "Enable the Chrono::TDPF FSI module" FORCE)
+    return()
+endif()
+
 source_group("tdpf" FILES ${FSITDPF_HC_FILES})
 
 # --------------- 3rd party STB FILES
