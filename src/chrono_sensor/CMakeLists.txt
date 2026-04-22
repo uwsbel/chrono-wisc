@@ -417,6 +417,7 @@ set(Chrono_sensor_UTILS_SOURCES
     utils/ChGPSUtils.cpp
     utils/Kdtree.cpp
     utils/Dbscan.cpp
+    utils/ChOpenExrUtils.cpp
 )
 
 set(Chrono_sensor_UTILS_HEADERS
@@ -425,6 +426,7 @@ set(Chrono_sensor_UTILS_HEADERS
     utils/ChGPSUtils.h
     utils/Kdtree.h
     utils/Dbscan.h
+    utils/ChOpenExrUtils.h
 )
 
 if(CH_USE_SENSOR_OPTIX)

@@ -145,7 +145,7 @@ CH_SENSOR_API void ChFilterRGBDHalf4ToImageHalf4::Apply() {
     m_buffer_out->TimeStamp = m_buffer_in->TimeStamp;
 }
 
-CH_SENSOR_API ChFilterDepthToRGBA8::ChFilterDepthToRGBA8(std::string name) : ChFilter(name) {}
+CH_SENSOR_API ChFilterDepthToRGBA8::ChFilterDepthToRGBA8(float far_clip, std::string name) : m_far_clip(far_clip), ChFilter(name) {}
 CH_SENSOR_API void ChFilterDepthToRGBA8::Initialize(std::shared_ptr<ChSensor> pSensor,
                                                          std::shared_ptr<SensorBuffer>& bufferInOut) {
     if (!bufferInOut)
@@ -176,7 +176,7 @@ CH_SENSOR_API void ChFilterDepthToRGBA8::Initialize(std::shared_ptr<ChSensor> pS
 
 CH_SENSOR_API void ChFilterDepthToRGBA8::Apply() {
     cuda_depth_to_uchar4(m_buffer_in->Buffer.get(), m_buffer_out->Buffer.get(), m_buffer_out->Width,
-                               m_buffer_out->Height, m_cuda_stream);
+                               m_buffer_out->Height, m_far_clip, m_cuda_stream);
 
     m_buffer_out->LaunchedCount = m_buffer_in->LaunchedCount;
     m_buffer_out->TimeStamp = m_buffer_in->TimeStamp;

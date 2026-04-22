@@ -32,12 +32,21 @@ __device__ __inline__ PerRayData_depthCamera DefaultDepthCameraPRD(float maxDept
 /// Ray generation program for depth camera
 extern "C" __global__ void __raygen__depth_camera() {
     const RaygenParameters* raygen = (RaygenParameters*) optixGetSbtDataPointer();
-    const DepthCameraParameters& camera = raygen->specific.depthCamera;
+    const DepthCameraParameters& depth_cam = raygen->specific.depthCamera;
 
-    const uint3 idx = optixGetLaunchIndex();
-    const uint3 screen = optixGetLaunchDimensions();
-    const unsigned int image_index = screen.x * idx.y + idx.x;
+    const uint3 px_2D_idx = optixGetLaunchIndex();
+    const uint3 img_size = optixGetLaunchDimensions();
+    const unsigned int pixel_idx = img_size.x * px_2D_idx.y + px_2D_idx.x;
+    float t_frac = 0.f;
+    float2 jitter = make_float2(0.5f, 0.5f);
+    float3 ray_origin, ray_direction;
+    float3 cam_forward, cam_left, cam_up;
 
+    get_cam_ray_direction(ray_origin, ray_direction, cam_forward, cam_left, cam_up, raygen, depth_cam.lens_model,
+                          depth_cam.lens_parameters, depth_cam.hFOV, px_2D_idx, img_size, t_frac, jitter);
+
+    // ================================== //
+    /*
     float2 d =
         (make_float2(idx.x, idx.y) + make_float2(0.5, 0.5)) / make_float2(screen.x, screen.y) * 2.f - make_float2(1.f);
     d.y *= (float)(screen.y) / (float)(screen.x);  // correct for the aspect ratio
@@ -59,9 +68,9 @@ extern "C" __global__ void __raygen__depth_camera() {
 
     float t_frac = 0.f;
     if (camera.rng_buffer)
-        t_frac = curand_uniform(
-            &camera.rng_buffer[image_index]);  // 0-1 between start and end time of the camera (chosen here)
-    const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
+        t_frac = curand_uniform(&camera.rng_buffer[image_index]);  // 0-1 between start and end time of the camera (chosen here)
+    
+        const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
 
     float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
     float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
@@ -74,17 +83,33 @@ extern "C" __global__ void __raygen__depth_camera() {
 
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
+    */
 
-    PerRayData_depthCamera prd = DefaultDepthCameraPRD(camera.max_depth);
+    PerRayData_depthCamera prd = DefaultDepthCameraPRD(depth_cam.max_depth);
     
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd, opt1, opt2);
     unsigned int raytype = (unsigned int)RayType::DEPTH_RAY_TYPE;
-    optixTrace(params.root, ray_origin, ray_direction, params.scene_epsilon, 1e16f, t_traverse, OptixVisibilityMask(1),
-               OPTIX_RAY_FLAG_NONE, 0, 1, 0, opt1, opt2, raytype);
+    const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent during the frame
+    optixTrace(
+        params.root,
+        ray_origin,
+        ray_direction,
+        params.scene_epsilon,
+        1e16f,
+        t_traverse,
+        OptixVisibilityMask(1),
+        OPTIX_RAY_FLAG_NONE,
+        0,
+        1,
+        0,
+        opt1,
+        opt2,
+        raytype
+    );
 
-    camera.frame_buffer[image_index] = prd.depth;
+    depth_cam.frame_buffer[pixel_idx] = prd.depth;
 }
 
 #endif // DEPTH_CAM_RAYGEN_CU

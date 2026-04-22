@@ -47,15 +47,24 @@ extern "C" __global__ void __raygen__camera() {
     }   
     
     curandState_t rng = camera.rng_buffer[pixel_idx];
+    float3 ray_origin, ray_direction;
     float3 cam_forward, cam_left, cam_up;
-    for (int sample_idx = 0; sample_idx < num_spp; sample_idx++) {
+    for (unsigned int sample_idx = 0; sample_idx < num_spp; sample_idx++) {
     
         //// Get camera's pose (origin of the ray to be launched) ////
         
         // Add motion-blur effect
         float t_frac = (camera.rng_buffer) ? curand_uniform(&rng) : 0.f;
-        // float t_frac = static_cast<float>((sample_idx + 1)) * recip_num_spp;  // evenly-spaced midpoint samples over span to compose motion blu
+        // float t_frac = static_cast<float>((sample_idx + 1)) * recip_num_spp;  // uniformly-spaced midpoint samples over span to compose motion-blur
         
+        // Last jitter must be at the center of the pixel
+        float2 jitter = (sample_idx == num_spp - 1) ? make_float2(0.5f, 0.5f) : make_float2(curand_uniform(&rng), curand_uniform(&rng));
+        
+        get_cam_ray_direction(ray_origin, ray_direction, cam_forward, cam_left, cam_up, raygen, camera.lens_model, camera.lens_parameters,
+                              camera.hFOV, px_2D_idx, img_size, t_frac, jitter);
+
+        //// ============= ////
+        /*
         const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent during the frame
         float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
         float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
@@ -92,6 +101,8 @@ extern "C" __global__ void __raygen__camera() {
         // const float h_factor = camera.hFOV / CUDART_PI_F * 2.0; // bug here
         const float h_factor = tanf(camera.hFOV / 2.f);
         float3 ray_direction = normalize(cam_forward - uv.x * cam_left * h_factor + uv.y * cam_up * h_factor);
+        */
+        //// ============= ////
 
         // Create per-ray data for camera ray
         PerRayData_camera prd = DefaultCameraPRD();
@@ -103,6 +114,7 @@ extern "C" __global__ void __raygen__camera() {
         unsigned int opt2;
         pointer_as_ints(&prd, opt1, opt2);
         unsigned int raytype = (unsigned int)RayType::CAMERA_RAY_TYPE;
+        const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent during the frame
         // printf("CameraRayGen: orig: (%f,%f,%f), dir:(%f,%f,%f)\n", ray_origin.x,ray_origin.y,ray_origin.z, ray_direction.x, ray_direction.y, ray_direction.z);
         optixTrace(
             params.root,            // The scene traversable handle (OptixTraversableHandle); basically the top-level acceleration structure (TLAS).

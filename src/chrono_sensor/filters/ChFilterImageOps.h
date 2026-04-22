@@ -130,8 +130,9 @@ class CH_SENSOR_API ChFilterDepthToRGBA8 : public ChFilter {
   
   public:
     /// @brief Class constructor
+    /// @param far_clip The far clipping distance for depth map visualization.
     /// @param name String name of the filter.
-    ChFilterDepthToRGBA8(std::string name = {});
+    ChFilterDepthToRGBA8(float far_clip, std::string name = {});
     
     /// @brief Apply function. Applies the depth to RGBA8 conversion to the image.
     virtual void Apply();
@@ -144,7 +145,8 @@ class CH_SENSOR_API ChFilterDepthToRGBA8 : public ChFilter {
   private:
     std::shared_ptr<SensorDeviceDepthBuffer> m_buffer_in;   ///< holder of the input depth map
     std::shared_ptr<SensorDeviceRGBA8Buffer> m_buffer_out;  ///< holder of the output RGBA8 image
-    CUstream m_cuda_stream;                                 ///< reference to the cuda stream                
+    CUstream m_cuda_stream;                                 ///< reference to the cuda stream
+    float m_far_clip;                                       ///< far clipping distance for depth visualization      
 };
 
 /// A filter that converts normal map to RGBA8

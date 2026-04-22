@@ -448,6 +448,56 @@ __device__ __inline__ float gaussian(int x, int y, float sigma) {
     return expf(-(x * x + y * y) / (2 * sigma * sigma)) / (2 * CUDART_PI_F * sigma * sigma);
 }
 
+__device__ __inline__ void get_cam_ray_direction(float3& ray_origin,
+                                                 float3& ray_direction,
+                                                 float3& cam_forward,
+                                                 float3& cam_left,
+                                                 float3& cam_up,
+                                                 const RaygenParameters* const raygen,
+                                                 const CameraLensModelType& lens_type,
+                                                 const LensParams& lens_params,
+                                                 const float& cam_hFOV,
+                                                 const uint3& px_2D_idx,
+                                                 const uint3& img_size,
+                                                 const float& t_frac,
+                                                 const float2& jitter) {
+    
+    ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
+    float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
+    
+    basis_from_quaternion(ray_quat, cam_forward, cam_left, cam_up);
+
+    //// Get (u, v) location on the view plane ////
+    // UV ~ [{(j + Unif(0, 1)) / img_w * 2 - 1} in range[-1, 1], {(i + Unif(0, 1)) / img_h * 2 - 1} in range[-1, 1]]
+    float2 uv = (make_float2(px_2D_idx.x, px_2D_idx.y) + jitter) / make_float2(img_size.x, img_size.y) * 2.f - make_float2(1.f);
+    
+    // Bo-Hsun TODO: This should be added here or after the lens distortion model?
+    // Correct the aspect ratio
+    uv.y *= (float)(img_size.y) / (float)(img_size.x);  
+
+    // Apply lens distortion model
+    if (lens_type == CameraLensModelType::FOV_LENS && ((uv.x) > 1e-6 || abs(uv.y) > 1e-6)) {
+        float focal = 1.f / tanf(cam_hFOV / 2.0);
+        float2 uv_nrmlz = uv / focal;
+        float rd = sqrtf(uv_nrmlz.x * uv_nrmlz.x + uv_nrmlz.y * uv_nrmlz.y);
+        float ru = tanf(rd * cam_hFOV) / (2 * tanf(cam_hFOV / 2.0));
+        uv = uv_nrmlz * (ru / rd) * focal;
+    }
+    else if (lens_type == CameraLensModelType::RADIAL) {
+        float recip_focal = tanf(cam_hFOV / 2.0);
+        float2 uv_nrmlz = uv * recip_focal;
+        float rd2 = uv_nrmlz.x * uv_nrmlz.x + uv_nrmlz.y * uv_nrmlz.y;
+        float distortion_ratio = radial_function(rd2, lens_params);
+        uv = uv_nrmlz * distortion_ratio / recip_focal;
+    }
+    
+    // Compute ray direction
+    // const float h_factor = camera.hFOV / CUDART_PI_F * 2.0; // bug here
+    const float h_factor = tanf(cam_hFOV / 2.f);
+    ray_direction = normalize(cam_forward - uv.x * cam_left * h_factor + uv.y * cam_up * h_factor);
+}
+
+
 #ifdef USE_SENSOR_NVDB
     __device__ __inline__ float3 make_float3(const nanovdb::Vec3f& a) {
         return make_float3(a[0], a[1], a[2]);

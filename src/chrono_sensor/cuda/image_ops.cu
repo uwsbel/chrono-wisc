@@ -196,10 +196,11 @@ __global__ void image_half4_to_uchar4_kernel(__half* bufIn, unsigned char* bufOu
 //}
 
 
-__global__ void depth_to_uchar4_kernel(float* bufIn, unsigned char* bufOut, float d_min, float d_max, int N) {
+__global__ void depth_to_uchar4_kernel(float* bufIn, unsigned char* bufOut, float d_min, float far_clip, float d_max, int N) {
     int idx = (blockDim.x * blockIdx.x + threadIdx.x);  // index into output buffer
     if (idx < N) {
-        float normalized_depth = clamp((bufIn[idx] - d_min) / (d_max - d_min), 0.f, 1.f);
+        float normalized_depth = (bufIn[idx] >= 0.999f * far_clip) ? 0.f : (bufIn[idx] - d_min) / (d_max - d_min);
+        normalized_depth = clamp(normalized_depth, 0.f, 1.f);
         unsigned char intensity = (unsigned char)(normalized_depth * 255.f);
 
         // Gray scale colormap
@@ -280,7 +281,7 @@ void cuda_image_float4_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstre
     image_float4_to_uchar4_kernel<<<nBlocks, nThreads, 0, stream>>>((float*)bufIn, (unsigned char*)bufOut, w * h * 4);
 }
 
-void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& stream) {
+void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, float far_clip, CUstream& stream) {
     // Set up kernel launch configuration
     // int blockSize = 256;
     // int gridSize = (w * h + blockSize * 2 - 1) / (blockSize * 2);
@@ -292,13 +293,41 @@ void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& str
     cudaMemcpy(d_min, &MIN, sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_max, &MAX, sizeof(float), cudaMemcpyHostToDevice);*/
 
-    thrust::device_vector<float> bufIn_thrust((float*)bufIn, (float*)bufIn + w * h);
-    thrust::device_ptr<float> buffIn_ptr = thrust::device_pointer_cast((float*)bufIn);
-    // thrust::pair<float*, float*> result = thrust::minmax_element(thrust::device, (float*)bufIn, (float*)bufIn + w *
-    // h);
+    thrust::device_ptr<float> buf_ptr = thrust::device_pointer_cast((float*)bufIn);
 
-    thrust::pair<thrust::device_vector<float>::iterator, thrust::device_vector<float>::iterator> result =
-        thrust::minmax_element(bufIn_thrust.begin(), bufIn_thrust.end());
+    auto min_it = thrust::min_element(thrust::cuda::par.on(stream), buf_ptr, buf_ptr + w * h);
+    float min_val;
+    cudaMemcpyAsync(&min_val,
+                    thrust::raw_pointer_cast(min_it),
+                    sizeof(float),
+                    cudaMemcpyDeviceToHost,
+                    stream);
+
+    cudaStreamSynchronize(stream);
+
+    float far_clip_threshold = 0.999f * far_clip;
+    auto max_it = thrust::max_element(
+        thrust::cuda::par.on(stream),
+        buf_ptr, buf_ptr + w * h,
+        [far_clip_threshold] __host__ __device__ (float a, float b) {
+            bool a_invalid = (a >= far_clip_threshold);
+            bool b_invalid = (b >= far_clip_threshold);
+
+            if (a_invalid && b_invalid) return false;
+            if (a_invalid) return true;
+            if (b_invalid) return false;
+            return a < b;
+        }
+    );
+
+    float max_val;
+    cudaMemcpyAsync(&max_val,
+                    thrust::raw_pointer_cast(max_it),
+                    sizeof(float),
+                    cudaMemcpyDeviceToHost,
+                    stream);
+
+    cudaStreamSynchronize(stream);
 
     // Launch the kernel
     // minmax_kernel_2d<<<gridSize, blockSize, blockSize * 2 * sizeof(float)>>>((float*)bufIn, d_min, d_max, w, h);
@@ -308,8 +337,8 @@ void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& str
     const int nThreads = 512;
     int nBlocks = (w * h + nThreads - 1) / nThreads;
 
-    depth_to_uchar4_kernel<<<nBlocks, nThreads, 0, stream>>>((float*)bufIn, (unsigned char*)bufOut, *(result.first),
-                                                             *(result.second), w * h);
+    depth_to_uchar4_kernel<<<nBlocks, nThreads, 0, stream>>>((float*)bufIn, (unsigned char*)bufOut, min_val, far_clip,
+                                                              max_val, w * h);
 }
 
 //--------------------------------------------//

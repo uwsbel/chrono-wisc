@@ -104,8 +104,9 @@ void cuda_image_RGBDhalf4_to_Half4(void* bufIn, void* bufOut, int w, int h, CUst
 /// @param bufOut A device pointer to the ouput image.
 /// @param w The output image width.
 /// @param h The output image height.
+/// @param far_clip The far clipping distance for depth map isualization.
 /// @param stream cuda stream for computation
-void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, CUstream& stream);
+void cuda_depth_to_uchar4(void* bufIn, void* bufOut, int w, int h, float far_clip, CUstream& stream);
 
 /// Conversion from RGBD half4 to D-channel uchar
 /// @param bufIn  A device pointer to the input RGBD image.
