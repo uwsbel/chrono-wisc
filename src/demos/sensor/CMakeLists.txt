@@ -17,6 +17,8 @@ if(CH_USE_SENSOR_OPTIX)
       demo_SEN_radar
       demo_SEN_radar1
       demo_SEN_tachometer  
+      demo_SEN_LuminanceCali
+      demo_SEN_HMMWV_MystVillage
   )
 
   # Demos that combine sensor simulation with vehicle dynamics

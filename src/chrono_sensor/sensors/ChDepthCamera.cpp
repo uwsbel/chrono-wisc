@@ -42,7 +42,7 @@ ChDepthCamera::ChDepthCamera(std::shared_ptr<ChBody> parent,
     // Push the access filters before converting to RGBA8 to visualize
     m_filters.push_back(chrono_types::make_shared<ChFilterDepthAccess>());
 
-    m_filters.push_back(chrono_types::make_shared<ChFilterDepthToRGBA8>());
+    // m_filters.push_back(chrono_types::make_shared<ChFilterDepthToRGBA8>());
 
     SetCollectionWindow(0.f);
     SetLag(1.f / updateRate);

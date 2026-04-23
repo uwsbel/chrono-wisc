@@ -128,9 +128,14 @@ static __device__ __inline__ void CameraPathIntegrator(
 			NdH = Dot(world_normal, halfway);
 			VdH = Dot(-ray_dir, halfway); // dot(V, H) = dot(H, L), since H is halfway between L and V
 			// Compute direct lighting
-			prd_camera->color = (light_sample.L
-								* PrincipledBRDF(albedo, roughness, metallic, specular, 1.0f, mat.use_specular_workflow, NdV, light_sample.NdL, NdH, VdH))
-								/ (light_sample.pdf);
+			if (bsdf_type == BSDFType::SIMPLEPRINCIPLED) {
+				prd_camera->color = (light_sample.L	* SimplifiedPrincipledBRDF(albedo, roughness, metallic, 1.0f, NdV, light_sample.NdL, NdH, VdH))	/ (light_sample.pdf);
+			}
+			else {
+				prd_camera->color = (light_sample.L
+									* PrincipledBRDF(albedo, roughness, metallic, specular, 1.0f, mat.use_specular_workflow, NdV, light_sample.NdL, NdH, VdH))
+									/ (light_sample.pdf);
+			} 
 			// prd_camera->color = {0., 1.0, 0.}; // debug
 		}
 		else {
@@ -217,11 +222,17 @@ static __device__ __inline__ void CameraPathIntegrator(
 			float NdH = Dot(world_normal, halfway);
 			float VdH = Dot(-ray_dir, halfway);  // Same as LdH
 			float sampling_pdf = NdL / CUDART_PI_F; // cosine hemisphere pdf
-			float3 this_contrib_to_pixel = PrincipledBRDF(albedo, roughness, metallic, specular, 1.0f, mat.use_specular_workflow, NdV, NdL, NdH, VdH);
+			float3 this_contrib_to_pixel = make_float3(0., 0., 0.);
+			if (bsdf_type == BSDFType::SIMPLEPRINCIPLED) {
+				this_contrib_to_pixel = SimplifiedPrincipledBRDF(albedo, roughness, metallic, 1.0f, NdV, NdL, NdH, VdH);
+			}
+			else {
+			 	this_contrib_to_pixel = PrincipledBRDF(albedo, roughness, metallic, specular, 1.0f, mat.use_specular_workflow, NdV, NdL, NdH, VdH);
+			}
 			// float3 this_contrib_to_pixel = make_float3(1.f) * NdL;
 			
 			// LEGACY: magic heuristic mirror correction for specular reflection
-			if (weight_idx == 1) 
+			if ((weight_idx == 1) && (bsdf_type != BSDFType::SIMPLEPRINCIPLED))
 				this_contrib_to_pixel = this_contrib_to_pixel * (1.f - roughness) * (1.f - roughness) * metallic * metallic; 
 			
 			float3 next_contrib_to_pixel = prd_camera->contrib_to_pixel * this_contrib_to_pixel;

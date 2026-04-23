@@ -247,6 +247,54 @@ static __device__ __inline__ float3 PrincipledBRDF(const float3& albedo,
     return clamp(light_reflected_ratio, make_float3(0.f), make_float3(1.f));
 }
 
+static __device__ inline float LambdaGGX(const float alphaSqr, const float cosTheta)
+{
+    float cosThetaSqr = cosTheta * cosTheta;
+    float tanThetaSqr = (1.0 - cosThetaSqr) / cosThetaSqr;
+    return 0.5f * (sqrtf(1.0f + alphaSqr * tanThetaSqr) - 1.0f);
+}
+
+static __device__ inline float NdfGGX(const float& alphaSqr, const float& cosTheta) {
+    float d = (alphaSqr - 1.f) * (cosTheta * cosTheta) + 1.0f;
+    return alphaSqr / (d * d * CUDART_PI);
+}
+
+static __device__ inline float3 FresnelSchlick(const float3& f0, const float3& f90, const float& cosTheta) {
+    float scale = powf(1.0f - cosTheta, 5.0f);
+    return f0 * (1.0f - scale) + f90 * scale;
+}
+
+static __device__ __inline__ float3 PbrSpecular(
+    const float3& spec_color, const float& alpha,
+    const float& NdV, const float& NdL, const float& NdH, const float& VdH
+) {
+
+    float alphaSqr = alpha * alpha;
+
+    float3 F = FresnelSchlick(spec_color, make_float3(1.f, 1.f, 1.f), VdH);
+    float D = NdfGGX(alphaSqr, NdH);
+    float G = 1.0f / (1.0f + LambdaGGX(alphaSqr, NdV) + LambdaGGX(alphaSqr, NdL));
+    
+    return F * D * G * 0.25 / (NdV * NdL);
+}
+
+static __device__ __inline__ float3 SimplifiedPrincipledBRDF(
+    const float3& albedo, const float& roughness, const float& metallic, const float& contrib_weight,
+    const float& NdV, const float& NdL, const float& NdH, const float& VdH
+) {
+    const float min_roughness = 0.08;
+    const float alpha = clamp(roughness * roughness, min_roughness * min_roughness, 1.f);
+
+    float3 spec_color = (1.0f - metallic) * make_float3(0.04f) + metallic * albedo;
+        
+    float3 diffuse = (1.0f - metallic) * albedo / CUDART_PI;
+    float3 specular = PbrSpecular(spec_color, alpha, NdV, NdL, NdH, VdH);
+
+    return contrib_weight * NdL * (diffuse + specular);
+
+
+}
+
 // Account for Fog effect
 static __device__ __inline__ void AddFogEffect(PerRayData_camera* prd_camera,
                                                const ContextParameters& cntxt_params,

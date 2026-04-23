@@ -43,14 +43,13 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChOptixSensor {
 		/// @param w The width of the image the camera should generate.
 		/// @param h The height of the image the camera should generate.
 		/// @param lens_model A enum specifying the desired lens model.
-		/// @param sensor_width equivalent width of the image sensor to calculate hHOV, [mm]
-		/// @param pixel_size length of a pixel to calculate depth of field, [mm]
 		/// @param supersample_factor The number of rays that should be sampled per pixel for antialiasing.
 		/// @param use_diffuse_reflect whether to consider diffuse reflection in rendering. If false, only consider specular reflection.
 		/// @param use_denoiser whether to use OptiX denoiser for diffuse reflection or area light.
 		/// @param use_defocus_blur whether to use defocus blur effect
 		/// @param use_vignetting whether to use vignetting effect
 		/// @param use_aggregator whether to aggregate illumination irradiance over exposure time and pixel area
+		/// @param use_noise whether to add noises
 		/// @param use_expsr_to_dv whether to convert exposure domain to digital value domain
 		/// @param integrator The type of integrator algorithm to use for rendering.
 		/// @param gamma correction of the image, 1 for linear color space, 2.2 for sRGB
