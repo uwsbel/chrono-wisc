@@ -228,6 +228,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/lidar_raygen.cu
       optix/shaders/normal_cam_raygen.cu
       optix/shaders/phys_cam_raygen.cu
+      optix/shaders/phys_radar_raygen.cu
       optix/shaders/radar_raygen.cu
       optix/shaders/segment_cam_raygen.cu
       # ---- Register Your Customized Sensor Raygen Here (Cmake compiling) ---- #
@@ -254,6 +255,7 @@ if(CH_USE_SENSOR_OPTIX)
       optix/shaders/depth_cam_shader.cuh
       optix/shaders/lidar_shader.cuh
       optix/shaders/normal_cam_shader.cuh
+      optix/shaders/phys_radar_shader.cuh
       optix/shaders/radar_shader.cuh
       optix/shaders/segment_cam_shader.cuh
       optix/shaders/shadow_shader.cuh
@@ -295,6 +297,9 @@ if(CH_USE_SENSOR_OPTIX)
       cuda/image_ops.cu
       cuda/nn_prep.cu
       cuda/lidar_clip.cu
+      cuda/radar_deposit.cu
+      cuda/radar_dsp.cu
+      cuda/radar_impair.cu
       cuda/radarprocess.cu
       cuda/cuda_utils.cu
       cuda/phys_cam_ops.cu
@@ -310,6 +315,9 @@ if(CH_USE_SENSOR_OPTIX)
       cuda/image_ops.cuh
       cuda/nn_prep.cuh
       cuda/lidar_clip.cuh
+      cuda/radar_deposit.cuh
+      cuda/radar_dsp.cuh
+      cuda/radar_impair.cuh
       cuda/radarprocess.cuh
       cuda/cuda_utils.cuh
       cuda/phys_cam_ops.cuh
@@ -381,6 +389,9 @@ if(CH_USE_SENSOR_OPTIX)
       sensors/ChNormalCamera.cpp
       sensors/ChLidarSensor.cpp
       sensors/ChRadarSensor.cpp
+      sensors/ChPhysRadarSensor.cpp
+      sensors/radar/ChRadarConfig.cpp
+      sensors/radar/ChRadarMaterialRegistry.cpp
   )
   set(Chrono_sensor_SENSORS_HEADERS ${Chrono_sensor_SENSORS_HEADERS}
       sensors/ChOptixSensor.h
@@ -391,7 +402,14 @@ if(CH_USE_SENSOR_OPTIX)
       sensors/ChNormalCamera.h
       sensors/ChLidarSensor.h
       sensors/ChRadarSensor.h
+      sensors/ChPhysRadarSensor.h
  )
+  set(Chrono_sensor_RADAR_HEADERS
+      sensors/radar/ChRadarTypes.h
+      sensors/radar/ChRadarConfig.h
+      sensors/radar/ChRadarMaterialRegistry.h
+  )
+  source_group("sensors\\radar" FILES ${Chrono_sensor_RADAR_HEADERS})
 endif()
 
 if(CH_USE_SENSOR_VULKAN_RT)
@@ -710,6 +728,11 @@ if(CH_USE_SENSOR_OPTIX)
       filters/ChFilterPhysCameraAggregator.cpp
       filters/ChFilterPhysCameraNoise.cpp
       filters/ChFilterPhysCameraExpsrToDV.cpp
+      filters/ChFilterPhysRadarSignalForm.cpp
+      filters/ChFilterPhysRadarDetect.cpp
+      filters/ChFilterPhysRadarTrack.cpp
+      filters/ChFilterPhysRadarAccess.cpp
+      filters/ChFilterPhysRadarVisualize.cpp
   )
   set(Chrono_sensor_FILTERS_HEADERS ${Chrono_sensor_FILTERS_HEADERS}
       filters/ChFilterCameraExposure.h
@@ -729,6 +752,11 @@ if(CH_USE_SENSOR_OPTIX)
       filters/ChFilterPhysCameraAggregator.h
       filters/ChFilterPhysCameraNoise.h
       filters/ChFilterPhysCameraExpsrToDV.h
+      filters/ChFilterPhysRadarSignalForm.h
+      filters/ChFilterPhysRadarDetect.h
+      filters/ChFilterPhysRadarTrack.h
+      filters/ChFilterPhysRadarAccess.h
+      filters/ChFilterPhysRadarVisualize.h
   )
 endif()
 
@@ -881,6 +909,7 @@ list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_SOURCES})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_HEADERS})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_SENSORS_SOURCES})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_SENSORS_HEADERS})
+list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_RADAR_HEADERS})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_UTILS_SOURCES})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_UTILS_HEADERS})
 list(APPEND ALL_CH_SENSOR_FILES ${Chrono_sensor_OPTIX_SOURCES})
@@ -1353,6 +1382,7 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_sensor/ChConfigSensor-install.h"
 # Old way
 install(FILES ${Chrono_sensor_HEADERS}         DESTINATION include/chrono_sensor)
 install(FILES ${Chrono_sensor_SENSORS_HEADERS} DESTINATION include/chrono_sensor/sensors)
+install(FILES ${Chrono_sensor_RADAR_HEADERS}   DESTINATION include/chrono_sensor/sensors/radar)
 install(FILES ${Chrono_sensor_UTILS_HEADERS}   DESTINATION include/chrono_sensor/utils)
 install(FILES ${Chrono_sensor_OPTIX_HEADERS}   DESTINATION include/chrono_sensor/optix)
 install(FILES ${Chrono_sensor_VULKAN_HEADERS}  DESTINATION include/chrono_sensor/vulkan)

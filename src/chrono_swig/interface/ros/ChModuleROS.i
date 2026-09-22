@@ -106,6 +106,7 @@
 #include "chrono_sensor/sensors/ChNormalCamera.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
+#include "chrono_sensor/sensors/ChPhysRadarSensor.h"
 #include "chrono_ros/handlers/sensor/ChROSCameraHandler.h"
 #include "chrono_ros/handlers/sensor/ChROSLidarHandler.h"
 #endif

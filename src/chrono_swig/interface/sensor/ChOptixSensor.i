@@ -9,6 +9,9 @@
 #include "chrono_sensor/sensors/ChNormalCamera.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
+#include "chrono_sensor/sensors/radar/ChRadarConfig.h"
+#include "chrono_sensor/sensors/radar/ChRadarMaterialRegistry.h"
+#include "chrono_sensor/sensors/ChPhysRadarSensor.h"
 
 using namespace chrono;
 using namespace chrono::sensor;
@@ -23,6 +26,7 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChNormalCamera)
 %shared_ptr(chrono::sensor::ChRadarSensor)
 %shared_ptr(chrono::sensor::ChPhysCameraSensor)
+%shared_ptr(chrono::sensor::ChPhysRadarSensor)
 
 /* Parse the header file to generate wrappers */
 %include "../../../chrono_sensor/sensors/ChOptixSensor.h"
@@ -34,6 +38,11 @@ using namespace chrono::sensor;
 %include "../../../chrono_sensor/sensors/ChRadarSensor.h"
 %include "../../../chrono_sensor/sensors/ChPhysCameraSensor.h"
 
+%template(RadarElementConfigVector) std::vector<chrono::sensor::ChRadarElementConfig>;
+%include "../../../chrono_sensor/sensors/radar/ChRadarConfig.h"
+%include "../../../chrono_sensor/sensors/radar/ChRadarMaterialRegistry.h"
+%include "../../../chrono_sensor/sensors/ChPhysRadarSensor.h"
+
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChCameraSensor)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChSegmentationCamera)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChDepthCamera)
@@ -41,3 +50,4 @@ using namespace chrono::sensor;
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChNormalCamera)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChRadarSensor)
 %DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChPhysCameraSensor)
+%DefSharedPtrDynamicCast(chrono::sensor, ChSensor, ChPhysRadarSensor)

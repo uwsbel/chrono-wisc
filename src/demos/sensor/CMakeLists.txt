@@ -30,6 +30,7 @@ if(CH_USE_SENSOR_OPTIX)
       demo_SEN_lidar
       demo_SEN_radar
       demo_SEN_radar1
+      demo_SEN_phys_radar
       demo_SEN_tachometer  
   )
 

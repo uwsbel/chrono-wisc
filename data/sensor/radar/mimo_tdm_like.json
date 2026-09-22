@@ -1,0 +1,60 @@
+{
+  "name": "mimo_tdm_like",
+  "field_of_view_azimuth_deg": 100.0,
+  "field_of_view_elevation_deg": 14.0,
+  "min_range_m": 0.3,
+  "max_range_m": 100.0,
+
+  "waveform": {
+    "type": "fmcw_fast_chirp",
+    "carrier_frequency_hz": 76.5e9,
+    "bandwidth_hz": 4.0e8,
+    "chirp_duration_s": 3.2e-5,
+    "chirp_repetition_interval_s": 4.0e-5,
+    "num_chirps": 384,
+    "num_samples": 512,
+    "sample_rate_hz": 2.0e7,
+    "transmit_power_dbm": 12.0
+  },
+
+  "antenna": {
+    "transmitters": [
+      { "position": [0, -0.0078377, 0], "gain_dbi": 14.0, "azimuth_beamwidth_deg": 100.0, "elevation_beamwidth_deg": 16.0 },
+      { "position": [0,  0.0000000, 0], "gain_dbi": 14.0, "azimuth_beamwidth_deg": 100.0, "elevation_beamwidth_deg": 16.0 },
+      { "position": [0,  0.0078377, 0], "gain_dbi": 14.0, "azimuth_beamwidth_deg": 100.0, "elevation_beamwidth_deg": 16.0 }
+    ],
+    "receivers": [
+      { "position": [0, -0.0029391, 0], "gain_dbi": 12.0, "azimuth_beamwidth_deg": 110.0, "elevation_beamwidth_deg": 20.0 },
+      { "position": [0, -0.0009797, 0], "gain_dbi": 12.0, "azimuth_beamwidth_deg": 110.0, "elevation_beamwidth_deg": 20.0 },
+      { "position": [0,  0.0009797, 0], "gain_dbi": 12.0, "azimuth_beamwidth_deg": 110.0, "elevation_beamwidth_deg": 20.0 },
+      { "position": [0,  0.0029391, 0], "gain_dbi": 12.0, "azimuth_beamwidth_deg": 110.0, "elevation_beamwidth_deg": 20.0 }
+    ],
+    "multiplex": "tdm"
+  },
+
+  "impairments": {
+    "noise_figure_db": 13.0,
+    "phase_noise_dbc_hz": -92.0,
+    "phase_noise_offset_hz": 1.0e6,
+    "transmit_leakage_db": -45.0,
+    "adc_bits": 14
+  },
+
+  "dsp": {
+    "range_window": "hann",
+    "doppler_window": "hann",
+    "num_azimuth_bins": 160,
+    "cfar_type": "os",
+    "os_rank_fraction": 0.75,
+    "false_alarm_rate": 1e-6,
+    "suppress_stationary": true,
+    "max_detections": 4096
+  },
+
+  "ray_tracing": {
+    "rays_azimuth": 640,
+    "rays_elevation": 112,
+    "max_bounces": 3,
+    "max_paths": 2097152
+  }
+}

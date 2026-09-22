@@ -30,6 +30,8 @@
 
 #ifdef CHRONO_HAS_OPTIX
     #include <cuda_fp16.h>
+
+    #include "chrono_sensor/sensors/radar/ChRadarTypes.h"
 #endif
 
 namespace chrono {
@@ -442,6 +444,97 @@ using SensorHostRadarXYZBuffer = RadarBufferT<std::shared_ptr<RadarXYZReturn[]>>
 using DeviceRadarXYZBufferPtr = std::shared_ptr<RadarXYZReturn[]>;
 using SensorDeviceRadarXYZBuffer = RadarBufferT<DeviceRadarXYZBufferPtr>;
 using UserRadarXYZBufferPtr = std::shared_ptr<SensorHostRadarXYZBuffer>;
+
+//=====================================================
+// Wave-Domain Radar Data Formats and Buffers
+//=====================================================
+
+/// Base class for radar path-list buffers.
+/// Paths beyond Capacity are counted in Dropped and discarded, so a scene denser than the
+/// configured budget degrades the signal rather than overrunning the buffer.
+template <class B>
+struct PhysRadarPathBufferT : public SensorBufferT<B> {
+    PhysRadarPathBufferT() : NumPaths(0), Capacity(0), Dropped(0), Counter(nullptr) {}
+    unsigned int NumPaths;  ///< paths written this frame
+    unsigned int Capacity;  ///< allocated path slots
+    unsigned int Dropped;   ///< paths discarded this frame because the buffer was full
+    unsigned int* Counter;  ///< device-side {written, dropped} pair; null on host buffers
+};
+
+/// Host buffer holding a radar path list.
+using SensorHostPhysRadarPathBuffer = PhysRadarPathBufferT<std::shared_ptr<RadarPath[]>>;
+
+/// Device buffer holding a radar path list.
+using DevicePhysRadarPathBufferPtr = std::shared_ptr<RadarPath[]>;
+
+/// Sensor buffer wrapper of a DevicePhysRadarPathBufferPtr.
+using SensorDevicePhysRadarPathBuffer = PhysRadarPathBufferT<DevicePhysRadarPathBufferPtr>;
+
+/// Pointer to a radar path list on the host that has been moved for safety and can be given to
+/// the user.
+using UserPhysRadarPathBufferPtr = std::shared_ptr<SensorHostPhysRadarPathBuffer>;
+
+/// One coherent processing interval of radar signal, from the complex cube through to the
+/// object list. Carried as a single buffer because every consumer reads the cube, the detector
+/// threshold and the detections together.
+struct PhysRadarFrame : public SensorBuffer {
+    PhysRadarFrame()
+        : NumRangeBins(0),
+          NumDopplerBins(0),
+          NumChannels(0),
+          NumAzimuthBins(0),
+          NumDetections(0),
+          DetectionCapacity(0),
+          RangeBinSize(0.f),
+          DopplerBinSize(0.f),
+          AzimuthBinSize(0.f),
+          NoisePowerPerCell(0.f),
+          MaxUnambiguousVelocity(0.f),
+          Wavelength(0.f),
+          NumPaths(0),
+          DroppedPaths(0),
+          TotalPathPower(0.f),
+          QuantizationFloor(0.f) {}
+
+    unsigned int NumRangeBins;       ///< range bins per channel
+    unsigned int NumDopplerBins;     ///< Doppler bins per channel
+    unsigned int NumChannels;        ///< virtual (transmit x receive) channels
+    unsigned int NumAzimuthBins;     ///< beams formed across the virtual array
+    unsigned int NumDetections;      ///< detections reported this frame
+    unsigned int DetectionCapacity;  ///< allocated detection slots
+
+    float RangeBinSize;            ///< [m]
+    float DopplerBinSize;          ///< [m/s]
+    float AzimuthBinSize;          ///< [rad] at broadside
+    float NoisePowerPerCell;       ///< thermal noise power in one cube cell [W]
+    float MaxUnambiguousVelocity;  ///< Doppler folds beyond +/- this value [m/s]
+    float Wavelength;              ///< [m]
+
+    unsigned int NumPaths;      ///< paths that fed this frame
+    unsigned int DroppedPaths;  ///< paths the ray tracer could not store
+
+    float TotalPathPower;     ///< summed power of every path, what the converter scales to [W]
+    float QuantizationFloor;  ///< converter noise this frame lands in one cell [W]
+
+    std::shared_ptr<RadarComplex[]> Cube;   ///< complex cube, [channel][doppler][range]
+    std::shared_ptr<float[]> AnglePower;    ///< beamformed power [azimuth][doppler][range], linear watts
+    std::shared_ptr<float[]> PowerMap;      ///< detection power, angle axis collapsed, [doppler][range]
+    std::shared_ptr<float[]> ThresholdMap;  ///< per-cell CFAR threshold, [doppler][range]
+    std::shared_ptr<unsigned long long[]> Provenance;  ///< strongest path per cell; see RadarProvenanceObjectId
+    std::shared_ptr<RadarDetection[]> Detections;      ///< detections that crossed the threshold
+    std::vector<RadarObject> Objects;                  ///< confirmed tracks; always host-side bookkeeping
+};
+
+/// Radar frame whose arrays live in device memory. Distinct from the host frame so the filter
+/// graph cannot silently pass one where the other is expected.
+struct SensorDevicePhysRadarFrame : public PhysRadarFrame {};
+
+/// Radar frame whose arrays live in host memory.
+struct SensorHostPhysRadarFrame : public PhysRadarFrame {};
+
+/// Pointer to a radar frame on the host that has been moved for safety and can be given to the
+/// user.
+using UserPhysRadarFramePtr = std::shared_ptr<SensorHostPhysRadarFrame>;
 
 //=====================================
 // Depth Lidar Data Formats and Buffers

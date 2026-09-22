@@ -26,6 +26,7 @@
 #include "chrono_sensor/sensors/ChDepthCamera.h"
 #include "chrono_sensor/sensors/ChNormalCamera.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
+#include "chrono_sensor/sensors/ChPhysRadarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/sensors/ChSensor.h"
 #include "chrono_sensor/sensors/ChSensorBuffer.h"
@@ -275,6 +276,65 @@ CH_SENSOR_API void ChFilterOptixRender::Initialize(std::shared_ptr<ChSensor> pSe
         m_raygen_record->data.specific.radar.max_distance = radar->GetMaxDistance();
         m_raygen_record->data.specific.radar.clip_near = radar->GetClipNear();
         m_raygen_record->data.specific.radar.frame_buffer = reinterpret_cast<float*>(bufferOut->Buffer.get());
+        m_bufferOut = bufferOut;
+    } else if (auto phys_radar = std::dynamic_pointer_cast<ChPhysRadarSensor>(pSensor)) {
+        const ChRadarModelConfig& cfg = phys_radar->GetConfig();
+        const unsigned int num_rays = pOptixSensor->GetWidth() * pOptixSensor->GetHeight();
+
+        auto bufferOut = chrono_types::make_shared<SensorDevicePhysRadarPathBuffer>();
+        DevicePhysRadarPathBufferPtr b(cudaMallocHelper<RadarPath>(cfg.ray_tracing.max_paths),
+                                       cudaFreeHelper<RadarPath>);
+        bufferOut->Buffer = std::move(b);
+        bufferOut->Capacity = cfg.ray_tracing.max_paths;
+
+        m_radar_path_counter =
+            std::shared_ptr<unsigned int>(cudaMallocHelper<unsigned int>(2), cudaFreeHelper<unsigned int>);
+        cudaMemset(m_radar_path_counter.get(), 0, 2 * sizeof(unsigned int));
+        bufferOut->Counter = m_radar_path_counter.get();
+
+        const std::vector<RadarMaterial> materials = phys_radar->GetMaterialRegistry().BuildTable();
+        m_radar_materials = std::shared_ptr<RadarMaterial>(cudaMallocHelper<RadarMaterial>(materials.size()),
+                                                           cudaFreeHelper<RadarMaterial>);
+        cudaMemcpy(m_radar_materials.get(), materials.data(), materials.size() * sizeof(RadarMaterial),
+                   cudaMemcpyHostToDevice);
+
+        m_rng = std::shared_ptr<curandState_t>(cudaMallocHelper<curandState_t>(num_rays), cudaFreeHelper<curandState_t>);
+        init_cuda_rng(ChSensorManager::GetDeterministicSeed(pSensor, RngUsage::OptixPhysRadarRaygen, GetRngStreamIndex()),
+                      m_rng.get(), num_rays);
+
+        const ChRadarElementConfig& tx = cfg.antenna.transmitters.front();
+        const ChRadarElementConfig& rx = cfg.antenna.receivers.front();
+        const double transmit_power = std::pow(10.0, cfg.waveform.transmit_power_dbm / 10.0) * 1e-3;
+        // Paths this far below the noise a single sample carries cannot matter once the whole
+        // coherent interval is summed, so the tracer never writes them.
+        const double sample_noise_voltage = std::sqrt(cfg.GetNoisePowerPerCell() / cfg.GetWindowPowerProduct());
+
+        auto& radar_params = m_raygen_record->data.specific.phys_radar;
+        radar_params.hFOV = (float)cfg.field_of_view_azimuth;
+        radar_params.vFOV = (float)cfg.field_of_view_elevation;
+        radar_params.min_range = (float)cfg.min_range;
+        radar_params.max_range = (float)cfg.max_range;
+        radar_params.wavelength = (float)cfg.GetWavelength();
+        radar_params.transmit_power = (float)transmit_power;
+        radar_params.ray_solid_angle = (float)cfg.GetRaySolidAngle();
+        radar_params.amplitude_cutoff =
+            (float)(sample_noise_voltage * std::pow(10.0, cfg.ray_tracing.amplitude_cutoff_db / 20.0));
+        radar_params.tx_gain = (float)std::pow(10.0, tx.gain_dbi / 10.0);
+        radar_params.tx_az_exponent = (float)ChRadarPatternExponent(tx.azimuth_beamwidth);
+        radar_params.tx_el_exponent = (float)ChRadarPatternExponent(tx.elevation_beamwidth);
+        radar_params.rx_gain = (float)std::pow(10.0, rx.gain_dbi / 10.0);
+        radar_params.rx_az_exponent = (float)ChRadarPatternExponent(rx.azimuth_beamwidth);
+        radar_params.rx_el_exponent = (float)ChRadarPatternExponent(rx.elevation_beamwidth);
+        radar_params.max_bounces = cfg.ray_tracing.max_bounces;
+        radar_params.max_paths = cfg.ray_tracing.max_paths;
+        radar_params.velocity = make_float3(0.f, 0.f, 0.f);
+        radar_params.materials = m_radar_materials.get();
+        radar_params.num_materials = (unsigned int)materials.size();
+        radar_params.fallback_material = phys_radar->GetMaterialRegistry().GetFallback();
+        radar_params.paths = bufferOut->Buffer.get();
+        radar_params.path_counter = m_radar_path_counter.get();
+        radar_params.rng_buffer = m_rng.get();
+
         m_bufferOut = bufferOut;
     }
     

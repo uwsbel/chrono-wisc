@@ -74,6 +74,8 @@ enum class RngUsage : unsigned int {
     VulkanPhysCameraRaygen = 11,  ///< ChFilterVulkanRTRender, physical camera
     MetalCameraRaygen = 12,       ///< ChFilterMetalRTRender, camera
     MetalPhysCameraRaygen = 13,   ///< ChFilterMetalRTRender, physical camera
+    OptixPhysRadarRaygen = 14,    ///< ChFilterOptixRender, wave-domain radar
+    RadarThermalNoise = 15,       ///< ChFilterPhysRadarSignalForm, receiver noise
     Count                         ///< sentinel; keep last
 };
 

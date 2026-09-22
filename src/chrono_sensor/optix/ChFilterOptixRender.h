@@ -89,6 +89,11 @@ class CH_SENSOR_API ChFilterOptixRender : public ChFilter {
     std::shared_ptr<ChOptixDenoiser> m_denoiser;  ///< denoiser in case diffuse reflection or area lights are considered by a camera
     std::shared_ptr<curandState_t> m_rng;         ///< rng buffer for camera jitter or ray bounces
 
+    /// Surface responses and the path counter of a wave-domain radar. Held here because the
+    /// raygen record points at them for as long as the sensor renders.
+    std::shared_ptr<RadarMaterial> m_radar_materials;
+    std::shared_ptr<unsigned int> m_radar_path_counter;
+
     // Special handles that will accessed by ChOptixEngine
     OptixPipeline m_optix_pipeline;  ///< to hold reference to thte optix pipeline of this sensor
     ContextParameters* m_optix_params;

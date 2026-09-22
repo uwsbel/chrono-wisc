@@ -1,6 +1,7 @@
 %{
 
 /* Includes the header in the wrapper code */
+#include "chrono_sensor/sensors/radar/ChRadarTypes.h"
 #include "chrono_sensor/sensors/ChSensorBuffer.h"
 
 using namespace chrono;
@@ -26,6 +27,21 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChLidarSensor)
 %shared_ptr(chrono::sensor::ChRadarSensor)
 %shared_ptr(chrono::sensor::ChPhysCameraSensor)
+
+#ifdef CHRONO_HAS_OPTIX
+  %shared_ptr(chrono::sensor::ChPhysRadarSensor)
+  %shared_ptr(chrono::sensor::PhysRadarFrame)
+  %shared_ptr(chrono::sensor::SensorHostPhysRadarFrame)
+  %shared_ptr(chrono::sensor::SensorDevicePhysRadarFrame)
+
+  // Direction of arrival is a CUDA vector type with no meaning on the Python side; the bearing
+  // of a return is reported by the detections instead.
+  %ignore chrono::sensor::RadarPath::dir_rx;
+  %ignore chrono::sensor::RadarAntennaElement;
+
+  %include "../../../chrono_sensor/sensors/radar/ChRadarTypes.h"
+  %template(RadarObjectVector) std::vector<chrono::sensor::RadarObject>;
+#endif
 
 /* Parse the header file to generate wrappers */
 %include "../../../chrono_sensor/sensors/ChSensorBuffer.h"
@@ -142,6 +158,54 @@ using namespace chrono::sensor;
           *w = $self->Width;
           *c = sizeof(RadarXYZReturn)/sizeof(float);
           *vec = reinterpret_cast<float*>($self->Buffer.get());
+      }
+  }
+
+  // Wave-domain radar frame. Each accessor returns a view of the frame's own memory, so it stays
+  // valid only while the frame does, and it is empty unless the access filter was asked for that
+  // part of the frame.
+  %extend chrono::sensor::PhysRadarFrame {
+      /// Complex cube as [channel][doppler][2 * range], real and imaginary interleaved.
+      void GetCubeData(float** vec, int* h, int* w, int* c) {
+          const bool present = static_cast<bool>($self->Cube);
+          *h = present ? (int)$self->NumChannels : 0;
+          *w = present ? (int)$self->NumDopplerBins : 0;
+          *c = present ? 2 * (int)$self->NumRangeBins : 0;
+          *vec = present ? reinterpret_cast<float*>($self->Cube.get()) : nullptr;
+      }
+
+      /// Beamformed power as [azimuth][doppler][range], linear watts.
+      void GetAnglePowerData(float** vec, int* h, int* w, int* c) {
+          const bool present = static_cast<bool>($self->AnglePower);
+          *h = present ? (int)$self->NumAzimuthBins : 0;
+          *w = present ? (int)$self->NumDopplerBins : 0;
+          *c = present ? (int)$self->NumRangeBins : 0;
+          *vec = present ? $self->AnglePower.get() : nullptr;
+      }
+
+      /// Detection power map as [doppler][range][1], linear watts.
+      void GetPowerMapData(float** vec, int* h, int* w, int* c) {
+          const bool present = static_cast<bool>($self->PowerMap);
+          *h = present ? (int)$self->NumDopplerBins : 0;
+          *w = present ? (int)$self->NumRangeBins : 0;
+          *c = present ? 1 : 0;
+          *vec = present ? $self->PowerMap.get() : nullptr;
+      }
+
+      /// Per-cell detection threshold as [doppler][range][1], linear watts.
+      void GetThresholdMapData(float** vec, int* h, int* w, int* c) {
+          const bool present = static_cast<bool>($self->ThresholdMap);
+          *h = present ? (int)$self->NumDopplerBins : 0;
+          *w = present ? (int)$self->NumRangeBins : 0;
+          *c = present ? 1 : 0;
+          *vec = present ? $self->ThresholdMap.get() : nullptr;
+      }
+
+      /// One detection. Out of range or absent, the returned detection reads all zero.
+      chrono::sensor::RadarDetection GetDetection(unsigned int index) {
+          if (!$self->Detections || index >= $self->NumDetections)
+              return chrono::sensor::RadarDetection();
+          return $self->Detections[index];
       }
   }
 

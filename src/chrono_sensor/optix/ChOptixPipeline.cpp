@@ -91,6 +91,11 @@ void ChOptixPipeline::Cleanup() {
         OPTIX_ERROR_CHECK(optixModuleDestroy(m_radar_raygen_module));
         m_radar_raygen_module = 0;
     }
+    // Wave-domain RADAR
+    if (m_phys_radar_raygen_module) {
+        OPTIX_ERROR_CHECK(optixModuleDestroy(m_phys_radar_raygen_module));
+        m_phys_radar_raygen_module = 0;
+    }
     // Depth camera
     if (m_depth_cam_raygen_module) {
         OPTIX_ERROR_CHECK(optixModuleDestroy(m_depth_cam_raygen_module));
@@ -167,6 +172,10 @@ void ChOptixPipeline::Cleanup() {
     if (m_radar_raygen_group) {
         OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_radar_raygen_group));
         m_radar_raygen_group = 0;
+    }
+    if (m_phys_radar_raygen_group) {
+        OPTIX_ERROR_CHECK(optixProgramGroupDestroy(m_phys_radar_raygen_group));
+        m_phys_radar_raygen_group = 0;
     }
 
     //// ---- Register Your Customized Sensor Here (raygen group destruction) ---- ////
@@ -325,6 +334,7 @@ void ChOptixPipeline::CompileBaseShaders() {
     GetShaderFromFile(m_context, m_camera_raygen_module, "camera_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_lidar_raygen_module, "lidar_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_radar_raygen_module, "radar_raygen", module_compile_options, m_pipeline_compile_options);
+    GetShaderFromFile(m_context, m_phys_radar_raygen_module, "phys_radar_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_depth_cam_raygen_module, "depth_cam_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_normal_cam_raygen_module, "normal_cam_raygen", module_compile_options, m_pipeline_compile_options);
     GetShaderFromFile(m_context, m_segment_cam_raygen_module, "segment_cam_raygen", module_compile_options, m_pipeline_compile_options);
@@ -406,6 +416,10 @@ void ChOptixPipeline::AssembleBaseProgramGroups() {
     // radar raygen
     CreateOptixProgramGroup(m_radar_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
                             m_radar_raygen_module, "__raygen__radar");
+
+    // wave-domain radar raygen
+    CreateOptixProgramGroup(m_phys_radar_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
+                            m_phys_radar_raygen_module, "__raygen__phys_radar");
                             
     // Pinhole camera raygen
     CreateOptixProgramGroup(m_camera_raygen_group, OPTIX_PROGRAM_GROUP_KIND_RAYGEN, nullptr, nullptr,
@@ -648,6 +662,19 @@ void ChOptixPipeline::SpawnPipeline(PipelineType type) {
             raygen_record->data.specific.radar.clip_near = 0.f;       // default value
             break;
         }
+
+        case PipelineType::PHYS_RADAR: {
+            program_groups.push_back(m_phys_radar_raygen_group);
+            OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_phys_radar_raygen_group, raygen_record.get()));
+            raygen_record->data.specific.phys_radar = {};             // filled in by the render filter
+            raygen_record->data.specific.phys_radar.hFOV = 1.f;       // default value
+            raygen_record->data.specific.phys_radar.vFOV = 0.25f;     // default value
+            raygen_record->data.specific.phys_radar.min_range = 0.3f; // default value
+            raygen_record->data.specific.phys_radar.max_range = 200.f;// default value
+            raygen_record->data.specific.phys_radar.max_bounces = 1;  // default value
+            break;
+        }
+
         default:
             throw std::invalid_argument("Unsupported pipeline type: unknown type");
     }

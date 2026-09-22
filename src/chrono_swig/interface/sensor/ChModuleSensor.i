@@ -86,6 +86,7 @@
   #include "chrono_sensor/sensors/ChDepthCamera.h"
   #include "chrono_sensor/sensors/ChLidarSensor.h"
   #include "chrono_sensor/sensors/ChRadarSensor.h"
+  #include "chrono_sensor/sensors/ChPhysRadarSensor.h"
   #include "chrono_sensor/optix/ChOptixScene.h"
   #include "chrono_sensor/optix/ChOptixDefinitions.h"
   #include "chrono_sensor/optix/ChOptixUtils.h"
@@ -190,6 +191,7 @@ using namespace chrono::sensor;
   %shared_ptr(chrono::sensor::LidarBufferT<std::shared_ptr<chrono::sensor::PixelDI[]>>)
   %shared_ptr(chrono::sensor::RadarBufferT<std::shared_ptr<chrono::sensor::RadarReturn[]>>)
   %shared_ptr(chrono::sensor::RadarBufferT<std::shared_ptr<chrono::sensor::RadarXYZReturn[]>>)
+  %shared_ptr(chrono::sensor::PhysRadarPathBufferT<std::shared_ptr<chrono::sensor::RadarPath[]>>)
   %shared_ptr(chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::PixelRGBA8[]>>)
   %shared_ptr(chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::PixelHalf4[]>>)
   %shared_ptr(chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::PixelDepth[]>>)

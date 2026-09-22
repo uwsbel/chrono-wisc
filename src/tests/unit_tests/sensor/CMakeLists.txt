@@ -56,6 +56,7 @@ if(CH_USE_SENSOR_OPTIX)
     utest_SEN_optixengine
     utest_SEN_optixgeometry
     utest_SEN_optixpipeline
+    utest_SEN_phys_radar_config  # wave-domain radar waveform relations, validation, archetypes
   )
   # Only meaningful when NVRTC reads shaders from the build tree. With NVRTC off the shaders are
   # compiled to PTX at build time and nothing is staged for this test to compare against.

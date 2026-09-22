@@ -25,6 +25,7 @@
 
 #include "chrono/assets/ChVisualBSDFType.h"
 #include "chrono_sensor/optix/shaders/ChOptixLightStructs.h"
+#include "chrono_sensor/sensors/radar/ChRadarTypes.h"
 
 #ifdef USE_SENSOR_NVDB
     #include <nanovdb/NanoVDB.h>
@@ -53,7 +54,8 @@ enum class RayType {
     DEPTH_RAY_TYPE,         /// depth camera rays
     LASER_SAMPLE_RAY_TYPE,  /// lidar laser sample rays
     PHYS_CAMERA_RAY_TYPE,   /// physics-based camera rays
-    NORMAL_RAY_TYPE         /// normal camera rays
+    NORMAL_RAY_TYPE,        /// normal camera rays
+    PHYS_RADAR_RAY_TYPE     /// wave-domain radar propagation rays
     //// ---- Register Your Customized Sensor Here (define customized ray types) ---- ////
 };
 
@@ -234,6 +236,44 @@ struct RadarParameters {
     float* frame_buffer;  ///< buffer where the radar data will be placed when generated
 };
 
+/// Parameters used to define a wave-domain radar.
+///
+/// Antenna element positions are absent by design: the array spans millimetres while the scene
+/// spans hundreds of metres, so the tracer works in the far field of the array and a single
+/// propagation path serves every channel. Per-channel phases and per-element patterns are
+/// applied downstream, where the channels are separated.
+struct PhysRadarParameters {
+    float hFOV;              ///< full azimuth extent traced [rad]
+    float vFOV;              ///< full elevation extent traced [rad]
+    float min_range;         ///< near limit of the traced span [m]
+    float max_range;         ///< far limit of the traced span [m]
+    float wavelength;        ///< carrier wavelength [m]
+    float transmit_power;    ///< radiated power per transmit element [W]
+    float ray_solid_angle;   ///< solid angle one launched ray represents [sr]
+    float amplitude_cutoff;  ///< throughput below which a walk is abandoned
+
+    float tx_gain;         ///< reference transmit element peak gain, linear
+    float tx_az_exponent;  ///< reference transmit azimuth pattern exponent
+    float tx_el_exponent;  ///< reference transmit elevation pattern exponent
+    float rx_gain;         ///< reference receive element peak gain, linear
+    float rx_az_exponent;  ///< reference receive azimuth pattern exponent
+    float rx_el_exponent;  ///< reference receive elevation pattern exponent
+
+    unsigned int max_bounces;  ///< surface interactions before a walk is terminated
+    unsigned int max_paths;    ///< capacity of the path buffer
+
+    float3 velocity;  ///< sensor velocity in world coordinates [m/s]
+
+    chrono::sensor::RadarMaterial* materials;  ///< table indexed by visual material class id
+    unsigned int num_materials;                ///< length of that table
+    chrono::sensor::RadarMaterial fallback_material;  ///< response where nothing else applies
+
+    chrono::sensor::RadarPath* paths;  ///< output path list
+    unsigned int* path_counter;        ///< {written, dropped}, zeroed by the host each launch
+
+    curandState_t* rng_buffer;  ///< one state per launched ray
+};
+
 /// Parameters for specifying raygen programs.
 struct RaygenParameters {
     float t0;     ///< time of the first ray
@@ -250,6 +290,7 @@ struct RaygenParameters {
         RadarParameters radar;                  ///< the specific data when modeling a radar
         DepthCameraParameters depthCamera;      /// < the specific data when modeling a depth camera
         NormalCameraParameters normalCamera;    /// < the specific data when modeling a normal camera
+        PhysRadarParameters phys_radar;         ///< the specific data when modeling a wave-domain radar
         //// ---- Register Your Customized Sensor Here (register ray-gen parameters) ---- ////
     } specific;  ///< the data for the specific sensor
 };
@@ -398,6 +439,21 @@ struct PerRayData_occlusion {
 struct PerRayData_lidar {
     float range;      ///< the distance to the first hit
     float intensity;  ///< the intensity of the first hit
+};
+
+/// Data associated with a single wave-domain radar ray.
+///
+/// The hit shader only reports the surface it found; the bounce walk, the visibility test back
+/// to the antenna and the amplitude bookkeeping all run in the ray generation program, where
+/// the accumulated path state lives.
+struct PerRayData_phys_radar {
+    float distance;          ///< distance to the surface, negative when the ray missed
+    float3 normal;           ///< world-space surface normal at the hit
+    float3 velocity;         ///< world-space velocity of the surface at the hit [m/s]
+    float metallic;          ///< visual material metallic channel, used where no radar material applies
+    float roughness;         ///< visual material roughness channel, used the same way
+    unsigned short class_id; ///< visual material class id, the key into the radar material table
+    float object_id;         ///< ground-truth instance id, carried through for provenance
 };
 
 /// Data associated with a single radar ray.

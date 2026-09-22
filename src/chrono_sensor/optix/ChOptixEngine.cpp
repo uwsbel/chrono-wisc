@@ -29,6 +29,7 @@
 #include "chrono_sensor/sensors/ChCameraSensor.h"
 #include "chrono_sensor/sensors/ChPhysCameraSensor.h"
 #include "chrono_sensor/sensors/ChLidarSensor.h"
+#include "chrono_sensor/sensors/ChPhysRadarSensor.h"
 #include "chrono_sensor/sensors/ChRadarSensor.h"
 #include "chrono_sensor/optix/ChOptixUtils.h"
 
@@ -786,6 +787,20 @@ void ChOptixEngine::UpdateSensorTransforms(std::vector<int>& to_be_updated, std:
             m_assignedRenderers[id]->m_raygen_record->data.specific.radar.velocity.x = vel_abs.x();
             m_assignedRenderers[id]->m_raygen_record->data.specific.radar.velocity.y = vel_abs.y();
             m_assignedRenderers[id]->m_raygen_record->data.specific.radar.velocity.z = vel_abs.z();
+            m_pipeline->UpdateObjectVelocity();
+        }
+
+        // Ego velocity of a wave-domain radar. Everything static in the scene gets its Doppler
+        // from this, which is what puts the clutter ridge where it belongs.
+        if (auto phys_radar = std::dynamic_pointer_cast<ChPhysRadarSensor>(sensor)) {
+            const ChVector3d lever = phys_radar->GetOffsetPose().GetPos();
+            const ChVector3d vel_abs =
+                phys_radar->GetOffsetPose().TransformDirectionLocalToParent(phys_radar->GetAngularVelocity() % lever) +
+                phys_radar->GetTranslationalVelocity();
+            auto& radar_params = m_assignedRenderers[id]->m_raygen_record->data.specific.phys_radar;
+            radar_params.velocity.x = (float)vel_abs.x();
+            radar_params.velocity.y = (float)vel_abs.y();
+            radar_params.velocity.z = (float)vel_abs.z();
             m_pipeline->UpdateObjectVelocity();
         }
 

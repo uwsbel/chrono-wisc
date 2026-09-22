@@ -17,6 +17,11 @@
   #include "chrono_sensor/filters/ChFilterRadarSavePC.h"
   #include "chrono_sensor/filters/ChFilterRadarVisualizeCluster.h"
   #include "chrono_sensor/filters/ChFilterRadarXYZVisualize.h"
+  #include "chrono_sensor/filters/ChFilterPhysRadarSignalForm.h"
+  #include "chrono_sensor/filters/ChFilterPhysRadarDetect.h"
+  #include "chrono_sensor/filters/ChFilterPhysRadarTrack.h"
+  #include "chrono_sensor/filters/ChFilterPhysRadarAccess.h"
+  #include "chrono_sensor/filters/ChFilterPhysRadarVisualize.h"
   #include "chrono_sensor/filters/ChFilterCameraNoise.h"
   #include "chrono_sensor/filters/ChFilterCameraExposure.h"
 
@@ -74,6 +79,11 @@ using namespace chrono::sensor;
   %shared_ptr(chrono::sensor::ChFilterRadarXYZVisualize)
   %shared_ptr(chrono::sensor::ChFilterRadarVisualizeCluster)
   %shared_ptr(chrono::sensor::ChFilterRadarSavePC)
+  %shared_ptr(chrono::sensor::ChFilterPhysRadarSignalForm)
+  %shared_ptr(chrono::sensor::ChFilterPhysRadarDetect)
+  %shared_ptr(chrono::sensor::ChFilterPhysRadarTrack)
+  %shared_ptr(chrono::sensor::ChFilterPhysRadarAccess)
+  %shared_ptr(chrono::sensor::ChFilterPhysRadarVisualize)
   
   %shared_ptr(chrono::sensor::ChFilterCameraNoiseConstNormal)
   %shared_ptr(chrono::sensor::ChFilterCameraNoisePixDep)
@@ -119,6 +129,11 @@ using namespace chrono::sensor;
   %include "chrono_sensor/filters/ChFilterRadarVisualizeCluster.h"
   %include "chrono_sensor/filters/ChFilterRadarXYZReturn.h"
   %include "chrono_sensor/filters/ChFilterRadarXYZVisualize.h"
+  %include "chrono_sensor/filters/ChFilterPhysRadarSignalForm.h"
+  %include "chrono_sensor/filters/ChFilterPhysRadarDetect.h"
+  %include "chrono_sensor/filters/ChFilterPhysRadarTrack.h"
+  %include "chrono_sensor/filters/ChFilterPhysRadarAccess.h"
+  %include "chrono_sensor/filters/ChFilterPhysRadarVisualize.h"
   %include "chrono_sensor/filters/ChFilterCameraNoise.h"
   %include "chrono_sensor/filters/ChFilterCameraExposure.h"
 

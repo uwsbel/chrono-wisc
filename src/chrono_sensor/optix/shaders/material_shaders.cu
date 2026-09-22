@@ -30,6 +30,7 @@
 #include "chrono_sensor/optix/shaders/depth_cam_shader.cuh"
 #include "chrono_sensor/optix/shaders/segment_cam_shader.cuh"
 #include "chrono_sensor/optix/shaders/radar_shader.cuh"
+#include "chrono_sensor/optix/shaders/phys_radar_shader.cuh"
 #include "chrono_sensor/optix/shaders/lidar_shader.cuh"
 #include "chrono_sensor/optix/shaders/camera_shader.cuh"
 
@@ -117,6 +118,13 @@ extern "C" __global__ void __closesthit__material_shader() {
             RadarShader(GetRadarPRD(), mat, world_normal, uv, tangent, ray_dist, ray_orig, ray_dir,
                         mat_record_params->translational_velocity, mat_record_params->angular_velocity,
                         mat_record_params->objectId);
+            break;
+        }
+
+        case RayType::PHYS_RADAR_RAY_TYPE: {
+            PhysRadarShader(GetPhysRadarPRD(), mat, world_normal, ray_dist, ray_orig, ray_dir,
+                            mat_record_params->translational_velocity, mat_record_params->angular_velocity,
+                            mat_record_params->objectId);
             break;
         }
 
