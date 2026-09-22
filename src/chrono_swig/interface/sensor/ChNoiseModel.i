@@ -13,5 +13,7 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::ChNoiseNormal)
 %shared_ptr(chrono::sensor::ChNoiseNormalDrift)
 %shared_ptr(chrono::sensor::ChNoiseRandomWalks)
+%shared_ptr(chrono::sensor::ChNoiseIMU)
+%shared_ptr(chrono::sensor::ChNoiseGPS)
 
 %include "../../../chrono_sensor/sensors/ChNoiseModel.h"

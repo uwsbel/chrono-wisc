@@ -1,4 +1,4 @@
-name: chrono
+name: ch-sensor-generic
 services:
   dev:
     image: "${COMPOSE_PROJECT_NAME}/${COMPOSE_PROJECT_NAME}:dev"
@@ -6,7 +6,7 @@ services:
     container_name: '${COMPOSE_PROJECT_NAME}-dev'
     shm_size: 2g
     ports:
-      - "9090:9090" # For RosBridge default port
+      - "9091:9090" # RosBridge; host side offset to coexist with the sibling chrono stacks
     build:
       context: "./"
       network: "host"
@@ -20,12 +20,17 @@ services:
         APT_DEPENDENCIES: "vim cmake-curses-gui"
         USER_SHELL_ADD_ONS: "alias python=python3"
 
+        # Build-time clone: this fork, so the dependency image matches the bind-mounted
+        # working copy. Development still happens in the mount, not in this clone.
+        CHRONO_REPO: "https://github.com/uwsbel/chrono-wisc.git"
+        CHRONO_BRANCH: "feature/sensor-generic"
+
         CUDA_VERSION: "13-3"
         # Empty builds every architecture this CUDA toolkit knows. The resolved list is baked
         # into the installed ChronoConfig.cmake and forced on downstream projects, so it must
         # cover the GPU that runs the image; pin a compute capability when the toolkit predates
         # the card, e.g. "120" (Blackwell) or "86". A list works ("86;89"). Not "native".
-        CHRONO_CUDA_ARCHITECTURES: ""
+        CHRONO_CUDA_ARCHITECTURES: "120"   # this machine is an RTX 5090 (Blackwell)
         ROS_DISTRO: "lyrical"
         OPTIX_SCRIPT: "data/NVIDIA-OptiX-SDK-9.0.0-linux64-x86_64.sh" # Get optix script at https://developer.nvidia.com/designworks/optix/downloads/legacy
     volumes:

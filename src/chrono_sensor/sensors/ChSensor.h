@@ -19,8 +19,10 @@
 #ifndef CHSENSOR_H
 #define CHSENSOR_H
 
+#include <deque>
 #include <list>
 #include <mutex>
+#include <vector>
 
 #include "chrono/physics/ChBody.h"
 
@@ -70,7 +72,8 @@ const char ChFilterAccelAccessName[] = "ChFilterAccelAccess";    ///< Accelerome
 const char ChFilterGyroAccessName[] = "ChFilterGyroAccess";      ///< Gyroscope data format (3 doubles total)
 const char ChFilterMagnetAccessName[] = "ChFilterMagnetAccess";  ///< Magnetometer data format (3 doubles total)
 const char ChFilterGPSAccessName[] = "ChFilterGPSAccess";        ///< GPS data format (4 doubles total)
-const char ChFilterTachometerAccessName[] = "ChFilterTachometerAccess";  ///<
+const char ChFilterTachometerAccessName[] = "ChFilterTachometerAccess";  ///< Tachometer data format
+const char ChFilterEncoderAccessName[] = "ChFilterEncoderAccess";        ///< Encoder data format
 
 /// Base class for a Chrono sensor.
 class CH_SENSOR_API ChSensor {
@@ -92,6 +95,18 @@ class CH_SENSOR_API ChSensor {
     /// Get the sensor's relative position and orientation.
     /// @return The frame that specifies the offset pose
     ChFrame<double> GetOffsetPose() { return m_offsetPose; }
+
+    /// Get the frame on the parent body against which the sensor offset pose is resolved.
+    ///
+    /// This is the body reference (REF) frame: the frame visual and collision shapes are placed in.
+    /// It coincides with the centroidal frame for a plain ChBody and differs for a ChBodyAuxRef --
+    /// which every Chrono::Vehicle chassis is -- where resolving against the centroidal frame would
+    /// place a camera and an IMU given the same offset pose at different physical points.
+    ///
+    /// The returned frame carries valid first and second derivatives: ChBodyAuxRef::Update
+    /// recomputes it through ChFrameMoving::TransformLocalToParent, which propagates both.
+    /// @return The parent body reference frame expressed in absolute coordinates
+    const ChFrameMoving<double>& GetMountingFrame() const { return m_parent->GetFrameRefToAbs(); }
 
     /// Get the object to which the sensor is attached.
     /// @return A shared pointer to the body on which the sensor is attached
@@ -226,16 +241,141 @@ class CH_SENSOR_API ChSensor {
 
 };  // class ChSensor
 
+/// Keyframe lifecycle of a dynamic sensor, exposed to ChDynamicsManager independently of the
+/// keyframe type. See ChKeyFrameStore for the semantics of each operation.
+class CH_SENSOR_API ChKeyFrameStoreBase {
+  public:
+    virtual ~ChKeyFrameStoreBase() {}
+
+    /// Close the window being collected and hold it until release_time.
+    virtual void Stash(float window_end, float release_time) = 0;
+
+    /// Whether the oldest held window is due for release at simulation time t.
+    virtual bool DueBy(float t) const = 0;
+
+    /// Make the oldest held window the active one and return the time at which it closed.
+    virtual float Release() = 0;
+
+    /// Discard the active window.
+    virtual void ClearActive() = 0;
+};
+
+/// Keyframes of one dynamic sensor: the window currently being collected, plus the closed windows
+/// waiting out the sensor lag.
+///
+/// Holding closed windows rather than filtered buffers is what lets the filter graph run unchanged
+/// at release time: the samples it reads are the ones taken during the window, and only the instant
+/// at which they reach the user is deferred.
+template <typename KeyFrame>
+class ChKeyFrameStore : public ChKeyFrameStoreBase {
+  public:
+    /// The window being collected, or the released window while the filter graph runs over it.
+    std::vector<KeyFrame>& Active() { return m_active; }
+    const std::vector<KeyFrame>& Active() const { return m_active; }
+
+    virtual void Stash(float window_end, float release_time) override {
+        m_pending.push_back({window_end, release_time, std::move(m_active)});
+        m_active.clear();
+    }
+
+    virtual bool DueBy(float t) const override {
+        return !m_pending.empty() && m_pending.front().release_time <= t;
+    }
+
+    virtual float Release() override {
+        m_active = std::move(m_pending.front().keyframes);
+        const float window_end = m_pending.front().window_end;
+        m_pending.pop_front();
+        return window_end;
+    }
+
+    virtual void ClearActive() override { m_active.clear(); }
+
+  private:
+    struct Window {
+        float window_end;    ///< simulation time at which collection stopped
+        float release_time;  ///< window_end plus the sensor lag
+        std::vector<KeyFrame> keyframes;
+    };
+
+    std::vector<KeyFrame> m_active;
+    std::deque<Window> m_pending;
+};
+
+/// Base class for sensors whose readings come from the state of the parent body rather than from a
+/// rendered image: the accelerometer, gyroscope, magnetometer, GPS, tachometer and encoder.
+///
+/// One sample is produced per update period. Keyframes are collected over the window
+/// [n / update rate, n / update rate + collection window], then held for the sensor lag before the
+/// filter graph runs on them, so data becomes visible to the user that long after the window closed.
 class CH_SENSOR_API ChDynamicSensor : public ChSensor {
   public:
     virtual ~ChDynamicSensor() {}
 
+    /// Sample the parent body state and append one keyframe to the window being collected.
     virtual void PushKeyFrame() = 0;
-    virtual void ClearKeyFrames() = 0;
+
+    /// The sensor's keyframe store.
+    virtual ChKeyFrameStoreBase& KeyFrames() = 0;
+
+    /// Discard the active window.
+    void ClearKeyFrames() { KeyFrames().ClearActive(); }
+
+    /// Make the oldest held window active and record the time at which it closed.
+    void ReleaseKeyFrames() { m_sample_time = KeyFrames().Release(); }
+
+    /// Get the simulation time at which the window now in the filter graph closed.
+    ///
+    /// This is the instant the sample describes. With a nonzero lag it precedes the time at which
+    /// the data became visible, and it is what the update filters stamp on the output buffer.
+    /// @return The sample time in seconds
+    float GetSampleTime() const { return m_sample_time; }
+
+    /// Get the number of collection windows closed so far.
+    ///
+    /// This paces collection and is distinct from GetNumLaunches(), which counts the windows
+    /// released to the filter graph and so trails this by the number still waiting out the lag.
+    /// @return The number of closed windows
+    unsigned int GetNumWindows() const { return m_num_windows; }
+
+    /// Increment the count of closed collection windows.
+    void IncrementNumWindows() { m_num_windows++; }
+
+    /// Advance any continuous-time model this sensor holds to the given simulation time.
+    ///
+    /// Called on every simulation step, whether or not the sensor is collecting, because a
+    /// bandwidth model is a continuous-time filter and a signal gapped outside the collection
+    /// window is not the one it is meant to see. Sensors without such a model do nothing here.
+    /// @param time The current simulation time in seconds
+    void AdvanceTo(double time) {
+        // The first call only establishes the time origin: there is no interval to advance over
+        // yet, and measuring one from a default-constructed zero would hand the model the whole
+        // elapsed simulation in a single step.
+        if (!m_continuous_started) {
+            m_continuous_started = true;
+            m_last_continuous_time = time;
+            return;
+        }
+        const double dt = time - m_last_continuous_time;
+        m_last_continuous_time = time;
+        if (dt > 0)
+            AdvanceContinuousModel(dt);
+    }
 
   protected:
     ChDynamicSensor(std::shared_ptr<ChBody> parent, float updateRate, ChFrame<double> offsetPose)
-        : ChSensor(parent, updateRate, offsetPose) {}
+        : ChSensor(parent, updateRate, offsetPose), m_sample_time(0), m_num_windows(m_num_launches) {}
+
+    /// Advance this sensor's continuous-time model, if it has one, by dt seconds.
+    /// @param dt Elapsed simulation time in seconds, always positive
+    virtual void AdvanceContinuousModel(double dt) {}
+
+    float m_sample_time;         ///< time at which the window in the filter graph closed
+    unsigned int m_num_windows;  ///< number of collection windows closed so far
+
+  private:
+    double m_last_continuous_time = 0;  ///< simulation time of the last AdvanceTo call
+    bool m_continuous_started = false;  ///< whether m_last_continuous_time holds a real time yet
 };
 
 /// @} sensor_sensors

@@ -237,7 +237,7 @@ using ChFilterGPSAccess = ChFilterAccess<SensorHostGPSBuffer, UserGPSBufferPtr>;
 /// Access to Tachometer data
 using ChFilterTachometerAccess = ChFilterAccess<SensorHostTachometerBuffer, UserTachometerBufferPtr>;
 /// Access to Encoder data
-// using ChFilterEncoderAccess = ChFilterAccess<SensorHostEncoderBuffer, UserEncoderBufferPtr>;
+using ChFilterEncoderAccess = ChFilterAccess<SensorHostEncoderBuffer, UserEncoderBufferPtr>;
 
 /// @}
 

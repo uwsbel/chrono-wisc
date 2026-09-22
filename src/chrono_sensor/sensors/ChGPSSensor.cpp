@@ -33,12 +33,20 @@ ChGPSSensor::ChGPSSensor(std::shared_ptr<ChBody> parent,
 ChGPSSensor::~ChGPSSensor() {}
 
 void ChGPSSensor::PushKeyFrame() {
-    ChVector3d pos_data = m_parent->TransformPointLocalToParent(m_offsetPose.GetPos());
-    m_keyframes.push_back(std::make_tuple((float)m_parent->GetSystem()->GetChTime(), pos_data));
+    const ChFrameMoving<double>& body = GetMountingFrame();
+    KeyFrame keyframe;
+    keyframe.time = (float)m_parent->GetSystem()->GetChTime();
+    keyframe.position = body.TransformPointLocalToParent(m_offsetPose.GetPos());
+    // The antenna is offset from the body origin, so its velocity picks up a lever-arm term from
+    // the body rotation and is not simply the body velocity.
+    keyframe.velocity = body.PointSpeedLocalToParent(m_offsetPose.GetPos());
+    m_keyframes.Active().push_back(keyframe);
 }
 
-void ChGPSSensor::ClearKeyFrames() {
-    m_keyframes.clear();
+void ChGPSSensor::SetNominalFix(ChGPSFixType fix, double hdop, unsigned int num_satellites) {
+    m_fix = fix;
+    m_hdop = hdop;
+    m_num_satellites = num_satellites;
 }
 
 }  // namespace sensor

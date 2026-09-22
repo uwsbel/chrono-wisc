@@ -57,6 +57,8 @@ class CH_SENSOR_API ChFilterAccelerometerUpdate : public ChFilter {
     std::shared_ptr<ChAccelerometerSensor> m_accSensor;
     std::shared_ptr<SensorHostAccelBuffer> m_bufferOut;  ///< For holding generated IMU data
     std::shared_ptr<ChNoiseModel> m_noise_model;         ///< The noise model for augmenting data
+    float m_last_sample_time = 0;                        ///< sample time of the previous update
+    bool m_have_previous_sample = false;                 ///< whether m_last_sample_time holds a real time
 };
 
 /// Class for generating IMU data
@@ -78,6 +80,8 @@ class CH_SENSOR_API ChFilterGyroscopeUpdate : public ChFilter {
     std::shared_ptr<ChGyroscopeSensor> m_gyroSensor;
     std::shared_ptr<SensorHostGyroBuffer> m_bufferOut;  ///< For holding generated IMU data
     std::shared_ptr<ChNoiseModel> m_noise_model;        ///< The noise model for augmenting data
+    float m_last_sample_time = 0;                       ///< sample time of the previous update
+    bool m_have_previous_sample = false;                ///< whether m_last_sample_time holds a real time
 };
 
 /// Class for generating IMU data
@@ -85,7 +89,8 @@ class CH_SENSOR_API ChFilterMagnetometerUpdate : public ChFilter {
   public:
     /// Class constructor
     /// @param noise_model The noise model to use when augmenting the IMU data
-    /// @param gps_reference The GPS reference location for the simulation origin
+    /// @param gps_reference The GPS coordinates of the simulation origin, as
+    /// (LONGITUDE, LATITUDE, ALTITUDE) in degrees and metres
     ChFilterMagnetometerUpdate(std::shared_ptr<ChNoiseModel> noise_model, ChVector3d gps_reference);
 
     /// Apply function. Generates IMU data.
@@ -101,10 +106,8 @@ class CH_SENSOR_API ChFilterMagnetometerUpdate : public ChFilter {
     std::shared_ptr<SensorHostMagnetBuffer> m_bufferOut;  ///< For holding generated IMU data
     std::shared_ptr<ChNoiseModel> m_noise_model;          ///< The noise model for augmenting data
     ChVector3d m_gps_reference;                           ///< gps reference location
-
-    const double theta_0 = 80.65 * CH_DEG_TO_RAD;  // latitude of magnetic pole
-    const double phi_0 = -72.68 * CH_DEG_TO_RAD;   // longitude of magnetic pole
-    const double B_0 = 0.305;                      // mean magnetic field at magnetic equator (in Gauss)
+    float m_last_sample_time = 0;                         ///< sample time of the previous update
+    bool m_have_previous_sample = false;                  ///< whether m_last_sample_time holds a real time
 };
 
 /// @}

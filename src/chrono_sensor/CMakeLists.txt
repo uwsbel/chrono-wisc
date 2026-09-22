@@ -783,6 +783,7 @@ set(Chrono_sensor_UTILS_SOURCES
     utils/ChSensorUtils.cpp
     utils/ChSensorUtilsJSON.cpp
     utils/ChGPSUtils.cpp
+    utils/ChMagneticField.cpp
     utils/Kdtree.cpp
     utils/Dbscan.cpp
 )
@@ -791,6 +792,7 @@ set(Chrono_sensor_UTILS_HEADERS
     utils/ChSensorUtils.h
     utils/ChSensorUtilsJSON.h
     utils/ChGPSUtils.h
+    utils/ChMagneticField.h
     utils/Kdtree.h
     utils/Dbscan.h
 )

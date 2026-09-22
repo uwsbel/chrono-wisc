@@ -49,9 +49,10 @@ using namespace chrono::sensor;
 // Noise model attached to the sensor
 enum IMUNoiseModel {
     NORMAL_DRIFT,  // gaussian drifting noise with noncorrelated equal distributions
+    DATASHEET,     // turn-on bias, noise density and bounded bias instability, from a part grade
     IMU_NONE       // no noise added
 };
-IMUNoiseModel imu_noise_type = NORMAL_DRIFT;
+IMUNoiseModel imu_noise_type = DATASHEET;
 
 // IMU update rate in Hz
 int imu_update_rate = 100;
@@ -67,13 +68,12 @@ float imu_collection_time = 0;
 // -----------------------------------------------------------------------------
 // Noise model attached to the sensor
 enum GPSNoiseModel {
-    NORMAL,    // individually parameterized independent gaussian distribution
-    GPS_NONE,  // no noise model
-    GPS_RANDOMWALK
+    NORMAL,          // individually parameterized independent gaussian distribution
+    GPS_NONE,        // no noise model
+    GPS_RANDOMWALK,  // bounded random walk, uncalibrated
+    GPS_RECEIVER     // correlated error from a receiver class, in metres
 };
-// PSNoiseModel gps_noise_type = GPS_NONE;
-GPSNoiseModel gps_noise_type = GPS_RANDOMWALK;
-// GPSNoiseModel gps_noise_type = NORMAL;
+GPSNoiseModel gps_noise_type = GPS_RECEIVER;
 
 // GPS update rate in Hz
 int gps_update_rate = 10;
@@ -87,9 +87,11 @@ float gps_lag = 0;
 // Collection time (in seconds) of eacn sample
 float gps_collection_time = 0;
 
-// Origin used as the gps reference point
-// Located in Madison, WI
-ChVector3d gps_reference(43.0723, -89.413, 260.0);
+// Origin used as the gps reference point, located in Madison, WI.
+// Ordered (LONGITUDE, LATITUDE, ALTITUDE) -- longitude first, which is the opposite of the ordering
+// used by NMEA and most GPS libraries. A swapped pair is a valid coordinate elsewhere on Earth, so
+// nothing downstream can detect the mistake.
+ChVector3d gps_reference(-89.413, 43.0723, 260.0);
 
 // -----------------------------------------------------------------------------
 // Simulation parameters
@@ -179,6 +181,18 @@ int main(int argc, char* argv[]) {
                 chrono_types::make_shared<ChNoiseNormal>(ChVector3d({0., 0., 0.}),            // float mean,
                                                          ChVector3d({0.001, 0.001, 0.001}));  // float stdev,
             break;
+        case DATASHEET:
+            // Error terms taken from the grade of part rather than tuned by hand. Copy the figures
+            // from the datasheet of the actual part to model a specific one; the imu_units helpers
+            // convert from the units datasheets quote.
+            acc_noise_model = chrono_types::make_shared<ChNoiseIMU>(
+                imu_update_rate, ChNoiseIMU::AccelerometerPreset(ChIMUGrade::INDUSTRIAL_MEMS));
+            gyro_noise_model = chrono_types::make_shared<ChNoiseIMU>(
+                imu_update_rate, ChNoiseIMU::GyroscopePreset(ChIMUGrade::INDUSTRIAL_MEMS));
+            mag_noise_model = chrono_types::make_shared<ChNoiseNormal>(
+                ChVector3d({0., 0., 0.}),           // mean [T]
+                ChVector3d({2e-7, 2e-7, 2e-7}));    // stdev [T], a few hundred nT
+            break;
         case IMU_NONE:
             // Set the imu noise model to none (does not affect the data)
             acc_noise_model = chrono_types::make_shared<ChNoiseNone>();
@@ -203,7 +217,7 @@ int main(int argc, char* argv[]) {
                                                              imu_update_rate,    // update rate
                                                              imu_offset_pose,    // offset pose from body
                                                              gyro_noise_model);  // IMU noise model
-    gyro->SetName("IMU - Accelerometer");
+    gyro->SetName("IMU - Gyroscope");
     gyro->SetLag(imu_lag);
     gyro->SetCollectionWindow(imu_collection_time);
     gyro->PushFilter(chrono_types::make_shared<ChFilterGyroAccess>());  // Add a filter to access the imu data
@@ -214,7 +228,7 @@ int main(int argc, char* argv[]) {
                                                                imu_offset_pose,  // offset pose from body
                                                                mag_noise_model,  // IMU noise model
                                                                gps_reference);
-    mag->SetName("IMU - Accelerometer");
+    mag->SetName("IMU - Magnetometer");
     mag->SetLag(imu_lag);
     mag->SetCollectionWindow(imu_collection_time);
     mag->PushFilter(chrono_types::make_shared<ChFilterMagnetAccess>());  // Add a filter to access the imu data
@@ -238,6 +252,15 @@ int main(int argc, char* argv[]) {
             break;
         case GPS_RANDOMWALK:
             gps_noise_model = chrono_types::make_shared<ChNoiseRandomWalks>(0, 0.016, 100, 0.03, 0.005, gps_reference);
+            break;
+        case GPS_RECEIVER: {
+            // Error dominated by terms that stay correlated for minutes, which is what real GNSS
+            // error looks like and what makes a downstream estimator behave realistically.
+            auto receiver = chrono_types::make_shared<ChNoiseGPS>(ChNoiseGPS::Preset(ChGPSReceiverClass::SPS));
+            receiver->SetNominalState(ChNoiseGPS::PresetFixType(ChGPSReceiverClass::SPS), 0.9, 11);
+            gps_noise_model = receiver;
+            break;
+        }
     }
 
     // add a GPS sensor to one of the boxes
@@ -322,10 +345,13 @@ int main(int argc, char* argv[]) {
             // Save the gps data to file
             GPSData gps_data = bufferGPS->Buffer[0];
             gps_csv << std::fixed << std::setprecision(10);
-            gps_csv << gps_data.Latitude;   // Latitude
-            gps_csv << gps_data.Longitude;  // Longitude
-            gps_csv << gps_data.Altitude;   // Altitude
-            gps_csv << gps_data.Time;       // Time
+            gps_csv << gps_data.Latitude;   // Latitude [deg]
+            gps_csv << gps_data.Longitude;  // Longitude [deg]
+            gps_csv << gps_data.Altitude;   // Altitude [m]
+            gps_csv << gps_data.Time;       // Time [s]
+            gps_csv << gps_data.Speed;      // Ground speed [m/s]
+            gps_csv << gps_data.Course;     // Course over ground [deg]
+            gps_csv << (int)gps_data.Fix;   // Fix quality
             gps_csv << std::endl;
             gps_last_launch = bufferGPS->LaunchedCount;
         }

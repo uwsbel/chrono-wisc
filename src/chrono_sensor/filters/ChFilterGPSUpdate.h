@@ -29,6 +29,7 @@ namespace sensor {
 // forward declaration
 class ChSensor;
 class ChNoiseModel;
+class ChNoiseGPS;
 class ChGPSSensor;
 
 /// @addtogroup sensor_filters
@@ -38,7 +39,8 @@ class ChGPSSensor;
 class CH_SENSOR_API ChFilterGPSUpdate : public ChFilter {
   public:
     /// Class constructor
-    /// @param gps_reference The GPS location of the simulation origin
+    /// @param gps_reference GPS coordinates of the simulation origin, as
+    /// (LONGITUDE, LATITUDE, ALTITUDE) in degrees and metres
     /// @param noise_model The noise model for augmenting the GPS data
     ChFilterGPSUpdate(ChVector3d gps_reference, std::shared_ptr<ChNoiseModel> noise_model);
 
@@ -54,7 +56,11 @@ class CH_SENSOR_API ChFilterGPSUpdate : public ChFilter {
     std::shared_ptr<SensorHostGPSBuffer> m_bufferOut;  ///< buffer that will be used for passing to the next filter
     std::shared_ptr<ChGPSSensor> m_GPSSensor;
     std::shared_ptr<ChNoiseModel> m_noise_model;  ///< pointer to the noise model for augmenting GPS data
-    ChVector3d m_ref;                             ///< for holding the reference location
+    /// The same model when it is a ChNoiseGPS, which reports receiver state as well as position
+    /// error. Resolved once at initialization rather than per sample.
+    std::shared_ptr<ChNoiseGPS> m_gps_noise_model;
+    ChVector3d m_ref;              ///< reference location as (longitude, latitude, altitude)
+    float m_last_sample_time = 0;  ///< sample time of the previous update
 };
 
 /// @}

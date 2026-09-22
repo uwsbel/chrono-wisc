@@ -11,7 +11,7 @@
     "Noise Model": {
       "Noise Type": "ChNoiseNormal",
       "Mean": [0.0,0.0,0.0],
-      "Standard Deviation": [0.001,0.001,0.001]
+      "Standard Deviation": [2e-7,2e-7,2e-7]
     }
   },
 

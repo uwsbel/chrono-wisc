@@ -255,6 +255,12 @@ CH_SENSOR_API UserTachometerBufferPtr ChSensor::GetMostRecentBuffer() {
     return GetMostRecentBufferHelper<UserTachometerBufferPtr, ChFilterTachometerAccess, ChFilterTachometerAccessName>();
 }
 
+// retriever function for encoder data
+template <>
+CH_SENSOR_API UserEncoderBufferPtr ChSensor::GetMostRecentBuffer() {
+    return GetMostRecentBufferHelper<UserEncoderBufferPtr, ChFilterEncoderAccess, ChFilterEncoderAccessName>();
+}
+
 // -----------------------------------------------------------------------------
 // Helper function for retrieving the last buffer of given type
 // -----------------------------------------------------------------------------

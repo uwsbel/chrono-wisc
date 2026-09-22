@@ -36,6 +36,26 @@ namespace ros {
 // COVARIANCE_TYPE_APPROXIMATED = 2); the schema carries no symbolic constants.
 static constexpr uint64_t COVARIANCE_TYPE_APPROXIMATED = 2;
 
+// sensor_msgs/msg/NavSatStatus service constant for GPS; the schema carries no symbolic constants.
+static constexpr uint64_t SERVICE_GPS = 1;
+
+/// Map a Chrono fix type onto the NavSatStatus status constants: STATUS_NO_FIX = -1,
+/// STATUS_FIX = 0, STATUS_SBAS_FIX = 1. NavSatStatus has no RTK distinction, so both RTK modes
+/// report as augmented.
+static int NavSatStatusFromFix(GPSFix fix) {
+    switch (fix) {
+        case GPSFix::NONE:
+            return -1;
+        case GPSFix::SPS:
+            return 0;
+        case GPSFix::DGPS:
+        case GPSFix::RTK_FLOAT:
+        case GPSFix::RTK_FIXED:
+            return 1;
+    }
+    return 0;
+}
+
 ChROSGPSHandler::ChROSGPSHandler(std::shared_ptr<ChGPSSensor> gps, const std::string& topic_name)
     : ChROSGPSHandler(gps->GetUpdateRate(), gps, topic_name) {}
 
@@ -70,15 +90,17 @@ void ChROSGPSHandler::Tick(double time) {
     msg.SetDouble("altitude", data.Altitude);
     msg.SetBlobCopy("position_covariance", covariance.data(), 9);
     msg.SetUInt("position_covariance_type", COVARIANCE_TYPE_APPROXIMATED);
+    msg.SetInt("status.status", NavSatStatusFromFix(data.Fix));
+    msg.SetUInt("status.service", SERVICE_GPS);
     m_publisher->Publish(msg);
 }
 
 std::array<double, 9> ChROSGPSHandler::CalculateCovariance(const GPSData& gps_data) {
     // The ChGPSSensor does not emit covariance; approximate it from a running mean
     // of the position in local ENU coordinates.
-    auto gps_coord = chrono::ChVector3d(gps_data.Latitude, gps_data.Longitude, gps_data.Altitude);
-    auto gps_reference = m_gps->GetGPSReference();
-    chrono::sensor::GPS2Cartesian(gps_coord, gps_reference);
+    // GPS2Cartesian takes (LONGITUDE, LATITUDE, ALTITUDE), not the NavSatFix field order.
+    auto gps_coord = chrono::ChVector3d(gps_data.Longitude, gps_data.Latitude, gps_data.Altitude);
+    chrono::sensor::GPS2Cartesian(gps_coord, m_gps->GetGPSReference());
 
     std::array<double, 3> enu = {gps_coord.x(), gps_coord.y(), gps_coord.z()};
     for (int i = 0; i < 3; i++)

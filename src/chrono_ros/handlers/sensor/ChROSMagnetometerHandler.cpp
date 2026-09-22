@@ -59,6 +59,7 @@ void ChROSMagnetometerHandler::Tick(double time) {
         return;
     }
 
+    // Both MagnetData and sensor_msgs/MagneticField are in Tesla, so no unit conversion is needed.
     MagnetData data = buffer->Buffer[0];
     m_magnetic_field = chrono::ChVector3d(data.X, data.Y, data.Z);
     m_magnetic_field_covariance = CalculateCovariance(data);

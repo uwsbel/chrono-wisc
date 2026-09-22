@@ -622,6 +622,45 @@ std::shared_ptr<ChFilter> CreateFilterJSON(const Value& value) {
     return filter;
 }
 
+namespace {
+
+/// Overwrite `target` only when the member is present, so a preset supplies every value a JSON file
+/// leaves out.
+void ReadDoubleMember(const Value& value, const char* member, double& target) {
+    if (value.HasMember(member))
+        target = value[member].GetDouble();
+}
+
+double GetDoubleMemberWithDefault(const Value& value, const char* member, double def) {
+    return value.HasMember(member) ? value[member].GetDouble() : def;
+}
+
+ChIMUGrade ReadIMUGradeJSON(const std::string& grade) {
+    if (grade == "ConsumerMEMS")
+        return ChIMUGrade::CONSUMER_MEMS;
+    if (grade == "IndustrialMEMS")
+        return ChIMUGrade::INDUSTRIAL_MEMS;
+    if (grade == "Tactical")
+        return ChIMUGrade::TACTICAL;
+    throw std::invalid_argument("IMU grade of \"" + grade +
+                                "\" not supported; expected ConsumerMEMS, IndustrialMEMS or Tactical.");
+}
+
+ChGPSReceiverClass ReadGPSReceiverClassJSON(const std::string& receiver_class) {
+    if (receiver_class == "SPS")
+        return ChGPSReceiverClass::SPS;
+    if (receiver_class == "SBAS")
+        return ChGPSReceiverClass::SBAS;
+    if (receiver_class == "RTKFloat")
+        return ChGPSReceiverClass::RTK_FLOAT;
+    if (receiver_class == "RTKFixed")
+        return ChGPSReceiverClass::RTK_FIXED;
+    throw std::invalid_argument("GPS receiver class of \"" + receiver_class +
+                                "\" not supported; expected SPS, SBAS, RTKFloat or RTKFixed.");
+}
+
+}  // namespace
+
 std::shared_ptr<ChNoiseModel> CreateNoiseJSON(const Value& value) {
     std::string type = value["Noise Type"].GetString();
     // std::cout << "Noise Model Type :: " << type << "." << std::endl;
@@ -641,6 +680,48 @@ std::shared_ptr<ChNoiseModel> CreateNoiseJSON(const Value& value) {
         float drift_bias = value["Bias Drift"].GetFloat();
         float tau_drift = value["Tau Drift"].GetFloat();
         model = chrono_types::make_shared<ChNoiseNormalDrift>(updateRate, mean, stdev, drift_bias, tau_drift);
+    } else if (type.compare("ChNoiseIMU") == 0) {
+        double updateRate = value["Update Rate"].GetDouble();
+        ChNoiseIMUParams params;
+        if (value.HasMember("Grade")) {
+            const ChIMUGrade grade = ReadIMUGradeJSON(value["Grade"].GetString());
+            params = (value.HasMember("Sensor") && std::string(value["Sensor"].GetString()) == "Gyroscope")
+                         ? ChNoiseIMU::GyroscopePreset(grade)
+                         : ChNoiseIMU::AccelerometerPreset(grade);
+        }
+        // Every field is optional so that a preset can be adopted wholesale, or adopted and then
+        // overridden where the datasheet of the actual part differs.
+        ReadDoubleMember(value, "Noise Density", params.noise_density);
+        ReadDoubleMember(value, "Turn On Bias Stdev", params.turn_on_bias_stdev);
+        ReadDoubleMember(value, "Bias Instability", params.bias_instability);
+        ReadDoubleMember(value, "Bias Correlation Time", params.bias_correlation_time);
+        ReadDoubleMember(value, "Rate Random Walk", params.rate_random_walk);
+        ReadDoubleMember(value, "Range", params.range);
+        ReadDoubleMember(value, "Resolution", params.resolution);
+        if (value.HasMember("Scale Factor Error"))
+            params.scale_factor_error = ReadVectorJSON(value["Scale Factor Error"]);
+        model = chrono_types::make_shared<ChNoiseIMU>(updateRate, params);
+    } else if (type.compare("ChNoiseGPS") == 0) {
+        ChNoiseGPSParams params;
+        ChGPSFixType fix = ChGPSFixType::SPS;
+        if (value.HasMember("Receiver Class")) {
+            const ChGPSReceiverClass receiver_class = ReadGPSReceiverClassJSON(value["Receiver Class"].GetString());
+            params = ChNoiseGPS::Preset(receiver_class);
+            fix = ChNoiseGPS::PresetFixType(receiver_class);
+        }
+        ReadDoubleMember(value, "Horizontal Stdev", params.horizontal_stdev);
+        ReadDoubleMember(value, "Vertical Stdev", params.vertical_stdev);
+        ReadDoubleMember(value, "Correlation Time", params.correlation_time);
+        ReadDoubleMember(value, "White Stdev", params.white_stdev);
+        ReadDoubleMember(value, "Slow Bias Stdev", params.slow_bias_stdev);
+        ReadDoubleMember(value, "Slow Bias Correlation Time", params.slow_bias_correlation_time);
+        auto gps_model = chrono_types::make_shared<ChNoiseGPS>(params);
+        gps_model->SetNominalState(fix, GetDoubleMemberWithDefault(value, "HDOP", 1.0),
+                                   (unsigned int)GetDoubleMemberWithDefault(value, "Satellites", 10));
+        if (value.HasMember("Outage Rate"))
+            gps_model->SetOutageModel(value["Outage Rate"].GetDouble(),
+                                      GetDoubleMemberWithDefault(value, "Outage Mean Duration", 10.0));
+        model = gps_model;
     } else {
         throw std::invalid_argument("Noise model type of \"" + type + "\" not supported in ReadNoiseJSON.");
     }

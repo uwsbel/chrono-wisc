@@ -12,6 +12,8 @@ using namespace chrono::sensor;
 %shared_ptr(chrono::sensor::GyroData)
 %shared_ptr(chrono::sensor::MagnetData)
 %shared_ptr(chrono::sensor::GPSData)
+%shared_ptr(chrono::sensor::TachometerData)
+%shared_ptr(chrono::sensor::EncoderData)
 %shared_ptr(chrono::sensor::Sensor)
 
 %shared_ptr(chrono::sensor::SensorBuffer)
@@ -58,6 +60,8 @@ using namespace chrono::sensor;
 %template(UserGyroBuffer) chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::GyroData[]>>;
 %template(UserMagnetBuffer) chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::MagnetData[]>>;
 %template(UserGPSBuffer) chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::GPSData[]>>;
+%template(UserTachometerBuffer) chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::TachometerData[]>>;
+%template(UserEncoderBuffer) chrono::sensor::SensorBufferT<std::shared_ptr<chrono::sensor::EncoderData[]>>;
 
 //
 // ADDITIONAL C++ FUNCTIONS / CLASSES THAT ARE USED ONLY FOR PYTHON WRAPPER

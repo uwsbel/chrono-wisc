@@ -16,42 +16,68 @@
 
 #include "chrono_sensor/filters/ChFilterIMUUpdate.h"
 #include "chrono/physics/ChSystem.h"
+#include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/sensors/ChNoiseModel.h"
 #include "chrono_sensor/utils/ChGPSUtils.h"
+#include "chrono_sensor/utils/ChMagneticField.h"
 #include "chrono_sensor/sensors/ChIMUSensor.h"
-
-#include <chrono>
 
 namespace chrono {
 namespace sensor {
 
-ChFilterAccelerometerUpdate::ChFilterAccelerometerUpdate(std::shared_ptr<ChNoiseModel> noise_model) : m_noise_model(noise_model), ChFilter("Accelerometer Updater") {}
+namespace {
+
+/// Mean of the keyframes collected over one window, or zero if the window was empty.
+///
+/// A boxcar average over the window when no bandwidth model is configured. When one is, every
+/// keyframe already carries the filter output, so this only averages out the residual.
+ChVector3d MeanOfKeyFrames(const std::vector<ChVector3d>& keyframes) {
+    if (keyframes.empty())
+        return ChVector3d(0, 0, 0);
+
+    ChVector3d sum(0, 0, 0);
+    for (const auto& keyframe : keyframes)
+        sum += keyframe;
+    return sum / (double)keyframes.size();
+}
+
+}  // namespace
+
+// -----------------------------------------------------------------------------
+// ChFilterAccelerometerUpdate
+// -----------------------------------------------------------------------------
+
+ChFilterAccelerometerUpdate::ChFilterAccelerometerUpdate(std::shared_ptr<ChNoiseModel> noise_model)
+    : ChFilter("Accelerometer Updater"), m_noise_model(noise_model) {}
 
 CH_SENSOR_API void ChFilterAccelerometerUpdate::Apply() {
-    // default sensor values
-    ChVector3d acc = {0, 0, 0};
+    ChVector3d acc = MeanOfKeyFrames(m_accSensor->m_keyframes.Active());
 
-    if (m_accSensor->m_keyframes.size() > 0) {
-        for (const auto& c : m_accSensor->m_keyframes) {
-            acc += c;
-        }
-        acc /= (double)(m_accSensor->m_keyframes.size());
-    }
-
+    const float sample_time = m_accSensor->GetSampleTime();
     if (m_noise_model) {
-        m_noise_model->AddNoise(acc);
+        // The first sample has no preceding one to measure an interval against, so it uses the
+        // nominal update period. Measuring from a default-constructed zero would hand the model an
+        // interval of one simulation step and, for a model that scales noise by the sampling
+        // interval, overstate the first sample.
+        if (m_have_previous_sample)
+            m_noise_model->AddNoise(acc, m_last_sample_time, sample_time);
+        else
+            m_noise_model->AddNoise(acc);
     }
+    m_last_sample_time = sample_time;
+    m_have_previous_sample = true;
 
-    // load IMU data
     m_bufferOut->Buffer[0].X = acc.x();
     m_bufferOut->Buffer[0].Y = acc.y();
     m_bufferOut->Buffer[0].Z = acc.z();
 
     m_bufferOut->LaunchedCount = m_accSensor->GetNumLaunches();
-    m_bufferOut->TimeStamp = (float)m_accSensor->GetParent()->GetSystem()->GetChTime();
+    // The time the sample describes, which with a nonzero lag precedes the time it became visible.
+    m_bufferOut->TimeStamp = sample_time;
 }
 
-CH_SENSOR_API void ChFilterAccelerometerUpdate::Initialize(std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut) {
+CH_SENSOR_API void ChFilterAccelerometerUpdate::Initialize(std::shared_ptr<ChSensor> pSensor,
+                                                           std::shared_ptr<SensorBuffer>& bufferInOut) {
     if (bufferInOut) {
         throw std::runtime_error("Accelerometer update filter must be applied first in filter graph");
     }
@@ -59,6 +85,9 @@ CH_SENSOR_API void ChFilterAccelerometerUpdate::Initialize(std::shared_ptr<ChSen
     if (!m_accSensor) {
         throw std::runtime_error("Accelerometer Update filter can only be used on an accelerometer\n");
     }
+
+    if (m_noise_model)
+        m_noise_model->Initialize(pSensor, RngUsage::AccelerometerNoise, GetRngStreamIndex());
 
     m_bufferOut = chrono_types::make_shared<SensorHostAccelBuffer>();
     m_bufferOut->Buffer = std::make_unique<AccelData[]>(1);
@@ -69,32 +98,40 @@ CH_SENSOR_API void ChFilterAccelerometerUpdate::Initialize(std::shared_ptr<ChSen
     bufferInOut = m_bufferOut;
 }
 
-ChFilterGyroscopeUpdate::ChFilterGyroscopeUpdate(std::shared_ptr<ChNoiseModel> noise_model) : m_noise_model(noise_model), ChFilter("Gyroscope Updater") {}
+// -----------------------------------------------------------------------------
+// ChFilterGyroscopeUpdate
+// -----------------------------------------------------------------------------
+
+ChFilterGyroscopeUpdate::ChFilterGyroscopeUpdate(std::shared_ptr<ChNoiseModel> noise_model)
+    : ChFilter("Gyroscope Updater"), m_noise_model(noise_model) {}
 
 CH_SENSOR_API void ChFilterGyroscopeUpdate::Apply() {
-    // default sensor values
-    ChVector3d ang_vel = {0, 0, 0};
+    ChVector3d ang_vel = MeanOfKeyFrames(m_gyroSensor->m_keyframes.Active());
 
-    if (m_gyroSensor->m_keyframes.size() > 0) {
-        for (const auto& c : m_gyroSensor->m_keyframes) {
-            ang_vel += c;
-        }
-        ang_vel = ang_vel / (double)(m_gyroSensor->m_keyframes.size());
-    }
-
+    const float sample_time = m_gyroSensor->GetSampleTime();
     if (m_noise_model) {
-        m_noise_model->AddNoise(ang_vel);
+        // The first sample has no preceding one to measure an interval against, so it uses the
+        // nominal update period. Measuring from a default-constructed zero would hand the model an
+        // interval of one simulation step and, for a model that scales noise by the sampling
+        // interval, overstate the first sample.
+        if (m_have_previous_sample)
+            m_noise_model->AddNoise(ang_vel, m_last_sample_time, sample_time);
+        else
+            m_noise_model->AddNoise(ang_vel);
     }
+    m_last_sample_time = sample_time;
+    m_have_previous_sample = true;
 
-    // load IMU data
     m_bufferOut->Buffer[0].Roll = ang_vel.x();
     m_bufferOut->Buffer[0].Pitch = ang_vel.y();
     m_bufferOut->Buffer[0].Yaw = ang_vel.z();
+
     m_bufferOut->LaunchedCount = m_gyroSensor->GetNumLaunches();
-    m_bufferOut->TimeStamp = (float)m_gyroSensor->GetParent()->GetSystem()->GetChTime();
+    m_bufferOut->TimeStamp = sample_time;
 }
 
-CH_SENSOR_API void ChFilterGyroscopeUpdate::Initialize(std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut) {
+CH_SENSOR_API void ChFilterGyroscopeUpdate::Initialize(std::shared_ptr<ChSensor> pSensor,
+                                                       std::shared_ptr<SensorBuffer>& bufferInOut) {
     if (bufferInOut) {
         throw std::runtime_error("Gyroscope update filter must be applied first in filter graph");
     }
@@ -104,6 +141,9 @@ CH_SENSOR_API void ChFilterGyroscopeUpdate::Initialize(std::shared_ptr<ChSensor>
         throw std::runtime_error("Gyroscope update filter can only be used on a gyroscope\n");
     }
 
+    if (m_noise_model)
+        m_noise_model->Initialize(pSensor, RngUsage::GyroscopeNoise, GetRngStreamIndex());
+
     m_bufferOut = chrono_types::make_shared<SensorHostGyroBuffer>();
     m_bufferOut->Buffer = std::make_unique<GyroData[]>(1);
     m_bufferOut->Width = m_bufferOut->Height = 1;
@@ -112,60 +152,59 @@ CH_SENSOR_API void ChFilterGyroscopeUpdate::Initialize(std::shared_ptr<ChSensor>
     bufferInOut = m_bufferOut;
 }
 
-ChFilterMagnetometerUpdate::ChFilterMagnetometerUpdate(std::shared_ptr<ChNoiseModel> noise_model, ChVector3d gps_reference)
-    : m_noise_model(noise_model), ChFilter("Magnetometer Updater"), m_gps_reference(gps_reference) {}
+// -----------------------------------------------------------------------------
+// ChFilterMagnetometerUpdate
+// -----------------------------------------------------------------------------
+
+ChFilterMagnetometerUpdate::ChFilterMagnetometerUpdate(std::shared_ptr<ChNoiseModel> noise_model,
+                                                       ChVector3d gps_reference)
+    : ChFilter("Magnetometer Updater"), m_noise_model(noise_model), m_gps_reference(gps_reference) {}
 
 CH_SENSOR_API void ChFilterMagnetometerUpdate::Apply() {
-    // default sensor values
-    ChVector3d pos = {0, 0, 0};
-    if (m_magSensor->m_keyframes.size() > 0) {
-        for (const auto& c : m_magSensor->m_keyframes) {
-            pos += c.GetPos();
-        }
-        pos = pos / (double)(m_magSensor->m_keyframes.size());
-    }
+    const auto& keyframes = m_magSensor->m_keyframes.Active();
+    if (keyframes.empty())
+        return;
 
-    Cartesian2GPS(pos, m_gps_reference);
-    double phi = pos.x() * CH_DEG_TO_RAD;    // longitude
-    double theta = pos.y() * CH_DEG_TO_RAD;  // latitude
-    double h = pos.z();                      // altitude
+    // The field is a point property of a position on Earth, not something to integrate over a
+    // window, so the sample is taken at the instant the window closed.
+    const ChFrame<double>& sensor_frame = keyframes.back();
 
-    double cos_theta_m = std::cos(theta) * std::cos(theta_0) + std::sin(theta) * std::sin(theta_0) * cos(phi - phi_0);
-    double sin_theta_m = std::sin(std::acos(cos_theta_m));
-
-    double q = EARTH_RADIUS / (EARTH_RADIUS + h);
-    double B_abs = std::abs(B_0 * (q * q * q) * std::sqrt(1 + 3 * cos_theta_m * cos_theta_m));
-
-    double alpha = std::atan2(2 * cos_theta_m, sin_theta_m);
-    double beta = std::sin(theta_0);
-    if (cos_theta_m > beta) {
-        beta = std::asin(std::sin(phi - phi_0) * (std::cos(theta_0) / sin_theta_m));
+    ChVector3d field_world(0, 0, 0);
+    if (m_magSensor->GetFieldModel() == ChMagneticFieldModel::LOCAL) {
+        field_world = m_magSensor->GetLocalField();
     } else {
-        beta = std::asin(std::cos(phi - phi_0) * (std::cos(theta_0) / sin_theta_m));
+        ChVector3d coords = sensor_frame.GetPos();
+        Cartesian2GPS(coords, m_gps_reference);
+        field_world = WMM2025Field(coords.y(), coords.x(), coords.z(), m_magSensor->GetEpoch());
     }
 
-    // get magnetic field in sensor frame
-    double H = B_abs * std::cos(alpha);
-    ChVector3d mag_field = {H * std::cos(beta), H * std::sin(beta), B_abs * std::sin(alpha)};
+    // RotateBack is parent to local: the reading is the world field expressed in the sensor frame.
+    ChVector3d field_sensor = sensor_frame.GetRot().RotateBack(field_world);
 
-    double ang;
-    ChVector3d axis;
-    m_magSensor->m_keyframes[0].GetRot().GetAngleAxis(ang, axis);
-    ChVector3d mag_field_sensor = m_magSensor->m_keyframes[0].GetRot().Rotate(mag_field);
-
+    const float sample_time = m_magSensor->GetSampleTime();
     if (m_noise_model) {
-        m_noise_model->AddNoise(mag_field_sensor);
+        // The first sample has no preceding one to measure an interval against, so it uses the
+        // nominal update period. Measuring from a default-constructed zero would hand the model an
+        // interval of one simulation step and, for a model that scales noise by the sampling
+        // interval, overstate the first sample.
+        if (m_have_previous_sample)
+            m_noise_model->AddNoise(field_sensor, m_last_sample_time, sample_time);
+        else
+            m_noise_model->AddNoise(field_sensor);
     }
+    m_last_sample_time = sample_time;
+    m_have_previous_sample = true;
 
-    // pack magnetometer data
-    m_bufferOut->Buffer[0].X = mag_field_sensor.x();  // units of Gauss
-    m_bufferOut->Buffer[0].Y = mag_field_sensor.y();  // units of Gauss
-    m_bufferOut->Buffer[0].Z = mag_field_sensor.z();  // units of Gauss
+    m_bufferOut->Buffer[0].X = field_sensor.x();
+    m_bufferOut->Buffer[0].Y = field_sensor.y();
+    m_bufferOut->Buffer[0].Z = field_sensor.z();
+
     m_bufferOut->LaunchedCount = m_magSensor->GetNumLaunches();
-    m_bufferOut->TimeStamp = (float)m_magSensor->GetParent()->GetSystem()->GetChTime();
+    m_bufferOut->TimeStamp = sample_time;
 }
 
-CH_SENSOR_API void ChFilterMagnetometerUpdate::Initialize(std::shared_ptr<ChSensor> pSensor, std::shared_ptr<SensorBuffer>& bufferInOut) {
+CH_SENSOR_API void ChFilterMagnetometerUpdate::Initialize(std::shared_ptr<ChSensor> pSensor,
+                                                          std::shared_ptr<SensorBuffer>& bufferInOut) {
     if (bufferInOut) {
         throw std::runtime_error("Magnetometer update filter must be applied first in filter graph");
     }
@@ -174,6 +213,9 @@ CH_SENSOR_API void ChFilterMagnetometerUpdate::Initialize(std::shared_ptr<ChSens
     if (!m_magSensor) {
         throw std::runtime_error("Magnetometer update filter can only be used on a magnetometer\n");
     }
+
+    if (m_noise_model)
+        m_noise_model->Initialize(pSensor, RngUsage::MagnetometerNoise, GetRngStreamIndex());
 
     m_bufferOut = chrono_types::make_shared<SensorHostMagnetBuffer>();
     m_bufferOut->Buffer = std::make_unique<MagnetData[]>(1);

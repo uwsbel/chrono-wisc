@@ -32,21 +32,32 @@ ChDynamicsManager::ChDynamicsManager(ChSystem* chrono_system) {
 ChDynamicsManager::~ChDynamicsManager() {}
 
 void ChDynamicsManager::UpdateSensors() {
-    for (int i = 0; i < m_sensor_list.size(); i++) {
-        auto pSen = m_sensor_list[i];
+    const double time = m_system->GetChTime();
 
-        if (m_system->GetChTime() > pSen->GetNumLaunches() / pSen->GetUpdateRate() - 1e-7) {
-            pSen->PushKeyFrame();
-            if (m_system->GetChTime() >
-                pSen->GetNumLaunches() / pSen->GetUpdateRate() + pSen->GetCollectionWindow() - 1e-7) {
-                // pGPS->gps_key_frames = m_gps_collection_data[i];
-                pSen->IncrementNumLaunches();
-                // step through the filter list, applying each filter
-                for (auto filter : pSen->GetFilterList()) {
-                    filter->Apply();
-                }
-                pSen->ClearKeyFrames();
+    for (auto& sensor : m_sensor_list) {
+        sensor->AdvanceTo(time);
+
+        // Collect. Keyframes are sampled over [n / rate, n / rate + collection window]; the window
+        // is paced by the number of windows closed, not by the number released, so a sensor lag
+        // does not slow down sampling.
+        const double window_start = sensor->GetNumWindows() / (double)sensor->GetUpdateRate();
+        if (time > window_start - 1e-7) {
+            sensor->PushKeyFrame();
+            if (time > window_start + sensor->GetCollectionWindow() - 1e-7) {
+                sensor->KeyFrames().Stash((float)time, (float)time + sensor->GetLag());
+                sensor->IncrementNumWindows();
             }
+        }
+
+        // Release. Each closed window reaches the filter graph once its lag has elapsed, which is
+        // what makes the data visible to the user that long after the window closed. A loop rather
+        // than a single test, so a lag longer than the update period cannot let windows pile up.
+        while (sensor->KeyFrames().DueBy((float)time)) {
+            sensor->ReleaseKeyFrames();
+            sensor->IncrementNumLaunches();
+            for (auto& filter : sensor->GetFilterList())
+                filter->Apply();
+            sensor->ClearKeyFrames();
         }
     }
 }
@@ -58,7 +69,6 @@ void ChDynamicsManager::AssignSensor(std::shared_ptr<ChSensor> sensor) {
             std::cerr << "WARNING: This sensor already exists in manager. Ignoring this addition\n";
             return;
         }
-        // add a GPS sensor
         m_sensor_list.push_back(sen);
         std::shared_ptr<SensorBuffer> buffer;
         for (auto f : sen->GetFilterList()) {

@@ -521,11 +521,11 @@ using SensorHostGyroBuffer = SensorBufferT<std::shared_ptr<GyroData[]>>;
 /// Pointer to an accelerometer buffer on the host that has been moved for safety and can be given to the user.
 using UserGyroBufferPtr = std::shared_ptr<SensorHostGyroBuffer>;
 
-/// Magnetometer data.
+/// Magnetometer data, in Tesla.
 struct MagnetData {
-    double X;  ///< x component of magnetic field
-    double Y;  ///< y component of magnetic field
-    double Z;  ///< z component of magnetic field
+    double X;  ///< x component of the magnetic flux density in the sensor frame [T]
+    double Y;  ///< y component of the magnetic flux density in the sensor frame [T]
+    double Z;  ///< z component of the magnetic flux density in the sensor frame [T]
 };
 
 /// accelerometer host buffer to be used by accelerometer filters in the graph.
@@ -548,32 +548,55 @@ using SensorHostTachometerBuffer = SensorBufferT<std::shared_ptr<TachometerData[
 /// Pointer to a tachometer buffer on the host that has been moved for safety and can be given to the user.
 using UserTachometerBufferPtr = std::shared_ptr<SensorHostTachometerBuffer>;
 
-/*
 //================================
-// Speedometer Data Format and Buffers
+// Encoder Data Format and Buffers
 //================================
 
+/// Rotary encoder data.
 struct EncoderData {
-    float speed;  ///< speed of object
+    double angle;      ///< shaft angle accumulated since the start of the simulation [rad], quantised to counts
+    long long counts;  ///< signed count accumulated since the start of the simulation
+    double rpm;        ///< mean shaft speed over the collection window, derived from the counts in it
+    int direction;     ///< +1, -1, or 0 when no count was registered over the window
 };
 
-// Speedometer host buffer to be used by speedometer filters in the graph.
+/// Encoder host buffer to be used by encoder filters in the graph.
 using SensorHostEncoderBuffer = SensorBufferT<std::shared_ptr<EncoderData[]>>;
 
-// Pointer to a speedometer buffer on the host that has been moved to safety and can be given to the user.
+/// Pointer to an encoder buffer on the host that has been moved for safety and can be given to the user.
 using UserEncoderBufferPtr = std::shared_ptr<SensorHostEncoderBuffer>;
-*/
 
 //============================
 // GPS Data Format and Buffers
 //============================
 
+/// Quality of a GPS position solution, matching ChGPSFixType.
+enum class GPSFix {
+    NONE = 0,       ///< no position solution
+    SPS = 1,        ///< standard positioning service
+    DGPS = 2,       ///< differential or satellite-based augmentation
+    RTK_FLOAT = 3,  ///< real-time kinematic, float ambiguities
+    RTK_FIXED = 4   ///< real-time kinematic, fixed ambiguities
+};
+
 /// GPS data in generic format.
 struct GPSData {
-    double Latitude;   ///< Latitudinal coordinate of the sensor
-    double Longitude;  ///< Longitudinal coordinate of the sensor
-    double Altitude;   ///< Altitude of the sensor
-    double Time;       ///< Time from the sensor
+    double Latitude;   ///< Latitudinal coordinate of the sensor [deg]
+    double Longitude;  ///< Longitudinal coordinate of the sensor [deg]
+    double Altitude;   ///< Altitude of the sensor above the WGS-84 ellipsoid [m]
+    double Time;       ///< Time from the sensor [s]
+
+    double VelEast;   ///< east component of the antenna velocity [m/s]
+    double VelNorth;  ///< north component of the antenna velocity [m/s]
+    double VelUp;     ///< up component of the antenna velocity [m/s]
+
+    double Speed;   ///< horizontal ground speed [m/s]
+    double Course;  ///< course over ground, clockwise from north [deg], in [0, 360)
+
+    GPSFix Fix;                     ///< quality of the position solution
+    double HDOP;                    ///< horizontal dilution of precision
+    unsigned int NumSatellites;     ///< satellites used in the solution
+    bool Valid;                     ///< whether the solution is usable
 };
 
 /// GPS host buffer to be used by GPS filters in the graph.

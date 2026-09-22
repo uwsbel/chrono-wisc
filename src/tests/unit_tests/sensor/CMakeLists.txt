@@ -8,7 +8,8 @@
 # also build in a sensor module with no ray-tracing backend selected.
 set(TESTS
     utest_SEN_gps
-    utest_SEN_rng_streams      # RNG stream-id packing and derivation; no rendering involved
+    utest_SEN_rng_streams              # RNG stream-id packing and derivation; no rendering involved
+    utest_SEN_dynamic_sensor_physics   # non-rendering sensor readings vs closed-form ground truth
 )
 
 # --- any render backend -----------------------------------------------------------

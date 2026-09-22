@@ -5,6 +5,7 @@ Change Log
 ==========
 
 - [Unreleased (development branch)](#unreleased-development-branch)
+  - [\[Changed\] Chrono::Sensor non-rendering sensor physics](#changed-chronosensor-non-rendering-sensor-physics)
   - [\[Changed\] Chrono::Sensor appearance of shapes with no visual material](#changed-chronosensor-appearance-of-shapes-with-no-visual-material)
   - [\[Added\] Chrono::FEA multiphysics framework](#added-chronofea-multiphysics-framework)
   - [\[Added\] Chrono::PRECICE module](#added-chronoprecice-module)
@@ -145,6 +146,69 @@ Change Log
 - [Release 4.0.0 (2019-02-22)](#release-400-2019-02-22)
 
 # Unreleased (development branch) 
+
+## [Changed] Chrono::Sensor non-rendering sensor physics
+
+The accelerometer, gyroscope, magnetometer, GPS and tachometer have been corrected and extended, and
+a rotary encoder has been added. **Readings change**: several of these were wrong in ways that only
+showed once a body was rotated or offset, which is why the previous "does a buffer arrive" tests
+never caught them.
+
+Corrections:
+
+- **Accelerometer.** Now reports specific force in the sensor frame,
+  `(R_body R_offset)^-1 (a_world - g_world)`. It previously left the dynamic acceleration in the
+  world frame, rotated gravity local-to-parent where parent-to-local was needed, and ignored the
+  offset rotation entirely. Only an unrotated body with an identity offset gave the right answer.
+- **Magnetometer.** Now rotates the field parent-to-local, and emits **Tesla** rather than Gauss (a
+  factor of 1e-4). The centered tilted dipole, which mixed latitude with colatitude and placed north
+  on X with the vertical component inverted, is replaced by the World Magnetic Model 2025, matched
+  against the coefficient and test-value files published by NOAA NCEI. A measured constant field can
+  be supplied instead with `ChMagnetometerSensor::SetLocalField`.
+- **Gyroscope.** Applies the offset rotation, so a gyroscope mounted rotated on its parent reports
+  about its own axes.
+- **GPS.** Converts through the WGS-84 ellipsoid rather than a sphere of mean radius, which removes a
+  scale error of roughly 0.9 m per km north and 2.7 m per km east at mid latitudes. The buffer
+  `TimeStamp` now carries the time of the fix; it previously carried the previous keyframe's time,
+  which with the default collection window was always zero.
+- **Tachometer.** Consumes the collection window instead of re-reading the live body rate at apply
+  time, applies the offset rotation, and sets `TimeStamp` and `LaunchedCount` so consumers can detect
+  a new sample.
+- **Mounting frame.** All non-rendering sensors now resolve `offsetPose` against the parent body's
+  reference (REF) frame, `ChBody::GetFrameRefToAbs()`, which is what rendering sensors already used.
+  On a `ChBodyAuxRef` — every Chrono::Vehicle chassis — the centroidal and reference frames differ,
+  so an IMU and a camera given the same `offsetPose` previously sat at different physical points.
+- **Lag.** `ChSensor::SetLag` now takes effect for non-rendering sensors. It was stored and never
+  read, so GPS and IMU data appeared with zero latency.
+- **Seeding.** Noise models seed from `ChSensorManager::SetRandomSeed` through the same per-sensor
+  stream identity the render filters use. They previously seeded from the wall clock, so a fixed seed
+  did not make them reproducible. Sharing one model instance between two sensors is now reported.
+
+Additions:
+
+- `ChNoiseIMU` and `ChNoiseGPS`, parameterised by the quantities datasheets and receiver
+  specifications quote: noise density, turn-on bias, bounded Gauss-Markov bias instability, rate
+  random walk, scale factor, misalignment, range and resolution for the IMU; correlated horizontal
+  and vertical error with a correlation time, white tracking noise and optional outages for the GPS.
+  Presets are available per part grade (`ChIMUGrade`) and receiver class (`ChGPSReceiverClass`).
+- `ChEncoderSensor`, an incremental quadrature encoder reporting accumulated angle, signed counts,
+  count-derived speed and direction, with +-1-count quantisation, missing pulses and disc
+  eccentricity.
+- `GPSData` gains ENU velocity, ground speed, course, fix quality, HDOP, satellite count and a valid
+  flag.
+- `ChAccelerometerSensor::SetBandwidth` and `ChGyroscopeSensor::SetBandwidth` model the analogue
+  low-pass ahead of the sampler, so the update rate no longer silently sets the effective bandwidth.
+  Off by default.
+
+`ChNoiseNormal`, `ChNoiseNormalDrift` and `ChNoiseRandomWalks` remain, with their constructors
+unchanged, so existing studies still build and run. Bugs in them are fixed: `ChNoiseRandomWalks` left
+its error state uninitialized in one of its two constructors, discarded a random draw it had already
+made, and ignored the `mean` it was given; `ChNoiseNormalDrift` divided by an update rate it never
+checked. Their documentation now states what they do and do not model.
+
+`gps_reference` remains ordered **(longitude, latitude, altitude)**. `demo_SEN_GPSIMU` and the ROS
+GPS handler passed it the other way round and have been corrected; the demo had been running at
+latitude -89.4, near the south pole.
 
 ## [Changed] Chrono::Sensor appearance of shapes with no visual material
 

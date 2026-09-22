@@ -74,6 +74,7 @@
 
 #include "chrono_sensor/sensors/ChGPSSensor.h"
 #include "chrono_sensor/sensors/ChIMUSensor.h"
+#include "chrono_sensor/sensors/ChTachometerSensor.h"
 #include "chrono_sensor/ChSensorManager.h"
 #include "chrono_sensor/sensors/ChSensorBuffer.h"
 #include "chrono_sensor/sensors/ChNoiseModel.h"
@@ -240,6 +241,7 @@ using namespace chrono::sensor;
 %include "ChSensor.i"
 %include "ChGPSSensor.i"
 %include "ChIMUSensor.i"
+%include "ChTachometerSensor.i"
 #ifdef CHRONO_HAS_OPTIX
   %include "ChOptixSensor.i"
 #endif

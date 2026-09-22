@@ -74,6 +74,14 @@ enum class RngUsage : unsigned int {
     VulkanPhysCameraRaygen = 11,  ///< ChFilterVulkanRTRender, physical camera
     MetalCameraRaygen = 12,       ///< ChFilterMetalRTRender, camera
     MetalPhysCameraRaygen = 13,   ///< ChFilterMetalRTRender, physical camera
+    AccelerometerNoise = 14,      ///< ChNoiseModel on a ChAccelerometerSensor
+    GyroscopeNoise = 15,          ///< ChNoiseModel on a ChGyroscopeSensor
+    MagnetometerNoise = 16,       ///< ChNoiseModel on a ChMagnetometerSensor
+    GpsNoise = 17,                ///< ChNoiseModel on a ChGPSSensor
+    TachometerNoise = 18,         ///< ChNoiseModel on a ChTachometerSensor
+    EncoderNoise = 19,            ///< ChNoiseModel on a ChEncoderSensor
+    EncoderPulseDropout = 20,     ///< ChFilterEncoderUpdate, dropped pulses; a separate stream from
+                                  ///< EncoderNoise because both belong to the same sensor and filter
     Count                         ///< sentinel; keep last
 };
 
