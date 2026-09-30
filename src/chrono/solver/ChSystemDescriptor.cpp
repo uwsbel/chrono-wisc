@@ -14,6 +14,7 @@
 
 #include <iomanip>
 
+#include "chrono/core/ChTimer.h"
 #include "chrono/solver/ChSystemDescriptor.h"
 
 namespace chrono {
@@ -502,6 +503,10 @@ void ChSystemDescriptor::UnknownsProject(ChVectorDynamic<>& mx) {
 // -----------------------------------------------------------------------------
 
 void ChSystemDescriptor::WriteMatrixBlocks(const std::string& path, const std::string& prefix, bool one_indexed) {
+    ChTimer timer_total, timer_paste_mass, timer_paste_jacob, timer_paste_compl, timer_build_vec, timer_io;
+    
+    timer_total.start();
+    
     ChSparseMatrix mass_matrix(CountActiveVariables(), CountActiveVariables());
     ChSparseMatrix jacob_matrix(CountActiveConstraints(), CountActiveVariables());
     ChSparseMatrix compl_matrix(CountActiveConstraints(), CountActiveConstraints());
@@ -513,12 +518,24 @@ void ChSystemDescriptor::WriteMatrixBlocks(const std::string& path, const std::s
     f.setZero(CountActiveVariables());
     b.setZero(CountActiveConstraints());
 
+    timer_paste_mass.start();
     PasteMassKRMMatrixInto(mass_matrix);
+    timer_paste_mass.stop();
+    
+    timer_paste_jacob.start();
     PasteConstraintsJacobianMatrixInto(jacob_matrix);
+    timer_paste_jacob.stop();
+    
+    timer_paste_compl.start();
     PasteComplianceMatrixInto(compl_matrix);
+    timer_paste_compl.stop();
+    
+    timer_build_vec.start();
     BuildFbVector(f);
     BuildBiVector(b);
+    timer_build_vec.stop();
 
+    timer_io.start();
     std::ofstream file_H(path + "/" + prefix + "_H.dat");
     file_H << std::setprecision(12) << std::scientific;
     StreamOut(mass_matrix, file_H, one_indexed);
@@ -538,13 +555,32 @@ void ChSystemDescriptor::WriteMatrixBlocks(const std::string& path, const std::s
     std::ofstream file_b(path + "/" + prefix + "_b.dat");
     file_b << std::setprecision(12) << std::scientific;
     StreamOut(b, file_b);
+    timer_io.stop();
+    
+    timer_total.stop();
+    
+    std::cout << "  WriteMatrixBlocks timing: " << std::fixed << std::setprecision(6) << timer_total.GetTimeSeconds() << " s"
+              << " (PasteMassKRM: " << timer_paste_mass.GetTimeSeconds() << " s"
+              << ", PasteJacobian: " << timer_paste_jacob.GetTimeSeconds() << " s"
+              << ", PasteCompliance: " << timer_paste_compl.GetTimeSeconds() << " s"
+              << ", BuildVectors: " << timer_build_vec.GetTimeSeconds() << " s"
+              << ", I/O: " << timer_io.GetTimeSeconds() << " s)" << std::endl;
 }
 
 void ChSystemDescriptor::WriteMatrix(const std::string& path, const std::string& prefix, bool one_indexed) {
+    ChTimer timer_total, timer_assembly, timer_io;
+    
+    timer_total.start();
+    
+    // Matrix assembly
+    timer_assembly.start();
     ChSparseMatrix Z;
     ChVectorDynamic<double> rhs;
     BuildSystemMatrix(&Z, &rhs);
+    timer_assembly.stop();
 
+    // File I/O
+    timer_io.start();
     std::ofstream file_Z(path + "/" + prefix + "_Z.dat");
     file_Z << std::setprecision(12) << std::scientific;
     StreamOut(Z, file_Z, one_indexed);
@@ -552,6 +588,14 @@ void ChSystemDescriptor::WriteMatrix(const std::string& path, const std::string&
     std::ofstream file_rhs(path + "/" + prefix + "_rhs.dat");
     file_rhs << std::setprecision(12) << std::scientific;
     StreamOut(rhs, file_rhs);
+    timer_io.stop();
+    
+    timer_total.stop();
+    
+    std::cout << "  WriteMatrix timing: " << std::fixed << std::setprecision(6) << timer_total.GetTimeSeconds() << " s"
+              << " (assembly: " << timer_assembly.GetTimeSeconds() << " s"
+              << ", I/O: " << timer_io.GetTimeSeconds() << " s"
+              << ", matrix size: " << Z.rows() << "x" << Z.cols() << ", nnz: " << Z.nonZeros() << ")" << std::endl;
 }
 
 void ChSystemDescriptor::WriteMatrixSpmv(const std::string& path, const std::string& prefix, bool one_indexed) {

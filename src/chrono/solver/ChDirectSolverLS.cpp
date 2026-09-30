@@ -15,6 +15,7 @@
 #include <iomanip>
 
 #include "chrono/core/ChSparsityPatternLearner.h"
+#include "chrono/core/ChTimer.h"
 
 #include "chrono/solver/ChDirectSolverLS.h"
 
@@ -88,16 +89,27 @@ bool ChDirectSolverLS::Setup(ChSystemDescriptor& sysd) {
 
     m_timer_setup_assembly.stop();
 
-    if (write_matrix)
+    ChTimer timer_write;
+    if (write_matrix) {
+        timer_write.start();
         WriteMatrix("LS_" + frame_id + "_A.dat", m_mat);
+        timer_write.stop();
+        std::cout << "  Solver WriteMatrix (A): " << std::fixed << std::setprecision(6) 
+                  << timer_write.GetTimeSeconds() << " s" << std::endl;
+    }
 
     // Let the concrete solver perform the facorization
     m_timer_setup_solvercall.start();
     bool result = FactorizeMatrix();
     m_timer_setup_solvercall.stop();
 
-    if (write_matrix)
+    if (write_matrix) {
+        timer_write.start();
         WriteMatrix("LS_" + frame_id + "_F.dat", m_mat);
+        timer_write.stop();
+        std::cout << "  Solver WriteMatrix (F): " << std::fixed << std::setprecision(6) 
+                  << timer_write.GetTimeSeconds() << " s" << std::endl;
+    }
 
     if (verbose) {
         std::cout << " Solver setup [" << m_setup_call << "] n = " << m_dim << "  nnz = " << (int)m_mat.nonZeros()
@@ -225,12 +237,28 @@ double ChDirectSolverLS::SolveCurrent() {
 void ChDirectSolverLS::WriteMatrix(const std::string& filename, const ChSparseMatrix& M) {
     std::ofstream file(filename);
     file << std::setprecision(12) << std::scientific;
-    for (int i = 0; i < M.rows(); i++) {
-        for (int j = 0; j < M.cols(); j++) {
-            double elVal = M.coeff(i, j);
-            if (elVal || (i == M.rows() - 1 && j == M.cols() - 1)) {
-                file << i + 1 << " " << j + 1 << " " << elVal << std::endl;
+    
+    // Use efficient iterator-based approach to only iterate over non-zero elements
+    // This is O(nnz) instead of O(n²) for sparse matrices
+    bool last_row_visited = false;
+    bool last_col_visited = false;
+    
+    for (int k = 0; k < M.outerSize(); ++k) {
+        for (ChSparseMatrix::InnerIterator it(M, k); it; ++it) {
+            if (it.value()) {
+                file << it.row() + 1 << " " << it.col() + 1 << " " << it.value() << "\n";
             }
+            if (it.row() == M.rows() - 1)
+                last_row_visited = true;
+            if (it.col() == M.cols() - 1)
+                last_col_visited = true;
+        }
+    }
+    
+    // Ensure last element is written (for compatibility with original behavior)
+    if (M.rows() && M.cols()) {
+        if (!last_row_visited || !last_col_visited) {
+            file << M.rows() << " " << M.cols() << " " << 0. << "\n";
         }
     }
 }

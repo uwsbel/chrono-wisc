@@ -24,6 +24,7 @@
 #include "chrono/assets/ChVisualSystem.h"
 #include "chrono/collision/ChCollisionSystem.h"
 #include "chrono/core/ChDataPath.h"
+#include "chrono/core/ChTimer.h"
 #include "chrono/physics/ChLinkMotorRotationSpeed.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChSystemSMC.h"
@@ -32,6 +33,7 @@
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChManyTireTestRigs.h"
 
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
+#include "chrono_thirdparty/filesystem/path.h"
 #include "demos/SetChronoSolver.h"
 
 #ifdef CHRONO_VSG
@@ -48,13 +50,13 @@ namespace {
 struct DemoParams {
     std::string wheel_json = "Polaris/Polaris_Wheel.json";
     std::string tire_json = "Polaris/Polaris_TMeasyTire.json";
-    bool deformable = false;
-    bool is_deformable_airless = false;
+    bool deformable = true;
+    bool is_deformable_airless = true;
     double normal_load = 2400.0;  // [N]
     double gravity = 9.81;        // [m/s^2]
     double forward_speed = 0.5;   // [m/s]
-    double sim_time = 8.0;        // [s]
-    bool render = true;
+    double sim_time = 0.2;        // [s]
+    bool render = false;
     double render_fps = 60.0;
     bool set_long_speed = true;
     bool set_ang_speed = false;
@@ -63,7 +65,8 @@ struct DemoParams {
     double slip_ratio = 0.0;       // [0..1)
     double slip_angle_deg = 5.0;   // [deg]
     double slip_angle_freq = 0.2;  // [Hz]
-    bool save_matrices = false;
+    bool save_matrices = true;
+    int num_rigs = 2;
     
     void SetTireJson() {
         if (deformable && !is_deformable_airless) {
@@ -77,9 +80,10 @@ bool ParseCommandLine(int argc, char** argv, DemoParams& params) {
 
     cli.AddOption<double>("Rig", "normal_load", "Normal load per rig (N)", std::to_string(params.normal_load));
     cli.AddOption<double>("Rig", "speed", "Prescribed longitudinal speed (m/s)", std::to_string(params.forward_speed));
+    cli.AddOption<int>("Rig", "testrigs", "Number of test rigs", std::to_string(params.num_rigs));
     cli.AddOption<double>("Simulation", "gravity", "Gravity magnitude (m/s^2)", std::to_string(params.gravity));
     cli.AddOption<double>("Simulation", "time", "Simulation duration (s)", std::to_string(params.sim_time));
-    cli.AddOption<bool>("Visualization", "render", "Enable run-time visualization", "true");
+    cli.AddOption<bool>("Visualization", "render", "Enable run-time visualization", std::string(params.render ? "true" : "false"));
     cli.AddOption<bool>("Motion", "longitudinal", "Enable longitudinal speed profile", "true");
     cli.AddOption<bool>("Motion", "angular", "Enable angular speed profile", "false");
     cli.AddOption<bool>("Motion", "slip_angle", "Enable sinusoidal slip angle", "false");
@@ -96,6 +100,7 @@ bool ParseCommandLine(int argc, char** argv, DemoParams& params) {
 
     params.normal_load = cli.GetAsType<double>("normal_load");
     params.forward_speed = cli.GetAsType<double>("speed");
+    params.num_rigs = cli.GetAsType<int>("testrigs");
     params.gravity = cli.GetAsType<double>("gravity");
     params.sim_time = cli.GetAsType<double>("time");
     params.render = cli.GetAsType<bool>("render");
@@ -233,9 +238,7 @@ int main(int argc, char* argv[]) {
     config.terrain_params_rigid.length = 8.0;
     config.terrain_params_rigid.width = 0.8;  // requirement: width < 1 m
 
-    const size_t num_rigs = 50;
-
-    rigs.AddManyRigs(params.wheel_json, params.tire_json, params.is_deformable_airless, num_rigs, config);
+    rigs.AddManyRigs(params.wheel_json, params.tire_json, params.is_deformable_airless, params.num_rigs, config);
 
     if (params.set_ang_speed) {
         auto& first_rig = rigs.GetRig(0);
@@ -267,19 +270,33 @@ int main(int argc, char* argv[]) {
     ConfigureVisualSystem(vis, system, params.render);
     int render_frame = 0;
     bool matrix_done = false;
+    ChTimer matrix_write_timer;
 
     while (system->GetChTime() < params.sim_time) {
         // Enable solver matrix write at t = 0.1 (just once)
+        if (std::fmod(system->GetChTime(), 0.01) < 1e-10) {
+            std::cout << "Time step: " << system->GetChTime() << std::endl;
+        }
         if (params.save_matrices && !matrix_done && system->GetChTime() >= 0.1) {
+            // Create output directory with number of rigs
+            std::string matrix_output_dir = GetChronoOutputPath() + std::to_string(params.num_rigs) + "_rigs";
+            if (!filesystem::create_subdirectory(filesystem::path(matrix_output_dir))) {
+                std::cerr << "Warning: Could not create directory " << matrix_output_dir 
+                          << " (may already exist)" << std::endl;
+            }
+            
             std::cout << "Enabling solver matrix write at t = " << system->GetChTime() << " s\n";
-            system->EnableSolverMatrixWrite(true, GetChronoOutputPath());
+            system->EnableSolverMatrixWrite(true, matrix_output_dir);
             system->EnableSolverMatrixWriteFirstIterOnly(true);  // Save only first Newton-Raphson iteration
-            std::cout << "Will write solver matrix (first iteration only) to " << GetChronoOutputPath() << "\n";
+            std::cout << "Will write solver matrix (first iteration only) to " << matrix_output_dir << "\n";
+            
+            // Start timing the matrix write operation
+            matrix_write_timer.start();
         }
         
 #ifdef CHRONO_VSG
         if (vis && system->GetChTime() >= render_frame / params.render_fps) {
-            auto focus_index = num_rigs / 2;
+            auto focus_index = params.num_rigs / 2;
             ChVector3d focus = rigs.GetCarrierPos(focus_index);
             vis->UpdateCamera(focus + ChVector3d(2.0, 3.0, 1.0), focus);
 
@@ -294,7 +311,11 @@ int main(int argc, char* argv[]) {
         
         // Disable solver matrix write after t = 0.1 + step_size (just once) and exit loop
         if (params.save_matrices && !matrix_done && system->GetChTime() >= 0.1 + step_size) {
+            // Stop timing the matrix write operation
+            matrix_write_timer.stop();
             std::cout << "Disabling solver matrix write at t = " << system->GetChTime() << " s\n";
+            std::cout << "Matrix write time: " << matrix_write_timer.GetTimeSeconds() << " s ("
+                      << matrix_write_timer.GetTimeMilliseconds() << " ms)\n";
             system->EnableSolverMatrixWrite(false);
             matrix_done = true;
             break;

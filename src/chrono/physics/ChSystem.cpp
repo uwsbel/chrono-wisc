@@ -36,6 +36,7 @@
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 #include "chrono/core/ChMatrix.h"
+#include "chrono/core/ChTimer.h"
 #include "chrono/utils/ChProfiler.h"
 
 namespace chrono {
@@ -1071,15 +1072,77 @@ bool ChSystem::StateSolveCorrection(
     // Diagnostics:
     bool should_write = write_matrix && (!write_matrix_first_iter_only || solvecount == 0);
     if (should_write) {
+        ChTimer timer_matrix_write, timer_vectors, timer_rhs;
+        
+        timer_matrix_write.start();
         std::string prefix = "solve_" + std::to_string(stepcount) + "_" + std::to_string(solvecount);
 
+        std::cout << "\n=== Matrix Write Timing Breakdown ===" << std::endl;
+        
         if (std::dynamic_pointer_cast<ChIterativeSolver>(solver)) {
             descriptor->WriteMatrixSpmv(output_dir, prefix);
         } else {
-            descriptor->WriteMatrix(output_dir, prefix);
-            descriptor->WriteMatrixBlocks(output_dir, prefix);
+            // For direct solvers, try to reuse the matrix from solver Setup() to avoid redundant assembly
+            auto direct_solver = solver->AsDirect();
+            if (direct_solver && force_setup) {
+                // Setup solver first to assemble the matrix (reuse it instead of reassembling)
+                ChTimer timer_setup_call;
+                timer_setup_call.start();
+                bool setup_success = solver->Setup(*descriptor);
+                timer_setup_call.stop();
+                
+                if (setup_success) {
+                    // Get actual timing from solver's internal timers
+                    double actual_assembly_time = direct_solver->GetTimeSetup_Assembly();
+                    double factorization_time = direct_solver->GetTimeSetup_SolverCall();
+                    
+                    // Extract matrix from solver (already assembled, no cost!)
+                    ChSparseMatrix& Z = direct_solver->GetMatrix();
+                    
+                    // Build rhs vector separately (fast, just a vector)
+                    timer_rhs.start();
+                    ChVectorDynamic<double> rhs;
+                    descriptor->BuildSystemMatrix(nullptr, &rhs);
+                    timer_rhs.stop();
+                    
+                    // Write matrix and rhs to disk
+                    ChTimer timer_io;
+                    timer_io.start();
+                    std::ofstream file_Z(output_dir + "/" + prefix + "_Z.dat");
+                    file_Z << std::setprecision(12) << std::scientific;
+                    StreamOut(Z, file_Z, true);
+                    
+                    std::ofstream file_rhs(output_dir + "/" + prefix + "_rhs.dat");
+                    file_rhs << std::setprecision(12) << std::scientific;
+                    StreamOut(rhs, file_rhs);
+                    timer_io.stop();
+                    
+                    std::cout << "  WriteMatrix (reused from solver): " << std::fixed << std::setprecision(6) 
+                              << timer_io.GetTimeSeconds() << " s" << std::endl;
+                    std::cout << "    Solver Setup breakdown:" << std::endl;
+                    std::cout << "      Matrix assembly (actual): " << actual_assembly_time << " s" << std::endl;
+                    std::cout << "      Factorization: " << factorization_time << " s" << std::endl;
+                    std::cout << "      Setup call overhead: " << timer_setup_call.GetTimeSeconds() << " s" << std::endl;
+                    std::cout << "    Other operations:" << std::endl;
+                    std::cout << "      Build RHS: " << timer_rhs.GetTimeSeconds() << " s" << std::endl;
+                    std::cout << "      I/O: " << timer_io.GetTimeSeconds() << " s" << std::endl;
+                    std::cout << "    Matrix size: " << Z.rows() << "x" << Z.cols() << ", nnz: " << Z.nonZeros() << std::endl;
+                    
+                    // Mark that setup was already done, so don't call it again below
+                    force_setup = false;
+                } else {
+                    // Setup failed, fall back to normal assembly
+                    std::cerr << "Warning: Solver setup failed, falling back to normal matrix assembly" << std::endl;
+                    descriptor->WriteMatrix(output_dir, prefix);
+                }
+            } else {
+                // Not a direct solver or setup not needed, use normal path
+                descriptor->WriteMatrix(output_dir, prefix);
+            }
         }
+        timer_matrix_write.stop();
 
+        timer_vectors.start();
         std::ofstream file_x(output_dir + "/" + prefix + "_x_pre.dat");
         file_x << std::setprecision(12) << std::scientific;
         StreamOut(x, file_x);
@@ -1087,6 +1150,13 @@ bool ChSystem::StateSolveCorrection(
         std::ofstream file_v(output_dir + "/" + prefix + "_v_pre.dat");
         file_v << std::setprecision(12) << std::scientific;
         StreamOut(v, file_v);
+        timer_vectors.stop();
+        
+        std::cout << "  Vector writes (x_pre, v_pre): " << std::fixed << std::setprecision(6) 
+                  << timer_vectors.GetTimeSeconds() << " s" << std::endl;
+        std::cout << "  Total matrix write time: " << std::fixed << std::setprecision(6) 
+                  << timer_matrix_write.GetTimeSeconds() << " s" << std::endl;
+        std::cout << "=====================================\n" << std::endl;
     }
 
     GetSolver()->EnableWrite(should_write, std::to_string(stepcount) + "_" + std::to_string(solvecount), output_dir);
