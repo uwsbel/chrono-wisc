@@ -29,6 +29,8 @@ Additional Chrono functionality is provided through optional modules, enabled du
 
 -   [PARSERS module](@ref module_parsers_installation)
 
+-   [PLANET module](@ref module_planet_installation)
+
 -   [POSTPROCESS module](@ref module_postprocess_installation)
 
 -   [PRECICE module](@ref module_precice_installation)

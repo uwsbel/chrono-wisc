@@ -55,6 +55,9 @@
 // If module POSTPROCESS was enabled, define CHRONO_POSTPROCESS
 @CHRONO_POSTPROCESS@
 
+// If module PLANET was enabled, define CHRONO_PLANET
+@CHRONO_PLANET@
+
 // If module PYTHON was enabled, define CHRONO_PYTHON
 @CHRONO_PYTHON@
 

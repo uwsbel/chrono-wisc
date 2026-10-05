@@ -73,6 +73,10 @@ Instructions for setting up an external project that uses Chrono.
 
   Integration with an external autonomy stack based on the Robot Operating System (ROS)
 
+- [Chrono::Planet](@ref manual_planet)
+
+  Planetary terrain for any body from GeoTIFF elevation models and procedural relief
+
 ---
 
 <h3><a href="classes.html">API Reference</a></h3>

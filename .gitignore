@@ -125,3 +125,6 @@ src/demos/python/DEMO_OUTPUT
 # be redistributed, so keep them out of the repository.
 contrib/docker/data/*
 !contrib/docker/data/.gitkeep
+
+# LOLA 64 px/deg, placed by hand: 460 MB, over GitHub's file size limit
+data/planet/moon/ldem_64_fixed.tif

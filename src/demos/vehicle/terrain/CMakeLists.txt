@@ -19,6 +19,12 @@ if(CH_ENABLE_MODULE_FSI_SPH)
     )
 endif()
 
+if(CH_ENABLE_MODULE_PLANET)
+    set(DEMOS ${DEMOS}
+        demo_VEH_PlanetTerrain
+    )
+endif()
+
 # Demos that require run-time visualization
 
 if(CH_ENABLE_MODULE_VSG)
