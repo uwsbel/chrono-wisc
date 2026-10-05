@@ -9,7 +9,7 @@
 # In the call to find_package(), the following Chrono components can be
 # requested (case insensitive):
 #   Cascade, CSharp, DEM, FMI, FSI, FSI_SPH, FSI_TDPF, Irrlicht,
-#   Modal, Multicore, PardisoMKL, Parsers, Postprocess,
+#   Modal, Multicore, PardisoMKL, Parsers, Planet, Postprocess,
 #   Sensor, Synchrono, Vehicle, VehicleCosim, VSG.
 # A component can be requested either as required or optional
 # (see the CMake documentation for find_package).
@@ -168,6 +168,7 @@ set(Chrono_VSG_AVAILABLE            @CH_ENABLE_MODULE_VSG@)
 set(Chrono_CSHARP_AVAILABLE         @CH_ENABLE_MODULE_CSHARP@)
 set(Chrono_FMI_AVAILABLE            @CH_ENABLE_MODULE_FMI@)
 set(Chrono_ROS_AVAILABLE            @CH_ENABLE_MODULE_ROS@)
+set(Chrono_PLANET_AVAILABLE         @CH_ENABLE_MODULE_PLANET@)
 
 if(CHRONO_MPI_CXX_AVAILABLE)
    set(Chrono_VEHICLECOSIM_AVAILABLE TRUE)
@@ -205,6 +206,7 @@ set(Chrono_MODAL_DEPENDENCIES          "@DEPENDENCIES_MODAL@")
 set(Chrono_VSG_DEPENDENCIES            "@DEPENDENCIES_VSG@")
 set(Chrono_ROS_DEPENDENCIES            "@DEPENDENCIES_ROS@")
 set(Chrono_VEHICLECOSIM_DEPENDENCIES   "@DEPENDENCIES_VEHICLECOSIM@")
+set(Chrono_PLANET_DEPENDENCIES         "@DEPENDENCIES_PLANET@")
 
 #-------------------------------------------------------------------------------
 # Build complete list of Chrono modules (requested and their dependencies)
@@ -1110,6 +1112,26 @@ foreach(COMPONENT_UPPER ${Chrono_COMPONENTS})
       list(PREPEND CHRONO_LIB_NAMES "Chrono_mumps")
       if (NOT CHRONO_STATIC)
         list(APPEND CHRONO_DLL_NAMES "Chrono_mumps.dll")
+      endif()
+    endif()
+
+  elseif(${COMPONENT_UPPER} STREQUAL "PLANET")
+
+    find_package(GDAL QUIET)
+
+    if(NOT GDAL_FOUND)
+      message("WARNING: Could not find GDAL")
+      set(CHRONO_${COMPONENT_UPPER}_FOUND OFF)
+    else()
+      list(PREPEND CHRONO_LIB_NAMES "Chrono_planet")
+      if (NOT CHRONO_STATIC)
+        list(APPEND CHRONO_DLL_NAMES "Chrono_planet.dll")
+      endif()
+      if(Chrono_VSG_REQUESTED AND Chrono_VSG_AVAILABLE)
+        list(PREPEND CHRONO_LIB_NAMES "Chrono_planet_vsg")
+        if (NOT CHRONO_STATIC)
+          list(APPEND CHRONO_DLL_NAMES "Chrono_planet_vsg.dll")
+        endif()
       endif()
     endif()
 
