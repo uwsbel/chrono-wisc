@@ -153,6 +153,7 @@ ByteImageData LoadByteImage(const std::string& filename) {
         img_data.w = 0;
         img_data.h = 0;
         img_data.c = 0;
+        std::cout << "Failed to load image: " << filename << std::endl;
         return img_data;  // return if loading failed
     }
 

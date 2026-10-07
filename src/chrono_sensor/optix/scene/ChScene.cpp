@@ -338,7 +338,7 @@ CH_SENSOR_API unsigned int ChScene::AddEnvironmentLight(std::string env_tex_path
     if ((ext == "exr") || (ext == "EXR")) {
         FloatImageData img_float = LoadFloatImage(env_tex_path);
         if (img_float.c != 3) {
-            throw std::runtime_error("Environment map image must have 3 channels (RGB).");
+            throw std::runtime_error("Environment map image must have 3 channels (RGB), but has " + std::to_string(img_float.c) + " channels.");
         }
         // Extended parameters
         light.specific.environment.width = img_float.w;
@@ -349,7 +349,7 @@ CH_SENSOR_API unsigned int ChScene::AddEnvironmentLight(std::string env_tex_path
     else {
         ByteImageData img_byte = LoadByteImage(env_tex_path);
         if (img_byte.c != 3) {
-            throw std::runtime_error("Environment map image must have 3 channels (RGB).");
+            throw std::runtime_error("Environment map image must have 3 channels (RGB), but has " + std::to_string(img_byte.c) + " channels.");
         }
         // Extended parameters
         light.specific.environment.width = img_byte.w;
