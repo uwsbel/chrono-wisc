@@ -14,10 +14,13 @@
 //
 // =============================================================================
 
+#include <iostream>
+#include <cstdint>
 #include <cuda.h>
+
 #include "image_ops.cuh"
 #include "chrono_sensor/optix/shaders/device_utils.cuh"
-#include <iostream>
+
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
 #include <thrust/execution_policy.h>
