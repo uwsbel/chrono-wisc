@@ -16,10 +16,12 @@
 //
 // =============================================================================
 
+#ifndef SEGMENT_CAM_RAYGEN_CU
+#define SEGMENT_CAM_RAYGEN_CU
+
 #include "chrono_sensor/optix/shaders/device_utils.cuh"
 
-
-/// Default of segmentation per ray data (PRD)
+// Default of segmentation per ray data (PRD)
 __device__ __inline__ PerRayData_segment DefaultSegmentPRD() {
     PerRayData_segment prd = {};
     prd.class_id = 0;
@@ -27,7 +29,7 @@ __device__ __inline__ PerRayData_segment DefaultSegmentPRD() {
     return prd;
 };
 
-/// Ray generation program for segmentation camera
+// Ray generation program for segmentation camera
 extern "C" __global__ void __raygen__segment_camera() {
     const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
     const SemanticCameraParameters& camera = raygen->specific.segmentation;
@@ -64,7 +66,7 @@ extern "C" __global__ void __raygen__segment_camera() {
     const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
     float3 ray_origin = lerp(raygen->pos0, raygen->pos1, t_frac);
     float4 ray_quat = nlerp(raygen->rot0, raygen->rot1, t_frac);
-    const float h_factor = camera.hFOV / CUDART_PI_F * 2.0;
+    const float h_factor = tanf(camera.hFOV / 2.f);
     float3 forward;
     float3 left;
     float3 up;
@@ -82,3 +84,5 @@ extern "C" __global__ void __raygen__segment_camera() {
     camera.frame_buffer[image_index].x = prd.class_id;
     camera.frame_buffer[image_index].y = prd.instance_id;
 }
+
+#endif // SEGMENT_CAM_RAYGEN_CU

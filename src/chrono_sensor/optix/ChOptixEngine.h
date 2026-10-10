@@ -32,17 +32,14 @@
 #include <optix.h>
 
 #include "chrono_sensor/sensors/ChOptixSensor.h"
-#include "chrono_sensor/optix/scene/ChScene.h"
+#include "chrono_sensor/optix/ChOptixScene.h"
 #include "chrono_sensor/optix/ChOptixGeometry.h"
 #include "chrono_sensor/optix/ChOptixPipeline.h"
 #include "chrono_sensor/optix/ChFilterOptixRender.h"
+#include "chrono_sensor/optix/ChNVDBVolume.h"
 
 #include "chrono/assets/ChVisualMaterial.h"
-#include "chrono/assets/ChVisualShapeBox.h"
-#include "chrono/assets/ChVisualShapeSphere.h"
-#include "chrono/assets/ChVisualShapeCylinder.h"
-#include "chrono/assets/ChVisualShapeTriangleMesh.h"
-#include "chrono_sensor/optix/ChNVDBVolume.h"
+#include "chrono/assets/ChVisualShapes.h"
 
 #ifdef USE_SENSOR_NVDB
 #endif
@@ -84,10 +81,15 @@ class CH_SENSOR_API ChOptixEngine {
 
     /// Updates the sensors if they need to be updated based on simulation time and last update time.
     /// @param scene The scene that should be rendered with.
-    void UpdateSensors(std::shared_ptr<ChScene> scene);
+    void UpdateSensors(std::shared_ptr<ChOptixScene> scene);
 
     /// Tells the optix manager to construct the scene from scratch, translating all objects from Chrono to OptiX
     void ConstructScene();
+
+#ifdef CHRONO_FSI_SPH
+    /// Set the native FSI-SPH render sources to include when constructing and updating the OptiX scene.
+    void SetFsiSphSources(const std::vector<ChFsiSphRenderSource>* sources) { m_fsi_sph_sources = sources; }
+#endif
 
     /// Way to query the device ID on which the engine is running. CANNOT BE MODIFIED since the engine will have been
     /// already constructed
@@ -124,45 +126,43 @@ class CH_SENSOR_API ChOptixEngine {
     /// Update all sensor positions and orientations.
     /// @param to_be_updated the vector of Optix sensor IDs to be updated
     /// @param scene the scene that these Optix sensors belong to
-    void UpdateSensorTransforms(std::vector<int>& to_be_updated, std::shared_ptr<ChScene> scene);  
-    
-    /// Update all raygen_record and filter parameters of the Optix sensors 
+    void UpdateSensorTransforms(std::vector<int>& to_be_updated, std::shared_ptr<ChOptixScene> scene);
+
+    /// Update all raygen_record and filter parameters of the Optix sensors
     /// @param to_be_updated the vector of Optix sensor IDs to be updated
     /// @param scene the scene that these Optix sensors belong to
-    void UpdateSensorParameters(std::vector<int>& to_be_updated, std::shared_ptr<ChScene> scene);
+    void UpdateSensorParameters(std::vector<int>& to_be_updated, std::shared_ptr<ChOptixScene> scene);
 
-    void UpdateDeformableMeshes();        ///< updates the dynamic meshes in the scene
+    void UpdateDeformableMeshes();  ///< updates the dynamic meshes in the scene
     /// Update the scene characteristics such as lights, background, etc.
-    void UpdateSceneDescription(std::shared_ptr<ChScene> scene);
+    void UpdateSceneDescription(std::shared_ptr<ChOptixScene> scene);
+
+#ifdef CHRONO_FSI_SPH
+    /// Add native FSI-SPH render sources to the scene.
+    void AddFsiSphVisualization();
+
+    /// Update native FSI-SPH render source instance transforms.
+    void UpdateFsiSphVisualization();
+#endif
 
     /// Creates an optix box visualization object from a Chrono box shape.
-    void boxVisualization(std::shared_ptr<ChBody> body,
-                          std::shared_ptr<ChVisualShapeBox> box_shape,
-                          ChFrame<> asset_frame);
+    void boxVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeBox> box_shape, ChFrame<> asset_frame);
 
     /// Creates an optix sphere visualization object from a Chrono sphere shape.
-    void sphereVisualization(std::shared_ptr<ChBody> body,
-                             std::shared_ptr<ChVisualShapeSphere> sphere_shape,
-                             ChFrame<> asset_frame);
+    void sphereVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeSphere> sphere_shape, ChFrame<> asset_frame);
 
     /// Creates an optix cylinder visualization object from a Chrono cylinder shape.
-    void cylinderVisualization(std::shared_ptr<ChBody> body,
-                               std::shared_ptr<ChVisualShapeCylinder> sphere_shape,
-                               ChFrame<> asset_frame);
+    void cylinderVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeCylinder> sphere_shape, ChFrame<> asset_frame);
 
     /// Creates an optix rigid mesh visualization object from a Chrono mesh shape
-    void rigidMeshVisualization(std::shared_ptr<ChBody> body,
-                                std::shared_ptr<ChVisualShapeTriangleMesh> sphere_shape,
-                                ChFrame<> asset_frame);
+    void rigidMeshVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeTriangleMesh> sphere_shape, ChFrame<> asset_frame);
 
     /// Creates an optix deformable mesh visualization object from a Chrono mesh shape.
-    void deformableMeshVisualization(std::shared_ptr<ChBody> body,
-                                     std::shared_ptr<ChVisualShapeTriangleMesh> sphere_shape,
-                                     ChFrame<> asset_frame);
+    void deformableMeshVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeTriangleMesh> sphere_shape, ChFrame<> asset_frame);
 
-    #ifdef USE_SENSOR_NVDB
-        void nvdbVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChNVDBShape> box_shape, ChFrame<> asset_frame);
-    #endif
+#ifdef USE_SENSOR_NVDB
+    void nvdbVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChNVDBShape> box_shape, ChFrame<> asset_frame);
+#endif
 
     std::vector<unsigned int> m_renderQueue;  ///< list of sensor indices that need to be updated
 
@@ -180,14 +180,17 @@ class CH_SENSOR_API ChOptixEngine {
     // information that belongs to the rendering concept of this engine
     OptixDeviceContext m_context;  ///< the optix context we use for everything
     ContextParameters m_params;
+
+#ifdef CHRONO_FSI_SPH
+    const std::vector<ChFsiSphRenderSource>* m_fsi_sph_sources = nullptr;  ///< native FSI-SPH render sources
+#endif
     ContextParameters* md_params = nullptr;
     OptixTraversableHandle m_root;
     std::shared_ptr<ChOptixGeometry> m_geometry;  // manager of all geometry in the scene
     std::shared_ptr<ChOptixPipeline> m_pipeline;  // manager of all geometry in the scene
 
-    std::vector<std::shared_ptr<ChOptixSensor>> m_assignedSensor;  ///< list of sensor this engine is responsible for
-    std::vector<std::shared_ptr<ChFilterOptixRender>>
-        m_assignedRenderers;  ///< list of sensor this engine is responsible for
+    std::vector<std::shared_ptr<ChOptixSensor>> m_assignedSensor;           ///< list of sensor this engine is responsible for
+    std::vector<std::shared_ptr<ChFilterOptixRender>> m_assignedRenderers;  ///< list of sensor this engine is responsible for
 
     std::vector<ChFrame<double>> m_cameraStartFrames;
     std::vector<bool> m_cameraStartFrames_set;

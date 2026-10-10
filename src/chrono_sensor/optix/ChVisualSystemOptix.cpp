@@ -17,10 +17,9 @@
 namespace chrono {
 namespace sensor {
 
-ChVisualSystemOptix::ChVisualSystemOptix(ChSystem& sys)
-    : ChVisualSystem(sys), m_verbose(false), m_optix_reflections(9) {
+ChVisualSystemOptix::ChVisualSystemOptix(ChSystem& sys) : ChVisualSystem(sys), m_verbose(false), m_optix_reflections(9) {
     // save the chrono system handle
-    scene = chrono_types::make_shared<ChScene>();
+    scene = chrono_types::make_shared<ChOptixScene>();
     m_device_list = {0};
 }
 
@@ -83,8 +82,7 @@ void ChVisualSystemOptix::AddSensor(std::shared_ptr<ChSensor> sensor) {
 
         // add the sensor to an engine with sensor of similar update frequencies
         for (auto engine : m_engines) {
-            if (!found_engine && engine->GetSensor().size() > 0 &&
-                abs(engine->GetSensor()[0]->GetUpdateRate() - sensor->GetUpdateRate()) < 0.001) {
+            if (!found_engine && engine->GetSensor().size() > 0 && abs(engine->GetSensor()[0]->GetUpdateRate() - sensor->GetUpdateRate()) < 0.001) {
                 found_engine = true;
                 engine->AssignSensor(pOptixSensor);
                 if (m_verbose)
@@ -96,9 +94,12 @@ void ChVisualSystemOptix::AddSensor(std::shared_ptr<ChSensor> sensor) {
             // create new engines only when we need them
             if (!found_engine) {
                 if (m_engines.size() < m_allowable_groups) {
-                    auto engine = chrono_types::make_shared<ChOptixEngine>(
-                        m_system, m_device_list[(int)m_engines.size()], m_optix_reflections,
-                        m_verbose);  // limits to 2 gpus, TODO: check if device supports cuda
+                    auto engine = chrono_types::make_shared<ChOptixEngine>(m_system, m_device_list[(int)m_engines.size()], m_optix_reflections,
+                                                                           m_verbose);  // limits to 2 GPUs, TODO: check if device supports cuda
+
+#ifdef CHRONO_FSI_SPH
+                    engine->SetFsiSphSources(&scene->GetFsiSphSources());
+#endif
 
                     // engine->ConstructScene();
                     engine->AssignSensor(pOptixSensor);
@@ -107,7 +108,7 @@ void ChVisualSystemOptix::AddSensor(std::shared_ptr<ChSensor> sensor) {
                     if (m_verbose)
                         std::cout << "Created another OptiX engine. Now at: " << m_engines.size() << "\n";
 
-                } else {  // if we are not allowed to create additional groups, warn the user and polute the first group
+                } else {  // if we are not allowed to create additional groups, warn the user and pollute the first group
                     m_engines[0]->AssignSensor(pOptixSensor);
                     if (m_verbose)
                         std::cout << "Couldn't find suitable existing OptiX engine, so adding to first engine\n";
