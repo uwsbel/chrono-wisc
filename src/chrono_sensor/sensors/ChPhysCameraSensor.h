@@ -211,7 +211,7 @@ class CH_SENSOR_API ChPhysCameraSensor : public ChPhysCameraSensorBase {
 		/// @return noise model parameters in camera model, [1/1]
 		PhysCameraNoiseParams GetNoiseParams() { return m_noise_params; }
 
-		/// update physics-camera post-process filter parameters
+		/// Update filter parameters in ChOptixEngine.cpp
 		void UpdateFilterParameters();
 
 	private:
