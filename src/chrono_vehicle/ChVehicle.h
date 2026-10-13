@@ -23,9 +23,10 @@
 #define CH_VEHICLE_H
 
 #include <numeric>
+#include <cstdint>
 
 #include "chrono/core/ChRealtimeStep.h"
-#include "chrono/input_output/ChOutput.h"
+#include "chrono/core/ChVector2.h"
 #include "chrono/input_output/ChCheckpoint.h"
 
 #include "chrono_vehicle/ChApiVehicle.h"
@@ -33,6 +34,7 @@
 #include "chrono_vehicle/ChChassis.h"
 #include "chrono_vehicle/ChPowertrainAssembly.h"
 #include "chrono_vehicle/ChTerrain.h"
+#include "chrono_vehicle/ChVehicleOutput.h"
 
 namespace chrono {
 namespace vehicle {
@@ -149,6 +151,14 @@ class CH_VEHICLE_API ChVehicle {
     /// dipping below the terrain plane.
     double GetPitch(const ChTerrain& terrain) const;
 
+    /// Get the vehicle linear velocity.
+    /// This is the velocity of the origin of chassis reference frame, expressed in the global frame.
+    const ChVector3d& GetLinearVelocity() const { return m_chassis->GetLinearVelocity(); }
+
+    /// Get the vehicle angular velocity.
+    /// This is the angular velocity of the chassis reference frame, expressed in the chassis reference frame.
+    ChVector3d GetAngularVelocity() const { return m_chassis->GetAngularVelocity(); }
+
     /// Get the vehicle speed (velocity component in the vehicle forward direction).
     /// Return the speed measured at the origin of the main chassis reference frame.
     double GetSpeed() const { return m_chassis->GetSpeed(); }
@@ -219,18 +229,11 @@ class CH_VEHICLE_API ChVehicle {
     void SetCollisionSystemType(ChCollisionSystem::Type collsys_type);
 
     /// Enable output for this vehicle system.
-    void SetOutput(ChOutput::Type type,          ///< [in] type of output DB
+    void SetOutput(ChOutput::Format format,      ///< [in] format of output DB
                    ChOutput::Mode mode,          ///< [in] output mode
                    const std::string& out_dir,   ///< [in] output directory name
-                   const std::string& out_name,  ///< [in] rootname of output file
+                   const std::string& out_name,  ///< [in] rootname of output files
                    double output_step            ///< [in] interval between output times
-    );
-
-    /// Enable output for this vehicle system using an existing output stream.
-    void SetOutput(ChOutput::Type type,       ///< [in] type of output DB
-                   ChOutput::Mode mode,       ///< [in] output mode
-                   std::ostream& out_stream,  ///< [in] output stream
-                   double output_step         ///< [in] interval between output times
     );
 
     /// Initialize this vehicle at the specified global location and orientation.
@@ -264,6 +267,12 @@ class CH_VEHICLE_API ChVehicle {
     /// Enable/disable output from the chassis subsystem.
     void SetChassisOutput(bool state);
 
+    /// Relocate vehicle at given x-y location and reorient with given yaw angle.
+    /// This function can only be used if the world reference frame is ISO (Z up, X forward, Y to the left).
+    /// Note that this function is unaware of the terrain below the current and new locations.
+    /// It is the caller's responsibility to ensure that a vehicle relocation is possible.
+    void Relocate(const ChVector2d& xy_pos, double yaw_angle);
+
     /// Return true if the vehicle model contains bushings.
     bool HasBushings() const { return m_chassis->HasBushings(); }
 
@@ -283,12 +292,15 @@ class CH_VEHICLE_API ChVehicle {
     ) {}
 
     /// Advance the state of this vehicle by the specified time step.
-    /// A call to ChSystem::DoStepDynamics is done only if the vehicle owns the underlying Chrono system.
-    /// Otherwise, the caller is responsible for advancing the state of the entire system.
-    virtual void Advance(double step);
+    /// A call to ChSystem::DoStepDynamics() is done only if the vehicle owns the underlying Chrono system. In this case, the Chrono collision detection phase can optionally be
+    /// skipped for this step (if do_collision=false). Otherwise, the caller is responsible for advancing the state of the entire system.
+    virtual void Advance(double step, bool do_collision = true);
 
     /// Log current constraint violations.
     virtual void LogConstraintViolations() {}
+
+    /// Return a list with all bodies in the vehicle system.
+    virtual std::vector<std::shared_ptr<ChBody>> GetBodyList() const { return std::vector<std::shared_ptr<ChBody>>(); }
 
     /// Return a JSON string with information on all modeling components in the vehicle system.
     /// These include bodies, shafts, joints, spring-damper elements, markers, etc.
@@ -300,11 +312,11 @@ class CH_VEHICLE_API ChVehicle {
 
     /// Checkpoint states of all modeling components in the vehicle system.
     /// A vehicle checkpoint is always of type ChCheckpoint::Type::COMPONENT.
-    void ExportCheckpoint(ChCheckpoint::Format format, const std::string& filename) const;
+    void WriteCheckpoint(ChCheckpoint::Format format, const std::string& filename) const;
 
     /// Initialize the vehicle system from the given checkpoint file.
     /// A vehicle checkpoint is always of type ChCheckpoint::Type::COMPONENT.
-    void ImportCheckpoint(ChCheckpoint::Format format, const std::string& filename);
+    void ReadCheckpoint(ChCheckpoint::Format format, const std::string& filename);
 
   protected:
     /// Construct a vehicle system with an underlying ChSystem.
@@ -328,19 +340,21 @@ class CH_VEHICLE_API ChVehicle {
     /// Utility function for testing if any subsystem in a list generates output.
     template <typename T>
     static bool AnyOutput(const std::vector<std::shared_ptr<T>>& list) {
-        bool val = std::accumulate(list.begin(), list.end(), false,
-                                   [](bool a, std::shared_ptr<T> b) { return a || b->OutputEnabled(); });
+        bool val = std::accumulate(list.begin(), list.end(), false, [](bool a, std::shared_ptr<T> b) { return a || b->OutputEnabled(); });
         return val;
     }
 
-    /// Output data for all modeling components in the vehicle system to the specified output database.
-    virtual void Output(int frame, ChOutput& database) const {}
+    /// Initialize output for the vehicle subsystems.
+    virtual void InitializeOutput() {}
+
+    /// Write output data for all modeling components in the vehicle system to the specified output database.
+    virtual void WriteOutput(int frame, double time) const {}
 
     /// Checkpoint states of all modeling components in the vehicle system to the specified checkpoint database.
-    virtual void WriteCheckpoint(ChCheckpoint& database) const {}
+    virtual void SaveCheckpoint(ChCheckpoint& database) const {}
 
     /// Import states of all modeling components in the vehicle system from the specified checkpoint database.
-    virtual void ReadCheckpoint(ChCheckpoint& database) {}
+    virtual void LoadCheckpoint(ChCheckpoint& database) {}
 
     std::string m_name;  ///< vehicle name
     ChSystem* m_system;  ///< pointer to the Chrono system
@@ -350,10 +364,15 @@ class CH_VEHICLE_API ChVehicle {
     ChFrame<> m_com;         ///< current vehicle COM (relative to the vehicle reference frame)
     ChMatrix33<> m_inertia;  ///< current total vehicle inertia (Relative to the vehicle COM frame)
 
-    ChOutput* m_output_db;      ///< vehicle output database (no output if nullptr)
-    double m_output_step;       ///< output time step
-    double m_next_output_time;  ///< time for next output
-    int m_output_frame;         ///< current output frame
+    bool m_output;                  ///< write output from vehicle subsystems
+    bool m_output_initialized;      ///< output initialization flag
+    ChOutput::Format m_out_format;  ///< output format
+    ChOutput::Mode m_out_mode;      ///< output mode
+    std::string m_out_dir;          ///< output directory name
+    std::string m_out_name;         ///< rootname of output files
+    double m_out_step;              ///< output time step
+    double m_next_out_time;         ///< time for next output
+    int m_out_frame;                ///< current output frame
 
     std::shared_ptr<ChChassis> m_chassis;         ///< handle to the main chassis subsystem
     ChChassisRearList m_chassis_rear;             ///< list of rear chassis subsystems (can be empty)

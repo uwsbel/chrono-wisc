@@ -25,14 +25,11 @@
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChMassProperties.h"
 #include "chrono/assets/ChTexture.h"
-#include "chrono/assets/ChVisualShapeTriangleMesh.h"
 #include "chrono/input_output/ChWriterCSV.h"
 #include "chrono/utils/ChUtilsCreators.h"
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
@@ -258,12 +255,12 @@ int main(int argc, char* argv[]) {
     // Initialize output
     const std::string out_dir = GetChronoOutputPath() + "CURIOSITY_SCM";
     if (output || snapshots) {
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
         if (snapshots) {
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+            if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
                 std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
                 return 1;
             }

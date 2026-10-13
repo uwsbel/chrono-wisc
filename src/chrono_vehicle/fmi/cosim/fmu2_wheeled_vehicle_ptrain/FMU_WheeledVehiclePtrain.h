@@ -37,7 +37,7 @@
 #include "chrono_vehicle/ChConfigVehicle.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
 
-#include "chrono_fmi/fmi2/ChFmuToolsExport.h"
+#include "chrono_fmi/fmi2/ChFmuForgeExport.h"
 
 #ifdef CHRONO_IRRLICHT
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemIrrlicht.h"
@@ -55,9 +55,7 @@ class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
     ~FmuComponent() {}
 
     /// Advance dynamics.
-    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint,
-                                  fmi2Real communicationStepSize,
-                                  fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
+    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
 
   private:
     virtual fmi2Status enterInitializationModeIMPL() override;

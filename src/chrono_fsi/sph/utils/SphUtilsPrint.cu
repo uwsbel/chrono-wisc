@@ -74,12 +74,11 @@ void SaveFileCFD(const std::string& filename,
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << v_len << ", " << a_len;
                 break;
             case OutputLevel::STATE_PRESSURE:
-                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", "
-                        << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y;
+                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y;
                 break;
             case OutputLevel::CRM_FULL:
-                sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z
-                        << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << ", " << rp.z << ", ";
+                sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z << ", " << v_len << ", " << a_len << ", " << rp.x << ", "
+                        << rp.y << ", " << rp.z << ", ";
                 if (implicit_scheme) {
                     Real4 st = srTauMu[i];
                     sstream << st.x << ", " << st.y << ", " << st.z << ", " << st.w << ", " << rp.w;
@@ -133,7 +132,7 @@ void SaveAllCFD(const std::string& dir,
                     referenceArray[haveHelper + haveGhost + 1].x, referenceArray[haveHelper + haveGhost + 1].y);  //
     }
 
-    // Save rigid BCE particles to files
+    // Save rigid body BCE particles to files
     int refSize = (int)referenceArray.size();
     if (refSize > haveHelper + haveGhost + 2 && referenceArray[2].z == 1) {
         std::string filename = dir + "/rigidBCE" + std::to_string(frame) + ".csv";
@@ -143,12 +142,12 @@ void SaveAllCFD(const std::string& dir,
     }
 
     // Save flexible BCE particles to files
-    int refSize_Flex = (int)referenceArrayFEA.size();
-    if (refSize_Flex > 0) {
-        std::string filename = dir + "/flexBCE" + std::to_string(frame) + ".csv";
+    int refSize_fea = (int)referenceArrayFEA.size();
+    if (refSize_fea > 0) {
+        std::string filename = dir + "/feaBCE" + std::to_string(frame) + ".csv";
         SaveFileCFD(filename, level, implicit_scheme,                                //
                     pos, vel, acc, rhoPresMu, srTauMu,                               //
-                    referenceArrayFEA[0].x, referenceArrayFEA[refSize_Flex - 1].y);  //
+                    referenceArrayFEA[0].x, referenceArrayFEA[refSize_fea - 1].y);  //
     }
 }
 
@@ -237,14 +236,13 @@ void SaveFileCRM(const std::string& filename,
                 sstream << p.x << ", " << p.y << ", " << p.z << ", " << v_len << ", " << a_len << std::endl;
                 break;
             case OutputLevel::STATE_PRESSURE:
-                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", "
-                        << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y << std::endl;
+                sstream << p.x << ", " << p.y << ", " << p.z << ", " << v.x << ", " << v.y << ", " << v.z << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << rp.y
+                        << std::endl;
                 break;
             case OutputLevel::CRM_FULL:
-                sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z
-                        << ", " << v_len << ", " << a_len << ", " << rp.x << ", " << tn.x << ", " << tn.y << ", "
-                        << tn.z << ", " << ts.x << ", " << ts.y << ", " << ts.z << ", " << pcEvSv_i.x << ", "
-                        << pcEvSv_i.y << ", " << pcEvSv_i.z << std::endl;
+                sstream << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ", " << v.x << ", " << v.y << ", " << v.z << ", " << v_len << ", " << a_len << ", " << rp.x << ", "
+                        << tn.x << ", " << tn.y << ", " << tn.z << ", " << ts.x << ", " << ts.y << ", " << ts.z << ", " << pcEvSv_i.x << ", " << pcEvSv_i.y << ", " << pcEvSv_i.z
+                        << std::endl;
                 break;
         }
     }
@@ -305,12 +303,12 @@ void SaveAllCRM(const std::string& dir,
     }
 
     // Save flexible BCE particles to files
-    int refSize_Flex = (int)referenceArrayFEA.size();
-    if (refSize_Flex > 0) {
+    int refSize_fea = (int)referenceArrayFEA.size();
+    if (refSize_fea > 0) {
         std::string filename = dir + "/flexBCE" + std::to_string(frame) + ".csv";
         SaveFileCRM(filename, level,                                                         //
                     pos, vel, acc, rhoPresMu, tau_normal, tau_shear,                         //
-                    pcEvSv, referenceArrayFEA[0].x, referenceArrayFEA[refSize_Flex - 1].y);  //
+                    pcEvSv, referenceArrayFEA[0].x, referenceArrayFEA[refSize_fea - 1].y);  //
     }
 }
 
@@ -386,10 +384,8 @@ void SaveAllSolid(const std::string& dir,
 
         std::string filename = dir + "/FSI_body" + std::to_string(i) + ".csv";
         std::ofstream file(filename, std::fstream::app);
-        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << rot.x << delim << rot.y << delim
-             << rot.z << delim << rot.w << delim << vel.x << delim << vel.y << delim << vel.z << delim << force.x
-             << delim << force.y << delim << force.z << delim << torque.x << delim << torque.y << delim << torque.z
-             << std::endl;
+        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << rot.x << delim << rot.y << delim << rot.z << delim << rot.w << delim << vel.x << delim
+             << vel.y << delim << vel.z << delim << force.x << delim << force.y << delim << force.z << delim << torque.x << delim << torque.y << delim << torque.z << std::endl;
         file.close();
     }
 
@@ -401,8 +397,8 @@ void SaveAllSolid(const std::string& dir,
 
         std::string filename = dir + "/FSI_1Dnode" + std::to_string(i) + ".csv";
         std::ofstream file(filename, std::fstream::app);
-        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << vel.x << delim << vel.y << delim
-             << vel.z << delim << force.x << delim << force.y << delim << force.z << std::endl;
+        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << vel.x << delim << vel.y << delim << vel.z << delim << force.x << delim << force.y << delim
+             << force.z << std::endl;
         file.close();
     }
 
@@ -414,8 +410,8 @@ void SaveAllSolid(const std::string& dir,
 
         std::string filename = dir + "/FSI_2Dnode" + std::to_string(i) + ".csv";
         std::ofstream file(filename, std::fstream::app);
-        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << vel.x << delim << vel.y << delim
-             << vel.z << delim << force.x << delim << force.y << delim << force.z << std::endl;
+        file << time << delim << pos.x << delim << pos.y << delim << pos.z << delim << vel.x << delim << vel.y << delim << vel.z << delim << force.x << delim << force.y << delim
+             << force.z << std::endl;
         file.close();
     }
 }
@@ -472,23 +468,22 @@ void saveSolidData(const std::string& dir,
         for (size_t i = 0; i < numRigids; i++) {
             std::string filename = dir + "/FSI_body" + std::to_string(i) + ".csv";
             std::ofstream file(filename);
-            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "q0" << delim << "q1" << delim
-                 << "q2" << delim << "q3" << delim << "Vx" << delim << "Vy" << delim << "Vz" << delim << "Fx" << delim
-                 << "Fy" << delim << "Fz" << delim << "Tx" << delim << "Ty" << delim << "Tz" << std::endl;
+            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "q0" << delim << "q1" << delim << "q2" << delim << "q3" << delim << "Vx" << delim << "Vy"
+                 << delim << "Vz" << delim << "Fx" << delim << "Fy" << delim << "Fz" << delim << "Tx" << delim << "Ty" << delim << "Tz" << std::endl;
             file.close();
         }
         for (size_t i = 0; i < numNodes1D; i++) {
             std::string filename = dir + "/FSI_1Dnode" + std::to_string(i) + ".csv";
             std::ofstream file(filename);
-            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "Vx" << delim << "Vy" << delim
-                 << "Vz" << delim << "Fx" << delim << "Fy" << delim << "Fz" << std::endl;
+            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "Vx" << delim << "Vy" << delim << "Vz" << delim << "Fx" << delim << "Fy" << delim << "Fz"
+                 << std::endl;
             file.close();
         }
         for (size_t i = 0; i < numNodes2D; i++) {
             std::string filename = dir + "/FSI_2Dnode" + std::to_string(i) + ".csv";
             std::ofstream file(filename);
-            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "Vx" << delim << "Vy" << delim
-                 << "Vz" << delim << "Fx" << delim << "Fy" << delim << "Fz" << std::endl;
+            file << "Time" << delim << "x" << delim << "y" << delim << "z" << delim << "Vx" << delim << "Vy" << delim << "Vz" << delim << "Fx" << delim << "Fy" << delim << "Fz"
+                 << std::endl;
             file.close();
         }
     }
@@ -506,8 +501,7 @@ void saveSolidData(const std::string& dir,
 // -----------------------------------------------------------------------------
 
 void writeParticleFileCSV(const std::string& filename, FsiDataManager& data_mgr) {
-    writeParticleFileCSV(filename, data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD,
-                         data_mgr.sphMarkers_D->rhoPresMuD, data_mgr.referenceArray);
+    writeParticleFileCSV(filename, data_mgr.sphMarkers_D->posRadD, data_mgr.sphMarkers_D->velMasD, data_mgr.sphMarkers_D->rhoPresMuD, data_mgr.referenceArray);
 }
 
 void writeParticleFileCSV(const std::string& outfilename,
@@ -536,8 +530,8 @@ void writeParticleFileCSV(const std::string& outfilename,
         Real3 vel = velMasH[i] + mR3(Real(1e-20));
 
         Real velMag = length(vel);
-        ss << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x + eps << ", " << vel.y + eps << ", "
-           << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", " << rP.y + eps << std::endl;
+        ss << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x + eps << ", " << vel.y + eps << ", " << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", "
+           << rP.y + eps << std::endl;
     }
 
     ofile << ss.str();
@@ -550,9 +544,7 @@ void writeParticleFileJSON(const std::string& filename, FsiDataManager& data_mgr
     writeParticleFileJSON(filename, data_mgr.sphMarkers_D->posRadD, data_mgr.referenceArray);
 }
 
-void writeParticleFileJSON(const std::string& outfilename,
-                           thrust::device_vector<Real4>& posRadD,
-                           thrust::host_vector<int4>& referenceArray) {
+void writeParticleFileJSON(const std::string& outfilename, thrust::device_vector<Real4>& posRadD, thrust::host_vector<int4>& referenceArray) {
     thrust::host_vector<Real4> posRadH = posRadD;
 
     bool haveHelper = (referenceArray[0].z == -3) ? true : false;

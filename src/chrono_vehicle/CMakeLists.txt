@@ -1,7 +1,5 @@
 #=============================================================================
 # CMake configuration file for Chrono Vehicle module
-#
-# Cannot be used stand-alone (it is loaded by parent CMake configuration file)
 #=============================================================================
 
 option(CH_ENABLE_MODULE_VEHICLE "Enable the Chrono Vehicle module" OFF)
@@ -9,6 +7,7 @@ option(CH_ENABLE_MODULE_VEHICLE "Enable the Chrono Vehicle module" OFF)
 # Return now if this module is not enabled
 if(NOT CH_ENABLE_MODULE_VEHICLE)
    mark_as_advanced(FORCE CH_ENABLE_OPENCRG)
+   mark_as_advanced(FORCE CH_ENABLE_VEHICLE_SCM_GPU)
    return()
 endif()
 
@@ -18,6 +17,66 @@ mark_as_advanced(CLEAR CH_ENABLE_OPENCRG)
 
 # Provide option to add OpenCRG support.
 option(CH_ENABLE_OPENCRG "Enable OpenCRG terrain library support" OFF)
+
+# ----------------------------------------------------------------------------
+# Optional SCM GPU contact-force backend (in-tree HIP, Chrono::DEM pattern)
+# ----------------------------------------------------------------------------
+
+# Ships ON: hardware decides, not a flag.
+#
+# If the machine has a GPU and the toolchain to compile for it, SCM uses the
+# GPU. Nobody should have to discover an option to get the fast path on
+# hardware that supports it -- an off-by-default accelerator is one that most
+# users never turn on. When the toolchain is absent this resolves to NONE and
+# the CPU implementation runs, which is what a machine without a GPU would do
+# anyway.
+#
+# Set OFF to force the CPU path on a machine that could use the GPU.
+option(CH_ENABLE_VEHICLE_SCM_GPU "Enable the GPU SCM ray-casting and contact-force backend" ON)
+
+set(CH_USE_SCM_GPU OFF)
+
+# The GPU requirement is declared for this FEATURE, not for Chrono::Vehicle:
+# the module builds fine with no GPU backend at all, and only the optional SCM
+# GPU path needs one. The kernels are backend-neutral (single-source .cu compiled as
+# CUDA or HIP) and the host bridges are duplicated per backend under terrain/gpu/cuda
+# and terrain/gpu/hip, so either toolchain is sufficient. Both HIP platforms are
+# accepted: nothing here depends on the ROCm-only libraries (hipCUB/rocPRIM,
+# rocThrust) that restrict Chrono::DEM and Chrono::FSI::SPH to the amd
+# platform. So "HIP + ROCm on AMD" and "HIP + nvcc on NVIDIA" both give the GPU
+# path with no further configuration.
+if(CH_ENABLE_VEHICLE_SCM_GPU)
+
+  chrono_select_gpu_backend(CHRONO_VEHICLE_SCM_BACKEND
+                            FEATURE  "Chrono::Vehicle SCM GPU"
+                            NAME     VEHICLE_SCM
+                            REQUIRES CUDA_OR_HIP
+                            HIP_PLATFORMS amd nvidia)
+
+  if(CHRONO_VEHICLE_SCM_BACKEND STREQUAL "NONE")
+
+    # IMPLIED, and deliberately without OPTION.
+    #
+    # The user did not ask for this -- it is on by default -- so an absent HIP
+    # toolchain is an ordinary fact about the machine, not a warning, and
+    # CHRONO_STRICT_MODULE_REQUIREMENTS must not make it fatal. Passing OPTION
+    # would additionally force CH_ENABLE_VEHICLE_SCM_GPU=OFF into the cache,
+    # which is right for something explicitly requested and wrong here: it
+    # would persist, so a later reconfigure after installing ROCm would still
+    # silently build the CPU path. Leaving the cache alone lets availability be
+    # re-evaluated every configure.
+    chrono_gpu_feature_unavailable(FEATURE  "Chrono::Vehicle SCM GPU"
+                                   REQUIRES "CUDA or HIP"
+                                   CLASS    IMPLIED)
+
+  else()
+    set(CH_USE_SCM_GPU ON)
+    message(STATUS "Chrono::Vehicle SCM GPU backend: ${CHRONO_VEHICLE_SCM_BACKEND}")
+    message(STATUS "Chrono HIP architectures: ${CHRONO_HIP_ARCHITECTURES}")
+  endif()
+
+endif()
+
 
 # ----------------------------------------------------------------------------
 # Find the OpenCRG library
@@ -69,12 +128,25 @@ SET(CH_USE_OPENCRG "${CH_USE_OPENCRG}" PARENT_SCOPE)
 
 # Prepare replacement variables
 if(CH_USE_OPENCRG)
-  set(CHRONO_OPENCRG "#define CHRONO_HAS_OPENCRG")
+  set(CHRONO_OPENCRG "#define CHRONO_OPENCRG")
 else()
-  set(CHRONO_OPENCRG "#undef CHRONO_HAS_OPENCRG")
+  set(CHRONO_OPENCRG "#undef CHRONO_OPENCRG")
+endif()
+
+if(CH_ENABLE_MODULE_FSI_SPH)
+  set(CHRONO_CRM "#define CHRONO_CRM")
+else()
+  set(CHRONO_CRM "#undef CHRONO_CRM")
 endif()
 
 # Generate the configuration header file using substitution variables.
+
+if(CH_USE_SCM_GPU)
+  set(CHRONO_SCM_GPU "#define CHRONO_HAS_SCM_GPU")
+else()
+  set(CHRONO_SCM_GPU "#undef CHRONO_HAS_SCM_GPU")
+endif()
+
 
 set(CV_CONFIG_FILE ${PROJECT_BINARY_DIR}/chrono_vehicle/ChConfigVehicle.h)
 
@@ -125,6 +197,7 @@ set(CV_BASE_FILES
     ChVehicle.cpp
     ChVehicleDataPath.h
     ChVehicleDataPath.cpp
+    ChVehicleOutput.h
     ChVehicleVisualSystem.h
     ChVehicleVisualSystem.cpp
     ChWorldFrame.cpp
@@ -224,9 +297,13 @@ set(CV_TERRAIN_FILES
     terrain/SCMTerrain.cpp
     terrain/GranularTerrain.h
     terrain/GranularTerrain.cpp
-    terrain/FEATerrain.h
-    terrain/FEATerrain.cpp
 )
+if(CH_ENABLE_MODULE_FEA)
+    set(CV_TERRAIN_FILES ${CV_TERRAIN_FILES}
+        terrain/FEATerrain.h
+        terrain/FEATerrain.cpp
+    )
+endif()
 if(CH_USE_OPENCRG)
     set(CV_TERRAIN_FILES ${CV_TERRAIN_FILES}
         terrain/CRGTerrain.h
@@ -241,6 +318,40 @@ if(CH_ENABLE_MODULE_FSI_SPH)
 endif()
 source_group("terrain" FILES ${CV_TERRAIN_FILES})
 
+if(CH_USE_SCM_GPU)
+    # Single source for both backends: .cu is CUDA by default and
+    # chrono_set_gpu_source_language() relabels it LANGUAGE HIP when the HIP backend is
+    # selected, exactly as Chrono::DEM and Chrono::FSI::SPH do. The host bridges below are
+    # NOT shared -- they are almost entirely runtime API calls and are duplicated per backend.
+    set(CV_SCM_GPU_KERNEL_FILES
+        terrain/gpu/SCMGpuKernels.cu
+        terrain/gpu/SCMRaycastGpuKernels.cu
+    )
+    chrono_set_gpu_source_language(${CHRONO_VEHICLE_SCM_BACKEND} ${CV_SCM_GPU_KERNEL_FILES})
+    # Host bridges are duplicated, not shared: they are almost entirely runtime API calls
+    # (about thirty symbols), and Chrono has no compatibility layer for those. Exactly one
+    # directory is compiled per build; the two files in each pair must be kept in step by
+    # hand, which the banner at the top of each states.
+    if(CHRONO_VEHICLE_SCM_BACKEND STREQUAL "CUDA")
+        set(CV_SCM_GPU_HOST_DIR terrain/gpu/cuda)
+    else()
+        set(CV_SCM_GPU_HOST_DIR terrain/gpu/hip)
+    endif()
+
+    list(APPEND CV_TERRAIN_FILES
+        terrain/SCMGpu.h
+        terrain/SCMGpuTypes.h
+        terrain/SCMTerrainGpu.h
+        terrain/SCMTerrainGpu.cpp
+        ${CV_SCM_GPU_HOST_DIR}/SCMGpuHost.cpp
+        terrain/SCMRaycastGpu.h
+        terrain/SCMRaycastGpuTypes.h
+        terrain/SCMTerrainRaycastGpu.cpp
+        ${CV_SCM_GPU_HOST_DIR}/SCMRaycastGpuHost.cpp
+        ${CV_SCM_GPU_KERNEL_FILES}
+    )
+endif()
+
 set(CV_UTILS_FILES
     utils/ChSteeringController.h
     utils/ChSteeringController.cpp
@@ -250,8 +361,8 @@ set(CV_UTILS_FILES
     utils/ChAdaptiveSpeedController.cpp
     utils/ChVehiclePath.h
     utils/ChVehiclePath.cpp
-    utils/ChUtilsJSON.h
-    utils/ChUtilsJSON.cpp
+    utils/ChVehicleUtilsJSON.h
+    utils/ChVehicleUtilsJSON.cpp
 )
 source_group("utils" FILES ${CV_UTILS_FILES})
 
@@ -470,8 +581,8 @@ set(CV_WV_TEST_RIG_FILES
     wheeled_vehicle/test_rig/ChSuspensionTestRigDataDriver.cpp
     wheeled_vehicle/test_rig/ChSuspensionTestRigInteractiveDriver.h
     wheeled_vehicle/test_rig/ChSuspensionTestRigInteractiveDriver.cpp    
-    wheeled_vehicle/test_rig/ChTireTestRig.h
-    wheeled_vehicle/test_rig/ChTireTestRig.cpp
+    wheeled_vehicle/test_rig/ChWheelTestRig.h
+    wheeled_vehicle/test_rig/ChWheelTestRig.cpp
 )
 source_group("wheeled_vehicle\\test_rig" FILES ${CV_WV_TEST_RIG_FILES})
 
@@ -488,17 +599,9 @@ set(CV_WV_TIRE_FILES
     wheeled_vehicle/tire/ChTMsimpleTire.cpp
     wheeled_vehicle/tire/ChTMeasyTire.h
     wheeled_vehicle/tire/ChTMeasyTire.cpp
-    wheeled_vehicle/tire/ChDeformableTire.h
-    wheeled_vehicle/tire/ChDeformableTire.cpp
-    wheeled_vehicle/tire/ChANCFTire.h
-    wheeled_vehicle/tire/ChANCFTire.cpp
-    wheeled_vehicle/tire/ChReissnerTire.h
-    wheeled_vehicle/tire/ChReissnerTire.cpp
-    wheeled_vehicle/tire/ChFEATire.h
-    wheeled_vehicle/tire/ChFEATire.cpp
     wheeled_vehicle/tire/ChPac02Tire.h
     wheeled_vehicle/tire/ChPac02Tire.cpp
-
+    #
     wheeled_vehicle/tire/RigidTire.h
     wheeled_vehicle/tire/RigidTire.cpp
     wheeled_vehicle/tire/Pac89Tire.h
@@ -509,19 +612,32 @@ set(CV_WV_TIRE_FILES
     wheeled_vehicle/tire/TMeasyTire.cpp
     wheeled_vehicle/tire/TMsimpleTire.h
     wheeled_vehicle/tire/TMsimpleTire.cpp
-    wheeled_vehicle/tire/ReissnerTire.h
-    wheeled_vehicle/tire/ReissnerTire.cpp
-    wheeled_vehicle/tire/ANCFTire.h
-    wheeled_vehicle/tire/ANCFTire.cpp
-    wheeled_vehicle/tire/FEATire.h
-    wheeled_vehicle/tire/FEATire.cpp
-    wheeled_vehicle/tire/ANCFToroidalTire.h
-    wheeled_vehicle/tire/ANCFToroidalTire.cpp
-    wheeled_vehicle/tire/ReissnerToroidalTire.h
-    wheeled_vehicle/tire/ReissnerToroidalTire.cpp
     wheeled_vehicle/tire/Pac02Tire.h
     wheeled_vehicle/tire/Pac02Tire.cpp
 )
+if(CH_ENABLE_MODULE_FEA)
+    set(CV_WV_TIRE_FILES ${CV_WV_TIRE_FILES}
+        wheeled_vehicle/tire/ChDeformableTire.h
+        wheeled_vehicle/tire/ChDeformableTire.cpp
+        wheeled_vehicle/tire/ChANCFTire.h
+        wheeled_vehicle/tire/ChANCFTire.cpp
+        wheeled_vehicle/tire/ChReissnerTire.h
+        wheeled_vehicle/tire/ChReissnerTire.cpp
+        wheeled_vehicle/tire/ChFEATire.h
+        wheeled_vehicle/tire/ChFEATire.cpp
+        #
+        wheeled_vehicle/tire/ReissnerTire.h
+        wheeled_vehicle/tire/ReissnerTire.cpp
+        wheeled_vehicle/tire/ANCFTire.h
+        wheeled_vehicle/tire/ANCFTire.cpp
+        wheeled_vehicle/tire/FEATire.h
+        wheeled_vehicle/tire/FEATire.cpp
+        wheeled_vehicle/tire/ANCFToroidalTire.h
+        wheeled_vehicle/tire/ANCFToroidalTire.cpp
+        wheeled_vehicle/tire/ReissnerToroidalTire.h
+        wheeled_vehicle/tire/ReissnerToroidalTire.cpp
+    )
+endif()
 source_group("wheeled_vehicle\\tire" FILES ${CV_WV_TIRE_FILES})
 
 set(CV_WV_VEHICLE_FILES
@@ -657,18 +773,23 @@ set(CV_TV_TRACKSHOE_FILES
     tracked_vehicle/track_shoe/ChTrackShoeBand.cpp
     tracked_vehicle/track_shoe/ChTrackShoeBandBushing.h
     tracked_vehicle/track_shoe/ChTrackShoeBandBushing.cpp
-    tracked_vehicle/track_shoe/ChTrackShoeBandANCF.h
-    tracked_vehicle/track_shoe/ChTrackShoeBandANCF.cpp
-
+    #
     tracked_vehicle/track_shoe/TrackShoeSinglePin.h
     tracked_vehicle/track_shoe/TrackShoeSinglePin.cpp
     tracked_vehicle/track_shoe/TrackShoeDoublePin.h
     tracked_vehicle/track_shoe/TrackShoeDoublePin.cpp
     tracked_vehicle/track_shoe/TrackShoeBandBushing.h
     tracked_vehicle/track_shoe/TrackShoeBandBushing.cpp
-    tracked_vehicle/track_shoe/TrackShoeBandANCF.h
-    tracked_vehicle/track_shoe/TrackShoeBandANCF.cpp
 )
+if(CH_ENABLE_MODULE_FEA)
+    set(CV_TV_TRACKSHOE_FILES ${CV_TV_TRACKSHOE_FILES}
+        tracked_vehicle/track_shoe/ChTrackShoeBandANCF.h
+        tracked_vehicle/track_shoe/ChTrackShoeBandANCF.cpp
+        #
+        tracked_vehicle/track_shoe/TrackShoeBandANCF.h
+        tracked_vehicle/track_shoe/TrackShoeBandANCF.cpp
+    )
+endif()
 source_group("tracked_vehicle\\track_shoe" FILES ${CV_TV_TRACKSHOE_FILES})
 
 set(CV_TV_TRACKASSEMBLY_FILES
@@ -682,18 +803,23 @@ set(CV_TV_TRACKASSEMBLY_FILES
     tracked_vehicle/track_assembly/ChTrackAssemblyBand.cpp
     tracked_vehicle/track_assembly/ChTrackAssemblyBandBushing.h
     tracked_vehicle/track_assembly/ChTrackAssemblyBandBushing.cpp
-    tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.h
-    tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.cpp
-
+    #
     tracked_vehicle/track_assembly/TrackAssemblySinglePin.h
     tracked_vehicle/track_assembly/TrackAssemblySinglePin.cpp
     tracked_vehicle/track_assembly/TrackAssemblyDoublePin.h
     tracked_vehicle/track_assembly/TrackAssemblyDoublePin.cpp
     tracked_vehicle/track_assembly/TrackAssemblyBandBushing.h
     tracked_vehicle/track_assembly/TrackAssemblyBandBushing.cpp
-    tracked_vehicle/track_assembly/TrackAssemblyBandANCF.h
-    tracked_vehicle/track_assembly/TrackAssemblyBandANCF.cpp
 )
+if(CH_ENABLE_MODULE_FEA)
+    set(CV_TV_TRACKASSEMBLY_FILES ${CV_TV_TRACKASSEMBLY_FILES}
+        tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.h
+        tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.cpp
+        #
+        tracked_vehicle/track_assembly/TrackAssemblyBandANCF.h
+        tracked_vehicle/track_assembly/TrackAssemblyBandANCF.cpp
+    )
+endif()
 source_group("tracked_vehicle\\track_assembly" FILES ${CV_TV_TRACKASSEMBLY_FILES})
 
 set(CV_TV_TEST_RIG_FILES
@@ -729,6 +855,9 @@ set(CV_STB_FILES
     ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/stb/stb_image_write.cpp
 )
 source_group("utils\\stb" FILES ${CV_STB_FILES})
+
+# Disable all warnings from external code (see cmake/ChronoWarnings.cmake)
+ch_disable_warnings_on_sources(${CV_STB_FILES})
 
 # --------------- VEHICLE IRRLICHT INTERFACE
 
@@ -881,6 +1010,27 @@ if(CH_ENABLE_MODULE_FSI_SPH)
   target_link_libraries(Chrono_vehicle PRIVATE Chrono_fsisph)
 endif()
 
+if(CH_USE_SCM_GPU)
+  target_compile_definitions(Chrono_vehicle PRIVATE CHRONO_VEHICLE_SCM_GPU)
+
+  # Everything that is mechanically identical between GPU modules -- the
+  # CHRONO_USE_HIP and __HIP_PLATFORM_* defines, the ROCm and (on the nvidia
+  # platform) CUDA include directories, the runtime link, HIP_ARCHITECTURES and
+  # the per-architecture flags including the nvcc --offload-arch translation.
+  #
+  # PRIVATE on both counts: the SCM GPU backend is an implementation detail of
+  # Chrono_vehicle. No installed Chrono::Vehicle header exposes a HIP type, so
+  # consumers must not be made to compile against ROCm headers.
+  chrono_apply_gpu_backend(Chrono_vehicle ${CHRONO_VEHICLE_SCM_BACKEND}
+                           DEFINE_VISIBILITY PRIVATE
+                           LINK_VISIBILITY   PRIVATE)
+
+  if(TARGET OpenMP::OpenMP_CXX)
+    target_link_libraries(Chrono_vehicle PRIVATE OpenMP::OpenMP_CXX)
+  endif()
+endif()
+
+
 target_compile_definitions(Chrono_vehicle INTERFACE 
     $<BUILD_INTERFACE:CHRONO_VEHICLE_DATA_DIR=\"${PROJECT_BINARY_DIR}/bin/data/vehicle/\">
     $<INSTALL_INTERFACE:CHRONO_VEHICLE_DATA_DIR=\"$<INSTALL_PREFIX>/data/vehicle/\">)
@@ -981,31 +1131,6 @@ if(CH_ENABLE_MODULE_VSG)
 endif()
 
 #-------------------------------------------------------------------------------
-# Trigger CMake for vehicle cosimulation
-#-------------------------------------------------------------------------------
-
-option(CH_ENABLE_MODULE_VEHICLE_COSIM "Build the Chrono vehicle cosimulation library" TRUE)
-mark_as_advanced(FORCE CH_ENABLE_MODULE_VEHICLE_COSIM)
-if(CH_ENABLE_MODULE_VEHICLE_COSIM)
-  add_subdirectory(cosim)
-endif()
-
-set(CH_ENABLE_MODULE_VEHICLE_COSIM  "${CH_ENABLE_MODULE_VEHICLE_COSIM}" PARENT_SCOPE)
-set(DEPENDENCIES_VEHICLECOSIM ${DEPENDENCIES_VEHICLECOSIM} PARENT_SCOPE)
-
-#-------------------------------------------------------------------------------
-# Trigger CMake for vehicle FMUs
-#-------------------------------------------------------------------------------
-
-cmake_dependent_option(CH_ENABLE_MODULE_VEHICLE_FMI  "Enable FMI support for Chrono::Vehicle" ON "CH_ENABLE_MODULE_FMI" OFF)
-mark_as_advanced(FORCE CH_ENABLE_MODULE_VEHICLE_FMI)
-if(CH_ENABLE_MODULE_VEHICLE_FMI)
-  add_subdirectory(fmi)
-endif()
-
-set(CH_ENABLE_MODULE_VEHICLE_FMI  "${CH_ENABLE_MODULE_VEHICLE_FMI}" PARENT_SCOPE)
-
-#-------------------------------------------------------------------------------
 # Install files
 #-------------------------------------------------------------------------------
 
@@ -1015,10 +1140,6 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
         FILES_MATCHING PATTERN "*.h")
 
 # Install 3rd party headers       
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/Easy_BMP
-        DESTINATION include/chrono_thirdparty
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")
-
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/stb
         DESTINATION include/chrono_thirdparty
         FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh" PATTERN "*.hpp" PATTERN "*.inl")

@@ -28,7 +28,6 @@
 #include <algorithm>
 
 #include "chrono/ChConfig.h"
-#include "chrono/assets/ChVisualShapeLine.h"
 
 #include "chrono/geometry/ChLineBezier.h"
 #include "chrono/input_output/ChUtilsInputOutput.h"
@@ -49,8 +48,6 @@
     #include "chrono_vsg/ChVisualSystemVSG.h"
 using namespace chrono::vsg3d;
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
@@ -185,7 +182,7 @@ class HMMWV_Driver : public ChDriver {
     void ExportPathPovray(const std::string& out_dir);
 
   private:
-    ChPathSteeringController m_steeringPID;
+    ChPathSteeringControllerPID m_steeringPID;
     double m_start;
     double m_end;
 };
@@ -276,13 +273,13 @@ int main(int argc, char* argv[]) {
     std::string del("  ");
 
     if (output || povray) {
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cerr << "Error creating directory " << out_dir << endl;
             return 1;
         }
 
         if (povray) {
-            if (!filesystem::create_directory(filesystem::path(pov_dir))) {
+            if (!CreateOutputDirectory(std::filesystem::path(pov_dir))) {
                 std::cerr << "Error creating directory " << pov_dir << std::endl;
                 return 1;
             }

@@ -30,7 +30,6 @@
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 #include "chrono/utils/ChUtilsSamplers.h"
@@ -104,8 +103,7 @@ int main(int argc, char* argv[]) {
     double render_fps = 100;
     double step_size = 1e-4;
     // Parse command-line arguments
-    if (!GetProblemSpecs(argc, argv, t_end, verbose, output, output_fps, snapshots, ps_freq, cylinder_radius,
-                         cylinder_height, init_spacing, render)) {
+    if (!GetProblemSpecs(argc, argv, t_end, verbose, output, output_fps, snapshots, ps_freq, cylinder_radius, cylinder_height, init_spacing, render)) {
         return 1;
     }
 
@@ -117,8 +115,8 @@ int main(int argc, char* argv[]) {
     sysFSI.SetVerbose(verbose);
     sysMBS.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
     sysFSI.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
-    // Set soil propertiees
-    ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
+    // Set soil properties
+    ChFsiFluidSystemSPH::SoilProperties mat_props;
     mat_props.density = bulk_density;
     mat_props.Young_modulus = youngs_modulus;
     mat_props.Poisson_ratio = 0.3;
@@ -126,7 +124,7 @@ int main(int argc, char* argv[]) {
     mat_props.mu_fric_s = mu_s;
     mat_props.mu_fric_2 = mu_s;
     mat_props.average_diam = granular_particle_diameter;
-    sysSPH.SetElasticSPH(mat_props);
+    sysSPH.SetCrmSPH(mat_props);
 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = IntegrationScheme::RK2;
@@ -137,7 +135,7 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_xsph_eps = 0.25;
     sph_params.shifting_ppst_pull = 1.0;
     sph_params.shifting_ppst_push = 3.0;
-    sph_params.free_surface_threshold = 2.0;
+    sph_params.free_surface_threshold = 2.4;
     sph_params.num_proximity_search_steps = ps_freq;
     sph_params.use_variable_time_step = false;
     sph_params.kernel_type = KernelType::CUBIC_SPLINE;
@@ -148,12 +146,11 @@ int main(int argc, char* argv[]) {
     // Dimension of the space domain
     double bxDim = 10 * cylinder_radius;
     double byDim = 10 * cylinder_radius;
-    double bzDim = 1.5 * cylinder_height;  // Higher than the cylinder to allow forparticle settling
+    double bzDim = 1.5 * cylinder_height;  // Higher than the cylinder to allow for particle settling
 
     // Set the periodic boundary condition
     auto initSpace0 = sysSPH.GetInitialSpacing();
-    ChVector3d cMin(-bxDim / 2 - 3 * initSpace0 / 2.0, -byDim / 2 - 3 * initSpace0 / 2.0,
-                    -1.0 * bzDim - 3 * initSpace0);
+    ChVector3d cMin(-bxDim / 2 - 3 * initSpace0 / 2.0, -byDim / 2 - 3 * initSpace0 / 2.0, -1.0 * bzDim - 3 * initSpace0);
     ChVector3d cMax(bxDim / 2 + 3 * initSpace0 / 2.0, byDim / 2 + 3 * initSpace0 / 2.0, 2.0 * bzDim + 3 * initSpace0);
     sysSPH.SetComputationalDomain(ChAABB(cMin, cMax), BC_NONE);
     sysSPH.SetOutputLevel(OutputLevel::CRM_FULL);
@@ -196,7 +193,7 @@ int main(int argc, char* argv[]) {
 
     // Add BCE particles attached on the walls into FSI system
     auto box_bce = sysSPH.CreatePointsBoxContainer(ChVector3d(bxDim, byDim, bzDim), {0, 0, -1});
-    sysFSI.AddFsiBody(box, box_bce, ChFrame<>(ChVector3d(0, 0, 0), QUNIT), false);
+    sysFSI.AddRigidBody(box, box_bce, ChFrame<>(ChVector3d(0, 0, 0), QUNIT), false);
 
     sysFSI.Initialize();
 
@@ -204,7 +201,7 @@ int main(int argc, char* argv[]) {
     std::string out_dir;
     if (output || snapshots) {
         out_dir = GetChronoOutputPath() + "FSI_Angle_Repose/";
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cerr << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
@@ -215,28 +212,28 @@ int main(int argc, char* argv[]) {
         ss << "_h" << cylinder_height;
         ss << "_s" << init_spacing;
         out_dir = out_dir + ss.str();
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cerr << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
 
         if (output) {
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+            if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
                 std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
                 return 1;
             }
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+            if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/fsi"))) {
                 std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
                 return 1;
             }
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
+            if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/vtk"))) {
                 std::cerr << "Error creating directory " << out_dir + "/vtk" << std::endl;
                 return 1;
             }
         }
 
         if (snapshots) {
-            if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+            if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
                 std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
                 return 1;
             }
@@ -297,8 +294,7 @@ int main(int argc, char* argv[]) {
             if (snapshots) {
                 std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
                 std::ostringstream filename;
-                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
-                         << ".bmp";
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
             }
 

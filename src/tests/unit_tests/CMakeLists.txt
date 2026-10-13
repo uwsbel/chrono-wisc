@@ -49,14 +49,6 @@ function(build_utests ADD_TESTS TESTS LABEL LIBS)
       set(EXTRA_FILES "")
     endif()
 
-    # A hack to set the working directory in which to execute the CTest runs.
-    # This is needed for tests that need to access the Chrono data directory (since we use a relative path to it)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        set(MY_WORKING_DIR "${EXECUTABLE_OUTPUT_PATH}/Release")
-    else()
-        set(MY_WORKING_DIR ${EXECUTABLE_OUTPUT_PATH})
-    endif()
-
     # Build all tests in the list TESTS, linking to LIBS
     foreach(PROGRAM ${TESTS})
         add_executable(${PROGRAM} ${PROGRAM}.cpp ${EXTRA_FILES})
@@ -67,19 +59,26 @@ function(build_utests ADD_TESTS TESTS LABEL LIBS)
           set_target_properties(${PROGRAM} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_INFO_PLIST})
         endif()
         if(MSVC)
+          target_compile_options(${PROGRAM} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4456>)
+          target_compile_options(${PROGRAM} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4701>)
           set_target_properties(${PROGRAM} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROGRAM}>")
           set_target_properties(${PROGRAM} PROPERTIES MSVC_RUNTIME_LIBRARY ${CH_MSVC_RUNTIME_LIBRARY})
         endif()
 
-        target_include_directories(${PROGRAM} PRIVATE "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty")
+        target_include_directories(${PROGRAM} ${CH_SYSTEM_INCLUDE_KEYWORD} PRIVATE "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty")
         target_link_libraries(${PROGRAM} ${LIBS} gtest_main)
         
         install(TARGETS ${PROGRAM} CONFIGURATIONS Release DESTINATION ${CH_INSTALL_DEMO})
         if(${ADD_TESTS})
-           add_test(${PROGRAM} ${PROJECT_BINARY_DIR}/bin/${PROGRAM})
-           set_tests_properties(${PROGRAM} PROPERTIES 
-                                WORKING_DIRECTORY ${MY_WORKING_DIR}
-                                LABELS "${LABEL}")
+           # Run each test in the directory where its executable was created. This is required
+           # because tests use paths relative to the current directory, both for locating the
+           # Chrono data directory and for creating their output directory.
+           # Specifying the test command through the target name and the working directory
+           # through a generator expression works with both single- and multi-config generators.
+           add_test(NAME ${PROGRAM}
+                    COMMAND ${PROGRAM}
+                    WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROGRAM}>)
+           set_tests_properties(${PROGRAM} PROPERTIES LABELS "${LABEL}")
         endif()
     endforeach()
 
@@ -96,12 +95,15 @@ if(BUILD_TESTING_BASE)
   ADD_SUBDIRECTORY(physics)
   ADD_SUBDIRECTORY(joints)
   ADD_SUBDIRECTORY(smc_contact/sequential)
+  ADD_SUBDIRECTORY(geometry)
 endif()
 
-option(BUILD_TESTING_FEA "Build unit tests for FEA module" TRUE)
-mark_as_advanced(FORCE BUILD_TESTING_FEA)
-if(BUILD_TESTING_FEA)
-  ADD_SUBDIRECTORY(fea)
+if(CH_ENABLE_MODULE_FEA)
+  option(BUILD_TESTING_FEA "Build unit tests for FEA module" TRUE)
+  mark_as_advanced(FORCE BUILD_TESTING_FEA)
+  if(BUILD_TESTING_FEA)
+    ADD_SUBDIRECTORY(fea)
+  endif()
 endif()
 
 if(CH_ENABLE_MODULE_MODAL)
@@ -112,7 +114,6 @@ if(CH_ENABLE_MODULE_MODAL)
   endif()
 endif()
 
-
 if(CH_ENABLE_MODULE_CASCADE)
   option(BUILD_TESTING_CASCADE "Build unit tests for Cascade module" TRUE)
   mark_as_advanced(FORCE BUILD_TESTING_CASCADE)
@@ -121,6 +122,13 @@ if(CH_ENABLE_MODULE_CASCADE)
   endif()
 endif()
 
+if(CH_ENABLE_MODULE_FMI)
+  option(BUILD_TESTING_FMI "Build unit tests for FMI module" TRUE)
+  mark_as_advanced(FORCE BUILD_TESTING_FMI)
+  if(BUILD_TESTING_FMI)
+    ADD_SUBDIRECTORY(fmi)
+  endif()
+endif()
 
 if(CH_ENABLE_MODULE_VEHICLE)
   option(BUILD_TESTING_VEHICLE "Build unit tests for Vehicle module" TRUE)
@@ -179,6 +187,14 @@ if(CH_ENABLE_MODULE_DEM)
   endif()
 endif()
 
+if(CH_ENABLE_MODULE_FSI)
+  option(BUILD_TESTING_FSI "Build unit tests for FSI module" TRUE)
+  mark_as_advanced(FORCE BUILD_TESTING_FSI)
+  if(BUILD_TESTING_FSI)
+    ADD_SUBDIRECTORY(fsi/base)
+  endif()
+endif()
+
 if(CH_ENABLE_MODULE_FSI_SPH)
   option(BUILD_TESTING_FSI_SPH "Build unit tests for FSI_SPH module" TRUE)
   mark_as_advanced(FORCE BUILD_TESTING_FSI_SPH)
@@ -186,4 +202,3 @@ if(CH_ENABLE_MODULE_FSI_SPH)
     ADD_SUBDIRECTORY(fsi/sph)
   endif()
 endif()
-

@@ -54,8 +54,9 @@ ChChassis::~ChChassis() {
 // -----------------------------------------------------------------------------
 
 uint16_t ChChassis::GetVehicleTag() const {
-    ChAssertAlways(m_vehicle != nullptr);
-    return m_vehicle->GetVehicleTag();
+    if (m_vehicle)
+        return m_vehicle->GetVehicleTag();
+    return 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -86,14 +87,25 @@ ChVector3d ChChassis::GetDriverPos() const {
     return m_body->GetFrameRefToAbs().TransformPointLocalToParent(GetLocalDriverCoordsys().pos);
 }
 
-// Return the speed measured at the origin of the chassis reference frame.
+// Return the velocity of the origin of the chassis frame
+// Same as GetPointVelocity(VNULL)
+const ChVector3d& ChChassis::GetLinearVelocity() const {
+    return m_body->GetFrameRefToAbs().GetPosDt();
+}
+
+// Return the angular velocity of the chassis reference frame
+ChVector3d ChChassis::GetAngularVelocity() const {
+    return m_body->GetFrameRefToAbs().GetAngVelLocal();
+}
+
+// Return the speed measured at the origin of the chassis reference frame
 double ChChassis::GetSpeed() const {
     const auto& x_dir = m_body->GetRotMat().GetAxisX();
     const auto& vel = m_body->GetFrameRefToAbs().GetPosDt();
     return Vdot(vel, x_dir);
 }
 
-// Return the speed measured at the chassis center of mass.
+// Return the speed measured at the chassis center of mass
 double ChChassis::GetCOMSpeed() const {
     const auto& x_dir = m_body->GetRotMat().GetAxisX();
     const auto& vel = m_body->GetPosDt();
@@ -121,46 +133,45 @@ double ChChassis::GetTurnRate() const {
 }
 
 void ChChassis::PopulateComponentList() {
-    m_bodies.push_back(m_body);
+    m_components.bodies.push_back(m_body);
 }
 
-void ChChassis::Initialize(ChVehicle* vehicle,
-                           const ChCoordsys<>& chassisPos,
-                           double chassisFwdVel,
-                           int collision_family) {
-    ChAssertAlways(vehicle != nullptr);
+void ChChassis::Initialize(ChVehicle* vehicle, const ChCoordsys<>& chassisPos, double chassisFwdVel, int collision_family) {
     m_vehicle = vehicle;
-    ChSystem* system = vehicle->GetSystem();
+    ChSystem* system = vehicle ? vehicle->GetSystem() : nullptr;
 
-    // Set body tag
-    m_obj_tag = VehicleObjTag::Generate(GetVehicleTag(), VehiclePartTag::CHASSIS);
+    if (vehicle) {
+        // Set body tag
+        m_obj_tag = VehicleObjTag::Generate(GetVehicleTag(), VehiclePartTag::CHASSIS);
 
-    // Initial pose and velocity assumed to be given in current WorldFrame
-    ChFrame<> chassis_pos(chassisPos.pos, ChMatrix33<>(chassisPos.rot) * ChWorldFrame::Rotation().transpose());
+        // Initial pose and velocity assumed to be given in current WorldFrame
+        ChFrame<> chassis_pos(chassisPos.pos, ChMatrix33<>(chassisPos.rot) * ChWorldFrame::Rotation().transpose());
 
-    m_body = chrono_types::make_shared<ChBodyAuxRef>();
-    m_body->SetTag(m_obj_tag);
-    m_body->SetName(m_name + " body");
-    m_body->SetMass(GetBodyMass());
-    m_body->SetFrameCOMToRef(GetBodyCOMFrame());
-    m_body->SetInertia(GetBodyInertia());
-    m_body->SetFixed(m_fixed);
+        // Create chassis body
+        m_body = chrono_types::make_shared<ChBodyAuxRef>();
+        m_body->SetTag(m_obj_tag);
+        m_body->SetName(m_name + " body");
+        m_body->SetMass(GetBodyMass());
+        m_body->SetFrameCOMToRef(GetBodyCOMFrame());
+        m_body->SetInertia(GetBodyInertia());
+        m_body->SetFixed(m_fixed);
 
-    m_body->SetFrameRefToAbs(chassis_pos);
-    m_body->SetPosDt(chassisFwdVel * chassis_pos.TransformDirectionLocalToParent(ChVector3d(1, 0, 0)));
+        m_body->SetFrameRefToAbs(chassis_pos);
+        m_body->SetPosDt(chassisFwdVel * chassis_pos.TransformDirectionLocalToParent(ChVector3d(1, 0, 0)));
 
-    system->Add(m_body);
+        system->Add(m_body);
 
-    // Add containers for bushing elements and external forces.
-    system->Add(m_container_bushings);
-    system->Add(m_container_external);
-    system->Add(m_container_terrain);
+        // Add containers for bushing elements and external forces.
+        system->Add(m_container_bushings);
+        system->Add(m_container_external);
+        system->Add(m_container_terrain);
 
-    // Add pre-defined markers (driver position and COM) on the chassis body.
-    AddMarker("driver position", ChFrame<>(GetLocalDriverCoordsys()));
-    AddMarker("COM", GetCOMFrame());
+        // Add pre-defined markers (driver position and COM) on the chassis body.
+        AddMarker("driver position", ChFrame<>(GetLocalDriverCoordsys()));
+        AddMarker("COM", GetCOMFrame());
+    }
 
-    Construct(vehicle, chassisPos, chassisFwdVel, collision_family);
+    OnInitialize(vehicle, chassisPos, chassisFwdVel, collision_family);
 
     // Initialize part
     ChPart::Initialize();
@@ -180,7 +191,7 @@ void ChChassis::AddMarker(const std::string& name, const ChFrame<>& frame) {
     marker->SetName(m_name + " " + name);
     marker->ImposeRelativeTransform(frame_com);
     m_body->AddMarker(marker);
-    m_markers.push_back(marker);
+    m_components.markers.push_back(marker);
 }
 
 void ChChassis::AddExternalForceTorque(std::shared_ptr<ExternalForceTorque> load) {
@@ -235,16 +246,11 @@ void ChChassis::UpdateInertiaProperties() {
 // Chassis drag force implemented as an external force.
 class ChassisDragForce : public ChChassis::ExternalForceTorque {
   public:
-    ChassisDragForce(double Cd, double area, double air_density)
-        : ExternalForceTorque("Chassis_drag"), m_Cd(Cd), m_area(area), m_air_density(air_density) {}
+    ChassisDragForce(double Cd, double area, double air_density) : ExternalForceTorque("Chassis_drag"), m_Cd(Cd), m_area(area), m_air_density(air_density) {}
 
     // The drag force, calculated based on the forward vehicle speed, is applied to
     // the center of mass of the chassis body.
-    virtual void Update(double time,
-                        const ChChassis& chassis,
-                        ChVector3d& force,
-                        ChVector3d& point,
-                        ChVector3d& torque) override {
+    virtual void Update(double time, const ChChassis& chassis, ChVector3d& force, ChVector3d& point, ChVector3d& torque) override {
         auto body = chassis.GetBody();
         auto V = body->TransformDirectionParentToLocal(body->GetPosDt());
         double Vx = V.x();
@@ -322,7 +328,7 @@ void ChChassisRear::Initialize(std::shared_ptr<ChChassis> chassis, int collision
     // Add pre-defined marker (COM) on the chassis body.
     AddMarker("COM", GetBodyCOMFrame());
 
-    Construct(chassis, collision_family);
+    OnInitialize(chassis, collision_family);
 
     // Mark as initialized
     ChPart::Initialize();

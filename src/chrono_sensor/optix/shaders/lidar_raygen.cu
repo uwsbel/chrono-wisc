@@ -16,9 +16,6 @@
 //
 // =============================================================================
 
-#ifndef LIDAR_RAYGEN_CU
-#define LIDAR_RAYGEN_CU
-
 #include "chrono_sensor/optix/shaders/device_utils.cuh"
 
 // Default of LiDAR per ray data (PRD)
@@ -55,7 +52,7 @@ extern "C" __global__ void __raygen__lidar_single() {
     float3 up;
     basis_from_quaternion(ray_quat, forward, left, up);
     float3 ray_direction = normalize(forward * x + left * y + up * z);
-    
+
     PerRayData_lidar prd_lidar = DefaultLidarPRD();
     unsigned int opt1;
     unsigned int opt2;
@@ -146,5 +143,3 @@ extern "C" __global__ void __raygen__lidar_multi() {
 
     lidar.frame_buffer[image_index] = make_float2(prd_lidar.range, prd_lidar.intensity);
 }
-
-#endif // # LIDAR_RAYGEN_CU

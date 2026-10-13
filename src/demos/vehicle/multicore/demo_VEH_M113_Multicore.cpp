@@ -42,8 +42,6 @@ using namespace chrono::vsg3d;
 
 #include "chrono_models/vehicle/m113/M113.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::vehicle;
 using namespace chrono::vehicle::m113;
@@ -151,7 +149,7 @@ double CreateParticles(ChSystem* sys) {
     std::shared_ptr<utils::ChMixtureIngredient> m1 = gen.AddMixtureIngredient(utils::MixtureType::SPHERE, 1.0);
     m1->SetDefaultMaterial(mat_g);
     m1->SetDefaultDensity(rho_g);
-    m1->SetDefaultSize(r_g);
+    m1->SetDefaultSize(ChVector3d(r_g));
 
     // Set starting value for body identifiers
     gen.SetStartTag(tag_g);
@@ -199,12 +197,12 @@ int main(int argc, char* argv[]) {
     // -----------------
 
     if (povray_output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
 
-        if (!filesystem::create_directory(filesystem::path(pov_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(pov_dir))) {
             std::cout << "Error creating directory " << pov_dir << std::endl;
             return 1;
         }

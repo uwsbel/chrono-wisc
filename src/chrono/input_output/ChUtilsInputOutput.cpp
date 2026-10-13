@@ -114,13 +114,6 @@ bool WriteBodyShapesCheckpoint(ChSystem* system, const std::string& filename) {
                     dims = {radius, radius, height};
                     break;
                 }
-                case ChCollisionShape::Type::CYLSHELL: {
-                    auto cylshell = std::static_pointer_cast<ChCollisionShapeCylindricalShell>(shape);
-                    auto height = cylshell->GetHeight();
-                    auto radius = cylshell->GetRadius();
-                    dims = {radius, radius, height};
-                    break;
-                }
                 case ChCollisionShape::Type::CONE: {
                     auto cone = std::static_pointer_cast<ChCollisionShapeCone>(shape);
                     auto height = cone->GetHeight();
@@ -151,7 +144,7 @@ bool WriteBodyShapesCheckpoint(ChSystem* system, const std::string& filename) {
                     break;
                 }
                 default:
-                    std::cout << "utils::WriteCheckpoint ERROR: unknown or not supported collision shape\n";
+                    std::cout << "utils::WriteBodyShapesCheckpoint ERROR: unknown or not supported collision shape\n";
                     return false;
             }
 
@@ -180,7 +173,7 @@ void ReadBodyShapesCheckpoint(ChSystem* system, const std::string& filename) {
 
     // Check consistency with the current system
     if (contact_method != system->GetContactMethod()) {
-        std::cout << "utils::ReadCheckpoint ERROR: checkpoint data file inconsistent with the Chrono system\n";
+        std::cout << "utils::ReadBodyShapesCheckpoint ERROR: checkpoint data file inconsistent with the Chrono system\n";
         std::cout << "    Contact method in data file: " << (ctype == 0 ? "NSC" : "SMC") << "\n";
         return;
     }

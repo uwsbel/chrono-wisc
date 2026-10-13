@@ -23,6 +23,8 @@ namespace chrono {
 /// @{
 
 /// A rounded cylinder (sphere-swept cylinder) geometric object for collision and visualization.
+/// The cylinder axis is along Z. The radius and height are the outer dimensions of the shape, i.e., the shape is the
+/// Minkowski sum of a cylinder with radius (r - sr) and height (h - 2*sr) and a sphere of radius sr.
 class ChApi ChRoundedCylinder : public ChVolume {
   public:
     ChRoundedCylinder() : r(0), h(0), sr(0) {}
@@ -47,7 +49,7 @@ class ChApi ChRoundedCylinder : public ChVolume {
     /// Return the radius of a bounding sphere for this geometry.
     virtual double GetBoundingSphereRadius() const override;
 
-    virtual ChVector3d Baricenter() const override { return ChVector3d(0); }
+    virtual ChVector3d Barycenter() const override { return ChVector3d(0); }
 
     /// Evaluate position in box volume.
     virtual ChVector3d Evaluate(double parU, double parV, double parW) const override {
@@ -82,8 +84,8 @@ class ChApi ChRoundedCylinder : public ChVolume {
     /// Return the radius of a bounding sphere.
     static double CalcBoundingSphereRadius(double radius, double height, double srad);
 
-    double r;   ///< cylinder radius
-    double h;   ///< cylinder height
+    double r;   ///< cylinder radius (outer)
+    double h;   ///< cylinder height (outer)
     double sr;  ///< radius of sweeping sphere
 };
 

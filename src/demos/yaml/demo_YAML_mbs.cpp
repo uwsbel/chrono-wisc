@@ -31,7 +31,6 @@
 using namespace chrono::vsg3d;
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 using namespace chrono;
@@ -75,22 +74,21 @@ int main(int argc, char* argv[]) {
         instance2 = parser.Populate(*sys, frame2, prefix2);
 
     // Print hierarchy of modeling components in ChSystem
-    ////std::cout << "Number of moidel instances: " << parser.GetNumInstances() << std::endl;
+    ////std::cout << "Number of model instances: " << parser.GetNumInstances() << std::endl;
     ////sys->ShowHierarchy(std::cout);
 
     // Extract information from parsed YAML files
     const std::string& model_name = parser.GetName();
     double time_end = parser.GetEndtime();
     double time_step = parser.GetTimestep();
-    bool real_time = parser.EnforceRealtime();
-    bool render = parser.Render();
-    double render_fps = parser.GetRenderFPS();
+
+    bool output = parser.OutputEnabled();
+    bool render = parser.VisualizationEnabled();
+
     CameraVerticalDir camera_vertical = parser.GetCameraVerticalDir();
     const ChVector3d& camera_location = parser.GetCameraLocation();
     const ChVector3d& camera_target = parser.GetCameraTarget();
     bool enable_shadows = parser.EnableShadows();
-    bool output = parser.Output();
-    double output_fps = parser.GetOutputFPS();
 
     // Print system hierarchy
     ////sys->ShowHierarchy(std::cout);
@@ -125,12 +123,12 @@ int main(int argc, char* argv[]) {
     // Create output directory
     if (output) {
         std::string out_dir = GetChronoOutputPath() + "YAML_MBS";
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
         out_dir = out_dir + "/" + model_name;
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
@@ -138,37 +136,21 @@ int main(int argc, char* argv[]) {
     }
 
     // Simulation loop
-    ChRealtimeStepTimer rt_timer;
     double time = 0;
-    int render_frame = 0;
-    int output_frame = 0;
 
     while (true) {
-        if (render) {
-            if (!vis->Run())
-                break;
-            if (time >= render_frame / render_fps) {
-                vis->BeginScene();
-                vis->Render();
-                vis->EndScene();
-                render_frame++;
-            }
-        } else {
-            std::cout << "\rt = " << time;
-            if (time_end > 0 && time >= time_end)
-                break;
-        }
+        if (time_end > 0 && time > time_end)
+            break;
 
-        if (output) {
-            if (time >= output_frame / output_fps) {
-                parser.SaveOutput(*sys, output_frame);
-                output_frame++;
-            }
-        }
+        if (render && !parser.Render(*vis, time))
+            break;
 
-        sys->DoStepDynamics(time_step);
-        if (real_time)
-            rt_timer.Spin(time_step);
+        if (output)
+            parser.Output(time);
+
+        // Advance multibody system dynamics
+        parser.DoStepDynamics();
+
         time += time_step;
     }
 

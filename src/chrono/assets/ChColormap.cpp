@@ -39,6 +39,7 @@ std::unordered_map<ChColormap::Type, ChColormap::Files> ChColormap::m_colormap_f
     {ChColormap::Type::KINDLMANN, {"colormaps/kindlmann-table-float-0512.csv", "colormaps/kindlmann.png"}},     //
     {ChColormap::Type::PLASMA, {"colormaps/plasma-table-float-0512.csv", "colormaps/plasma.png"}},              //
     {ChColormap::Type::RED_BLUE, {"colormaps/red-blue-table-float-0512.csv", "colormaps/red-blue.png"}},        //
+    {ChColormap::Type::REGOLITH, {"colormaps/regolith-table-float-0512.csv", "colormaps/regolith.png"}},        //
     {ChColormap::Type::VIRIDIS, {"colormaps/viridis-table-float-0512.csv", "colormaps/viridis.png"}}            //
 };
 
@@ -70,6 +71,9 @@ void ChColormap::Load(Type type) {
 ChColor ChColormap::Get(double value) const {
     ChClampValue(value, 0.0, 1.0);
 
+    if (std::isnan(value))
+        return ChColor(0, 0, 0); // return black to signal "NaN" 
+        
     if (value <= m_map.front().first)
         return m_map.front().second;
 
@@ -119,6 +123,8 @@ std::string ChColormap::GetTypeAsString(Type type) {
             return "PLASMA";
         case Type::RED_BLUE:
             return "RED_BLUE";
+        case Type::REGOLITH:
+            return "REGOLITH";
         case Type::VIRIDIS:
             return "VIRIDIS";
     }

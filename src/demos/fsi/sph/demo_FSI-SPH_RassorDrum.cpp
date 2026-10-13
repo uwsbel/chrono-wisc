@@ -36,56 +36,38 @@
 #include "chrono/utils/ChUtilsSamplers.h"
 #include "chrono/core/ChTimer.h"
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
-// Chrono namespaces
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
 
-// Physical properties of terrain particles
+// Soil density
 double density = 1700;
-double slope_angle;  // Terrain slope
+
+// Terrain slope
+double slope_angle;
 
 // Dimension of the terrain container
 double smalldis = 1.0e-9;
-// double bxDim = 5.0 + smalldis;
 double bxDim = 2.0 + smalldis;
 double byDim = 0.5 + smalldis;  // byDim depending on the wheel width
 double bzDim = 0.1 + smalldis;
 
-// Size of the wheel
+// Wheel radius
 double wheel_radius = 0.2;
-double wheel_wide = 0.205;
 
+// Wheel slip
 double wheel_slip = 0.0;
-// double wheel_vel = -0.05;
-// double wheel_AngVel = -0.7; // for rTot = 250mm, 0.4 rad/s ~ 0.1 m/s linear velocity
 
-// Test 4
-// double wheel_vel = 0.2;
-// double wheel_AngVel = 2.78;  // for rTot = 250mm, 0.4 rad/s ~ 0.1 m/s linear velocity
-
-// Test 3
-// double wheel_vel = 0.15;
-// double wheel_AngVel = 2.09;  // for rTot = 250mm, 0.4 rad/s ~ 0.1 m/s linear velocity
-
-// Test 2
-// double wheel_vel = 0.15;
-// double wheel_AngVel = 2.09;  // for rTot = 250mm, 0.4 rad/s ~ 0.1 m/s linear velocity
-
-// double total_mass = 2.5 * 2.;
-
-// Initial Position of wheel
+// Wheel initial state
 ChVector3d wheel_IniPos(-bxDim / 2 + wheel_radius * 1.2, 0.0, wheel_radius + bzDim / 2.0);
-// ChVector<> wheel_IniVel(0.0, 0.0, -5.0f);
 ChVector3d wheel_IniVel(0.0, 0.0, 0.0f);
 
-// linear actuator and angular actuator
+// Linear and angular actuators
 auto actuator = chrono_types::make_shared<ChLinkLockLinActuator>();
 auto motor = chrono_types::make_shared<ChLinkMotorRotationAngle>();
 
@@ -103,6 +85,7 @@ std::string drum_BCE_csvfile = "robot/rassor/bce/single_drum.csv";
 void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_AngVel, double total_mass) {
     ChFsiFluidSystemSPH& sysSPH = sysFSI.GetFluidSystemSPH();
     ChSystem& sysMBS = sysFSI.GetMultibodySystem();
+
     // Common contact material
     auto cmaterial = chrono_types::make_shared<ChContactMaterialSMC>();
     cmaterial->SetYoungModulus(1e8);
@@ -131,7 +114,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_Ang
     double scale_ratio = 1.f;
     trimesh->LoadWavefrontMesh(GetChronoDataFile(drum_obj), false, true);
     trimesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
-    trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
+    trimesh->RepairDuplicateVertices(1e-9);                              // if meshes are not watertight
 
     // Compute mass inertia from mesh
     double mmass;
@@ -161,7 +144,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_Ang
     std::cout << "principal inertia: " << std::endl;
     std::cout << mdensity * principal_I << std::endl;
     drum->SetPosDt(wheel_IniVel);
-    drum->SetAngVelLocal(ChVector3d(0.0, 0.0, 0.0));  // set an initial anular velocity (rad/s)
+    drum->SetAngVelLocal(ChVector3d(0.0, 0.0, 0.0));  // set an initial angular velocity (rad/s)
 
     // Set the absolute position of the body:
     drum->SetFrameRefToAbs(ChFrame<>(ChVector3d(wheel_IniPos), ChQuaternion<>(wheel_Rot)));
@@ -187,9 +170,9 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_Ang
         BCE_drum.push_back(ChVector3d(values[0], values[1], values[2]));
     }
     // Now add the drum to the FSI system
-    sysFSI.AddFsiBody(drum, BCE_drum, ChFrame<>(), true);
+    sysFSI.AddRigidBody(drum, BCE_drum, ChFrame<>(), true);
 
-    std::cout << "Added " << BCE_drum.size() << " BCE particles for rassor wheel" << std::endl;
+    std::cout << "Added " << BCE_drum.size() << " BCE particles for Rassor wheel" << std::endl;
 
     // Create the chassis -- always THIRD body in the system
     auto chassis = chrono_types::make_shared<ChBody>();
@@ -208,9 +191,6 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_Ang
     axle->EnableCollision(false);
     axle->SetFixed(false);
 
-    // Add geometry of the axle.
-    // chrono::utils::AddSphereGeometry(axle.get(), cmaterial, 0.5, ChVector3d(0, 0, 0));
-
     sysMBS.AddBody(axle);
 
     // Connect the chassis to the containing bin (ground) through a translational joint and create a linear actuator.
@@ -222,8 +202,7 @@ void CreateSolidPhase(ChFsiSystemSPH& sysFSI, double wheel_vel, double wheel_Ang
     double velocity = wheel_vel;  // wheel_AngVel * wheel_radius * (1.0 - wheel_slip);
     auto actuator_fun = chrono_types::make_shared<ChFunctionRamp>(0.0, velocity);
 
-    actuator->Initialize(ground, chassis, false, ChFrame<>(chassis->GetPos(), QUNIT),
-                         ChFrame<>(chassis->GetPos() + ChVector3d(1, 0, 0), QUNIT));
+    actuator->Initialize(ground, chassis, false, ChFrame<>(chassis->GetPos(), QUNIT), ChFrame<>(chassis->GetPos() + ChVector3d(1, 0, 0), QUNIT));
     actuator->SetName("actuator");
     actuator->SetDistanceOffset(1);
     actuator->SetActuatorFunction(actuator_fun);
@@ -279,28 +258,22 @@ bool GetProblemSpecs(int argc, char** argv, SimParams& params) {
     cli.AddOption<int>("Simulation", "ps_freq", "Proximity search frequency", std::to_string(params.ps_freq));
     cli.AddOption<double>("Simulation", "initial_spacing", "Initial spacing", std::to_string(params.initial_spacing));
     cli.AddOption<double>("Simulation", "d0_multiplier", "D0 multiplier", std::to_string(params.d0_multiplier));
-    cli.AddOption<std::string>("Simulation", "boundary_type", "Boundary condition type (holmes/adami)",
-                               params.boundary_type);
-    cli.AddOption<std::string>("Simulation", "viscosity_type",
-                               "Viscosity type (artificial_unilateral/artificial_bilateral)", params.viscosity_type);
+    cli.AddOption<std::string>("Simulation", "boundary_type", "Boundary condition type (holmes/adami)", params.boundary_type);
+    cli.AddOption<std::string>("Simulation", "viscosity_type", "Viscosity type (artificial_unilateral/artificial_bilateral)", params.viscosity_type);
     cli.AddOption<std::string>("Simulation", "kernel_type", "Kernel type (cubic/wendland)", params.kernel_type);
     cli.AddOption<double>("Simulation", "time_step", "Time step", std::to_string(params.time_step));
-    cli.AddOption<double>("Simulation", "artificial_viscosity", "Artificial viscosity",
-                          std::to_string(params.artificial_viscosity));
-    cli.AddOption<std::string>("Physics", "integration_scheme", "Integration scheme (euler/rk2)",
-                               params.integration_scheme);
+    cli.AddOption<double>("Simulation", "artificial_viscosity", "Artificial viscosity", std::to_string(params.artificial_viscosity));
+    cli.AddOption<std::string>("Physics", "integration_scheme", "Integration scheme (euler/rk2)", params.integration_scheme);
     cli.AddOption<double>("Simulation", "total_time", "Total time", std::to_string(params.total_time));
     std::string use_variable_time_step_str = params.use_variable_time_step ? "true" : "false";
-    cli.AddOption<std::string>("Simulation", "use_variable_time_step", "Use variable time step",
-                               use_variable_time_step_str);
+    cli.AddOption<std::string>("Simulation", "use_variable_time_step", "Use variable time step", use_variable_time_step_str);
 
     cli.AddOption<double>("Physics", "wheel_vel", "Wheel velocity", std::to_string(params.wheel_vel));
     cli.AddOption<double>("Physics", "wheel_AngVel", "Wheel angular velocity", std::to_string(params.wheel_AngVel));
     cli.AddOption<double>("Physics", "total_mass", "Total mass", std::to_string(params.total_mass));
 
     std::string output_particle_data_str = params.output_particle_data ? "true" : "false";
-    cli.AddOption<std::string>("Output", "output_particle_data", "Enable output of particle data",
-                               output_particle_data_str);
+    cli.AddOption<std::string>("Output", "output_particle_data", "Enable output of particle data", output_particle_data_str);
     std::string output_str = params.output ? "true" : "false";
     cli.AddOption<std::string>("Output", "output", "Enable output", output_str);
     cli.AddOption<double>("Output", "out_fps", "Output frequency", std::to_string(params.out_fps));
@@ -372,20 +345,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Update global variables to use the values from params
-    double wheel_vel = params.wheel_vel;
-    double wheel_AngVel = params.wheel_AngVel;
-    double total_mass = params.total_mass;
-
     // Create the MBS and FSI systems
     ChSystemSMC sysMBS;
     ChFsiFluidSystemSPH sysSPH;
     ChFsiSystemSPH sysFSI(&sysMBS, &sysSPH);
 
-// Disable cuda error check in RELEASE mode
 #ifdef NDEBUG
-    std::cout << "Disable cuda error check in RELEASE mode" << std::endl;
-    sysSPH.EnableCudaErrorCheck(false);
+    std::cout << "Disable GPU error check in RELEASE mode" << std::endl;
+    sysSPH.EnableGPUErrorCheck(false);
 #endif
 
     sysFSI.SetVerbose(verbose_fsi);
@@ -427,14 +394,13 @@ int main(int argc, char* argv[]) {
             // Base output directory
             std::stringstream wheel_params;
             wheel_params << std::fixed << std::setprecision(2);
-            wheel_params << "wheel_vel_" << params.wheel_vel << "_wheel_AngVel_" << params.wheel_AngVel
-                         << "_total_mass_" << params.total_mass;
+            wheel_params << "wheel_vel_" << params.wheel_vel << "_wheel_AngVel_" << params.wheel_AngVel << "_total_mass_" << params.total_mass;
 
             std::string base_dir = chrono_output_path + "FSI_Rassor_SingleDrum/" + wheel_params.str() + "/";
 
             // Try to create the directory structure - ignoring errors if directories already exist
-            filesystem::create_directory(filesystem::path(chrono_output_path + "FSI_Rassor_SingleDrum/"));
-            filesystem::create_directory(filesystem::path(base_dir));
+            CreateOutputDirectory(std::filesystem::path(chrono_output_path + "FSI_Rassor_SingleDrum/"));
+            CreateOutputDirectory(std::filesystem::path(base_dir));
 
             // Create directory with all parameters in a single folder
             std::stringstream ss;
@@ -446,13 +412,13 @@ int main(int argc, char* argv[]) {
             ss << "_av_" << params.artificial_viscosity;
             out_dir = base_dir + ss.str();
 
-            filesystem::create_directory(filesystem::path(out_dir));
-            filesystem::create_directory(filesystem::path(out_dir + "/particles"));
-            filesystem::create_directory(filesystem::path(out_dir + "/fsi"));
+            CreateOutputDirectory(std::filesystem::path(out_dir));
+            CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"));
+            CreateOutputDirectory(std::filesystem::path(out_dir + "/fsi"));
 
             // Create directory for snapshots if enabled
             if (params.snapshots) {
-                filesystem::create_directory(filesystem::path(out_dir + "/snapshots"));
+                CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"));
             }
         } catch (const std::exception& e) {
             std::cerr << "Error creating directory structure: " << e.what() << std::endl;
@@ -465,14 +431,14 @@ int main(int argc, char* argv[]) {
     sysMBS.SetGravitationalAcceleration(gravity);
     sysFSI.SetGravitationalAcceleration(gravity);
 
-    // Set the simulation stepsize
+    // Set the simulation step size
     sysFSI.SetStepSizeCFD(params.time_step);
     sysFSI.SetStepsizeMBD(params.time_step);
 
     // Meta-step (communication interval)
     double meta_time_step = 5 * params.time_step;
 
-    ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
+    ChFsiFluidSystemSPH::SoilProperties mat_props;
     mat_props.density = density;
     mat_props.Young_modulus = 1e6;
     mat_props.Poisson_ratio = 0.3;
@@ -482,7 +448,7 @@ int main(int argc, char* argv[]) {
     mat_props.average_diam = 0.0025;
     mat_props.cohesion_coeff = 0;
 
-    sysSPH.SetElasticSPH(mat_props);
+    sysSPH.SetCrmSPH(mat_props);
 
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     if (params.integration_scheme == "euler") {
@@ -496,7 +462,7 @@ int main(int argc, char* argv[]) {
     sph_params.shifting_xsph_eps = 0.5;
     sph_params.shifting_ppst_pull = 1.0;
     sph_params.shifting_ppst_push = 3.0;
-    sph_params.free_surface_threshold = 2.0;
+    sph_params.free_surface_threshold = 2.4;
     sph_params.artificial_viscosity = params.artificial_viscosity;
     sph_params.num_proximity_search_steps = params.ps_freq;
     sph_params.use_variable_time_step = params.use_variable_time_step;
@@ -525,7 +491,7 @@ int main(int argc, char* argv[]) {
     sysSPH.SetSPHParameters(sph_params);
 
     sysSPH.SetActiveDomain(ChVector3d(0.5, 0.4, 0.7));
-    // sysSPH.SetActiveDomainDelay(0.0);
+    ////sysSPH.SetFreeFlowDuration(0.0);
 
     // Set the terrain container size
     sysSPH.SetContainerDim(ChVector3d(bxDim, byDim, bzDim));
@@ -539,8 +505,7 @@ int main(int argc, char* argv[]) {
     sysSPH.SetComputationalDomain(ChAABB(cMin, cMax), BC_Y_PERIODIC);
 
     ChVector3d boxCenter(0.0, 0.0, 0.0);
-    ChVector3d boxHalfDim(bxDim / 2 - params.initial_spacing, byDim / 2 - params.initial_spacing,
-                          bzDim / 2 - params.initial_spacing);
+    ChVector3d boxHalfDim(bxDim / 2 - params.initial_spacing, byDim / 2 - params.initial_spacing, bzDim / 2 - params.initial_spacing);
     sysSPH.AddBoxSPH(boxCenter, boxHalfDim);
 
     // Create Solid region and attach BCE SPH particles
@@ -588,10 +553,8 @@ int main(int argc, char* argv[]) {
         }
 
         myFile << "Time,x,y,y,vx,omg_y,fx,fy,fz,trq_x,trq_y,trq_z\n";
-        myFile << time << ", " << w_pos.x() - w_pos_init.x() << ", " << w_pos.y() - w_pos_init.y() << ", "
-               << w_pos.z() - w_pos_init.z() << ", " << w_vel.x() << ", " << angvel.y() << ", " << force.x() << ","
-               << force.y() << ", " << force.z() << ", " << torque.x() << ", " << torque.y() << ", " << torque.z()
-               << "\n";
+        myFile << time << ", " << w_pos.x() - w_pos_init.x() << ", " << w_pos.y() - w_pos_init.y() << ", " << w_pos.z() - w_pos_init.z() << ", " << w_vel.x() << ", " << angvel.y()
+               << ", " << force.x() << "," << force.y() << ", " << force.z() << ", " << torque.x() << ", " << torque.y() << ", " << torque.z() << "\n";
     }
     std::shared_ptr<ChVisualSystem> vis;
 #ifdef CHRONO_VSG
@@ -607,7 +570,7 @@ int main(int argc, char* argv[]) {
         visVSG->SetWindowTitle("Chrono::FSI single drum RASSOR demo");
         visVSG->SetWindowSize(1280, 960);
         visVSG->AddCamera(ChVector3d(0, -5 * byDim, 5 * bzDim), ChVector3d(0, 0, 0));
-        visVSG->SetLightIntensity(0.9);
+        visVSG->SetLightIntensity(0.9f);
         visVSG->SetLightDirection(-CH_PI_2, CH_PI / 6);
 
         visVSG->Initialize();
@@ -622,7 +585,7 @@ int main(int argc, char* argv[]) {
     ChTimer timer;
     timer.start();
     while (time < params.total_time) {
-        // Get the infomation of the wheel
+        // Get the information of the wheel
         reaction = actuator->GetReaction2();
         force = reaction.force;
         torque = motor->GetReaction1().torque;
@@ -635,10 +598,8 @@ int main(int argc, char* argv[]) {
         }
 
         if (params.output && time >= out_frame / params.out_fps) {
-            myFile << time << ", " << w_pos.x() - w_pos_init.x() << ", " << w_pos.y() - w_pos_init.y() << ", "
-                   << w_pos.z() - w_pos_init.z() << ", " << w_vel.x() << ", " << angvel.y() << ", " << force.x() << ", "
-                   << force.y() << ", " << force.z() << ", " << torque.x() << ", " << torque.y() << ", " << torque.z()
-                   << "\n";
+            myFile << time << ", " << w_pos.x() - w_pos_init.x() << ", " << w_pos.y() - w_pos_init.y() << ", " << w_pos.z() - w_pos_init.z() << ", " << w_vel.x() << ", "
+                   << angvel.y() << ", " << force.x() << ", " << force.y() << ", " << force.z() << ", " << torque.x() << ", " << torque.y() << ", " << torque.z() << "\n";
             if (verbose) {
                 std::cout << "-------- Output" << std::endl;
                 std::cout << "time: " << time << std::endl;

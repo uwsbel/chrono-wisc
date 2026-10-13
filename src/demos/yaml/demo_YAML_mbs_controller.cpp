@@ -37,14 +37,13 @@
     #include "chrono_vsg/ChVisualSystemVSG.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 using namespace chrono;
 
 // -----------------------------------------------------------------------------
 
-// PID controller for an inverted pendulum, implementing bothh the ChLoadController and ChMotorController interfaces.
+// PID controller for an inverted pendulum, implementing both the ChLoadController and ChMotorController interfaces.
 // This controller can therefore be used to either set a body load controller or a motor actuation.
 class InvertedPendulumController : public parsers::ChLoadController, public parsers::ChMotorController {
   public:
@@ -147,10 +146,11 @@ int main(int argc, char* argv[]) {
     const std::string& model_name = parser.GetName();
     double time_end = parser.GetEndtime();
     double time_step = parser.GetTimestep();
-    bool render = parser.Render();
-    double render_fps = parser.GetRenderFPS();
+
+    bool output = parser.OutputEnabled();
+    bool render = parser.VisualizationEnabled();
+
     bool enable_shadows = parser.EnableShadows();
-    bool output = parser.Output();
 
     // ------------------------------
 
@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
     // Create output directory
     if (output) {
         std::string out_dir = GetChronoOutputPath() + "YAML_MBS_CONTROLLER";
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
@@ -213,25 +213,17 @@ int main(int argc, char* argv[]) {
     }
 
     // Simulation loop
-    ChRealtimeStepTimer rt_timer;
     double time = 0;
-    int render_frame = 0;
 
     while (true) {
-        if (render) {
-            if (!vis->Run())
-                break;
-            if (time >= render_frame / render_fps) {
-                vis->BeginScene();
-                vis->Render();
-                vis->EndScene();
-                render_frame++;
-            }
-        } else {
-            std::cout << "\rt = " << time;
-            if (time_end > 0 && time >= time_end)
-                break;
-        }
+        if (time_end > 0 && time > time_end)
+            break;
+
+        if (render && !parser.Render(*vis, time))
+            break;
+
+        if (output)
+            parser.Output(time);
 
         // Advance multibody system dynamics (including controller)
         parser.DoStepDynamics();

@@ -92,6 +92,34 @@ size_t EstimateFsiSphRenderCount(size_t num_fluid_markers, double source_spacing
 }  // namespace
 #endif
 
+#ifdef CHRONO_FSI_SPH
+namespace {
+
+size_t EstimateFsiSphRenderCount(size_t num_fluid_markers, double source_spacing, float render_particle_spacing) {
+    if (num_fluid_markers == 0)
+        return 0;
+
+    if (render_particle_spacing <= 0.f)
+        return 0;
+
+    const double source = std::max(source_spacing, 1e-12);
+    const double target = std::max(static_cast<double>(render_particle_spacing), 1e-12);
+    const double ratio = source / target;
+    const double estimate = static_cast<double>(num_fluid_markers) * ratio * ratio * ratio;
+
+    if (!std::isfinite(estimate) || estimate <= 1.0)
+        return 1;
+
+    const double max_size = static_cast<double>(std::numeric_limits<size_t>::max());
+    if (estimate >= max_size)
+        return std::numeric_limits<size_t>::max();
+
+    return std::max<size_t>(1, static_cast<size_t>(estimate + 0.5));
+}
+
+}  // namespace
+#endif
+
 ChOptixEngine::ChOptixEngine(ChSystem* sys, int device_id, int max_scene_reflections, bool verbose, bool debug)
     : m_verbose(verbose), m_debug(debug), m_deviceId(device_id), m_recursions(max_scene_reflections), m_sceneThread() {
     m_sceneThread.start = false;
@@ -140,6 +168,14 @@ void ChOptixEngine::Initialize() {
     m_params.max_depth = m_recursions;
     m_params.scene_epsilon = 1.e-3f;    // TODO: determine a good value for this
     m_params.importance_cutoff = .01f;  /// TODO: determine a good value for this
+
+#ifdef USE_SENSOR_NVDB
+    m_params.handle_ptr = nullptr;
+    m_params.normal_handle_ptr = nullptr;
+#else
+    m_params.handle_ptr = 0;
+    m_params.normal_handle_ptr = 0;
+#endif  // USE_SENSOR_NVDB
 
 #ifdef USE_SENSOR_NVDB
     m_params.handle_ptr = nullptr;
@@ -468,9 +504,7 @@ void ChOptixEngine::SceneProcess(RenderThread& tself) {
     }
 }
 
-void ChOptixEngine::boxVisualization(std::shared_ptr<ChBody> body,
-                                     std::shared_ptr<ChVisualShapeBox> box_shape,
-                                     ChFrame<> asset_frame) {
+void ChOptixEngine::boxVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeBox> box_shape, ChFrame<> asset_frame) {
     ChVector3d size = box_shape->GetLengths();
 
     unsigned int mat_id;
@@ -483,9 +517,7 @@ void ChOptixEngine::boxVisualization(std::shared_ptr<ChBody> body,
     m_pipeline->AddBody(body);
 }
 
-void ChOptixEngine::sphereVisualization(std::shared_ptr<ChBody> body,
-                                        std::shared_ptr<ChVisualShapeSphere> sphere_shape,
-                                        ChFrame<> asset_frame) {
+void ChOptixEngine::sphereVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeSphere> sphere_shape, ChFrame<> asset_frame) {
     ChVector3d size(sphere_shape->GetRadius());
 
     unsigned int mat_id;
@@ -498,9 +530,7 @@ void ChOptixEngine::sphereVisualization(std::shared_ptr<ChBody> body,
     m_pipeline->AddBody(body);
 }
 
-void ChOptixEngine::cylinderVisualization(std::shared_ptr<ChBody> body,
-                                          std::shared_ptr<ChVisualShapeCylinder> cyl_shape,
-                                          ChFrame<> asset_frame) {
+void ChOptixEngine::cylinderVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeCylinder> cyl_shape, ChFrame<> asset_frame) {
     double radius = cyl_shape->GetRadius();
     double height = cyl_shape->GetHeight();
 
@@ -516,9 +546,7 @@ void ChOptixEngine::cylinderVisualization(std::shared_ptr<ChBody> body,
     m_pipeline->AddBody(body);
 }
 
-void ChOptixEngine::rigidMeshVisualization(std::shared_ptr<ChBody> body,
-                                           std::shared_ptr<ChVisualShapeTriangleMesh> mesh_shape,
-                                           ChFrame<> asset_frame) {
+void ChOptixEngine::rigidMeshVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeTriangleMesh> mesh_shape, ChFrame<> asset_frame) {
     if (mesh_shape->IsWireframe()) {
         std::cerr << "WARNING: Chrono::Sensor does not support wireframe meshes. Defaulting back to solid mesh, please "
                      "check for visual issues.\n";
@@ -534,9 +562,7 @@ void ChOptixEngine::rigidMeshVisualization(std::shared_ptr<ChBody> body,
     m_pipeline->AddBody(body);
 }
 
-void ChOptixEngine::deformableMeshVisualization(std::shared_ptr<ChBody> body,
-                                                std::shared_ptr<ChVisualShapeTriangleMesh> mesh_shape,
-                                                ChFrame<> asset_frame) {
+void ChOptixEngine::deformableMeshVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChVisualShapeTriangleMesh> mesh_shape, ChFrame<> asset_frame) {
     if (mesh_shape->IsWireframe()) {
         std::cerr << "WARNING: Chrono::Sensor does not support wireframe meshes. Defaulting back to solid mesh, please "
                      "check for visual issues.\n";
@@ -618,9 +644,7 @@ void ChOptixEngine::UpdateFsiSphVisualization() {
 #endif
 
 #ifdef USE_SENSOR_NVDB
-void ChOptixEngine::nvdbVisualization(std::shared_ptr<ChBody> body,
-                                      std::shared_ptr<ChNVDBShape> box_shape,
-                                      ChFrame<> asset_frame) {
+void ChOptixEngine::nvdbVisualization(std::shared_ptr<ChBody> body, std::shared_ptr<ChNVDBShape> box_shape, ChFrame<> asset_frame) {
     ChVector3d size = box_shape->GetBoxGeometry().GetLengths();
 
     unsigned int mat_id;
@@ -764,7 +788,7 @@ void ChOptixEngine::UpdateSensorParameters(std::vector<int>& to_be_updated, std:
         if (auto p_phys_cam = std::dynamic_pointer_cast<ChPhysCameraSensor>(p_sensor)) {
             // update filter parameters
             p_phys_cam->UpdateFilterParameters();
-            
+
             // update raygen_record parameters
             m_assignedRenderers[id]->m_raygen_record->data.specific.phys_camera.hFOV = p_phys_cam->GetHFOV();
         }
@@ -865,7 +889,7 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChOptixScene> scene) 
 
         cudaMemcpy(reinterpret_cast<void*>(m_params.lights), lights.data(), lights.size() * sizeof(ChOptixLight), cudaMemcpyHostToDevice);
         m_params.num_lights = static_cast<int>(lights.size());
-        
+
         // Handling changes in origin
 
         m_params.ambient_light_color = {scene->GetAmbientLight().x(), scene->GetAmbientLight().y(), scene->GetAmbientLight().z()};
@@ -926,10 +950,10 @@ void ChOptixEngine::UpdateSceneDescription(std::shared_ptr<ChOptixScene> scene) 
         printf("handle: %p\n", &handle);
         cudaMemcpy(reinterpret_cast<void*>(m_params.handle_ptr), &handle, sz, cudaMemcpyHostToDevice);*/
 
-        cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
+            cudaMemcpy(reinterpret_cast<void*>(md_params), &m_params, sizeof(ContextParameters), cudaMemcpyHostToDevice);
+        }
+    #endif // USE_SENSOR_NVDB
     }
-#endif // USE_SENSOR_NVDB
-}
 
 }  // namespace sensor
 }  // namespace chrono

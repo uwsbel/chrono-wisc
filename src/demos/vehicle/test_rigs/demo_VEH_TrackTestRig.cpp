@@ -28,8 +28,6 @@
 
 #include "chrono_vehicle/tracked_vehicle/test_rig/ChTrackTestRigVisualSystemVSG.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 #include "demos/SetChronoSolver.h"
 
 using namespace chrono;
@@ -208,7 +206,7 @@ int main(int argc, char* argv[]) {
 
     const std::string out_dir = GetChronoOutputPath() + "TRACK_TEST_RIG";
     if (output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
@@ -216,7 +214,7 @@ int main(int argc, char* argv[]) {
         ////rig->SetDriverLogFilename(out_dir + "/TTR_driver.txt");
 
         rig->SetTrackAssemblyOutput(true);
-        rig->SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", out_step_size);
+        rig->SetOutput(ChOutput::Format::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", out_step_size);
 
         rig->SetPlotOutput(out_step_size * 0.1);
     }

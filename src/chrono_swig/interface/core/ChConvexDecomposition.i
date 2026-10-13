@@ -1,4 +1,4 @@
-%extend chrono::ChConvexDecompositionHACD
+%extend chrono::ChConvexDecompositionHACDv2 
 {
   // Extend writing of convex decomposition result by passing string instead of std::ofstream
   void WriteConvexHullsAsWavefrontObj(const std::string& path) {
@@ -16,7 +16,7 @@
   }
 }
 
-%extend chrono::ChConvexDecompositionHACDv2 
+%extend chrono::ChConvexDecompositionVHACD 
 {
   // Extend writing of convex decomposition result by passing string instead of std::ofstream
   void WriteConvexHullsAsWavefrontObj(const std::string& path) {

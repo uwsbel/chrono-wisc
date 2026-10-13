@@ -24,7 +24,7 @@
 
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono_vehicle/ChVehicleDataPath.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 
 #include "FMU_WheeledVehiclePtrain.h"
 
@@ -54,8 +54,7 @@ FmuComponent::FmuComponent(fmi2String instanceName,
                            const fmi2CallbackFunctions* functions,
                            fmi2Boolean visible,
                            fmi2Boolean loggingOn)
-    : FmuChronoComponentBase(instanceName, fmuType, fmuGUID, fmuResourceLocation, functions, visible, loggingOn),
-      render_frame(0) {
+    : FmuChronoComponentBase(instanceName, fmuType, fmuGUID, fmuResourceLocation, functions, visible, loggingOn), render_frame(0) {
     // Initialize FMU type
     initializeType(fmuType);
 
@@ -73,11 +72,10 @@ FmuComponent::FmuComponent(fmi2String instanceName,
     fps = 60;
 
     // Get default JSON files from the FMU resources directory
-    auto resources_dir = std::string(fmuResourceLocation).erase(0, 8);
-    data_path = resources_dir + "/";
-    vehicle_JSON = resources_dir + "/Vehicle.json";
-    engine_JSON = resources_dir + "/EngineShafts.json";
-    transmission_JSON = resources_dir + "/AutomaticTransmissionShafts.json";
+    data_path = GetResourcesLocation();  // a directory: the trailing separator is part of the contract
+    vehicle_JSON = GetResourcePath("Vehicle.json");
+    engine_JSON = GetResourcePath("EngineShafts.json");
+    transmission_JSON = GetResourcePath("AutomaticTransmissionShafts.json");
 
     // Set wheel identifier strings
     wheel_data[0].identifier = "FL";
@@ -195,8 +193,7 @@ void FmuComponent::CreateVehicle() {
     vehicle::SetVehicleDataPath(data_path);
 
     // Create the vehicle system
-    vehicle = chrono_types::make_shared<WheeledVehicle>(vehicle_JSON,
-                                                        system_SMC ? ChContactMethod::SMC : ChContactMethod::NSC);
+    vehicle = chrono_types::make_shared<WheeledVehicle>(vehicle_JSON, system_SMC ? ChContactMethod::SMC : ChContactMethod::NSC);
     vehicle->Initialize(ChCoordsys<>(init_loc + ChVector3d(0, 0, 0.5), QuatFromAngleZ(init_yaw)));
 
     // Initialize the vehicle reference frame
@@ -249,7 +246,7 @@ void FmuComponent::ConfigureSystem() {
 
 void FmuComponent::SynchronizeVehicle(double time) {
     // 1. synchronize the vehicle system.
-    // ATTENTION: this versionof 'Synchronize'  does not apply tire forces to the vehicle wheels.
+    // ATTENTION: this version of 'Synchronize' does not apply tire forces to the vehicle wheels.
     vehicle->Synchronize(time, driver_inputs);
 
     // 2. apply tire forces (received from outside) to wheel bodies.
@@ -304,8 +301,7 @@ fmi2Status FmuComponent::exitInitializationModeIMPL() {
         vis_sys->SetWindowSize(800, 800);
         vis_sys->SetChaseCamera(ChVector3d(0.0, 0.0, 1.75), 6.0, 0.5);
         vis_sys->SetBackgroundColor(ChColor(0.37f, 0.50f, 0.60f));
-        vis_sys->AddGrid(0.5, 0.5, 2000, 400, ChCoordsys<>(init_loc, QuatFromAngleZ(init_yaw)),
-                         ChColor(0.31f, 0.43f, 0.43f));
+        vis_sys->AddGrid(0.5, 0.5, 2000, 400, ChCoordsys<>(init_loc, QuatFromAngleZ(init_yaw)), ChColor(0.31f, 0.43f, 0.43f));
         vis_sys->Initialize();
         vis_sys->AddLightDirectional();
         vis_sys->AttachVehicle(vehicle.get());
@@ -314,12 +310,9 @@ fmi2Status FmuComponent::exitInitializationModeIMPL() {
     return fmi2Status::fmi2OK;
 }
 
-fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint,
-                                    fmi2Real communicationStepSize,
-                                    fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     while (m_time < currentCommunicationPoint + communicationStepSize) {
-        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time),
-                              std::min(communicationStepSize, step_size));
+        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time), std::min(communicationStepSize, step_size));
         vehicle->Advance(h);
 
 #ifdef CHRONO_IRRLICHT

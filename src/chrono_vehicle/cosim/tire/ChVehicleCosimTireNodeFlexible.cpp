@@ -134,7 +134,7 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
     auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
     auto& verts = trimesh->GetCoordsVertices();
     ////auto& norms = trimesh->GetCoordsNormals();
-    auto& idx_verts = trimesh->GetIndicesVertexes();
+    auto& idx_verts = trimesh->GetIndicesVertices();
     auto& idx_norms = trimesh->GetIndicesNormals();
 
     std::vector<ChVector3d> vvel;
@@ -188,7 +188,7 @@ void ChVehicleCosimTireNodeFlexible::InitializeTire(std::shared_ptr<ChWheel> whe
         m_vsys->SetImageOutput(m_writeRT);
         m_vsys->Initialize();
 
-        m_vsys->ToggleCOMFrameVisibility();
+        m_vsys->SetCOMFrameVisibility(true);
 #endif
     }
 }

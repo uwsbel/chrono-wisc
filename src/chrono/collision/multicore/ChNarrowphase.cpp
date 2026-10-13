@@ -29,6 +29,8 @@
 #include "chrono/ChConfig.h"
 #include <thrust/remove.h>
 #include <thrust/sort.h>
+#include <thrust/distance.h>
+#include <thrust/advance.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/count.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -120,8 +122,6 @@ int ChNarrowphase::PreprocessCount() {
                 contact_index[index] = 1;
             } else if (type1 == ChCollisionShape::Type::CAPSULE || type2 == ChCollisionShape::Type::CAPSULE) {
                 contact_index[index] = 2;
-            } else if (type1 == ChCollisionShape::Type::CYLSHELL || type2 == ChCollisionShape::Type::CYLSHELL) {
-                contact_index[index] = 8;
             } else if (type1 == ChCollisionShape::Type::BOX && type2 == ChCollisionShape::Type::BOX) {
                 contact_index[index] = 8;
             } else if ((type1 == ChCollisionShape::Type::BOX && type2 == ChCollisionShape::Type::TRIANGLE) ||
@@ -387,7 +387,7 @@ void ChNarrowphase::ProcessRigidRigid() {
 
 inline int GridCoord(real x, real inv_bin_edge, real minimum) {
     real l = x - minimum;
-    int c = (int)Round(l * inv_bin_edge);
+    int c = (int)std::round(l * inv_bin_edge);
     return c;
 }
 

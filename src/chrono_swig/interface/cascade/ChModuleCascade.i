@@ -8,19 +8,14 @@
 //
 ///////////////////////////////////////////////////
 
-
-
-// Define the module to be used in Python when typing 
-//  'import pychrono.cascade'
-
-
+// Define the module to be used in Python when typing 'import pychrono.cascade'
 %module(directors="1") cascade
 
-
 // Turn on the documentation of members, for more intuitive IDE typing
-
 %feature("autodoc", "1");
 
+// Flatten nested strctures
+%feature("flatnested", "1");
 
 // Turn on the exception handling to intercept C++ exceptions
 %include "exception.i"
@@ -33,23 +28,19 @@
   }
 }
 
-
 // For optional casting of polimorphic objects:
 %include "../chrono_cast.i" 
+%include "../chrono_ignore_operators.i"
 
 // For supporting shared pointers:
 %include <std_shared_ptr.i>
 
-
-
 // Include C++ headers this way...
-
 %{
-
 //#include "chrono_cascade/ChApiCASCADE.h"
 //#include "chrono_cascade/ChVisualShapeCascade.h"
 #include "chrono/assets/ChVisualShapes.h"
-#include "chrono_cascade/ChCascadeBodyEasy.h"
+#include "chrono_cascade/ChBodyEasyCascade.h"
 #include "chrono_cascade/ChCascadeDoc.h"
 #include "chrono_cascade/ChCascadeTriangulate.h"
 #include "chrono/physics/ChContactMaterialNSC.h"
@@ -58,9 +49,7 @@
 
 using namespace chrono;
 using namespace chrono::cascade;
-
 %}
-
 
 // Undefine ChApi otherwise SWIG gives a syntax error
 #define ChApiCASCADE 
@@ -73,7 +62,6 @@ using namespace chrono::cascade;
 // Include other .i configuration files for SWIG. 
 // These are divided in many .i files, each per a
 // different c++ class, when possible.
-
 %include "std_string.i"
 %include "std_vector.i"
 %include "typemaps.i"
@@ -111,8 +99,8 @@ using namespace chrono::cascade;
 %shared_ptr(chrono::ChVisualShapeRotSpring)
 %shared_ptr(chrono::ChVisualShapeTriangleMesh)
 
-%shared_ptr(chrono::cascade::ChCascadeBodyEasy)
-%shared_ptr(chrono::cascade::ChCascadeBodyEasyProfile)
+%shared_ptr(chrono::cascade::ChBodyEasyCascade)
+%shared_ptr(chrono::cascade::ChBodyEasyCascadeProfile)
 %shared_ptr(chrono::cascade::ChVisualShapeCascade)
 %shared_ptr(chrono::cascade::ChCascadeTriangulate)
 
@@ -166,7 +154,7 @@ using namespace chrono::cascade;
 %include "../../../chrono/assets/ChVisualShapes.h"
 %include "../../../chrono_cascade/ChCascadeTriangulate.h"
 %include "../../../chrono_cascade/ChVisualShapeCascade.h"
-%include "../../../chrono_cascade/ChCascadeBodyEasy.h"
+%include "../../../chrono_cascade/ChBodyEasyCascade.h"
 %include "../../../chrono_cascade/ChCascadeDoc.h"
 %include "../../../chrono/physics/ChContactMaterialNSC.h"
 %include "../../../chrono/physics/ChContactMaterialSMC.h"
@@ -185,4 +173,4 @@ using namespace chrono::cascade;
 //  myvis = chrono.CastToChVisualizationShared(myasset)
 //  print ('Could be cast to visualization object?', !myvis.IsNull())
 
-%DefSharedPtrDynamicCast2NS(chrono,chrono::cascade,ChBodyAuxRef,ChCascadeBodyEasy) 
+%DefSharedPtrDynamicCast2NS(chrono,chrono::cascade,ChBodyAuxRef,ChBodyEasyCascade) 

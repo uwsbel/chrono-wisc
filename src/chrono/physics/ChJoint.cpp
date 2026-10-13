@@ -16,6 +16,8 @@
 //
 // =============================================================================
 
+#include <stdexcept>
+
 #include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChJoint.h"
 #include "chrono/physics/ChLinkLock.h"
@@ -31,10 +33,10 @@ ChJoint::ChJoint(Type type,
                  std::shared_ptr<BushingData> bushing_data) {
     if (bushing_data == nullptr) {
         CreateLink(type, body1, body2, joint_frame);
-        mpark::get<Link>(m_joint)->SetName(name);
+        std::get<Link>(m_joint)->SetName(name);
     } else {
         CreateBushing(type, body1, body2, joint_frame, bushing_data);
-        mpark::get<Bushing>(m_joint)->SetName(name);
+        std::get<Bushing>(m_joint)->SetName(name);
     }
 }
 
@@ -42,9 +44,9 @@ ChJoint::~ChJoint() {}
 
 void ChJoint::SetTag(int tag) {
     if (m_joint.index() == 0) {
-        mpark::get<Link>(m_joint)->SetTag(tag);
+        std::get<Link>(m_joint)->SetTag(tag);
     } else {
-        mpark::get<Bushing>(m_joint)->SetTag(tag);
+        std::get<Bushing>(m_joint)->SetTag(tag);
     }
 }
 
@@ -54,15 +56,15 @@ bool ChJoint::IsKinematic() const {
 
 ChVector3d ChJoint::GetPos() const {
     if (m_joint.index() == 0) {
-        return mpark::get<Link>(m_joint)->GetFrame2Abs().GetCoordsys().pos;
+        return std::get<Link>(m_joint)->GetFrame2Abs().GetCoordsys().pos;
     } else {
-        return mpark::get<Bushing>(m_joint)->GetAbsoluteFrameB().GetPos();
+        return std::get<Bushing>(m_joint)->GetAbsoluteFrameB().GetPos();
     }
 }
 
 ChVectorDynamic<> ChJoint::GetConstraintViolation() const {
     if (m_joint.index() == 0) {
-        return mpark::get<Link>(m_joint)->GetConstraintViolation();
+        return std::get<Link>(m_joint)->GetConstraintViolation();
     } else {
         return ChVectorDynamic<>();
     }
@@ -70,18 +72,18 @@ ChVectorDynamic<> ChJoint::GetConstraintViolation() const {
 
 ChVector3d ChJoint::GetForce() const {
     if (m_joint.index() == 0) {
-        return mpark::get<Link>(m_joint)->GetReaction2().force;
+        return std::get<Link>(m_joint)->GetReaction2().force;
     } else {
-        return mpark::get<Bushing>(m_joint)->GetForce();
+        return std::get<Bushing>(m_joint)->GetForce();
     }
 }
 
 ChJoint::Link ChJoint::GetAsLink() const {
-    return *mpark::get_if<Link>(&m_joint);
+    return *std::get_if<Link>(&m_joint);
 }
 
 ChJoint::Bushing ChJoint::GetAsBushing() const {
-    return *mpark::get_if<Bushing>(&m_joint);
+    return *std::get_if<Bushing>(&m_joint);
 }
 
 void ChJoint::CreateLink(Type type,
@@ -109,6 +111,12 @@ void ChJoint::CreateLink(Type type,
         }
         case Type::PRISMATIC: {
             auto link = chrono_types::make_shared<ChLinkLockPrismatic>();
+            link->Initialize(body1, body2, link_frame);
+            m_joint = link;
+            break;
+        }
+        case Type::CYLINDRICAL: {
+            auto link = chrono_types::make_shared<ChLinkLockCylindrical>();
             link->Initialize(body1, body2, link_frame);
             m_joint = link;
             break;
@@ -167,9 +175,12 @@ void ChJoint::CreateBushing(Type type,
             D_matrix(4, 4) = bd->D_rot_dof;
             break;
         case Type::PRISMATIC:
+        case Type::CYLINDRICAL:
         case Type::POINTLINE:
         case Type::POINTPLANE:
-            return;  // do not create a bushing
+            // A bushing of these types is prohibited
+            std::cerr << "ChJoint: a bushing of type '" + GetTypeString(type) + "' is not supported." << std::endl;
+            throw std::invalid_argument("ChJoint: a bushing of type '" + GetTypeString(type) + "' is not supported.");
     }
 
     m_joint = chrono_types::make_shared<ChLoadBodyBodyBushingGeneric>(body1, body2, bushing_frame, K_matrix, D_matrix);
@@ -185,6 +196,8 @@ std::string ChJoint::GetTypeString(Type type) {
             return "revolute";
         case Type::PRISMATIC:
             return "prismatic";
+        case Type::CYLINDRICAL:
+            return "cylindrical";
         case Type::UNIVERSAL:
             return "universal";
         case Type::POINTLINE:
@@ -198,7 +211,7 @@ std::string ChJoint::GetTypeString(Type type) {
 
 void ChJoint::Remove(std::shared_ptr<ChJoint> joint) {
     if (joint->m_joint.index() == 0) {
-        ChJoint::Link& link = mpark::get<ChJoint::Link>(joint->m_joint);
+        ChJoint::Link& link = std::get<ChJoint::Link>(joint->m_joint);
         auto sys = link->GetSystem();
         if (sys) {
             sys->Remove(link);

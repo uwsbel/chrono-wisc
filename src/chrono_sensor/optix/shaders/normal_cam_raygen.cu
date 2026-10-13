@@ -16,9 +16,6 @@
 //
 // =============================================================================
 
-#ifndef NORMAL_CAM_RAYGEN_CU
-#define NORMAL_CAM_RAYGEN_CU
-
 #include "chrono_sensor/optix/shaders/device_utils.cuh"
 
 // Default of normal camera per ray data (PRD)
@@ -30,7 +27,7 @@ __device__ __inline__ PerRayData_normalCamera DefaultNormalCameraPRD() {
 
 // Ray generation program for normal camera
 extern "C" __global__ void __raygen__normal_camera() {
-    const RaygenParameters* raygen = (RaygenParameters*) optixGetSbtDataPointer();
+    const RaygenParameters* raygen = (RaygenParameters*)optixGetSbtDataPointer();
     const NormalCameraParameters& camera = raygen->specific.normalCamera;
 
     const uint3 idx = optixGetLaunchIndex();
@@ -72,7 +69,7 @@ extern "C" __global__ void __raygen__normal_camera() {
     float3 ray_direction = normalize(forward - d.x * left * h_factor + d.y * up * h_factor);
 
     PerRayData_normalCamera prd = DefaultNormalCameraPRD();
-    
+
     unsigned int opt1;
     unsigned int opt2;
     pointer_as_ints(&prd, opt1, opt2);
@@ -81,5 +78,3 @@ extern "C" __global__ void __raygen__normal_camera() {
 
     camera.frame_buffer[image_index] = make_float3(prd.normal.x, prd.normal.y, prd.normal.z);
 }
-
-#endif // NORMAL_CAM_RAYGEN_CU

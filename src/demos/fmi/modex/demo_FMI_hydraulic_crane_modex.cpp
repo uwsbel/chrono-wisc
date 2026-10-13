@@ -23,14 +23,10 @@
 #include "chrono/ChConfig.h"
 #include "chrono/physics/ChSystemSMC.h"
 #include "chrono/input_output/ChWriterCSV.h"
-#include "chrono/assets/ChVisualShapeSphere.h"
-#include "chrono/assets/ChVisualShapeCylinder.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 
 #include "chrono_fmi/ChConfigFMI.h"
 #include "chrono_fmi/ChExternalFmu.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
@@ -443,12 +439,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Disable rendering if no run-time visualization system is available
+    if (!vis)
+        render = false;
+
     // -------------------------
     // Create output directories
     // -------------------------
 
     std::string out_dir = GetChronoOutputPath() + "DEMO_FMI_HYDRAULIC_CRANE_MODEX";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }

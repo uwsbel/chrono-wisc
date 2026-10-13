@@ -51,62 +51,47 @@ if (MSVC)
 endif()
 
 #-----------------------------------------------------------------------------
-# Check for C++14 and C++17 support
+# Check for C++17 support
 #-----------------------------------------------------------------------------
 
 # This is a hack -- look for a more robust solution
-set(CH_CXX14 FALSE)
 set(CH_CXX17 FALSE)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     message(STATUS "GCC version:  ${CMAKE_CXX_COMPILER_VERSION}")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.9.9)
-      set(CH_CXX14 TRUE)
-    endif()
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0.0)
       set(CH_CXX17 TRUE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(STATUS "Clang version:  ${CMAKE_CXX_COMPILER_VERSION}")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 3.4)
-      set(CH_CXX14 TRUE)
-    endif()
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 7.0)
       set(CH_CXX17 TRUE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     message(STATUS "Visual Studio version:  ${MSVC_VERSION}")
-    if(MSVC_VERSION GREATER 1800)
-      set(CH_CXX14 TRUE)
-    endif()
     if(MSVC_VERSION GREATER 1914)
       set(CH_CXX17 TRUE)
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "PGI")
     # CMake's standard support flags behave strangely with PGI compilers, don't trust them
     message(STATUS "PGI version: ${CMAKE_CXX_COMPILER_VERSION}")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17.4)
-      message(STATUS "CMAKE_CXX14_STANDARD_COMPILE_OPTION can't be trusted for PGI, manually adding C++14 support")
-      set(CH_CXX14 TRUE)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.1)
+      message(STATUS "CMAKE_CXX14_STANDARD_COMPILE_OPTION can't be trusted for PGI, manually adding C++17 support")
+      set(CH_CXX17 TRUE)
     endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM") 
+    message(STATUS "IntelLLVM version:  ${CMAKE_CXX_COMPILER_VERSION}")
+    set(CH_CXX17 TRUE)
 endif()
 
-if(NOT CH_CXX14)
-   message(ERROR "Chrono requires at least C++14 support")
+if(NOT CH_CXX17)
+   message(ERROR "Chrono requires at least C++17 support")
    return()
 endif()
 
-message(STATUS "C++14 compiler support:  ${CH_CXX14}")
-message(STATUS "C++17 compiler support:  ${CH_CXX17}")
-
-## TODO DARIOM: cleanup
-if(CH_CXX17)
-    set(CMAKE_CXX_STANDARD 17)
-    set(CHRONO_CXX_STANDARD cxx_std_17)
-elseif(CH_CXX14)
-    set(CMAKE_CXX_STANDARD 14)
-    set(CHRONO_CXX_STANDARD cxx_std_14)
-endif()
+message(STATUS "C++17 compiler support: ${CH_CXX17}")
+set(CMAKE_CXX_STANDARD 17)
+set(CHRONO_CXX_STANDARD cxx_std_17)
 
 #-----------------------------------------------------------------------------
 # Allow user to enable whole program optimization (MSVC only)
@@ -178,6 +163,11 @@ endif()
 
 option(CH_USE_SIMD "Enable use of SIMD if supported (SSE, AVX, NEON)" ON)
 
+set(CHRONO_HAS_SSE "#undef CHRONO_HAS_SSE")
+set(CHRONO_HAS_AVX "#undef CHRONO_HAS_AVX")
+set(CHRONO_HAS_FMA "#undef CHRONO_HAS_FMA")
+set(CHRONO_HAS_NEON "#undef CHRONO_HAS_NEON")
+
 if(CH_USE_SIMD)
    find_package(SIMD)
 
@@ -226,7 +216,7 @@ if(CH_USE_SIMD)
 
    # NEON support
    if(SIMD_NEON)
-     set (CHRONO_HAS_NEON "#define CHRONO_HAS_NEON")
+     set(CHRONO_HAS_NEON "#define CHRONO_HAS_NEON")
    endif()
 
    message(STATUS "SIMD optimization:")
@@ -308,57 +298,44 @@ if(MPI_CXX_FOUND)
 endif()
 
 #-----------------------------------------------------------------------------
-# CUDA support
+# GPU backend support (CUDA and HIP)
+#
+# Resolved in three layers -- see cmake/ChronoGPU*.cmake:
+#
+#   Layer 0  vendor      which hardware are we building for?   (ChronoGPUVendor)
+#   Layer 1  toolchains  which SDKs are usable for it?         (ChronoGPUToolchains)
+#   Layer 2  features    what does each feature compile as?    (ChronoGPUModule)
+#
+# ChronoGPUDetect must be include()d here at file scope rather than called as a
+# function: it runs enable_language(), which is only valid at file scope.
 #-----------------------------------------------------------------------------
 
-message(STATUS "Searching for CUDA")
+include(ChronoGPUDetect)
+include(ChronoGPUModule)
 
-# Notes:
-# - with new policy CM0104, CMake sets CMAKE_CUDA_ARCHITECTURES based on what nvcc reports
-# - nvcc uses as default sm_52
-# - we use our own cached CHRONO_CUDA_ARCHITECTURES variable
-# - for newer CMake versions, we set CHRONO_CUDA_ARCHITECTURES to 'all-major'
-# - for older CMake (e.g. 3.22 as in Ubuntu 22.04), we request the user to set CHRONO_CUDA_ARCHITECTURES
-# - we bypass CMAKE_CUDA_ARCHITECTURES (force it as advanced and set it from CHRONO_CUDA_ARCHITECTURES)
-set(CHRONO_CUDA_ARCHITECTURES "" CACHE STRING "Chrono CUDA architectures")
-mark_as_advanced(FORCE CMAKE_CUDA_ARCHITECTURES)
+# AMD + Eigen alignment compatibility
+#
+# Some host-side Chrono classes contain fixed-size Eigen objects. With AVX,
+# Eigen may require 32-byte alignment; a few allocation paths used by demos,
+# visualization, or MBS coupling do not guarantee that in all environments.
+# In ROCm builds this can abort demo_FSI-SPH_CouetteFlow before any SPH kernel
+# is reached. Limiting Eigen's maximum static alignment to 16 bytes avoids the
+# fragile 32-byte over-alignment requirement while keeping ordinary
+# SSE-friendly vectorization.
+#
+# KEYED ON VENDOR, NOT ON CHRONO_HIP_FOUND. This applies to the Eigen3::Eigen
+# INTERFACE target, so it changes the ABI of EVERY Chrono target in the build.
+# Under the old exclusive model "HIP was found" and "this is an AMD build" were
+# the same statement; they no longer are, and firing this on a CUDA build that
+# merely has ROCm installed alongside would be a silent, whole-build ABI change.
+if(CHRONO_GPU_VENDOR_RESOLVED STREQUAL "AMD")
+  set(CHRONO_HIP_EIGEN_MAX_ALIGN_BYTES "16" CACHE STRING "Maximum Eigen alignment in AMD/HIP builds; set to 0 to fully disable fixed-size Eigen over-alignment")
 
-include(CheckLanguage)
-check_language(CUDA)
+  target_compile_definitions(Eigen3::Eigen INTERFACE
+    EIGEN_MAX_ALIGN_BYTES=${CHRONO_HIP_EIGEN_MAX_ALIGN_BYTES}
+    EIGEN_MAX_STATIC_ALIGN_BYTES=${CHRONO_HIP_EIGEN_MAX_ALIGN_BYTES})
 
-# If CUDA was found, enable the CUDA language
-if(CMAKE_CUDA_COMPILER)
-    enable_language(CUDA)
-    find_package(CUDAToolkit)
-    message(STATUS "  CUDA compiler:           ${CMAKE_CUDA_COMPILER}")
-    message(STATUS "  CUDA toolkit version:    ${CUDAToolkit_VERSION}")
-    message(STATUS "  CUDA toolkit root dir:   ${CUDAToolkit_LIBRARY_ROOT}")
-
-    if(CHRONO_CUDA_ARCHITECTURES STREQUAL "")
-      if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.23")
-        set(CHRONO_CUDA_ARCHITECTURES "all-major" CACHE STRING "Chrono CUDA architectures" FORCE)
-        message(STATUS "  CUDA archs (set to):     ${CHRONO_CUDA_ARCHITECTURES}")
-      endif()
-    else()
-      message(STATUS "  CUDA archs (from cache): ${CHRONO_CUDA_ARCHITECTURES}")
-    endif()
-
-    if(CHRONO_CUDA_ARCHITECTURES STREQUAL "")
-      set(CHRONO_CUDA_FOUND FALSE)
-      message("  WARNING: CUDA architectures not found. Set CHRONO_CUDA_ARCHITECTURES")
-    else()
-      set(CHRONO_CUDA_FOUND TRUE)
-      message(STATUS "  CUDA found and enabled.")
-      set(CMAKE_CUDA_ARCHITECTURES ${CHRONO_CUDA_ARCHITECTURES} CACHE STRING "CUDA architectures" FORCE)
-      ## TODO: DARIOM CUDA_SEPARABLE_COMPILATION has no meaning: either it is set on a target or should be CMAKE_CUDA_SEPARABLE_COMPILATION
-      if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        set(CUDA_SEPARABLE_COMPILATION OFF)
-      endif()
-    endif()
-else()
-    set(CHRONO_CUDA_FOUND FALSE)
-    mark_as_advanced(FORCE CHRONO_CUDA_ARCHITECTURES)
-    message("  WARNING  CUDA not found. CUDA features will be disabled.")
+  message(STATUS "  AMD Eigen max alignment: ${CHRONO_HIP_EIGEN_MAX_ALIGN_BYTES} bytes")
 endif()
 
 #-----------------------------------------------------------------------------
@@ -368,6 +345,19 @@ endif()
 message(STATUS "Searching for Thrust")
 
 find_package(Thrust)
+
+# Also keyed on vendor rather than on CHRONO_HIP_FOUND, for the same reason as
+# the Eigen clamp above: dropping Thrust because it resolved inside a ROCm
+# installation must not happen on an NVIDIA build that merely has ROCm present.
+if(CHRONO_GPU_VENDOR_RESOLVED STREQUAL "AMD" AND Thrust_FOUND AND CHRONO_ROCM_ROOT)
+  file(REAL_PATH "${THRUST_INCLUDE_DIR}" _chrono_thrust_include_real)
+  file(REAL_PATH "${CHRONO_ROCM_ROOT}" _chrono_rocm_root_real)
+  string(FIND "${_chrono_thrust_include_real}" "${_chrono_rocm_root_real}/" _chrono_rocm_thrust_pos)
+  if(_chrono_rocm_thrust_pos EQUAL 0 OR _chrono_thrust_include_real STREQUAL "${_chrono_rocm_root_real}")
+    message(STATUS "  Ignoring ROCm-packaged Thrust for host-side Chrono targets in HIP builds.")
+    set(Thrust_FOUND FALSE)
+  endif()
+endif()
 
 if(Thrust_FOUND)
   message(STATUS "  Thrust version:     ${THRUST_VERSION}")
@@ -395,24 +385,77 @@ option(CH_ENABLE_HDF5 "Enable HDF5 support" OFF)
 
 if(CH_ENABLE_HDF5)
     message(STATUS "Searching for HDF5...")
-    find_package(HDF5 COMPONENTS CXX)
 
+    find_package(HDF5 COMPONENTS CXX)
     if (HDF5_FOUND)
         message(STATUS "  HDF5 found         (HDF5_FOUND)         ${HDF5_FOUND}")
         message(STATUS "  HDF5 include dirs  (HDF5_INCLUDE_DIR)   ${HDF5_INCLUDE_DIRS}")
         message(STATUS "  HDF5 C++ libraries (HDF5_CXX_LIBRARIES) ${HDF5_CXX_LIBRARIES}")
         message(STATUS "  HDF5 libraries     (HDF5_LIBRARIES)     ${HDF5_LIBRARIES}")
-
-        set(CHRONO_HAS_HDF5 "#define CHRONO_HAS_HDF5")
     else()
         message(STATUS "  Could not find HDF5")
     endif()
+endif()
 
+#-----------------------------------------------------------------------------
+# Enable YAML support
+#-----------------------------------------------------------------------------
+
+option(CH_ENABLE_YAML "Enable YAML support" ON)
+
+if(CH_ENABLE_YAML)
+    message(STATUS "Enabling YAML support...")
+
+    if(MSVC AND MSVC_VERSION LESS 1930)
+        # Due to a bug, yaml-cpp cannot be compiled with VS 2019 or older
+        message("WARNING: yaml-cpp requires Visual Studio 2022 or newer.")
+        message(STATUS "YAML parser support disabled.")
+        set(CHRONO_YAML_ENABLED NO)
+    else()
+        # Fetch yaml-cpp from third party directory
+        include(FetchContent)
+    
+        FetchContent_Declare(
+          yaml-cpp
+          SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/yaml-cpp"
+        )
+        # yaml-cpp builds three sample executables (parse, read, sandbox) by default.
+        # Chrono uses none of them, and they are separate targets that the warning
+        # suppression applied to the library below does not reach. FORCE because build
+        # trees configured earlier already have this cached as ON.
+        set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+
+        FetchContent_MakeAvailable(yaml-cpp)
+        
+        mark_as_advanced(FORCE YAML_CPP_BUILD_TOOLS)
+        mark_as_advanced(FORCE YAML_CPP_INSTALL)
+        mark_as_advanced(FORCE YAML_CPP_INSTALL_CMAKEDIR)
+        
+        # Disable all warnings from the yaml-cpp build itself
+        # (see cmake/ChronoWarnings.cmake).
+        ch_disable_warnings_on_target(yaml-cpp)
+
+        # Warnings raised in the yaml-cpp headers when compiling Chrono code.
+        # These are PUBLIC (unlike the above) because they are triggered in
+        # consumers, and yaml-cpp is included through Chrono's own src/ include
+        # root, where the SYSTEM include mechanism cannot reach it.
+        if (MSVC)
+          target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4251>)
+          target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4275>)
+          target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4267>)
+        endif()
+
+        message(STATUS "  Using ${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/yaml-cpp.")
+        set(CHRONO_YAML_ENABLED YES)
+    endif()
 endif()
 
 #------------------------------------------------------------
 # Build submodules
 #------------------------------------------------------------
+
+set(CHRONO_HAS_GTEST "#undef CHRONO_HAS_GTEST")
+set(CHRONO_HAS_GBENCHMARK "#undef CHRONO_HAS_GBENCHMARK")
 
 if(BUILD_TESTING)
   message(STATUS "Build Google test framework")
@@ -426,6 +469,9 @@ if(BUILD_TESTING)
 
     add_subdirectory(chrono_thirdparty/googletest)
 
+    # Disable all warnings from external code (see cmake/ChronoWarnings.cmake)
+    ch_disable_warnings_on_target(gtest gtest_main gmock gmock_main)
+
     # Hide some Google test-related variables
     mark_as_advanced(FORCE BUILD_GMOCK)
     mark_as_advanced(FORCE INSTALL_GTEST)
@@ -435,7 +481,6 @@ if(BUILD_TESTING)
     message("  Google test code not found: update git submodules.")
     message("  Building of unit tests was disabled.")
     set(BUILD_TESTING OFF CACHE BOOL "Build the testing tree." FORCE)
-    set(CHRONO_HAS_GTEST "")
   endif()
 
 endif()
@@ -443,7 +488,7 @@ endif()
 if(BUILD_BENCHMARKING)
   message(STATUS "Build Google benchmark framework")
 
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/chrono_thirdparty/googletest/CMakeLists.txt")
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/chrono_thirdparty/googlebenchmark/CMakeLists.txt")
     # Build google benchmark (target: benchmark).
     # Disable installation of benchmark.
     # Do not build tests of benchmarking lib.
@@ -451,6 +496,9 @@ if(BUILD_BENCHMARKING)
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Suppressing benchmark's tests" FORCE)
 
     add_subdirectory(chrono_thirdparty/googlebenchmark)
+
+    # Disable all warnings from external code (see cmake/ChronoWarnings.cmake)
+    ch_disable_warnings_on_target(benchmark benchmark_main)
 
     # Hide some Google benchmark-related variables
     mark_as_advanced(FORCE BENCHMARK_BUILD_32_BITS)
@@ -475,7 +523,6 @@ if(BUILD_BENCHMARKING)
     message("  Google benchmark code not found: update git submodules.")
     message("  Building of benchmark tests was disabled.")
     set(BUILD_BENCHMARKING OFF CACHE BOOL "Build benchmark tests" FORCE)
-    set(CHRONO_HAS_GBENCHMARK "")
   endif()
 
 endif()
@@ -494,7 +541,6 @@ add_subdirectory(chrono_mumps)
 add_subdirectory(chrono_pardisomkl)
 add_subdirectory(chrono_fsi)
 add_subdirectory(chrono_parsers)
-add_subdirectory(chrono_matlab)
 add_subdirectory(chrono_irrlicht)
 add_subdirectory(chrono_vsg)
 add_subdirectory(chrono_fmi)
@@ -506,10 +552,13 @@ add_subdirectory(chrono_multicore)
 add_subdirectory(chrono_dem)
 add_subdirectory(chrono_vehicle)
 add_subdirectory(chrono_models)
+add_subdirectory(chrono_vehicle/cosim)
+add_subdirectory(chrono_vehicle/fmi)
 add_subdirectory(chrono_sensor)
 add_subdirectory(chrono_synchrono)
 add_subdirectory(chrono_ros)
 add_subdirectory(chrono_swig)
+add_subdirectory(chrono_precice)
 
 # Add directories for demo programs, unit test programs, and benchmark test programs.
 if(BUILD_DEMOS)
@@ -526,6 +575,20 @@ if(BUILD_BENCHMARKING)
 endif()
 
 message(STATUS "")
+
+#------------------------------------------------------------
+# Install yaml-cpp
+#------------------------------------------------------------
+
+if(CHRONO_YAML_ENABLED)
+  install(TARGETS yaml-cpp
+          EXPORT ChronoTargets
+          RUNTIME DESTINATION bin
+          LIBRARY DESTINATION lib
+          ARCHIVE DESTINATION lib
+          #INCLUDES DESTINATION include/chrono_thirdparty/yaml-cpp
+  )
+endif()
 
 #------------------------------------------------------------
 # Install headers from chrono_thirdparty folder
@@ -564,6 +627,18 @@ string(LENGTH "${CMAKE_SOURCE_DIR}/src/" SOURCE_PATH_SIZE)
 #       that a particular module was successfully built, not just
 #       enabled)
 
+if(CH_ENABLE_MODULE_FEA)
+  set(CHRONO_FEA "#define CHRONO_FEA")
+  if(CH_ENABLE_MODULE_FEA_MULTIPHYSICS)
+    set(CHRONO_FEA_MULTIPHYSICS "#define CHRONO_FEA_MULTIPHYSICS")
+  else()
+    set(CHRONO_FEA_MULTIPHYSICS "#undef CHRONO_FEA_MULTIPHYSICS")
+  endif()
+else()
+  set(CHRONO_FEA "#undef CHRONO_FEA")
+  set(CHRONO_FEA_MULTIPHYSICS "#undef CHRONO_FEA_MULTIPHYSICS")
+endif()
+
 if(CH_ENABLE_MODULE_CASCADE)
   set(CHRONO_CASCADE "#define CHRONO_CASCADE")
 else()
@@ -600,12 +675,6 @@ else()
   set(CHRONO_MULTICORE "#undef CHRONO_MULTICORE")
 endif()
 
-if(CH_ENABLE_MODULE_MATLAB)
-  set(CHRONO_MATLAB "#define CHRONO_MATLAB")
-else()
-  set(CHRONO_MATLAB "#undef CHRONO_MATLAB")
-endif()
-
 if(CH_ENABLE_MODULE_PARDISO_MKL)
   set(CHRONO_PARDISO_MKL "#define CHRONO_PARDISO_MKL")
 else()
@@ -616,6 +685,7 @@ if(CH_ENABLE_MODULE_POSTPROCESS)
   set(CHRONO_POSTPROCESS "#define CHRONO_POSTPROCESS")
 else()
   set(CHRONO_POSTPROCESS "#undef CHRONO_POSTPROCESS")
+  set(CHRONO_HAS_GNUPLOT "#undef CHRONO_HAS_GNUPLOT")
 endif()
 
 if(CH_ENABLE_MODULE_PYTHON)
@@ -710,6 +780,14 @@ else()
   set(CHRONO_CUDA_VERSION "#undef CHRONO_CUDA_VERSION")
 endif()
 
+if(CHRONO_HIP_FOUND)
+  set(CHRONO_HAS_HIP "#define CHRONO_HAS_HIP")
+  set(CHRONO_HIP_VERSION "#define CHRONO_HIP_VERSION \"${CHRONO_ROCM_VERSION}\"")
+else()
+  set(CHRONO_HAS_HIP "#undef CHRONO_HAS_HIP")
+  set(CHRONO_HIP_VERSION "#undef CHRONO_HIP_VERSION")
+endif()
+
 if(CHRONO_THRUST_FOUND)
   set(CHRONO_HAS_THRUST "#define CHRONO_HAS_THRUST")
   set(CHRONO_THRUST_VERSION "#define CHRONO_THRUST_VERSION \"${THRUST_VERSION}\"")
@@ -720,13 +798,19 @@ else()
   set(CHRONO_COLLISION "#undef CHRONO_COLLISION")
 endif()
 
-if(CH_CXX17)
-    set(CHRONO_HAS_CXX17 "#define CHRONO_HAS_CXX17")
+if(HDF5_FOUND)
+    set(CHRONO_HAS_HDF5 "#define CHRONO_HAS_HDF5")
 else()
-    set(CHRONO_HAS_CXX17 "#undef CHRONO_HAS_CXX17")
+    set(CHRONO_HAS_HDF5 "#undef CHRONO_HAS_HDF5")
 endif()
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/chrono/ChConfig.h.in"
+if(CHRONO_YAML_ENABLED)
+    set(CHRONO_HAS_YAML "#define CHRONO_HAS_YAML")
+else()
+    set(CHRONO_HAS_YAML "#undef CHRONO_HAS_YAML")
+endif()
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ChConfig.h.in"
                "${PROJECT_BINARY_DIR}/chrono/ChConfig.h"
                @ONLY)
 
@@ -737,7 +821,7 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono/ChConfig.h"
 # Generate and install the versioning header file
 #-----------------------------------------------------------------------------
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/chrono/ChVersion.h.in"
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ChVersion.h.in"
                "${PROJECT_BINARY_DIR}/chrono/ChVersion.h"
                @ONLY)
 
@@ -759,7 +843,7 @@ install(FILES "${CMAKE_SOURCE_DIR}/cmake/FindEigen3.cmake"
 # Create Chrono project configuration script for the install tree
 set(CH_INSTALL_TREE TRUE)
 set(CH_BUILD_TREE_DIR "")
-set(CHRONO_SWIG_DIR "${CMAKE_INSTALL_PREFIX}/include/chrono_swig")
+set(CHRONO_SWIG_DIR "")  # the install-tree script locates the SWIG interface files relative to its own location
 configure_package_config_file(
   "${CMAKE_SOURCE_DIR}/cmake/ChronoConfig.cmake.in"
   "${CMAKE_BINARY_DIR}/cmake/ChronoConfig.cmake-install"

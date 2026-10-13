@@ -30,8 +30,7 @@ namespace chrono {
 namespace fsi {
 namespace sph {
 
-ChFsiInterfaceSPH::ChFsiInterfaceSPH(ChSystem* sysMBS, ChFsiFluidSystemSPH* sysSPH)
-    : ChFsiInterface(sysMBS, sysSPH), m_data_mgr(sysSPH->m_data_mgr.get()) {}
+ChFsiInterfaceSPH::ChFsiInterfaceSPH(ChSystem* sysMBS, ChFsiFluidSystemSPH* sysSPH) : ChFsiInterface(sysMBS, sysSPH), m_data_mgr(sysSPH->m_data_mgr.get()) {}
 
 ChFsiInterfaceSPH::~ChFsiInterfaceSPH() {}
 
@@ -53,6 +52,7 @@ void ChFsiInterfaceSPH::ExchangeSolidStates() {
         m_data_mgr->fsiBodyState_D->CopyFromH(*m_data_mgr->fsiBodyState_H);
     }
 
+#ifdef CHRONO_FEA
     {
         // Load from 1-D FEA nodes on host
         int index = 0;
@@ -74,9 +74,9 @@ void ChFsiInterfaceSPH::ExchangeSolidStates() {
         if (m_node_directions_mode == NodeDirectionsMode::AVERAGE) {
             calculateDirectionsMesh1D(*m_data_mgr);
             ChDebugLog("Calculate directions for 1-D FEA meshes");
-#ifdef DEBUG_LOG
+    #ifdef DEBUG_LOG
             printDirectionsMesh1D(*m_data_mgr);
-#endif
+    #endif
         }
     }
 
@@ -103,6 +103,10 @@ void ChFsiInterfaceSPH::ExchangeSolidStates() {
             ChDebugLog("Calculate directions for 2-D FEA meshes");
         }
     }
+#endif
+
+    // Update solid AABBs (expressed in absolute frame)
+    m_data_mgr->UpdateActiveDomains();
 }
 
 void ChFsiInterfaceSPH::ExchangeSolidForces() {
@@ -117,16 +121,16 @@ void ChFsiInterfaceSPH::ExchangeSolidForces() {
             m_fsi_bodies[index]->fsi_force = ToChVector(forcesH[index]);
             m_fsi_bodies[index]->fsi_torque = ToChVector(torquesH[index]);
             fsi_body->body->EmptyAccumulator(fsi_body->fsi_accumulator);
-            fsi_body->body->AccumulateForce(fsi_body->fsi_accumulator, m_fsi_bodies[index]->fsi_force,
-                                           fsi_body->body->GetPos(), false);
+            fsi_body->body->AccumulateForce(fsi_body->fsi_accumulator, m_fsi_bodies[index]->fsi_force, fsi_body->body->GetPos(), false);
             fsi_body->body->AccumulateTorque(fsi_body->fsi_accumulator, m_fsi_bodies[index]->fsi_torque, false);
             index++;
         }
     }
 
+#ifdef CHRONO_FEA
     {
         // Transfer to host
-        auto forces_H = m_data_mgr->GetFlex1dForces();
+        auto forces_H = m_data_mgr->GetMesh1DForces();
 
         // Apply to FEA 1-D mesh nodes
         int index = 0;
@@ -141,7 +145,7 @@ void ChFsiInterfaceSPH::ExchangeSolidForces() {
 
     {
         // Transfer to host
-        auto forces_H = m_data_mgr->GetFlex2dForces();
+        auto forces_H = m_data_mgr->GetMesh2DForces();
 
         // Apply to FEA 2-D mesh nodes
         int index = 0;
@@ -153,6 +157,7 @@ void ChFsiInterfaceSPH::ExchangeSolidForces() {
             }
         }
     }
+#endif
 }
 
 }  // namespace sph

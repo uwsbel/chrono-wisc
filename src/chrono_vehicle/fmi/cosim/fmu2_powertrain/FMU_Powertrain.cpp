@@ -19,7 +19,7 @@
 #include <cassert>
 #include <algorithm>
 
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/ChVehicle.h"
 
 #include "FMU_Powertrain.h"
@@ -68,9 +68,8 @@ FmuComponent::FmuComponent(fmi2String instanceName,
     out_path = ".";
 
     // Get default JSON file from FMU resources
-    auto resources_dir = std::string(fmuResourceLocation).erase(0, 8);
-    engine_JSON = resources_dir + "/EngineShafts.json";
-    transmission_JSON = resources_dir + "/AutomaticTransmissionShafts.json";
+    engine_JSON = GetResourcePath("EngineShafts.json");
+    transmission_JSON = GetResourcePath("AutomaticTransmissionShafts.json");
 
     // Set FIXED PARAMETERS for this FMU
     AddFmuVariable(&engine_JSON, "engine_JSON", FmuVariable::Type::String, "1", "engine JSON",                    //
@@ -125,17 +124,13 @@ class Vehicle : public ChVehicle {
     virtual void UpdateInertiaProperties() {}
 };
 
-
 class Chassis : public ChChassis {
   public:
     Chassis() : ChChassis("chassis") {}
     virtual std::string GetTemplateName() const override { return ""; }
     virtual ChCoordsys<> GetLocalDriverCoordsys() const override { return ChCoordsysd(); }
     virtual void EnableCollision(bool state) override {}
-    virtual void Construct(ChVehicle* vehicle,
-                           const ChCoordsys<>& chassisPos,
-                           double chassisFwdVel,
-                           int collision_family) override {}
+    virtual void OnInitialize(ChVehicle* vehicle, const ChCoordsys<>& chassisPos, double chassisFwdVel, int collision_family) override {}
     virtual double GetBodyMass() const override { return 1; }
     virtual ChFrame<> GetBodyCOMFrame() const override { return ChFramed(); }
     virtual ChMatrix33<> GetBodyInertia() const override { return ChMatrix33<>(1); }
@@ -192,12 +187,9 @@ fmi2Status FmuComponent::exitInitializationModeIMPL() {
     return fmi2Status::fmi2OK;
 }
 
-fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint,
-                                    fmi2Real communicationStepSize,
-                                    fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     while (m_time < currentCommunicationPoint + communicationStepSize) {
-        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time),
-                              std::min(communicationStepSize, step_size));
+        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time), std::min(communicationStepSize, step_size));
 
         powertrain->Advance(h);
 

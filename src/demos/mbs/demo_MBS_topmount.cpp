@@ -45,8 +45,6 @@
 
 #include <cstdio>
 
-#include "chrono/assets/ChVisualShapePointPoint.h"
-
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChBody.h"
 #include "chrono/functions/ChFunctionSine.h"
@@ -56,8 +54,6 @@
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono/assets/ChVisualSystem.h"
 #ifdef CHRONO_IRRLICHT
@@ -160,7 +156,7 @@ int main(int argc, char* argv[]) {
 
     // Create (if needed) output directory
     const std::string out_dir = GetChronoOutputPath() + "DEMO_TOPMOUNT";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }

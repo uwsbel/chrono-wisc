@@ -23,12 +23,12 @@
 
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 
+#include "chrono_vehicle/ChVehicleVisualSystem.h"
 #ifdef CHRONO_VSG
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
     #include "chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemVSG.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 using namespace chrono;
@@ -69,9 +69,9 @@ int main(int argc, char* argv[]) {
     const std::string& model_name = parser.GetName();
     double time_end = parser.GetEndtime();
     double time_step = parser.GetTimestep();
+
     bool real_time = parser.EnforceRealtime();
-    bool render = parser.Render();
-    double render_fps = parser.GetRenderFPS();
+    bool render = parser.VisualizationEnabled();
     bool enable_shadows = parser.EnableShadows();
 
     const ChVector3d& chassis_point = parser.GetChassisPoint();
@@ -117,44 +117,34 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Create output directory
-    if (parser.Output()) {
+    if (parser.OutputEnabled()) {
         std::string out_dir = GetChronoOutputPath() + "YAML_VEHICLE";
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
         out_dir = out_dir + "/" + model_name;
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             std::cout << "Error creating directory " << out_dir << std::endl;
             return 1;
         }
         parser.SetOutputDir(out_dir);
 
         double out_step = 1.0 / parser.GetOutputFPS();
-        vehicle->SetOutput(parser.GetOutputType(), parser.GetOutputMode(), out_dir, model_name, out_step);
+        vehicle->SetOutput(parser.GetOutputFormat(), parser.GetOutputMode(), out_dir, model_name, out_step);
     }
 
     // Simulation loop
     vehicle->EnableRealtime(real_time);
 
     double time = 0;
-    int render_frame = 0;
 
     while (true) {
-        if (render) {
-            if (!vis->Run())
-                break;
-            if (time >= render_frame / render_fps) {
-                vis->BeginScene();
-                vis->Render();
-                vis->EndScene();
-                render_frame++;
-            }
-        } else {
-            std::cout << "\rt = " << time;
-            if (time_end > 0 && time >= time_end)
-                break;
-        }
+        if (time_end > 0 && time > time_end)
+            break;
+
+        if (render && !parser.Render(*vis, time))
+            break;
 
         // Get driver inputs
         vehicle::DriverInputs driver_inputs = driver->GetInputs();

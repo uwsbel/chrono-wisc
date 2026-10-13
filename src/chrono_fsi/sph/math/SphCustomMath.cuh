@@ -20,8 +20,9 @@
 #ifndef CH_SPH_CUSTOM_MATH_H
 #define CH_SPH_CUSTOM_MATH_H
 
-#include <cuda_runtime.h>
 #include <cmath>
+
+#include "chrono/gpu/ChGpuRuntime.h"
 
 #include "chrono_fsi/sph/ChFsiDataTypesSPH.h"
 
@@ -78,14 +79,14 @@ inline __host__ __device__ Real quintic(Real a) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// implementations of basic cuda types
+// implementations of basic GPU types
 ////////////////////////////////////////////////////////////////////////////////
 
 #if defined(__CUDACC_RTC__)
     #define __VECTOR_FUNCTIONS_DECL__ __host__ __device__
-#else /* !__CUDACC_RTC__ */
+#else
     #define __VECTOR_FUNCTIONS_DECL__ static __inline__ __host__ __device__
-#endif /* __CUDACC_RTC__ */
+#endif
 
 /// Make a vector with two unsigned integer elements.
 __VECTOR_FUNCTIONS_DECL__ uint2 make_uint2(unsigned int x, unsigned int y) {
@@ -168,30 +169,12 @@ __VECTOR_FUNCTIONS_DECL__ float4 make_float4(float x, float y, float z, float w)
     return t;
 }
 
-/// Make a vector with two double elements.
-__VECTOR_FUNCTIONS_DECL__ double2 make_double2(double x, double y) {
-    double2 t;
-    t.x = x;
-    t.y = y;
-    return t;
-}
-
 /// Make a vector with three double elements.
 __VECTOR_FUNCTIONS_DECL__ double3 make_double3(double x, double y, double z) {
     double3 t;
     t.x = x;
     t.y = y;
     t.z = z;
-    return t;
-}
-
-/// Make a vector with four double elements.
-__VECTOR_FUNCTIONS_DECL__ double4 make_double4(double x, double y, double z, double w) {
-    double4 t;
-    t.x = x;
-    t.y = y;
-    t.z = z;
-    t.w = w;
     return t;
 }
 
@@ -332,6 +315,34 @@ inline __host__ __device__ uint4 make_uint4(uint3 a, uint w) {
 }
 inline __host__ __device__ uint4 make_uint4(int4 a) {
     return make_uint4(uint(a.x), uint(a.y), uint(a.z), uint(a.w));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// access
+////////////////////////////////////////////////////////////////////////////////
+
+/// Access component i (0 <= i <= 2) of a Real3, treating it as a 3-element array.
+/// Relies on Real3's three Real members being laid out contiguously, matching x/y/z order.
+__host__ __device__ inline Real Get(const Real3& v, int i) {
+    return (&v.x)[i];
+}
+
+/// Access component i (0 <= i <= 2) of a Real3, treating it as a 3-element array.
+/// Relies on Real3's three Real members being laid out contiguously, matching x/y/z order.
+__host__ __device__ inline Real& Get(Real3& v, int i) {
+    return (&v.x)[i];
+}
+
+/// Access component i (0 <= i <= 3) of a Real4, treating it as a 4-element array.
+/// Relies on Real4's four Real members being laid out contiguously, matching x/y/z/w order.
+__host__ __device__ inline Real Get(const Real4& v, int i) {
+    return (&v.x)[i];
+}
+
+/// Access component i (0 <= i <= 3) of a Real4, treating it as a 4-element array.
+/// Relies on Real4's four Real members being laid out contiguously, matching x/y/z/w order.
+__host__ __device__ inline Real& Get(Real4& v, int i) {
+    return (&v.x)[i];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1224,6 +1235,45 @@ __host__ __device__ inline Real4 make_Real4(Real3 a, Real w) {
 __host__ __device__ inline Real4 make_Real4(Real4 a) {
     return make_Real4(a.x, a.y, a.z, a.w);
 }
+
+// ----------------------------------------------------------------------------
+// Lightweight shorthand aliases
+// ----------------------------------------------------------------------------
+// Historically these convenience names were provided through
+// utils/SphUtilsDevice.cuh. That header also brings in thrust/device_vector and
+// rocPRIM, which is undesirable in ordinary host translation units during HIP
+// builds. Define the shorthand next to the math constructors instead so host
+// code keeps mR3/mI3/mR4 without depending on the heavy device-utility header.
+#ifndef mF2
+    #define mF2 make_float2
+#endif
+#ifndef mF3
+    #define mF3 make_float3
+#endif
+#ifndef mF4
+    #define mF4 make_float4
+#endif
+#ifndef mR2
+    #define mR2 make_Real2
+#endif
+#ifndef mR3
+    #define mR3 make_Real3
+#endif
+#ifndef mR4
+    #define mR4 make_Real4
+#endif
+#ifndef mI2
+    #define mI2 make_int2
+#endif
+#ifndef mI3
+    #define mI3 make_int3
+#endif
+#ifndef mI4
+    #define mI4 make_int4
+#endif
+#ifndef mU3
+    #define mU3 make_uint3
+#endif
 __host__ __device__ inline Real4 make_Real4(int4 a) {
     return make_Real4(Real(a.x), Real(a.y), Real(a.z), Real(a.w));
 }
@@ -1575,7 +1625,7 @@ __host__ __device__ inline Real3 cross(Real3 a, Real3 b) {
 }
 
 __host__ __device__ inline Real3 calc_triangle_normal(const Real3& a, const Real3& b, const Real3& c) {
-    return get_normalized(cross(b-a, c-b));
+    return get_normalized(cross(b - a, c - b));
 }
 
 __host__ __device__ inline Real sgn(Real a) {

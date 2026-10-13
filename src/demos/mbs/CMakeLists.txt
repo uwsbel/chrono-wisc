@@ -8,13 +8,13 @@ endif()
 # Add demos that can work with either Irrlicht or VSG
 set(DEMOS
   demo_MBS_aux_ref
-  demo_MBS_object_drop
   demo_MBS_bricks
   demo_MBS_callbackNSC
   demo_MBS_callbackSMC
   demo_MBS_collisionNSC
   demo_MBS_collisionSMC
   demo_MBS_collision_trimesh
+  demo_MBS_convex_decomp
   demo_MBS_earthquake
   demo_MBS_friction
   demo_MBS_motors
@@ -28,6 +28,7 @@ set(DEMOS
   demo_MBS_hydraulic_crane_cosim
   demo_MBS_custom_collision
   demo_MBS_spinning_tops
+  demo_MBS_joint_lock
 )
 
 # Demos that require VSG
@@ -35,6 +36,7 @@ if(CH_ENABLE_MODULE_VSG)
     set(DEMOS ${DEMOS}
         demo_MBS_checkpoint
         demo_MBS_custom_contact
+        demo_MBS_object_drop
     )
 endif()
 

@@ -30,8 +30,6 @@
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
@@ -121,26 +119,26 @@ int main(int argc, char* argv[]) {
     // Complete construction of the fluid system
     fsi.Initialize();
 
-    // Create oputput directories
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    // Create output directories
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
     out_dir = out_dir + "/" + sysSPH->GetPhysicsProblemString() + "_" + sysSPH->GetSphIntegrationSchemeString();
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
         std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
         return 1;
     }
-    if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
         std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
         return 1;
     }
 
-    // Create a run-tme visualizer
+    // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 
 #ifdef CHRONO_VSG
@@ -199,8 +197,7 @@ int main(int argc, char* argv[]) {
             if (snapshots) {
                 std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
                 std::ostringstream filename;
-                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
-                         << ".bmp";
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
             }
 

@@ -27,7 +27,7 @@
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/tracked_vehicle/track_shoe/ChTrackShoeBand.h"
 
 #include "chrono_vehicle/tracked_vehicle/vehicle/TrackedVehicle.h"
@@ -41,8 +41,6 @@
 #ifdef CHRONO_PARDISO_MKL
     #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
@@ -207,21 +205,21 @@ int main(int argc, char* argv[]) {
     const std::string pov_dir = out_dir + "/POVRAY";
     const std::string img_dir = out_dir + "/IMG";
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cout << "Error creating directory " << out_dir << endl;
         return 1;
     }
 
     if (povray_output) {
-        if (!filesystem::create_directory(filesystem::path(pov_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(pov_dir))) {
             cout << "Error creating directory " << pov_dir << endl;
             return 1;
         }
-        terrain.ExportMeshPovray(out_dir);
+        terrain.ExportMeshPovray(pov_dir);
     }
 
     if (img_output) {
-        if (!filesystem::create_directory(filesystem::path(img_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(img_dir))) {
             cout << "Error creating directory " << img_dir << endl;
             return 1;
         }
@@ -239,7 +237,7 @@ int main(int argc, char* argv[]) {
     // Set up vehicle output
     ////vehicle.SetChassisOutput(true);
     ////vehicle.SetTrackAssemblyOutput(VehicleSide::LEFT, true);
-    vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", 0.1);
+    vehicle.SetOutput(ChOutput::Format::ASCII, ChOutput::Mode::FRAMES, out_dir, "output", 0.1);
 
     // Generate JSON information with available output channels
     ////vehicle.ExportComponentList(out_dir + "/component_list.json");

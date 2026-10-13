@@ -44,13 +44,17 @@ class SphFluidDynamics {
     /// - Copy the pointer to SPH particle data, parameters,
     ///   and number of objects to member variables.
     SphFluidDynamics(FsiDataManager& data_mgr,  ///< FSI data manager
-                     SphBceManager& bce_mgr,    ///< BCE manager
                      bool verbose,              ///< verbose output
-                     bool check_errors          ///< check CUDA errors
+                     bool check_errors          ///< check GPU errors
     );
 
     /// Destructor of the fluid/granular dynamics class.
     ~SphFluidDynamics();
+
+    /// This class owns raw device resources (a stream and the rheology failure flag), so it is
+    /// neither copyable nor assignable.
+    SphFluidDynamics(const SphFluidDynamics&) = delete;
+    SphFluidDynamics& operator=(const SphFluidDynamics&) = delete;
 
     /// Perform proximity search.
     /// Sort particles (broad-phase) and create neighbor lists (narrow-phase)
@@ -70,12 +74,10 @@ class SphFluidDynamics {
     );
 
     /// Copy markers in the specified group from sorted arrays to original-order arrays.
-    void CopySortedToOriginal(MarkerGroup group,
-                              std::shared_ptr<SphMarkerDataD> sortedSphMarkersD2,
-                              std::shared_ptr<SphMarkerDataD> sphMarkersD);
+    void CopySortedToOriginal(MarkerGroup group, std::shared_ptr<SphMarkerDataD> sortedSphMarkersD2, std::shared_ptr<SphMarkerDataD> sphMarkersD);
 
     /// Synchronize the async copy stream (used for the copySortedToOriginal function)
-    void SynchronizeCopyStream() { cudaStreamSynchronize(m_copy_stream); }
+    void SynchronizeCopyStream() { gpuStreamSynchronize(m_copy_stream); }
 
     /// Function to perform Shepard filtering.
     /// It calculates the densities directly, not based on the derivative of the density. This function is used in
@@ -101,13 +103,6 @@ class SphFluidDynamics {
     double computeTimeStep() const;
 
   private:
-    FsiDataManager& m_data_mgr;             ///< FSI data manager
-    std::shared_ptr<SphForce> forceSystem;  ///< force system object; calculates the force between particles
-    std::shared_ptr<SphCollisionSystem> collisionSystem;  ///< collision system for building neighbors list
-
-    bool m_verbose;
-    bool m_check_errors;
-
     /// Advance the state of the fluid system using an explicit Euler step.
     void EulerStep(std::shared_ptr<SphMarkerDataD> sortedMarkers, Real dT);
 
@@ -117,7 +112,15 @@ class SphFluidDynamics {
     /// Apply boundary conditions on the sides of the computational domain.
     void ApplyBoundaryConditions(std::shared_ptr<SphMarkerDataD> sortedSphMarkersD);
 
-    cudaStream_t m_copy_stream;  ///< stream for async copy operations
+    FsiDataManager& m_data_mgr;                           ///< FSI data manager
+    std::shared_ptr<SphForce> forceSystem;                ///< force system object; calculates the force between particles
+    std::shared_ptr<SphCollisionSystem> collisionSystem;  ///< collision system for building neighbors list
+
+    bool m_verbose;
+    bool m_check_errors;
+    bool* m_errflagD;  ///< device-resident rheology failure flag
+
+    gpuStream m_copy_stream;  ///< stream for async copy operations
 };
 
 /// @} fsisph_physics

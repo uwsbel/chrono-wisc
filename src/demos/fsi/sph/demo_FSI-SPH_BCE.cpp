@@ -24,8 +24,6 @@
 
 #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
@@ -53,7 +51,7 @@ void BoxContainer();
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
@@ -149,7 +147,7 @@ void Box() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -170,7 +168,7 @@ void Box() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -191,7 +189,7 @@ void Box() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -212,7 +210,7 @@ void Box() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -257,7 +255,7 @@ void Sphere() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Spherical container (Polar coordinates)
@@ -279,7 +277,7 @@ void Sphere() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Spherical solid (Cartesian coordinates)
@@ -301,7 +299,7 @@ void Sphere() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Spherical solid (Polar coordinates)
@@ -323,7 +321,7 @@ void Sphere() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -369,7 +367,7 @@ void Cylinder1() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical container (Polar coordinates)
@@ -392,7 +390,7 @@ void Cylinder1() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical solid (Cartesian coordinates)
@@ -415,7 +413,7 @@ void Cylinder1() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical solid (Polar coordinates)
@@ -438,7 +436,7 @@ void Cylinder1() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -482,7 +480,7 @@ void Cylinder2() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical solid short (Polar coordinates)
@@ -505,7 +503,7 @@ void Cylinder2() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical solid thin (Cartesian coordinates)
@@ -528,7 +526,7 @@ void Cylinder2() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     // Cylindrical solid thin (Polar coordinates)
@@ -551,7 +549,7 @@ void Cylinder2() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -593,7 +591,7 @@ void ConeCartesian() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -608,7 +606,7 @@ void ConeCartesian() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -623,7 +621,7 @@ void ConeCartesian() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -637,7 +635,7 @@ void ConeCartesian() {
             fbce << p << endl;
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -676,7 +674,7 @@ void ConePolar() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -691,7 +689,7 @@ void ConePolar() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -706,7 +704,7 @@ void ConePolar() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -721,7 +719,7 @@ void ConePolar() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();
@@ -761,7 +759,7 @@ void BoxContainer() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -776,7 +774,7 @@ void BoxContainer() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -791,7 +789,7 @@ void BoxContainer() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     {
@@ -806,7 +804,7 @@ void BoxContainer() {
         fbce.close();
 
         sysMBS.AddBody(body);
-        sysFSI.AddFsiBody(body, bce, frame, false);
+        sysFSI.AddRigidBody(body, bce, frame, false);
     }
 
     sysFSI.Initialize();

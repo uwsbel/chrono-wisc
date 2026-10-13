@@ -26,8 +26,6 @@
 
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 #include "demos/vehicle/WheeledVehicleJSON.h"
 #include "demos/SetChronoSolver.h"
 
@@ -56,6 +54,10 @@ double render_fps = 50;
 
 // End time (used only if no run-time visualization)
 double t_end = 20;
+
+// Record vehicle output
+ChOutput::Format vehicle_output = ChOutput::Format::NONE;
+ChOutput::Mode vehicle_output_mode = ChOutput::Mode::FRAMES;
 
 // =============================================================================
 
@@ -166,11 +168,11 @@ int main(int argc, char* argv[]) {
     // Initialize output directories
     const std::string out_dir = GetChronoOutputPath() + "WHEELED_JSON";
     const std::string veh_dir = out_dir + "/" + vehicle_model->ModelName();
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
-    if (!filesystem::create_directory(filesystem::path(veh_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(veh_dir))) {
         std::cout << "Error creating directory " << veh_dir << std::endl;
         return 1;
     }
@@ -183,9 +185,10 @@ int main(int argc, char* argv[]) {
     vehicle.LogSubsystemTypes();
 
     // Optionally, enable output from selected vehicle subsystems
-    ////vehicle.SetSuspensionOutput(0, true);
-    ////vehicle.SetSuspensionOutput(1, true);
-    ////vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, veh_dir, "output", 0.1);
+    vehicle.SetChassisOutput(true);
+    vehicle.SetAxleOutput(0, true);
+    vehicle.SetSteeringOutput(0, true);
+    vehicle.SetOutput(vehicle_output, vehicle_output_mode, veh_dir, "output", 0.1);
 
     // Simulation loop
     vehicle.EnableRealtime(true);

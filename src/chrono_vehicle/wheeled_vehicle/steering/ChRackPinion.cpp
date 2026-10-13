@@ -108,7 +108,7 @@ void ChRackPinion::Synchronize(double time, const DriverInputs& driver_inputs) {
 
 void ChRackPinion::InitializeInertiaProperties() {
     m_mass = GetSteeringLinkMass();
-    m_com = ChFrame<>(GetSteeringLinkCOM(), QUNIT);
+    m_com = ChFrame<>(ChVector3d(0, GetSteeringLinkCOM(), 0), QUNIT);
     m_inertia.setZero();
     m_inertia.diagonal() = GetSteeringLinkInertia().eigen();
 }
@@ -158,10 +158,10 @@ void ChRackPinion::LogConstraintViolations() {
 // -----------------------------------------------------------------------------
 
 void ChRackPinion::PopulateComponentList() {
-    m_bodies.push_back(m_link);
+    m_components.bodies.push_back(m_link);
 
-    m_joints.push_back(m_prismatic);
-    m_joints.push_back(m_actuator);
+    m_components.joints.push_back(m_prismatic);
+    m_components.joints.push_back(m_actuator);
 }
 
 }  // end namespace vehicle

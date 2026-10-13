@@ -17,14 +17,10 @@
 //
 // =============================================================================
 
-#include "chrono/assets/ChVisualShapeTriangleMesh.h"
-#include "chrono/assets/ChVisualMaterial.h"
-#include "chrono/assets/ChVisualShape.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/utils/ChUtilsCreators.h"
-#include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
 #include "chrono_sensor/ChSensorManager.h"

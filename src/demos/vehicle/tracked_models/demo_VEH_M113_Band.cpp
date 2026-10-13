@@ -17,7 +17,7 @@
 // =============================================================================
 
 #include "chrono/ChConfig.h"
-#include "chrono/fea/ChMeshExporter.h"
+
 #include "chrono/input_output/ChWriterCSV.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 
@@ -26,7 +26,10 @@
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
 #include "chrono_vehicle/tracked_vehicle/track_shoe/ChTrackShoeBand.h"
-#include "chrono_vehicle/tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.h"
+#ifdef CHRONO_FEA
+    #include "chrono/fea/ChMeshExporter.h"
+    #include "chrono_vehicle/tracked_vehicle/track_assembly/ChTrackAssemblyBandANCF.h"
+#endif
 
 #include "chrono_models/vehicle/m113/M113.h"
 
@@ -40,13 +43,12 @@
     #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::vehicle;
 using namespace chrono::vehicle::m113;
 
 using std::cout;
+using std::cerr;
 using std::endl;
 
 // =============================================================================
@@ -55,6 +57,8 @@ using std::endl;
 
 // Band track type (BAND_BUSHING or BAND_ANCF)
 TrackShoeType shoe_type = TrackShoeType::BAND_ANCF;
+
+#ifdef CHRONO_FEA
 
 // ANCF element type for BAND_ANCF (ANCF_4 or ANCF_8)
 ChTrackShoeBandANCF::ElementType element_type = ChTrackShoeBandANCF::ElementType::ANCF_4;
@@ -65,6 +69,8 @@ int num_elements_width = 1;
 
 // Enable/disable curvature constraints (ANCF_8 only)
 bool constrain_curvature = true;
+
+#endif
 
 // Simulation step size and duration
 double step_size = 5e-5;
@@ -90,10 +96,9 @@ double vtk_FPS = 50;
 // Forward declarations
 void AddFixedObstacles(ChSystem* system);
 void WriteVehicleVTK(const std::string& vtk_dir, int frame, ChTrackedVehicle& vehicle);
-void WriteMeshVTK(const std::string& vtk_dir,
-                  int frame,
-                  std::shared_ptr<fea::ChMesh> meshL,
-                  std::shared_ptr<fea::ChMesh> meshR);
+#ifdef CHRONO_FEA
+void WriteMeshVTK(const std::string& vtk_dir, int frame, std::shared_ptr<fea::ChMesh> meshL, std::shared_ptr<fea::ChMesh> meshR);
+#endif
 
 // =============================================================================
 
@@ -108,19 +113,19 @@ int main(int argc, char* argv[]) {
     const std::string img_dir = out_dir + "/IMG";
     const std::string vtk_dir = out_dir + "/VTK";
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cout << "Error creating directory " << out_dir << endl;
         return 1;
     }
 
     if (img_output) {
-        if (!filesystem::create_directory(filesystem::path(img_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(img_dir))) {
             cout << "Error creating directory " << img_dir << endl;
             return 1;
         }
     }
     if (vtk_output) {
-        if (!filesystem::create_directory(filesystem::path(vtk_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(vtk_dir))) {
             cout << "Error creating directory " << vtk_dir << endl;
             return 1;
         }
@@ -130,18 +135,27 @@ int main(int argc, char* argv[]) {
     // Construct the M113 vehicle
     // --------------------------
 
+#ifndef CHRONO_FEA
+    if (shoe_type == TrackShoeType::BAND_ANCF) {
+        cerr << "BAND_ANCF track requires Chrono::FEA (not enabled). Switching to shoe_type BAND_BUSHING." << endl;
+        shoe_type = TrackShoeType::BAND_BUSHING;
+    }
+#endif
+
     M113 m113;
 
     m113.SetTrackShoeType(shoe_type);
-    m113.SetANCFTrackShoeElementType(element_type);
-    m113.SetANCFTrackShoeNumElements(num_elements_length, num_elements_width);
-    m113.SetANCFTrackShoeCurvatureConstraints(constrain_curvature);
     m113.SetEngineType(EngineModelType::SIMPLE_MAP);
     m113.SetTransmissionType(TransmissionModelType::AUTOMATIC_SIMPLE_MAP);
     m113.SetDrivelineType(DrivelineTypeTV::SIMPLE);
     m113.SetBrakeType(BrakeType::SIMPLE);
     m113.SetSuspensionBushings(false);
     m113.SetGyrationMode(false);
+#ifdef CHRONO_FEA
+    m113.SetANCFTrackShoeElementType(element_type);
+    m113.SetANCFTrackShoeNumElements(num_elements_length, num_elements_width);
+    m113.SetANCFTrackShoeCurvatureConstraints(constrain_curvature);
+#endif
 
     m113.SetContactMethod(ChContactMethod::SMC);
     m113.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
@@ -158,14 +172,14 @@ int main(int argc, char* argv[]) {
     auto& vehicle = m113.GetVehicle();
     auto sys = vehicle.GetSystem();
 
+#ifdef CHRONO_FEA
     std::shared_ptr<fea::ChMesh> meshL;
     std::shared_ptr<fea::ChMesh> meshR;
     if (shoe_type == TrackShoeType::BAND_ANCF) {
-        meshL =
-            std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(VehicleSide::LEFT))->GetMesh();
-        meshR =
-            std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(VehicleSide::RIGHT))->GetMesh();
+        meshL = std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(VehicleSide::LEFT))->GetMesh();
+        meshR = std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(VehicleSide::RIGHT))->GetMesh();
     }
+#endif
 
     // Set visualization type for vehicle components.
     vehicle.SetChassisVisualizationType(VisualizationType::NONE);
@@ -177,8 +191,7 @@ int main(int argc, char* argv[]) {
     vehicle.SetTrackShoeVisualizationType(VisualizationType::MESH);
 
     // Export sprocket and shoe tread visualization meshes
-    auto trimesh =
-        vehicle.GetTrackAssembly(VehicleSide::LEFT)->GetSprocket()->CreateVisualizationMesh(0.15, 0.03, 0.02);
+    auto trimesh = vehicle.GetTrackAssembly(VehicleSide::LEFT)->GetSprocket()->CreateVisualizationMesh(0.15, 0.03, 0.02);
     ChTriangleMeshConnected::WriteWavefront(out_dir + "/M113_Sprocket.obj", {*trimesh});
     std::static_pointer_cast<ChTrackShoeBand>(vehicle.GetTrackShoe(LEFT, 0))->WriteTreadVisualizationMesh(out_dir);
 
@@ -189,13 +202,13 @@ int main(int argc, char* argv[]) {
     // Control internal collisions and contact monitoring
     // --------------------------------------------------
 
+#ifdef CHRONO_FEA
     // Disable contact for the FEA track meshes
     if (shoe_type == TrackShoeType::BAND_ANCF) {
-        std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(LEFT))
-            ->SetContactSurfaceType(ChTrackAssemblyBandANCF::ContactSurfaceType::NONE);
-        std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(RIGHT))
-            ->SetContactSurfaceType(ChTrackAssemblyBandANCF::ContactSurfaceType::NONE);
+        std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(LEFT))->SetContactSurfaceType(ChTrackAssemblyBandANCF::ContactSurfaceType::NONE);
+        std::static_pointer_cast<ChTrackAssemblyBandANCF>(vehicle.GetTrackAssembly(RIGHT))->SetContactSurfaceType(ChTrackAssemblyBandANCF::ContactSurfaceType::NONE);
     }
+#endif
 
     // Enable contact on all tracked vehicle parts, except the left sprocket
     ////vehicle.EnableCollision(TrackedCollisionFlag::ALL & (~TrackedCollisionFlag::SPROCKET_LEFT));
@@ -261,8 +274,7 @@ int main(int argc, char* argv[]) {
     // Create the vehicle run-time visualization
     // -----------------------------------------
 
-    std::string title = std::string("M113 Band-track Vehicle - ") +
-                        (shoe_type == TrackShoeType::BAND_BUSHING ? " - BUSHINGS" : " - ANCF MESH");
+    std::string title = std::string("M113 Band-track Vehicle - ") + (shoe_type == TrackShoeType::BAND_BUSHING ? " - BUSHINGS" : " - ANCF MESH");
 
     // Create the vehicle VSG interface
     auto vis = chrono_types::make_shared<ChTrackedVehicleVisualSystemVSG>();
@@ -287,7 +299,7 @@ int main(int argc, char* argv[]) {
     // Set up vehicle output
     ////vehicle.SetChassisOutput(true);
     ////vehicle.SetTrackAssemblyOutput(VehicleSide::LEFT, true);
-    vehicle.SetOutput(ChOutput::Type::ASCII, ChOutput::Mode::FRAMES, out_dir, "vehicle_output", 0.1);
+    vehicle.SetOutput(ChOutput::Format::ASCII, ChOutput::Mode::FRAMES, out_dir, "vehicle_output", 0.1);
 
     // Generate JSON information with available output channels
     ////vehicle.ExportComponentList(out_dir + "/component_list.json");
@@ -450,8 +462,10 @@ int main(int argc, char* argv[]) {
 
         if (vtk_output && step_number % vtk_steps == 0) {
             WriteVehicleVTK(vtk_dir, vtk_frame, vehicle);
+#ifdef CHRONO_FEA
             if (shoe_type == TrackShoeType::BAND_ANCF)
                 WriteMeshVTK(vtk_dir, vtk_frame, meshL, meshR);
+#endif
             vtk_frame++;
         }
 
@@ -543,10 +557,8 @@ void AddFixedObstacles(ChSystem* system) {
 
 // =============================================================================
 
-void WriteMeshVTK(const std::string& vtk_dir,
-                  int frame,
-                  std::shared_ptr<fea::ChMesh> meshL,
-                  std::shared_ptr<fea::ChMesh> meshR) {
+#ifdef CHRONO_FEA
+void WriteMeshVTK(const std::string& vtk_dir, int frame, std::shared_ptr<fea::ChMesh> meshL, std::shared_ptr<fea::ChMesh> meshR) {
     static bool generate_connectivity = true;
     if (generate_connectivity) {
         fea::ChMeshExporter::WriteMesh(meshL, vtk_dir + "/meshL_connectivity.out");
@@ -558,6 +570,7 @@ void WriteMeshVTK(const std::string& vtk_dir,
     fea::ChMeshExporter::WriteFrame(meshL, vtk_dir + "/meshL_connectivity.out", filenameL);
     fea::ChMeshExporter::WriteFrame(meshR, vtk_dir + "/meshR_connectivity.out", filenameR);
 }
+#endif
 
 void WriteVehicleVTK(const std::string& vtk_dir, int frame, ChTrackedVehicle& vehicle) {
     {
@@ -605,8 +618,7 @@ void WriteVehicleVTK(const std::string& vtk_dir, int frame, ChTrackedVehicle& ve
         const auto& gearR = vehicle.GetTrackAssembly(VehicleSide::RIGHT)->GetSprocket()->GetGearBody();
         csv << gearL->GetPos() << gearL->GetRot() << gearL->GetPosDt() << gearL->GetAngVelLocal() << endl;
         csv << gearR->GetPos() << gearR->GetRot() << gearR->GetPosDt() << gearR->GetAngVelLocal() << endl;
-        csv.WriteToFile(vtk_dir + "/sprockets." + std::to_string(frame) + ".vtk",
-                        "x,y,z,e0,e1,e2,e3,vx,vy,vz,ox,oy,oz");
+        csv.WriteToFile(vtk_dir + "/sprockets." + std::to_string(frame) + ".vtk", "x,y,z,e0,e1,e2,e3,vx,vy,vz,ox,oy,oz");
     }
 
     {

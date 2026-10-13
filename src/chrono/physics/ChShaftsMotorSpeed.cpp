@@ -23,7 +23,7 @@ ChShaftsMotorSpeed::ChShaftsMotorSpeed() : motor_load(0) {
     variable.GetMass()(0, 0) = 1.0;
     variable.GetInvMass()(0, 0) = 1.0;
 
-    motor_function = chrono_types::make_shared<ChFunctionConst>(1.0);
+    motor_function = chrono_types::make_shared<ChFunctionConst>(0.0);
 
     rot_offset = 0;
 
@@ -141,6 +141,7 @@ void ChShaftsMotorSpeed::IntLoadResidual_CqL(const unsigned int off_L,    // off
 void ChShaftsMotorSpeed::IntLoadConstraint_C(const unsigned int off_L,  // offset in Qc residual
                                              ChVectorDynamic<>& Qc,     // result: the Qc residual, Qc += c*C
                                              const double c,            // a scaling factor
+                                             const double c_vel,        // the scaling factor if the constraint is at speed level
                                              bool do_clamp,             // apply clamping to c*C?
                                              double recovery_clamp      // value for min/max clamping of c*C
 ) {
@@ -163,7 +164,8 @@ void ChShaftsMotorSpeed::IntLoadConstraint_C(const unsigned int off_L,  // offse
 
 void ChShaftsMotorSpeed::IntLoadConstraint_Ct(const unsigned int off_L,  // offset in Qc residual
                                               ChVectorDynamic<>& Qc,     // result: the Qc residual, Qc += c*Ct
-                                              const double c             // a scaling factor
+                                              const double c,            ///< a scaling factor
+                                              const double c_vel         ///< the scaling factor if the constraint is at speed level
 ) {
     double ct = -motor_function->GetVal(GetChTime());
     Qc(off_L) += c * ct;

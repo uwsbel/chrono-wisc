@@ -28,26 +28,15 @@
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
-// Chrono namespaces
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
 
 // =============================================================================
 
-bool GetProblemSpecs(int argc,
-                     char** argv,
-                     double& t_end,
-                     bool& verbose,
-                     bool& output,
-                     double& output_fps,
-                     bool& render,
-                     double& render_fps,
-                     bool& snapshots,
-                     int& ps_freq) {
+bool GetProblemSpecs(int argc, char** argv, double& t_end, bool& verbose, bool& output, double& output_fps, bool& render, double& render_fps, bool& snapshots, int& ps_freq) {
     ChCLI cli(argv[0], "Dam Break FSI demo");
 
     cli.AddOption<double>("Input", "t_end", "Simulation duration [s]", std::to_string(t_end));
@@ -128,7 +117,6 @@ int main(int argc, char* argv[]) {
     const ChVector3d gravity(0, 0, -9.8);
     sysFSI.SetGravitationalAcceleration(gravity);
 
-
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
@@ -147,7 +135,6 @@ int main(int argc, char* argv[]) {
     sph_params.boundary_method = BoundaryMethod::ADAMI;
 
     sysSPH.SetSPHParameters(sph_params);
-
 
     // Set frequency of proximity search
     sysSPH.SetNumProximitySearchSteps(ps_freq);
@@ -194,32 +181,31 @@ int main(int argc, char* argv[]) {
 
     // Output directories
     std::string out_dir = GetChronoOutputPath() + "FSI_Dam_Break/";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
 
-    out_dir = out_dir + sysSPH.GetPhysicsProblemString() + "_" + sysSPH.GetSphIntegrationSchemeString() + "_ps" +
-              std::to_string(ps_freq);
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    out_dir = out_dir + sysSPH.GetPhysicsProblemString() + "_" + sysSPH.GetSphIntegrationSchemeString() + "_ps" + std::to_string(ps_freq);
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
 
     if (output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
             std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
             return 1;
         }
     }
     if (snapshots) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
             std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
             return 1;
         }
     }
 
-    // Create a run-tme visualizer
+    // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 
 #ifdef CHRONO_VSG
@@ -279,8 +265,7 @@ int main(int argc, char* argv[]) {
                 if (verbose)
                     std::cout << " -- Snapshot frame " << render_frame << " at t = " << time << std::endl;
                 std::ostringstream filename;
-                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
-                         << ".bmp";
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
             }
 

@@ -30,7 +30,7 @@ subject to the following restrictions:
 #include "BulletCollision/BroadphaseCollision/cbtCollisionAlgorithm.h"
 #include "BulletCollision/BroadphaseCollision/cbtBroadphaseInterface.h"
 #include "BulletCollision/BroadphaseCollision/cbtDbvt.h"
-#include "BulletCollision/CollisionShapes/cbtCEtriangleShape.h" //***CHRONO***
+#include "BulletCollision/CollisionShapes/cbtChTriangleShape.h" //***CHRONO***
 #include "LinearMath/cbtAabbUtil2.h"
 #include "LinearMath/cbtQuickprof.h"
 #include "LinearMath/cbtSerializer.h"
@@ -57,7 +57,8 @@ subject to the following restrictions:
 #include "BulletCollision/CollisionShapes/cbtConeShape.h"
 #include "BulletCollision/CollisionShapes/cbtConvexTriangleMeshShape.h"
 #include "BulletCollision/CollisionShapes/cbtCylinderShape.h"
-#include "BulletCollision/CollisionShapes/cbtCylindricalShellShape.h"  /* ***CHRONO*** */
+#include "BulletCollision/CollisionShapes/cbtRoundedCylinderShape.h"  /* ***CHRONO*** */
+#include "BulletCollision/CollisionShapes/cbtRoundedBoxShape.h"       /* ***CHRONO*** */
 #include "BulletCollision/CollisionShapes/cbtMultiSphereShape.h"
 #include "BulletCollision/CollisionShapes/cbtPolyhedralConvexShape.h"
 #include "BulletCollision/CollisionShapes/cbtSphereShape.h"
@@ -1324,7 +1325,7 @@ void cbtCollisionWorld::debugDrawObject(const cbtTransform& worldTransform, cons
 		{
 			case CH_TRIANGLE_SHAPE_PROXYTYPE:	// ***CHRONO***
 			{
-				const cbtCEtriangleShape* triShape = static_cast<const cbtCEtriangleShape*>(shape);
+				const cbtChTriangleShape* triShape = static_cast<const cbtChTriangleShape*>(shape);
 				auto v1 = triShape->get_p1();
 				auto v2 = triShape->get_p2();
 				auto v3 = triShape->get_p3();
@@ -1396,14 +1397,22 @@ void cbtCollisionWorld::debugDrawObject(const cbtTransform& worldTransform, cons
 				getDebugDrawer()->drawCylinder(radius, halfHeight, upAxis, worldTransform, color);
 				break;
 			}
-			case CYLSHELL_SHAPE_PROXYTYPE: { /* ***CHRONO*** */
-				const cbtCylindricalShellShape* cylinder = static_cast<const cbtCylindricalShellShape*>(shape);
-				cbtScalar radius = cylinder->getRadius();
-				cbtScalar halfHeight = cylinder->getHalfExtentsWithMargin()[1];
-				getDebugDrawer()->drawCylinder(radius, halfHeight, 1, worldTransform, color);
-				break;
+            case ROUNDEDCYL_SHAPE_PROXYTYPE: { /* ***CHRONO*** */
+                const cbtRoundedCylinderShape* cylinder = static_cast<const cbtRoundedCylinderShape*>(shape);
+                cbtScalar radius = cylinder->getRadius();
+                cbtScalar halfHeight = cylinder->getHalfExtentsWithMargin()[1];
+                ////cbtScalar sradius = cylinder->getSphereRadius();
+                getDebugDrawer()->drawCylinder(radius, halfHeight, 2, worldTransform, color);
+                break;
 			}
-			case STATIC_PLANE_PROXYTYPE:
+            case ROUNDEDBOX_SHAPE_PROXYTYPE: { /* ***CHRONO*** */
+                const cbtRoundedBoxShape* box = static_cast<const cbtRoundedBoxShape*>(shape);
+                cbtVector3 halfExtents = box->getHalfExtentsWithMargin();
+                ////cbtScalar sradius = box->getSphereRadius();
+                getDebugDrawer()->drawBox(-halfExtents, halfExtents, worldTransform, color);
+                break;
+            }
+            case STATIC_PLANE_PROXYTYPE:
 			{
 				const cbtStaticPlaneShape* staticPlaneShape = static_cast<const cbtStaticPlaneShape*>(shape);
 				cbtScalar planeConst = staticPlaneShape->getPlaneConstant();

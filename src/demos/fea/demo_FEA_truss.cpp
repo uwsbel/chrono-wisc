@@ -26,11 +26,8 @@
 #include "chrono/fea/ChElementBar.h"
 #include "chrono/fea/ChLinkNodeFrame.h"
 #include "chrono/fea/ChMesh.h"
-#include "chrono/assets/ChVisualShapeFEA.h"
 
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::fea;
@@ -41,7 +38,7 @@ int main(int argc, char* argv[]) {
 
     // Create (if needed) output directory
     const std::string out_dir = GetChronoOutputPath() + "FEA_TRUSS";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
@@ -226,7 +223,7 @@ int main(int argc, char* argv[]) {
         // draw spring elements as lines
         for (auto mspring : springs) {
             if (mspring->GetSpringCoefficient() > 0) {
-                tools::drawSegment(vis.get(), std::dynamic_pointer_cast<ChNodeFEAxyz>(mspring->GetNode(0))->GetPos(),
+                tools::DrawSegment(vis.get(), std::dynamic_pointer_cast<ChNodeFEAxyz>(mspring->GetNode(0))->GetPos(),
                                    std::dynamic_pointer_cast<ChNodeFEAxyz>(mspring->GetNode(1))->GetPos(),
                                    ChColor(1, 1, 1), true);
             }

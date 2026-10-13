@@ -23,12 +23,9 @@
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
 #include "chrono_fsi/sph/ChFsiProblemSPH.h"
 
-
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::fsi;
@@ -64,22 +61,20 @@ float render_fps = 1000;
 // =============================================================================
 
 int main(int argc, char* argv[]) {
-    // Create 
+    // Create
     ChSystemSMC sysMBS;
-    sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET); 
+    sysMBS.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
 
-    double initial_spacing = 0.1; // WCSPH
+    double initial_spacing = 0.1;  // WCSPH
     double step_size = 1e-4;
-
 
     ChFsiProblemCartesian fsi(initial_spacing, &sysMBS);
     auto sysFSI = fsi.GetFsiSystemSPH();
 
-
     // Set gravitational acceleration
     const ChVector3d gravity(0, 0, -1.0);
     fsi.SetGravitationalAcceleration(gravity);
-    
+
     // Set CFD fluid properties
     ChFsiFluidSystemSPH::FluidProperties fluid_props;
     fluid_props.density = 1000;
@@ -99,9 +94,7 @@ int main(int argc, char* argv[]) {
     sph_params.density_reinit_steps = 2;
 
     fsi.SetStepSizeCFD(step_size);
-    fsi.SetStepsizeMBD(step_size); // do i need this? 
-
-
+    fsi.SetStepsizeMBD(step_size);  // do i need this?
 
     ChVector3d cMin = ChVector3d(-bxDim / 2, -byDim / 2, -bzDim / 2) - ChVector3d(initial_spacing * 20);
     ChVector3d cMax = ChVector3d(+bxDim / 2, +byDim / 2, bzDim) + ChVector3d(initial_spacing * 10);
@@ -113,33 +106,31 @@ int main(int argc, char* argv[]) {
                   BoxSide::ALL & ~BoxSide::Z_POS  // all boundaries except top
     );
 
-
     // Complete construction of the FSI system
     fsi.Initialize();
 
     auto sysSPH = fsi.GetFluidSystemSPH();
-    int numPart = sysSPH->GetNumFluidMarkers();
+    auto numPart = sysSPH->GetNumFluidMarkers();
 
-
-    // Create oputput directories
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    // Create output directories
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
     out_dir = out_dir + "/" + sysSPH->GetPhysicsProblemString() + "_" + sysSPH->GetSphIntegrationSchemeString();
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
 
     if (output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
             std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
             return 1;
         }
     }
 
-    // Create a run-tme visualizer
+    // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 
 #ifdef CHRONO_VSG
@@ -183,7 +174,6 @@ int main(int argc, char* argv[]) {
     ChTimer timer;
     timer.start();
 
-
     while (time < t_end) {
         std::cout << "step: " << sim_frame << "  time: " << time << std::endl;
 
@@ -211,7 +201,7 @@ int main(int argc, char* argv[]) {
 
         double KE = 0;
         double Rho = 0;
-        for (int i = 0; i < numPart; i++) {
+        for (size_t i = 0; i < numPart; i++) {
             KE += 0.5 * vel[i].Length();
             Rho += rhoPresMu[i].x();
         }

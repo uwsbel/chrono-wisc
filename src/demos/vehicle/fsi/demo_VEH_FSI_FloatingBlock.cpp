@@ -28,7 +28,7 @@
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/ChVehicleVisualSystem.h"
 
 #include "chrono_fsi/sph/ChFsiSystemSPH.h"
@@ -37,8 +37,6 @@
     #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 // Chrono namespaces
 using namespace chrono;
@@ -199,7 +197,7 @@ int main(int argc, char* argv[]) {
 
     // Add FSI container
     auto ground_bce = sysSPH.CreatePointsBoxContainer(ChVector3d(bxDim, byDim, bzDim), {2, 0, -1});
-    sysFSI.AddFsiBody(ground, ground_bce, ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT), false);
+    sysFSI.AddRigidBody(ground, ground_bce, ChFrame<>(ChVector3d(0, 0, bzDim / 2), QUNIT), false);
 
     // Floating block size and density
     ChVector3d plate_size(0.9 * fxDim, 0.7 * fyDim, 4 * init_space);
@@ -233,7 +231,7 @@ int main(int argc, char* argv[]) {
 
     {
         auto bce = sysSPH.CreatePointsBoxInterior(plate_size);
-        sysFSI.AddFsiBody(floating_plate, bce, ChFrame<>(), false);
+        sysFSI.AddRigidBody(floating_plate, bce, ChFrame<>(), false);
     }
 
     // Create vehicle
@@ -246,29 +244,29 @@ int main(int argc, char* argv[]) {
     // Output directories
     std::string out_dir = GetChronoOutputPath() + "VEH_FSI_FloatingBlock_" + std::to_string(ps_freq);
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
     out_dir = out_dir + "/" + sysSPH.GetPhysicsProblemString() + "_" + sysSPH.GetSphIntegrationSchemeString();
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
 
     if (output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
             std::cerr << "Error creating directory " << out_dir + "/particles" << std::endl;
             return 1;
         }
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/fsi"))) {
             std::cerr << "Error creating directory " << out_dir + "/fsi" << std::endl;
             return 1;
         }
     }
     if (snapshots) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
             std::cerr << "Error creating directory " << out_dir + "/snapshots" << std::endl;
             return 1;
         }
@@ -286,7 +284,7 @@ int main(int argc, char* argv[]) {
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(false);
-        visFSI->EnableFlexBodyMarkers(false);
+        visFSI->EnableFeaMeshMarkers(false);
         visFSI->SetSPHColorCallback(col_callback);
 
         // Vehicle VSG visual system (attach visFSI as plugin)
@@ -425,7 +423,7 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
     double scale_ratio = 1.0;
     trimesh->LoadWavefrontMesh(GetChronoDataFile(mesh_filename), false, true);
     trimesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(scale_ratio));  // scale to a different size
-    trimesh->RepairDuplicateVertexes(1e-9);                              // if meshes are not watertight
+    trimesh->RepairDuplicateVertices(1e-9);                              // if meshes are not watertight
     auto wheel_shape = chrono_types::make_shared<ChCollisionShapeTriangleMesh>(cmaterial, trimesh, false, false, 0.005);
 
     // Create wheel BCE markers
@@ -435,7 +433,7 @@ std::shared_ptr<WheeledVehicle> CreateVehicle(ChSystemSMC& sys,
             wheel->GetSpindle()->EnableCollision(true);
 
             auto points = sysSPH.CreatePointsMesh(*trimesh);
-            sysFSI.AddFsiBody(wheel->GetSpindle(), points, ChFrame<>(), false);
+            sysFSI.AddRigidBody(wheel->GetSpindle(), points, ChFrame<>(), false);
         }
     }
 

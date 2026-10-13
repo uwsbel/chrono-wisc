@@ -23,7 +23,7 @@
 // the current vehicle reference frame (of type ChFrameMoving).
 //
 // This driver FMU defines continuous output variables for:
-//   - sterring command (in [-1,1])
+//   - steering command (in [-1,1])
 //   - throttle command (in [0,1]
 //   - braking command (in [0,1])
 //
@@ -46,7 +46,7 @@
     #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 #endif
 
-#include "chrono_fmi/fmi2/ChFmuToolsExport.h"
+#include "chrono_fmi/fmi2/ChFmuForgeExport.h"
 
 class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
   public:
@@ -60,9 +60,7 @@ class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
     ~FmuComponent() {}
 
     /// Advance dynamics.
-    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint,
-                                  fmi2Real communicationStepSize,
-                                  fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
+    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
 
   private:
     virtual fmi2Status enterInitializationModeIMPL() override;
@@ -86,8 +84,8 @@ class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
     /// This function is called after advancing dynamics of the vehicle.
     void CalculateDriverOutputs();
 
-    std::shared_ptr<chrono::vehicle::ChPathSteeringController> steeringPID;  ///< steering controller
-    std::shared_ptr<chrono::vehicle::ChSpeedController> speedPID;            ///< speed controller
+    std::shared_ptr<chrono::vehicle::ChPathSteeringControllerPID> steeringPID;  ///< steering controller
+    std::shared_ptr<chrono::vehicle::ChSpeedControllerPID> speedPID;            ///< speed controller
 
     std::string path_file;   ///< name of file with path Bezier curve data
     double look_ahead_dist;  ///< look ahead distance for lateral PID controller
@@ -113,7 +111,7 @@ class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
     bool save_img;         ///< enable/disable saving of visualization snapshots
     double fps;            ///< snapshot saving frequency (in FPS)
 
-    // Vehicle driver commands (FMU countinuous outputs)
+    // Vehicle driver commands (FMU continuous outputs)
     double steering;  ///< steering command, in [-1,1]
     double throttle;  ///< throttle command, in [0,1]
     double braking;   ///< braking command, in [0,1]

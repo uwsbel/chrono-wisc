@@ -28,26 +28,15 @@
 #include <vsgImGui/implot.h>
 
 #include "chrono/assets/ChVisualSystem.h"
-#include "chrono/assets/ChVisualModel.h"
-#include "chrono/assets/ChColormap.h"
-
-#include "chrono/assets/ChVisualShapeBox.h"
-#include "chrono/assets/ChVisualShapeSphere.h"
-#include "chrono/assets/ChVisualShapeEllipsoid.h"
-#include "chrono/assets/ChVisualShapeCylinder.h"
-#include "chrono/assets/ChVisualShapeCapsule.h"
-#include "chrono/assets/ChVisualShapeBarrel.h"
-#include "chrono/assets/ChVisualShapeCone.h"
-#include "chrono/assets/ChVisualShapeTriangleMesh.h"
-#include "chrono/assets/ChVisualShapeSurface.h"
-#include "chrono/assets/ChVisualShapeModelFile.h"
-#include "chrono/assets/ChVisualShapeLine.h"
-#include "chrono/assets/ChVisualShapePath.h"
 
 #include "chrono/physics/ChBody.h"
 #include "chrono/physics/ChLink.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChParticleCloud.h"
+
+#ifdef CHRONO_FEA
+    #include "chrono/fea/ChMesh.h"
+#endif
 
 #include "chrono_vsg/ChApiVSG.h"
 #include "chrono_vsg/ChGuiComponentVSG.h"
@@ -84,7 +73,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Attach a custom plugin.
     /// Plugins offer a mechanism for extending a base VSG visual system with custom functionality; e.g., for rendering,
     /// controlling, and displaying information for specific types of Chrono systems. An arbitrary number of plugins can
-    /// be attached to a VSG visual system. Attaching plugins must be done *before* initialization of the VSG system.
+    /// be attached to a VSG visual system.
     void AttachPlugin(std::shared_ptr<ChVisualSystemVSGPlugin> plugin);
 
     /// Initialize the visualization system.
@@ -179,21 +168,27 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     /// Set scale for rendering reference frames.
     void SetRefFrameScale(double axis_length);
-    /// Toggle on/off visibility of reference frames.
-    void ToggleRefFrameVisibility();
+
+    /// Set the visibility of reference frames for objects with specified tag.
+    /// A tag value of -1 indicates that the visibility flag should be applied to all objects.
+    void SetRefFrameVisibility(bool vis, int tag = -1);
 
     /// Render COM frames for all bodies in the system.
     void SetCOMFrameScale(double axis_length);
-    /// Toggle on/off visibility of COM frames.
-    void ToggleCOMFrameVisibility();
+
+    /// Set the visibility of COM frames for bodies with specified tag.
+    /// A tag value of -1 indicates that the visibility flag should be applied to all bodies.
+    void SetCOMFrameVisibility(bool vis, int tag = -1);
 
     /// Render COM symbol for all bodies in the system.
     void ToggleCOMSymbolVisibility();
 
     /// Render link frames for all links in the system.
     void SetLinkFrameScale(double axis_length);
-    /// Toggle on/off visibility of link frames.
-    void ToggleLinkFrameVisibility();
+
+    /// Set the visibility of joint frames for joints with specified tag.
+    /// A tag value of -1 indicates that the visibility flag should be applied to all joints.
+    void SetLinkFrameVisibility(bool vis, int tag = -1);
 
     // --- Labels
 
@@ -324,13 +319,14 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Set GUI font size (default: 13).
     void SetGuiFontSize(float size);
 
-    /// Add a wireframe grid with specified resolution at the specified position.
-    virtual void AddGrid(double x_step,                                      ///< spacing in x direction
-                         double y_step,                                      ///< spacing in y direction
-                         int nx,                                             ///< number of divisions in x direction
-                         int ny,                                             ///< number of divisions in y direction
-                         ChCoordsys<> pos = CSYSNORM,                        ///< position of grid center
-                         ChColor col = ChColor(0.1f, 0.1f, 0.1f)) override;  ///< line color
+    /// Add a grid with specified parameters in the x-y plane of the given frame.
+    virtual void AddGrid(double x_step,     ///< spacing in x direction
+                         double y_step,     ///< spacing in y direction
+                         int nx,            ///< number of divisions in x direction
+                         int ny,            ///< number of divisions in y direction
+                         ChCoordsysd pos,   ///< grid reference frame
+                         ChColor col        ///< grid line color
+                         ) override;
 
     /// Add a visual model not bound to a Chrono object.
     /// The return value is the index of the new visual model.
@@ -348,7 +344,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     size_t AddGuiComponent(std::shared_ptr<ChGuiComponentVSG> gc);
 
     /// Add a colorbar as a GUI component.
-    /// Returns the index of the new component. This function must be called before Initialize().
+    /// Returns the index of the new component.
     size_t AddGuiColorbar(const std::string& title,  ///< GUI window title
                           const ChVector2d& range,   ///< data range
                           ChColormap::Type type,     ///< colormap
@@ -405,9 +401,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     vsg::ref_ptr<ShapeBuilder> GetVSGShapeBuilder() const { return m_shapeBuilder; }
 
     /// Get the ImGui texture for the specified colormap.
-    vsg::ref_ptr<vsgImGui::Texture> GetColormapTexture(ChColormap::Type type) const {
-        return m_colormap_textures.at(type);
-    }
+    vsg::ref_ptr<vsgImGui::Texture> GetColormapTexture(ChColormap::Type type) const { return m_colormap_textures.at(type); }
 
     /// Data for particle clouds managed by the visual system.
     struct ParticleCloud {
@@ -515,8 +509,8 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     };
     std::vector<DeformableMesh> m_def_meshes;
 
-    std::vector<ParticleCloud> m_clouds;     ///< particle cloud metadata cached for VSG interoperability
-    bool m_default_cloud_visibility = true;  ///< fallback visibility before a specific tag is toggled
+    std::vector<ParticleCloud> m_clouds;                         ///< particle cloud metadata cached for VSG interoperability
+    bool m_default_cloud_visibility = true;                      ///< fallback visibility before a specific tag is toggled
     std::unordered_map<int, bool> m_cloud_visibility_overrides;  ///< per-tag visibility overrides
 
     bool m_show_visibility_controls;  ///< enable/disable global visibility controls
@@ -592,8 +586,10 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     /// Bind assets associated with a ChLink.
     void BindLink(const std::shared_ptr<ChLinkBase>& link);
 
+#ifdef CHRONO_FEA
     /// Bind assets associated with a ChMesh.
     void BindMesh(const std::shared_ptr<fea::ChMesh>& mesh);
+#endif
 
     /// Bind all assets associated with the given ChAssembly.
     void BindAssembly(const ChAssembly& assembly);
@@ -617,19 +613,31 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
     void BindParticleCloud(const std::shared_ptr<ChParticleCloud>& pcloud);
 
     /// Bind the reference frame for the given ChObj.
-    void BindReferenceFrame(const std::shared_ptr<ChObj>& obj);
+    void BindReferenceFrame(const std::shared_ptr<ChObj>& obj, ObjectType type);
 
     /// Bind the body COM frame.
-    void BindCOMFrame(const std::shared_ptr<ChBody>& body);
+    void BindBodyCOMFrame(const std::shared_ptr<ChBody>& body);
 
-    /// Bind the body COM symbols.
-    void BindCOMSymbols();
+    /// Create body label text.
+    void CreateBodyLabel(const std::shared_ptr<ChBody>& body);
 
     /// Bind the link frames.
     void BindLinkFrame(const std::shared_ptr<ChLinkBase>& link);
 
-    /// Bind the body and link labels.
-    void BindLabels();
+    /// Create body label text.
+    void CreateLinkLabel(const std::shared_ptr<ChLinkBase>& link);
+
+    /// Bind the body COM symbols.
+    /// This function creates (if needed) the node in the COM symbol scene and caches the VSG symbol positions.
+    void BindCOMSymbols(const std::vector<ChVector3d>& c_pos);
+
+    /// Bind the body labels.
+    /// This function creates (if needed) the nodes in the body label scene and caches the VSG label texts.
+    void BindBodyLabels();
+
+    /// Bind the link labels.
+    /// This function creates (if needed) the nodes in the link label scene and caches the VSG label texts.
+    void BindLinkLabels();
 
     /// Populate a VSG group with non-mutable visualization shapes (from the given visual model).
     void PopulateVisualShapesFixed(vsg::ref_ptr<vsg::Group> group, std::shared_ptr<ChVisualModel> model);
@@ -681,8 +689,8 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     double m_light_intensity;  ///< directional light intensity
     double m_elevation;        ///< directional light elevation (measured from
-    double m_azimuth;          ///< directional light azimuth (measured from 
-    
+    double m_azimuth;          ///< directional light azimuth (measured from
+
     float m_gui_font_size = 20.0f;
 
     // Component rendering
@@ -729,8 +737,7 @@ class CH_VSG_API ChVisualSystemVSG : virtual public ChVisualSystem {
 
     vsg::ref_ptr<vsg::vec3Array> m_com_symbol_vertices;
     vsg::ref_ptr<vsg::vec4Array> m_com_symbol_positions;
-    bool m_com_size_changed;
-    bool m_com_symbols_empty;
+    bool m_com_symbol_size_changed;
 
     // Labels
     std::string m_label_font_path;         ///< path to label font

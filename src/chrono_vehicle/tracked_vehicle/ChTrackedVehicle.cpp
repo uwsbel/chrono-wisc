@@ -32,8 +32,7 @@ using std::endl;
 namespace chrono {
 namespace vehicle {
 
-ChTrackedVehicle::ChTrackedVehicle(const std::string& name, ChContactMethod contact_method)
-    : ChVehicle(name, contact_method) {
+ChTrackedVehicle::ChTrackedVehicle(const std::string& name, ChContactMethod contact_method) : ChVehicle(name, contact_method) {
     m_contact_manager = chrono_types::make_shared<ChTrackContactManager>();
 }
 
@@ -105,10 +104,7 @@ void ChTrackedVehicle::Synchronize(double time, const DriverInputs& driver_input
 
 // Update the state of this vehicle at the current time. This version is used in a co-simulation framework and provides
 // the terrain forces on the track shoes (assumed to be expressed in the global reference frame).
-void ChTrackedVehicle::Synchronize(double time,
-                                   const DriverInputs& driver_inputs,
-                                   const TerrainForces& shoe_forces_left,
-                                   const TerrainForces& shoe_forces_right) {
+void ChTrackedVehicle::Synchronize(double time, const DriverInputs& driver_inputs, const TerrainForces& shoe_forces_left, const TerrainForces& shoe_forces_right) {
     // Let the driveline combine driver inputs if needed
     double braking_left = 0;
     double braking_right = 0;
@@ -147,7 +143,7 @@ void ChTrackedVehicle::Synchronize(double time,
 }
 
 // Advance the state of this vehicle by the specified time step.
-void ChTrackedVehicle::Advance(double step) {
+void ChTrackedVehicle::Advance(double step, bool do_collision) {
     // Advance state of the associated powertrain (if one is attached)
     if (m_powertrain_assembly) {
         m_powertrain_assembly->Advance(step);
@@ -158,7 +154,7 @@ void ChTrackedVehicle::Advance(double step) {
     m_tracks[RIGHT]->Advance(step);
 
     // Invoke base class function to advance state of underlying Chrono system
-    ChVehicle::Advance(step);
+    ChVehicle::Advance(step, do_collision);
 
     // Process contacts
     m_contact_manager->Process(this);
@@ -209,11 +205,6 @@ void ChTrackedVehicle::SetRollerVisualizationType(VisualizationType vis) {
 void ChTrackedVehicle::SetTrackShoeVisualizationType(VisualizationType vis) {
     m_tracks[0]->SetTrackShoeVisualizationType(vis);
     m_tracks[1]->SetTrackShoeVisualizationType(vis);
-}
-
-// Enable/disable output for the various subsystems
-void ChTrackedVehicle::SetTrackAssemblyOutput(VehicleSide side, bool state) {
-    m_tracks[side]->SetOutput(state);
 }
 
 // Enable/disable collision for the various subsystems
@@ -453,14 +444,41 @@ void ChTrackedVehicle::LogSubsystemTypes(std::ostream& os) {
 
 // -----------------------------------------------------------------------------
 
+std::vector<std::shared_ptr<ChBody>> ChTrackedVehicle::GetBodyList() const {
+    std::vector<std::shared_ptr<ChBody>> bodies;
+
+    {
+        auto b = m_chassis->GetBodyList();
+        bodies.insert(bodies.end(), b.begin(), b.end());
+    }
+
+    for (auto& c : m_chassis_rear) {
+        auto b = c->GetBodyList();
+        bodies.insert(bodies.end(), b.begin(), b.end());
+    }
+
+    {
+        auto b = m_tracks[0]->GetBodyList();
+        bodies.insert(bodies.end(), b.begin(), b.end());
+    }
+
+    {
+        auto b = m_tracks[1]->GetBodyList();
+        bodies.insert(bodies.end(), b.begin(), b.end());
+    }
+
+    return bodies;
+}
+
+// -----------------------------------------------------------------------------
+
 std::string ChTrackedVehicle::ExportComponentList() const {
     rapidjson::Document jsonDocument;
     jsonDocument.SetObject();
 
     std::string template_name = GetTemplateName();
     jsonDocument.AddMember("name", rapidjson::StringRef(m_name.c_str()), jsonDocument.GetAllocator());
-    jsonDocument.AddMember("template", rapidjson::Value(template_name.c_str(), jsonDocument.GetAllocator()).Move(),
-                           jsonDocument.GetAllocator());
+    jsonDocument.AddMember("template", rapidjson::Value(template_name.c_str(), jsonDocument.GetAllocator()).Move(), jsonDocument.GetAllocator());
 
     {
         rapidjson::Document jsonSubDocument(&jsonDocument.GetAllocator());
@@ -498,67 +516,110 @@ void ChTrackedVehicle::ExportComponentList(const std::string& filename) const {
     of.close();
 }
 
-void ChTrackedVehicle::Output(int frame, ChOutput& database) const {
-    database.WriteTime(frame, m_system->GetChTime());
+// -----------------------------------------------------------------------------
 
-    if (m_chassis->OutputEnabled()) {
-        database.WriteSection(m_chassis->GetName());
-        m_chassis->Output(database);
+void ChTrackedVehicle::SetTrackAssemblyOutput(VehicleSide side, bool state) {
+    m_tracks[side]->SetOutput(state);
+}
+
+void ChTrackedVehicle::InitializeOutput() {
+    // Resize output structures
+    m_out_chassis_rear.resize(m_chassis_rear.size());
+
+    // For each vehicle subsystem, collect components from their parts
+    if (m_chassis->OutputEnabled())
+        m_out_chassis.comp.push_back(&m_chassis->GetComponents());
+    if (m_driveline && m_driveline->OutputEnabled())
+        m_out_driveline.comp.push_back(&m_driveline->GetComponents());
+    for (size_t i = 0; i < m_chassis_rear.size(); i++)
+        if (m_chassis_rear[i]->OutputEnabled())
+            m_out_chassis_rear[i].comp.push_back(&m_chassis_rear[i]->GetComponents());
+
+    // For each vehicle subsystem, create its output DB
+    switch (m_out_format) {
+        case ChOutput::Format::ASCII:
+            if (m_chassis->OutputEnabled())
+                m_out_chassis.db = chrono_types::make_unique<ChOutputASCII>(m_out_dir, m_out_name + "_chassis", m_out_mode);
+            if (m_driveline && m_driveline->OutputEnabled())
+                m_out_driveline.db = chrono_types::make_unique<ChOutputASCII>(m_out_dir, m_out_name + "_driveline", m_out_mode);
+            for (size_t i = 0; i < m_chassis_rear.size(); i++)
+                if (m_chassis_rear[i]->OutputEnabled())
+                    m_out_chassis_rear[i].db = chrono_types::make_unique<ChOutputASCII>(m_out_dir, m_out_name + "_chassis_rear_" + std::to_string(i), m_out_mode);
+            break;
+        case ChOutput::Format::HDF5:
+#ifdef CHRONO_HAS_HDF5
+            if (m_chassis->OutputEnabled())
+                m_out_chassis.db = chrono_types::make_unique<ChOutputHDF5>(m_out_dir, m_out_name + "_chassis", m_out_mode);
+            if (m_driveline && m_driveline->OutputEnabled())
+                m_out_driveline.db = chrono_types::make_unique<ChOutputHDF5>(m_out_dir, m_out_name + "_driveline", m_out_mode);
+            for (size_t i = 0; i < m_chassis_rear.size(); i++)
+                if (m_chassis_rear[i]->OutputEnabled())
+                    m_out_chassis_rear[i].db = chrono_types::make_unique<ChOutputHDF5>(m_out_dir, m_out_name + "_chassis_rear_" + std::to_string(i), m_out_mode);
+#endif
+            break;
     }
+
+    if (m_tracks[LEFT]->OutputEnabled())
+        m_tracks[LEFT]->InitializeOutput(m_out_format, m_out_mode, m_out_dir, m_out_name + "_LEFT");
+    if (m_tracks[RIGHT]->OutputEnabled())
+        m_tracks[RIGHT]->InitializeOutput(m_out_format, m_out_mode, m_out_dir, m_out_name + "_RIGHT");
+}
+
+void ChTrackedVehicle::WriteOutput(int frame, double time) const {
+    if (m_chassis->OutputEnabled())
+        m_out_chassis.Write(frame, time);
+
+    if (m_driveline && m_driveline->OutputEnabled())
+        m_out_driveline.Write(frame, time);
+
+    for (size_t i = 0; i < m_chassis_rear.size(); i++)
+        if (m_chassis_rear[i]->OutputEnabled())
+            m_out_chassis_rear[i].Write(frame, time);
+
+    if (m_tracks[LEFT]->OutputEnabled())
+        m_tracks[LEFT]->WriteOutput(frame, time);
+
+    if (m_tracks[RIGHT]->OutputEnabled())
+        m_tracks[RIGHT]->WriteOutput(frame, time);
+}
+
+// -----------------------------------------------------------------------------
+
+void ChTrackedVehicle::SaveCheckpoint(ChCheckpoint& database) const {
+    m_chassis->SaveCheckpoint(database);
 
     for (auto& c : m_chassis_rear) {
-        if (c->OutputEnabled()) {
-            database.WriteSection(c->GetName());
-            c->Output(database);
-        }
+        c->SaveCheckpoint(database);
     }
 
-    if (m_tracks[LEFT]->OutputEnabled()) {
-        m_tracks[LEFT]->Output(database);
-    }
+    m_tracks[LEFT]->SaveCheckpoint(database);
+    m_tracks[RIGHT]->SaveCheckpoint(database);
 
-    if (m_tracks[RIGHT]->OutputEnabled()) {
-        m_tracks[RIGHT]->Output(database);
+    if (m_driveline)
+        m_driveline->SaveCheckpoint(database);
+
+    if (m_powertrain_assembly) {
+        GetEngine()->SaveCheckpoint(database);
+        GetTransmission()->SaveCheckpoint(database);
     }
 }
 
-void ChTrackedVehicle::WriteCheckpoint(ChCheckpoint& database) const {
-    m_chassis->WriteCheckpoint(database);
+void ChTrackedVehicle::LoadCheckpoint(ChCheckpoint& database) {
+    m_chassis->LoadCheckpoint(database);
 
     for (auto& c : m_chassis_rear) {
-        c->WriteCheckpoint(database);
+        c->LoadCheckpoint(database);
     }
 
-    m_tracks[LEFT]->WriteCheckpoint(database);
-
-    m_tracks[RIGHT]->WriteCheckpoint(database);
+    m_tracks[LEFT]->LoadCheckpoint(database);
+    m_tracks[RIGHT]->LoadCheckpoint(database);
 
     if (m_driveline)
-        m_driveline->WriteCheckpoint(database);
+        m_driveline->LoadCheckpoint(database);
 
     if (m_powertrain_assembly) {
-        GetEngine()->WriteCheckpoint(database);
-        GetTransmission()->WriteCheckpoint(database);
-    }
-}
-
-void ChTrackedVehicle::ReadCheckpoint(ChCheckpoint& database) {
-    m_chassis->ReadCheckpoint(database);
-
-    for (auto& c : m_chassis_rear) {
-        c->ReadCheckpoint(database);
-    }
-
-    m_tracks[LEFT]->ReadCheckpoint(database);
-
-    m_tracks[RIGHT]->ReadCheckpoint(database);
-
-    if (m_driveline)
-        m_driveline->ReadCheckpoint(database);
-
-    if (m_powertrain_assembly) {
-        GetEngine()->ReadCheckpoint(database);
-        GetTransmission()->ReadCheckpoint(database);
+        GetEngine()->LoadCheckpoint(database);
+        GetTransmission()->LoadCheckpoint(database);
     }
 }
 

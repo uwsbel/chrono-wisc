@@ -1,13 +1,23 @@
 #=============================================================================
-# CMake configuration file for Chrono Vehicle cosimulation library
-#
-# Cannot be used stand-alone (it is loaded by parent CMake configuration file)
+# CMake configuration file for Chrono Vehicle co-simulation library
 #=============================================================================
+
+if(NOT CH_ENABLE_MODULE_VEHICLE)
+  return()
+endif()
+
+option(CH_ENABLE_MODULE_VEHICLE_COSIM "Build the Chrono vehicle co-simulation library" TRUE)
+
+if(NOT CH_ENABLE_MODULE_VEHICLE_COSIM)
+   return()
+endif()
+
+message(STATUS "\n==== Chrono Vehicle Co-simulation module ====\n")
 
 # Return now if MPI is not available
 if(NOT MPI_FOUND)
-	message(WARNING "Chrono::Vehicle cosimulation support requires MPI, but MPI not found")
-	message(STATUS "Cosimulation support disabled")
+	message(WARNING "Chrono::Vehicle co-simulation support requires MPI, but MPI not found")
+	message(STATUS "Co-simulation support disabled")
 	return()
 endif()
 
@@ -36,20 +46,30 @@ set(CV_COSIM_MBS_FILES
     mbs/ChVehicleCosimWheeledVehicleNode.cpp
     mbs/ChVehicleCosimTrackedVehicleNode.h
     mbs/ChVehicleCosimTrackedVehicleNode.cpp
-    mbs/ChVehicleCosimViperNode.h
-    mbs/ChVehicleCosimViperNode.cpp
-    mbs/ChVehicleCosimCuriosityNode.h
-    mbs/ChVehicleCosimCuriosityNode.cpp
 )
+
+if(CH_ENABLE_MODULE_ROBOT_MODELS)
+    set(CV_COSIM_MBS_FILES ${CV_COSIM_MBS_FILES}
+        mbs/ChVehicleCosimViperNode.h
+        mbs/ChVehicleCosimViperNode.cpp
+        mbs/ChVehicleCosimCuriosityNode.h
+        mbs/ChVehicleCosimCuriosityNode.cpp
+    )
+endif()
 
 set(CV_COSIM_TIRE_FILES
     tire/ChVehicleCosimTireNodeRigid.h
     tire/ChVehicleCosimTireNodeRigid.cpp
-    tire/ChVehicleCosimTireNodeFlexible.h
-    tire/ChVehicleCosimTireNodeFlexible.cpp
     tire/ChVehicleCosimTireNodeBypass.h
     tire/ChVehicleCosimTireNodeBypass.cpp
 )
+
+if(CH_ENABLE_MODULE_FEA)
+    set(CV_COSIM_TIRE_FILES ${CV_COSIM_TIRE_FILES}
+        tire/ChVehicleCosimTireNodeFlexible.h
+        tire/ChVehicleCosimTireNodeFlexible.cpp
+    )
+endif()
 
 set(CV_COSIM_TERRAIN_FILES
     terrain/ChVehicleCosimTerrainNodeChrono.h
@@ -114,6 +134,11 @@ endif()
 
 if(CH_ENABLE_MODULE_POSTPROCESS)
   list (APPEND DEPENDENCIES_VEHICLECOSIM "POSTPROCESS")
+endif()
+
+# Chrono_vehicle_cosim links to the robot models, which link to Chrono_parsers when URDF support is enabled
+if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF)
+  list (APPEND DEPENDENCIES_VEHICLECOSIM "PARSERS")
 endif()
 
 set(DEPENDENCIES_VEHICLECOSIM ${DEPENDENCIES_VEHICLECOSIM} PARENT_SCOPE)

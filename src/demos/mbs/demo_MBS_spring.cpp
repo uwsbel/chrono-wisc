@@ -17,14 +17,9 @@
 // Two bodies, connected with identical (but modeled differently) spring-dampers
 // are created side by side.
 //
-// Recall that Irrlicht uses a left-hand frame, so everything is rendered with
-// left and right flipped.
-//
 // =============================================================================
 
 #include <cstdio>
-
-#include "chrono/assets/ChVisualShapePointPoint.h"
 
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChBody.h"
@@ -53,7 +48,7 @@ double damping_coef = 1;
 // =============================================================================
 
 // Functor class implementing the force for a ChLinkTSDA link.
-// In this simple demonstration, we just reimplement the default linear spring-damper.
+// In this simple demonstration, we just re-implement the default linear spring-damper.
 class MySpringForce : public ChLinkTSDA::ForceFunctor {
     virtual double evaluate(double time,            // current time
                             double restlength,      // undeformed length
@@ -185,7 +180,7 @@ int main(int argc, char* argv[]) {
             vis_vsg->SetCameraVertical(CameraVerticalDir::Y);
             vis_vsg->SetWindowSize(1280, 800);
             vis_vsg->SetWindowPosition(100, 100);
-            vis_vsg->SetWindowTitle("Chrono VSG Springs");
+            vis_vsg->SetWindowTitle("ChLinkTSDA demo");
             vis_vsg->SetBackgroundColor(ChColor(18.0f / 255, 26.0f / 255, 32.0f / 255));
             vis_vsg->AddCamera(ChVector3d(0, 0, 12));
             vis_vsg->SetCameraAngleDeg(40);

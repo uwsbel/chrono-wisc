@@ -19,7 +19,7 @@
 #include <cassert>
 #include <algorithm>
 
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 
 #include "FMU_ForceElementTire.h"
 
@@ -65,8 +65,7 @@ FmuComponent::FmuComponent(fmi2String instanceName,
     query_point = ChVector3d(0.0);
 
     // Get default JSON file from FMU resources
-    auto resources_dir = std::string(fmuResourceLocation).erase(0, 8);
-    tire_JSON = resources_dir + "/TMeasyTire.json";
+    tire_JSON = GetResourcePath("TMeasyTire.json");
 
     // Set FIXED PARAMETERS for this FMU
     AddFmuVariable(&tire_JSON, "tire_JSON", FmuVariable::Type::String, "1", "tire JSON",         //
@@ -191,12 +190,9 @@ fmi2Status FmuComponent::exitInitializationModeIMPL() {
     return fmi2Status::fmi2OK;
 }
 
-fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint,
-                                    fmi2Real communicationStepSize,
-                                    fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+fmi2Status FmuComponent::doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     while (m_time < currentCommunicationPoint + communicationStepSize) {
-        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time),
-                              std::min(communicationStepSize, step_size));
+        fmi2Real h = std::min((currentCommunicationPoint + communicationStepSize - m_time), std::min(communicationStepSize, step_size));
 
         tire->Advance(h);
 

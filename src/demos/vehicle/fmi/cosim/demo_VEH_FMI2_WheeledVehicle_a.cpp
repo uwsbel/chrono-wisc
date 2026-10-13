@@ -34,15 +34,13 @@
 #include "chrono_vehicle/wheeled_vehicle/ChWheel.h"
 #include "chrono_vehicle/utils/ChSpeedController.h"
 #include "chrono_vehicle/utils/ChSteeringController.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
-
-#include "chrono_fmi/fmi2/ChFmuToolsImport.h"
+#include "chrono_fmi/fmi2/ChFmuForgeImport.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
@@ -116,8 +114,8 @@ class DriverSystem {
     double GetBraking() const { return braking; }
 
   private:
-    std::shared_ptr<chrono::vehicle::ChPathSteeringController> steeringPID;
-    std::shared_ptr<chrono::vehicle::ChSpeedController> speedPID;
+    std::shared_ptr<chrono::vehicle::ChPathSteeringControllerPID> steeringPID;
+    std::shared_ptr<chrono::vehicle::ChSpeedControllerPID> speedPID;
     double target_speed;
     double throttle_threshold;
     ChVector3d init_loc;
@@ -128,12 +126,11 @@ class DriverSystem {
     double braking;
 };
 
-DriverSystem::DriverSystem(ChSystem& sys, const std::string& path_filename)
-    : target_speed(10), steering(0), braking(0), throttle(0) {
+DriverSystem::DriverSystem(ChSystem& sys, const std::string& path_filename) : target_speed(10), steering(0), braking(0), throttle(0) {
     auto path = ChBezierCurve::Read(path_filename, false);
 
-    speedPID = chrono_types::make_shared<ChSpeedController>();
-    steeringPID = chrono_types::make_shared<ChPathSteeringController>(path);
+    speedPID = chrono_types::make_shared<ChSpeedControllerPID>();
+    steeringPID = chrono_types::make_shared<ChPathSteeringControllerPID>(path);
     throttle_threshold = 0.2;
 
     double look_ahead_dist = 5.0;
@@ -288,19 +285,14 @@ class PowertrainSystem {
         virtual std::string GetTemplateName() const override { return ""; }
         virtual ChCoordsys<> GetLocalDriverCoordsys() const override { return ChCoordsysd(); }
         virtual void EnableCollision(bool state) override {}
-        virtual void Construct(ChVehicle* vehicle,
-                               const ChCoordsys<>& chassisPos,
-                               double chassisFwdVel,
-                               int collision_family) override {}
+        virtual void OnInitialize(ChVehicle* vehicle, const ChCoordsys<>& chassisPos, double chassisFwdVel, int collision_family) override {}
         virtual double GetBodyMass() const override { return 1; }
         virtual ChFrame<> GetBodyCOMFrame() const override { return ChFramed(); }
         virtual ChMatrix33<> GetBodyInertia() const override { return ChMatrix33<>(1); }
     };
 };
 
-PowertrainSystem::PowertrainSystem(ChSystem& sys,
-                                   const std::string& engine_JSON,
-                                   const std::string& transmission_JSON) {
+PowertrainSystem::PowertrainSystem(ChSystem& sys, const std::string& engine_JSON, const std::string& transmission_JSON) {
     engine = ReadEngineJSON(engine_JSON);
     transmission = ReadTransmissionJSON(transmission_JSON);
     powertrain = chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission);
@@ -342,7 +334,7 @@ void PowertrainSystem::DoStep(double time, double step_size) {
 // -----------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    std::cout << filesystem::path(argv[0]).filename() << std::endl;
+    std::cout << std::filesystem::path(argv[0]).filename() << std::endl;
     std::cout << "Copyright (c) 2024 projectchrono.org\nChrono version: " << CHRONO_VERSION << "\n" << std::endl;
 
 #ifdef FMU_EXPORT_SUPPORT
@@ -369,11 +361,11 @@ int main(int argc, char* argv[]) {
     std::string out_dir = GetChronoOutputPath() + "./DEMO_WHEELEDVEHICLE_FMI_COSIM_A";
     std::string vehicle_out_dir = out_dir + "/" + vehicle_instance_name;
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
-    if (!filesystem::create_directory(filesystem::path(vehicle_out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(vehicle_out_dir))) {
         std::cout << "Error creating directory " << vehicle_out_dir << std::endl;
         return 1;
     }

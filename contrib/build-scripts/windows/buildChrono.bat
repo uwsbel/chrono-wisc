@@ -23,7 +23,6 @@ set INSTALL_DIR="C:/Install/chrono"
 
 set EIGEN3_INSTALL_DIR="C:/Packages/eigen"
 
-set BLAZE_ROOT="C:/Packages/blaze"
 set SPECTRA_INCLUDE_DIR="C:/Packages/spectra/include"
 set CRG_INSTALL_DIR="C:/Packages/openCRG"
 
@@ -35,7 +34,6 @@ set GL_INSTALL_DIR="C:/Packages/gl"
 
 set URDF_INSTALL_DIR="C:/Packages/urdf"
 
-set MATLAB_INSTALL_DIR="C:/Program Files/MATLAB/R2019a"
 set CASCADE_INSTALL_DIR="C:/OpenCASCADE-7.9.3/opencascade-7.9.3-vc14-64"
 set OPTIX_INSTALL_DIR="C:/Program Files/NVIDIA Corporation/OptiX SDK 7.5.0"
 set FASTDDS_INSTALL_DIR="C:/Program Files/eProsima/fastrtps 2.4.0"
@@ -65,7 +63,6 @@ cmake -G %BUILDSYSTEM% -B %BUILD_DIR% -S %SOURCE_DIR% ^
       -DCH_ENABLE_MODULE_COSIMULATION:BOOL=ON ^
       -DCH_ENABLE_MODULE_SENSOR:BOOL=ON ^
       -DCH_ENABLE_MODULE_MODAL:BOOL=ON ^
-      -DCH_ENABLE_MODULE_MATLAB:BOOL=ON ^
       -DCH_ENABLE_MODULE_CSHARP:BOOL=ON ^
       -DCH_ENABLE_MODULE_PYTHON:BOOL=ON ^
       -DCH_ENABLE_MODULE_SYNCHRONO:BOOL=ON ^
@@ -76,7 +73,6 @@ cmake -G %BUILDSYSTEM% -B %BUILD_DIR% -S %SOURCE_DIR% ^
       -DCH_USE_SYNCHRONO_FASTDDS:BOOL=ON ^
       -DEIGEN3_INCLUDE_DIR:PATH=%EIGEN3_INSTALL_DIR% ^
       -DIrrlicht_ROOT:PATH=%IRRLICHT_ROOT% ^
-      -DBlaze_ROOT:PATH=%BLAZE_ROOT% ^
       -DOptiX_INSTALL_DIR:PATH=%OPTIX_INSTALL_DIR% ^
       -DFastDDS_ROOT:PATH=%FASTDDS_INSTALL_DIR% ^
       -DGLEW_DIR=%GL_INSTALL_DIR%/lib/cmake/glew ^
@@ -86,7 +82,6 @@ cmake -G %BUILDSYSTEM% -B %BUILD_DIR% -S %SOURCE_DIR% ^
       -DOpenCRG_LIBRARY:FILEPATH=%CRG_INSTALL_DIR%%/lib/OpenCRG.lib ^
       -DOpenCASCADE_DIR:PATH=%CASCADE_INSTALL_DIR%/cmake ^
       -DSpectra_INCLUDE_DIR:PATH=%SPECTRA_INCLUDE_DIR%/include ^
-      -DMATLAB_SDK_ROOT:PATH=%MATLAB_INSTALL_DIR%/extern ^
       -Dvsg_DIR:PATH=%VSG_INSTALL_DIR%/lib/cmake/vsg ^
       -DvsgImGui_DIR:PATH=%VSG_INSTALL_DIR%/lib/cmake/vsgImGui ^
       -DvsgXchange_DIR:PATH=%VSG_INSTALL_DIR%%/lib/cmake/vsgXchange ^

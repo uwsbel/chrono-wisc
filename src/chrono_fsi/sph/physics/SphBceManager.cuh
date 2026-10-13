@@ -37,9 +37,9 @@ namespace sph {
 class SphBceManager {
   public:
     SphBceManager(FsiDataManager& data_mgr,             ///< FSI data
-               NodeDirections node_directions_mode,  ///< enable/disable use of FEA node direction info
-               bool verbose,                         ///< verbose terminal output
-               bool check_errors                     ///< check CUDA errors
+                  NodeDirections node_directions_mode,  ///< enable/disable use of FEA node direction info
+                  bool verbose,                         ///< verbose terminal output
+                  bool check_errors                     ///< check GPU errors
     );
 
     ~SphBceManager();
@@ -59,17 +59,17 @@ class SphBceManager {
     void UpdateMeshMarker2DStateInitial();
 
     /// Calculate fluid forces on rigid bodies.
-    void Rigid_Forces_Torques();
+    void CalcRigidBodyForces();
 
     /// Calculates fluid forces on nodes of 1-D flexible solids.
-    void Flex1D_Forces();
+    void CalcFeaMesh1DForces();
 
     /// Calculates fluid forces on nodes of 2-D flexible solids.
-    void Flex2D_Forces();
+    void CalcFeaMesh2DForces();
 
     void updateBCEAcc();
 
-    /// Complete construction of the BCE at the intial configuration of the system.
+    /// Complete construction of the BCE at the initial configuration of the system.
     void Initialize(std::vector<int> fsiBodyBceNum);
 
   private:
@@ -77,9 +77,9 @@ class SphBceManager {
     void SetForceAccumulationBlocks(std::vector<int> fsiBodyBceNum);
 
     // Calculate accelerations of solid BCE markers based on the information of the ChSystem.
-    void CalcRigidBceAcceleration();
-    void CalcFlex1DBceAcceleration();
-    void CalcFlex2DBceAcceleration();
+    void CalcRigidBodyBceAcceleration();
+    void CalcFeaMesh1DBceAcceleration();
+    void CalcFeaMesh2DBceAcceleration();
 
   private:
     FsiDataManager& m_data_mgr;  ///< FSI data manager

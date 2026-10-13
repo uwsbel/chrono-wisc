@@ -15,24 +15,31 @@
 #include "chrono/assets/ChVisualShapeLine.h"
 #include "chrono/assets/ChVisualShapePointPoint.h"
 #include "chrono/assets/ChVisualShapeSurface.h"
+#ifdef CHRONO_FEA
 #include "chrono/assets/ChVisualShapeFEA.h"
+#endif
 
 using namespace chrono;
 %}
 
 namespace chrono {
 class ChPhysicsItem;
+#ifdef CHRONO_FEA
 namespace fea {
 class ChMesh;
 class ChNodeFEAxyz;
 class ChNodeFEAxyzP;
 class ChElementBase;
-}}
+}
+#endif
+}
 
 %template(material_list) std::vector<std::shared_ptr<chrono::ChVisualMaterial>>;
 
 %shared_ptr(chrono::ChVisualShape)
+#ifdef CHRONO_FEA
 %shared_ptr(chrono::ChVisualShapeFEA)
+#endif
 %shared_ptr(chrono::ChVisualShapeModelFile)
 %shared_ptr(chrono::ChVisualShapeTriangleMesh)
 %shared_ptr(chrono::ChVisualShapeSphere)
@@ -52,9 +59,10 @@ class ChElementBase;
 %shared_ptr(chrono::ChVisualShapeSpring)
 %shared_ptr(chrono::ChVisualShapeSurface)
 
-
-
-
+#ifdef SWIGCSHARP  // --------------------------------------------------------------------- CSHARP
+// ensure SWIG knows how to handle base class overrides so we're not hiding members
+%csmethodmodifiers chrono::ChVisualShape::GetType "public new"
+#endif             // --------------------------------------------------------------------- CSHARP
 
 %include "../../../chrono/assets/ChVisualShape.h"
 %include "../../../chrono/assets/ChVisualShapeModelFile.h"
@@ -72,6 +80,6 @@ class ChElementBase;
 %include "../../../chrono/assets/ChVisualShapeLine.h"
 %include "../../../chrono/assets/ChVisualShapePointPoint.h"
 %include "../../../chrono/assets/ChVisualShapeSurface.h"
+#ifdef CHRONO_FEA
 %include "../../../chrono/assets/ChVisualShapeFEA.h"
-
-
+#endif

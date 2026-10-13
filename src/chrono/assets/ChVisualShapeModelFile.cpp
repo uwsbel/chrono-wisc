@@ -12,26 +12,26 @@
 // Authors: Alessandro Tasora
 // =============================================================================
 
+#include <filesystem>
+
 #include "chrono/assets/ChVisualShapeModelFile.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 namespace chrono {
 
 // Register into the object factory, to enable run-time dynamic creation and persistence
 CH_FACTORY_REGISTER(ChVisualShapeModelFile)
 
-ChVisualShapeModelFile::ChVisualShapeModelFile() : filename(""), scale(1) {}
+ChVisualShapeModelFile::ChVisualShapeModelFile() : ChVisualShape(Type::MODELFILE), filename(""), scale(1) {}
 
-ChVisualShapeModelFile::ChVisualShapeModelFile(const std::string& fname) : filename(fname), scale(1) {}
+ChVisualShapeModelFile::ChVisualShapeModelFile(const std::string& fname) : ChVisualShape(Type::MODELFILE), filename(fname), scale(1) {}
 
 ChAABB ChVisualShapeModelFile::GetBoundingBox() const {
-    auto ext = filesystem::path(filename).extension();
+    auto ext = std::filesystem::path(filename).extension().string();
     std::shared_ptr<ChTriangleMeshConnected> trimesh;
-    if (ext == "obj" || ext == "OBJ")
+    if (ext == ".obj" || ext == ".OBJ")
         trimesh = ChTriangleMeshConnected::CreateFromWavefrontFile(filename, false);
-    else if (ext == "stl" || ext == "STL")
+    else if (ext == ".stl" || ext == ".STL")
         trimesh = ChTriangleMeshConnected::CreateFromSTLFile(filename, true);
     if (trimesh)
         return trimesh->GetBoundingBox();

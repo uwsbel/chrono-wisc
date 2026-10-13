@@ -21,8 +21,6 @@
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/input_output/ChWriterCSV.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 #include "FEAvisualization.h"
 #include "FEAcables.h"
 
@@ -46,7 +44,7 @@ int main(int argc, char* argv[]) {
 
     // Create a Chrono physical system
     ChSystemSMC sys;
-    sys.SetGravityY();
+    sys.SetGravityZ();
 
     sys.SetNumThreads(std::min(4, ChOMP::GetNumProcs()), 0, 1);
 
@@ -63,9 +61,8 @@ int main(int argc, char* argv[]) {
     sys.Add(mesh);
 
     // Visualization of the FEM mesh.
-    // This will automatically update a triangle mesh (a ChVisualShapeTriangleMesh asset that is internally managed) by
-    // setting  proper coordinates and vertex colors as in the FEM elements. Such triangle mesh can be rendered by
-    // Irrlicht or POVray or whatever postprocessor that can handle a colored ChVisualShapeTriangleMesh).
+    // This will automatically update a triangle mesh (a ChVisualShapeTriangleMesh asset that is internally managed) by setting  proper coordinates and vertex colors as in the FEM
+    // elements. Such a triangle mesh can be rendered by any visual system that can handle a colored ChVisualShapeTriangleMesh.
 
     ChColormap::Type colormap_type = ChColormap::Type::JET;
     ChVector2d colormap_range(-0.01, 0.01);
@@ -88,7 +85,7 @@ int main(int argc, char* argv[]) {
 
     // Create output directory
     std::string out_dir = GetChronoOutputPath() + "FEA_cables/";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cerr << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
@@ -133,8 +130,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Create the run-time visualization system
-    auto vis = CreateVisualizationSystem(vis_type, CameraVerticalDir::Y, sys, "Cables FEM",        //
-                                         ChVector3d(-0.8, -0.3, -1.8), ChVector3d(0, -0.4, -0.3),  //
+    auto vis = CreateVisualizationSystem(vis_type, CameraVerticalDir::Z, sys, "Cables FEM",        //
+                                         ChVector3d(-0.8, -1.8, -0.3), ChVector3d(0, -0.3, -0.4),  //
                                          true, "Mz (Nm)", colormap_range, colormap_type);
 
     // Set integrator
@@ -155,6 +152,7 @@ int main(int argc, char* argv[]) {
         vis->BeginScene();
         vis->Render();
         vis->EndScene();
+
         sys.DoStepDynamics(step);
     }
 

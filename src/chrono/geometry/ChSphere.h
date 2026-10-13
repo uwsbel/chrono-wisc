@@ -45,13 +45,16 @@ class ChApi ChSphere : public ChVolume {
     /// Return the gyration matrix for this solid.
     virtual ChMatrix33<> GetGyration() const override;
 
+    /// Return the principal gyration moments for this solid.
+    ChVector3d GetGyrationXX() const;
+
     /// Compute bounding box along the directions of the shape definition frame.
     virtual ChAABB GetBoundingBox() const override;
 
     /// Return the radius of a bounding sphere for this geometry.
     virtual double GetBoundingSphereRadius() const override;
 
-    virtual ChVector3d Baricenter() const override { return ChVector3d(0); }
+    virtual ChVector3d Barycenter() const override { return ChVector3d(0); }
 
     /// Evaluate position in box volume.
     virtual ChVector3d Evaluate(double parU, double parV, double parW) const override {
@@ -68,8 +71,11 @@ class ChApi ChSphere : public ChVolume {
     /// Return the volume of this type of solid with given dimensions.
     static double CalcVolume(double radius);
 
-    /// Return the gyration matrix of this type of solid with given dimensions.
+    /// Return the gyration matrix for this type of solid with given dimensions.
     static ChMatrix33<> CalcGyration(double radius);
+
+    /// Return the principal gyration moments for this type of solid with given dimensions.
+    static ChVector3d CalcGyrationXX(double radius);
 
     /// Return the bounding box of this type of solid with given dimensions.
     static ChAABB CalcBoundingBox(double radius);

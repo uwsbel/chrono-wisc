@@ -21,17 +21,12 @@
 #include <cstdio>
 #include <iomanip>
 
-#include "chrono/assets/ChVisualShapeTriangleMesh.h"
-#include "chrono/assets/ChVisualMaterial.h"
-#include "chrono/assets/ChVisualShape.h"
 #include "chrono/geometry/ChTriangleMeshConnected.h"
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChMassProperties.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/core/ChRandom.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #include "chrono_sensor/sensors/ChCameraSensor.h"
 #include "chrono_sensor/sensors/ChGPSSensor.h"
@@ -131,7 +126,7 @@ int main(int argc, char* argv[]) {
     auto mmesh = ChTriangleMeshConnected::CreateFromWavefrontFile(
         GetChronoDataFile("models/bulldozer/shoe_collision.obj"), false, true);
     mmesh->Transform(ChVector3d(0, 0, 0), ChMatrix33<>(1));  // scale to a different size
-    mmesh->RepairDuplicateVertexes(1e-9);
+    mmesh->RepairDuplicateVertices(1e-9);
 
     double mmass;
     ChVector3d mcog;
@@ -293,11 +288,18 @@ int main(int argc, char* argv[]) {
     manager->SetMaxEngines(num_groups);  // THIS NEEDS MORE PERFORMANCE TESTING
     manager->SetVerbose(false);
 
-    // make some changes/additions to the scene
-    unsigned int p0_idx = manager->scene->AddPointLight({10, 10, 10}, {1, 1, 1}, 1000);
-    ChOptixLight p0 = manager->scene->GetLights()[p0_idx];
-    unsigned int p1_idx = manager->scene->AddPointLight({10, 10, 10}, {0, 0, 1}, 1000);
-    ChOptixLight p1 = manager->scene->GetLights()[p1_idx];
+    // make some changes/additions to the scene.
+    // The two point lights are animated in the simulation loop below through the
+    // backend-neutral ChOptixScene::ModifyPointLight overload, so their state is tracked here
+    // rather than read back out of the scene.
+    const float light_range = 1000.f;
+    ChVector3f p0_pos(10, 10, 10);
+    ChColor p0_color(1, 1, 1);
+    unsigned int p0_idx = manager->scene->AddPointLight(p0_pos, p0_color, light_range);
+
+    ChVector3f p1_pos(10, 10, 10);
+    ChColor p1_color(0, 0, 1);
+    unsigned int p1_idx = manager->scene->AddPointLight(p1_pos, p1_color, light_range);
 
     // set the background
     Background b;
@@ -517,19 +519,21 @@ int main(int argc, char* argv[]) {
 
         scalebox->SetRot(QuatFromAngleY(ch_time * .3));
 
-        p0.pos = {-orbit_radius * cos(ch_time * orbit_rate * 2), -orbit_radius * sin(ch_time * orbit_rate * 2), 10};
-        manager->scene->ModifyPointLight(p0_idx, p0);
+        // orbit the first light around the scene
+        p0_pos = ChVector3f((float)(-orbit_radius * cos(ch_time * orbit_rate * 2)), (float)(-orbit_radius * sin(ch_time * orbit_rate * 2)), 10.f);
+        manager->scene->ModifyPointLight(p0_idx, p0_pos, p0_color, light_range);
 
-        p1.specific.point.color = {p1.specific.point.color.x, p1.specific.point.color.y, p1.specific.point.color.z + light_change};
-        if (p1.specific.point.color.z < 0) {
-            p1.specific.point.color = make_float3(0, 0, 0);
+        // cycle the second light's blue channel up and down
+        p1_color.B += light_change;
+        if (p1_color.B < 0) {
+            p1_color.B = 0;
             light_change = -light_change;
         }
-        if (p1.specific.point.color.z > 1) {
-            p1.specific.point.color = make_float3(0, 0, 1);
+        if (p1_color.B > 1) {
+            p1_color.B = 1;
             light_change = -light_change;
         }
-        manager->scene->ModifyPointLight(p1_idx, p1);
+        manager->scene->ModifyPointLight(p1_idx, p1_pos, p1_color, light_range);
 
         // origin->SetRot(QuatFromAngleZ(ch_time * orbit_rate));
         // origin->SetPos({0, 0, 3 * sin(ch_time * orbit_rate)});

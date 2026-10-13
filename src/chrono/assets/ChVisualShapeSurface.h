@@ -24,15 +24,13 @@ namespace chrono {
 /// Class for referencing a ChSurface u,v, parametric surface that can be visualized in some way.
 class ChApi ChVisualShapeSurface : public ChVisualShape {
   public:
-    ChVisualShapeSurface() : wireframe(false), resolution_U(5), resolution_V(5) {}
-
-    ChVisualShapeSurface(std::shared_ptr<ChSurface> msurf)
-        : gsurface(msurf), wireframe(false), resolution_U(5), resolution_V(5) {}
+    ChVisualShapeSurface();
+    ChVisualShapeSurface(std::shared_ptr<ChSurface> surf);
 
     ~ChVisualShapeSurface() {}
 
     /// Get the surface  geometry.
-    std::shared_ptr<ChSurface> GetSurfaceGeometry() { return gsurface; }
+    std::shared_ptr<ChSurface> GetSurfaceGeometry() const { return gsurface; }
 
     /// Set the surface geometry.
     void SetSurfaceGeometry(std::shared_ptr<ChSurface> ms) { gsurface = ms; }
@@ -44,10 +42,10 @@ class ChApi ChVisualShapeSurface : public ChVisualShape {
     void SetWireframe(bool mw) { wireframe = mw; }
 
     /// Subdivision density for tessellation.
-    int GetResolutionU() { return resolution_U; }
+    int GetResolutionU() const { return resolution_U; }
 
     /// Subdivision density for tessellation.
-    int GetResolutionV() { return resolution_V; }
+    int GetResolutionV() const { return resolution_V; }
 
     /// Set u- subdivision density for tessellation.
     void SetResolutionU(int mr) { resolution_U = mr; }

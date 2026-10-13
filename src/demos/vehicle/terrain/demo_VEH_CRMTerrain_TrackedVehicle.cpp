@@ -36,10 +36,10 @@
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/tracked_vehicle/vehicle/TrackedVehicle.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/terrain/CRMTerrain.h"
+#include "chrono_vehicle/ChVehicleVisualSystem.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/cxxopts/ChCLI.h"
 
 #ifdef CHRONO_VSG
@@ -65,21 +65,15 @@ std::shared_ptr<ChBezierCurve> CreatePath(const std::string& path_file);
 void CreateFSITracks(std::shared_ptr<TrackedVehicle> vehicle, CRMTerrain& terrain);
 
 // Callback for setting initial SPH particle properties
-class SPHPropertiesCallbackWithPressureScale : public ChFsiProblemSPH::ParticlePropertiesCallback {
+class SPHPropertiesCallbackWithPressureScale : public DepthPressurePropertiesCallback {
   public:
-    SPHPropertiesCallbackWithPressureScale(double zero_height, double pre_pressure_scale)
-        : ParticlePropertiesCallback(), zero_height(zero_height), pre_pressure_scale(pre_pressure_scale) {}
+    SPHPropertiesCallbackWithPressureScale(double zero_height, double pre_pressure_scale) : DepthPressurePropertiesCallback(zero_height), pre_pressure_scale(pre_pressure_scale) {}
 
     virtual void set(const ChFsiFluidSystemSPH& sysSPH, const ChVector3d& pos) override {
-        double gz = std::abs(sysSPH.GetGravitationalAcceleration().z());
-        p0 = sysSPH.GetDensity() * gz * (zero_height - pos.z());
-        rho0 = sysSPH.GetDensity();
-        mu0 = sysSPH.GetViscosity();
-        v0 = ChVector3d(0, 0, 0);
-        pre_pressure_scale0 = pre_pressure_scale;
+        DepthPressurePropertiesCallback::set(sysSPH, pos);
+        consolidation_pressure = pre_pressure_scale * p0;
     }
 
-    double zero_height;
     double pre_pressure_scale;
 };
 
@@ -160,7 +154,7 @@ int main(int argc, char* argv[]) {
     terrain.RegisterVehicle(vehicle.get());
 
     // Set SPH parameters and soil material properties
-    ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
+    ChFsiFluidSystemSPH::SoilProperties mat_props;
     mat_props.density = density;
     mat_props.Young_modulus = youngs_modulus;
     mat_props.Poisson_ratio = poisson_ratio;
@@ -180,14 +174,14 @@ int main(int argc, char* argv[]) {
         mat_props.mcc_kappa = kappa;
         mat_props.mcc_lambda = lambda;
     }
-    terrain.SetElasticSPH(mat_props);
+    terrain.SetCrmSPH(mat_props);
 
     // Set SPH solver parameters
     ChFsiFluidSystemSPH::SPHParameters sph_params;
     sph_params.integration_scheme = IntegrationScheme::RK2;
     sph_params.initial_spacing = initial_spacing;
     sph_params.d0_multiplier = 1.3;
-    sph_params.free_surface_threshold = 2.0;
+    sph_params.free_surface_threshold = 2.4;
     sph_params.artificial_viscosity = 0.5;
     sph_params.viscosity_method = ViscosityMethod::ARTIFICIAL_BILATERAL;
     sph_params.boundary_method = BoundaryMethod::HOLMES;
@@ -206,14 +200,8 @@ int main(int argc, char* argv[]) {
 
     // Register the SPH properties callback
     // TODO check if the zero height is correct
-    double terrain_length = 6;
-    double terrain_width = 3;
     double terrain_height = 0.5;
-    double terrain_center_x = terrain_length / 2;
-    double terrain_center_y = 0;
-    double terrain_center_z = -terrain_height;
-    auto props_cb =
-        chrono_types::make_shared<SPHPropertiesCallbackWithPressureScale>(terrain_height, pre_pressure_scale);
+    auto props_cb = chrono_types::make_shared<SPHPropertiesCallbackWithPressureScale>(terrain_height, pre_pressure_scale);
     terrain.RegisterParticlePropertiesCallback(props_cb);
 
     // Add track shoes as FSI bodies
@@ -223,20 +211,24 @@ int main(int argc, char* argv[]) {
     cout << "Create terrain..." << endl;
 
     // Construct flat rectangular CRM terrain
-    // terrain.Construct(ChVector3d(terrain_length, terrain_width, terrain_height),
-    //                   ChVector3d(terrain_center_x, terrain_center_y, terrain_center_z),
-    //                   BoxSide::ALL & ~BoxSide::Z_POS & ~BoxSide::Y_NEG & ~BoxSide::Y_POS);
+    ////double terrain_length = 6;
+    ////double terrain_width = 3;
+    ////double terrain_center_x = terrain_length / 2;
+    ////double terrain_center_y = 0;
+    ////double terrain_center_z = -terrain_height;
+    ////terrain.Construct(ChVector3d(terrain_length, terrain_width, terrain_height), ChVector3d(terrain_center_x, terrain_center_y, terrain_center_z),
+    ////                  BoxSide::ALL & ~BoxSide::Z_POS & ~BoxSide::Y_NEG & ~BoxSide::Y_POS);
+
     // Construct the terrain using SPH particles and BCE markers from files
-    terrain.Construct(GetVehicleDataFile(terrain_dir + "/sph_particles.txt"),
-                      GetVehicleDataFile(terrain_dir + "/bce_markers.txt"), VNULL);
+    terrain.Construct(GetVehicleDataFile(terrain_dir + "/sph_particles.txt"), GetVehicleDataFile(terrain_dir + "/bce_markers.txt"), VNULL);
 
     // Initialize the terrain system
     terrain.Initialize();
 
     const auto& aabb = terrain.GetSPHBoundingBox();
-    cout << "  SPH particles:     " << terrain.GetNumSPHParticles() << endl;
-    cout << "  Bndry BCE markers: " << terrain.GetNumBoundaryBCEMarkers() << endl;
-    cout << "  SPH AABB:          " << aabb.min << "   " << aabb.max << endl;
+    cout << "  SPH particles:        " << terrain.GetNumSPHParticles() << endl;
+    cout << "  Boundary BCE markers: " << terrain.GetNumBoundaryBCEMarkers() << endl;
+    cout << "  SPH AABB:             " << aabb.min << "   " << aabb.max << endl;
 
     // Create driver
     cout << "Create path..." << endl;
@@ -293,7 +285,7 @@ int main(int argc, char* argv[]) {
 
     // Set up output directory
     std::string base_dir = GetChronoOutputPath();
-    filesystem::create_directory(filesystem::path(base_dir));
+    CreateOutputDirectory(std::filesystem::path(base_dir));
 
     // Create output directory name with rheology model and parameters
     std::stringstream ss;
@@ -307,11 +299,11 @@ int main(int argc, char* argv[]) {
     }
     ss << "/";
     std::string out_dir = ss.str();
-    filesystem::create_directory(filesystem::path(out_dir));
+    CreateOutputDirectory(std::filesystem::path(out_dir));
 
     // Create snapshots directory if enabled
     if (snapshots) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "snapshots"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "snapshots"))) {
             std::cerr << "Error creating directory " << out_dir + "snapshots" << std::endl;
         }
     }
@@ -321,7 +313,7 @@ int main(int argc, char* argv[]) {
     std::ofstream stats_output(stats_file);
     stats_output << "time,x,y,z,vx,vy,vz,ax,ay,az,qw,qx,qy,qz,wx,wy,wz" << std::endl;
 
-    while (time < tend) {
+    while (true) {
         const auto& veh_loc = vehicle->GetPos();
 
         // Stop before end of patch
@@ -354,8 +346,7 @@ int main(int argc, char* argv[]) {
                 if (verbose)
                     cout << " -- Snapshot frame " << render_frame << " at t = " << time << endl;
                 std::ostringstream filename;
-                filename << out_dir << "snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
-                         << ".jpg";
+                filename << out_dir << "snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".jpg";
                 vis->WriteImageToFile(filename.str());
             }
 
@@ -363,12 +354,15 @@ int main(int argc, char* argv[]) {
         }
         if (!render) {
             std::cout << time << "  " << terrain.GetRtfCFD() << "  " << terrain.GetRtfMBD() << std::endl;
+            if (time > tend)
+                break;
         }
 
         // Synchronize systems
         driver.Synchronize(time);
         terrain.Synchronize(time);
-        vis->Synchronize(time, driver_inputs);
+        if (vis)
+            vis->Synchronize(time, driver_inputs);
         vehicle->Synchronize(time, driver_inputs, shoe_forces_left, shoe_forces_right);
 
         // Write vehicle stats to CSV
@@ -379,22 +373,22 @@ int main(int argc, char* argv[]) {
         const auto& veh_rot = vehicle->GetRot();
         const auto& veh_angvel = chassis_body->GetAngVelParent();
 
-        stats_output << time << "," << veh_pos.x() << "," << veh_pos.y() << "," << veh_pos.z() << "," << veh_vel.x()
-                     << "," << veh_vel.y() << "," << veh_vel.z() << "," << veh_acc.x() << "," << veh_acc.y() << ","
-                     << veh_acc.z() << "," << veh_rot.e0() << "," << veh_rot.e1() << "," << veh_rot.e2() << ","
-                     << veh_rot.e3() << "," << veh_angvel.x() << "," << veh_angvel.y() << "," << veh_angvel.z()
-                     << std::endl;
+        stats_output << time << "," << veh_pos.x() << "," << veh_pos.y() << "," << veh_pos.z() << "," << veh_vel.x() << "," << veh_vel.y() << "," << veh_vel.z() << ","
+                     << veh_acc.x() << "," << veh_acc.y() << "," << veh_acc.z() << "," << veh_rot.e0() << "," << veh_rot.e1() << "," << veh_rot.e2() << "," << veh_rot.e3() << ","
+                     << veh_angvel.x() << "," << veh_angvel.y() << "," << veh_angvel.z() << std::endl;
 
         // Advance system state
         // Note: CRMTerrain::Advance also performs the vehicle dynamics
         if (sph_params.use_variable_time_step) {
             driver.Advance(meta_step_size);
-            vis->Advance(meta_step_size);
+            if (vis)
+                vis->Advance(meta_step_size);
             terrain.Advance(meta_step_size);
             time += meta_step_size;
         } else {
             driver.Advance(step_size);
-            vis->Advance(step_size);
+            if (vis)
+                vis->Advance(step_size);
             terrain.Advance(step_size);
             time += step_size;
         }
@@ -498,8 +492,7 @@ void CreateFSITracks(std::shared_ptr<TrackedVehicle> vehicle, CRMTerrain& terrai
         }
     }
 
-    cout << "Consider " << geometry->coll_boxes.size() << " collision boxes out of " << track_geometry.coll_boxes.size()
-         << endl;
+    cout << "Consider " << geometry->coll_boxes.size() << " collision boxes out of " << track_geometry.coll_boxes.size() << endl;
 
     // Add an FSI body and associated BCE markers for each track shoe
     size_t num_track_BCE = 0;

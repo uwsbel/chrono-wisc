@@ -23,6 +23,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
+#include <thrust/pair.h>
 #include <thrust/execution_policy.h>
 
 namespace chrono {

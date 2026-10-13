@@ -13,7 +13,6 @@
 // =============================================================================
 
 #include "chrono/physics/ChSystem.h"
-#include "chrono/utils/ChUtils.h"
 
 #include "chrono/input_output/ChOutputASCII.h"
 #ifdef CHRONO_HAS_HDF5
@@ -29,64 +28,15 @@ using std::endl;
 namespace chrono {
 namespace parsers {
 
-ChParserYAML::ChParserYAML()
-    : m_name("model"),
-      m_data_path(DataPathType::ABS),
-      m_rel_path("."),
-      m_verbose(false),
-      m_use_degrees(true),
-      m_output_dir(".") {}
-
-// -----------------------------------------------------------------------------
-
-void ChParserYAML::CheckVersion(const YAML::Node& a) {
-    std::string chrono_version = a.as<std::string>();
-
-    auto first = chrono_version.find(".");
-    ChAssertAlways(first != std::string::npos);
-    std::string chrono_major = chrono_version.substr(0, first);
-
-    ChAssertAlways(first < chrono_version.size() - 1);
-    chrono_version = &chrono_version[first + 1];
-
-    auto second = chrono_version.find(".");
-    if (second == std::string::npos)
-        second = chrono_version.size();
-    std::string chrono_minor = chrono_version.substr(0, second);
-
-    ChAssertAlways(chrono_major == CHRONO_VERSION_MAJOR);
-    ChAssertAlways(chrono_minor == CHRONO_VERSION_MINOR);
+ChParserYAML::ChParserYAML() : m_name("model"), m_verbose(false), m_use_degrees(true), m_output_dir(".") {
+    m_vis_settings.image_dir = "./images";
 }
 
 // -----------------------------------------------------------------------------
-
-std::string ChParserYAML::ToUpper(std::string in) {
-    std::transform(in.begin(), in.end(), in.begin(), ::toupper);
-    return in;
-}
-
-std::string ChParserYAML::GetDatafilePath(const std::string& filename) {
-    std::string full_filename = "";
-    switch (m_data_path) {
-        case DataPathType::ABS:
-            full_filename = filename;
-            break;
-        case DataPathType::REL:
-            full_filename = m_script_directory + "/" + m_rel_path + "/" + filename;
-            break;
-    }
-
-    auto filepath = filesystem::path(full_filename);
-
-    ChAssertAlways(filepath.exists());
-    ChAssertAlways(filepath.is_file());
-
-    return full_filename;
-}
 
 ChParserYAML::YamlFileType ChParserYAML::ReadYamlFileType(const std::string& yaml_filename) {
-    auto path = filesystem::path(yaml_filename);
-    if (!path.exists() || !path.is_file()) {
+    auto path = std::filesystem::path(yaml_filename);
+    if (!exists(path) || !is_regular_file(path)) {
         cerr << "Error: file '" << yaml_filename << "' not found." << endl;
         throw std::runtime_error("File not found");
     }
@@ -96,7 +46,7 @@ ChParserYAML::YamlFileType ChParserYAML::ReadYamlFileType(const std::string& yam
 }
 
 ChParserYAML::YamlFileType ChParserYAML::ReadYamlFileType(const YAML::Node& a) {
-    auto type = ToUpper(a.as<std::string>());
+    auto type = ChToUpper(a.as<std::string>());
     if (type == "MBS")
         return YamlFileType::MBS;
     if (type == "SPH")
@@ -107,278 +57,119 @@ ChParserYAML::YamlFileType ChParserYAML::ReadYamlFileType(const YAML::Node& a) {
         return YamlFileType::FSI;
     if (type == "VEHICLE")
         return YamlFileType::VEHICLE;
-    return YamlFileType::UNKNOWN;
-}
+    if (type == "CUSTOM")
+        return YamlFileType::CUSTOM;
 
-ChParserYAML::DataPathType ChParserYAML::ReadDataPathType(const YAML::Node& a) {
-    auto type = ToUpper(a.as<std::string>());
-    if (type == "RELATIVE")
-        return DataPathType::REL;
-    else
-        return DataPathType::ABS;
-}
-
-ChVector3d ChParserYAML::ReadVector(const YAML::Node& a) {
-    ChAssertAlways(a.IsSequence());
-    ChAssertAlways(a.size() == 3);
-    return ChVector3d(a[0].as<double>(), a[1].as<double>(), a[2].as<double>());
-}
-
-ChQuaterniond ChParserYAML::ReadRotation(const YAML::Node& a, bool use_degrees) {
-    ChAssertAlways(a.IsSequence());
-    ChAssertAlways(a.size() == 3 || a.size() == 4);
-
-    return (a.size() == 3) ? ReadCardanAngles(a, use_degrees) : ReadQuaternion(a);
-}
-
-ChQuaterniond ChParserYAML::ReadQuaternion(const YAML::Node& a) {
-    ChAssertAlways(a.IsSequence());
-    ChAssertAlways(a.size() == 4);
-    return ChQuaterniond(a[0].as<double>(), a[1].as<double>(), a[2].as<double>(), a[3].as<double>());
-}
-
-ChQuaterniond ChParserYAML::ReadCardanAngles(const YAML::Node& a, bool use_degrees) {
-    ChAssertAlways(a.IsSequence());
-    ChAssertAlways(a.size() == 3);
-    ChVector3d angles = ReadVector(a);
-
-    if (use_degrees)
-        angles *= CH_DEG_TO_RAD;
-
-    ChQuaterniond q1 = QuatFromAngleZ(angles.x());  // roll
-    ChQuaterniond q2 = QuatFromAngleY(angles.y());  // pitch
-    ChQuaterniond q3 = QuatFromAngleX(angles.z());  // yaw
-
-    ChQuaterniond q = q1 * q2 * q3;
-
-    return q;
-}
-
-ChCoordsysd ChParserYAML::ReadCoordinateSystem(const YAML::Node& a, bool use_degrees) {
-    ChAssertAlways(a["location"]);
-    ChAssertAlways(a["orientation"]);
-    return ChCoordsysd(ReadVector(a["location"]), ReadRotation(a["orientation"], use_degrees));
-}
-
-std::shared_ptr<ChFunction> ChParserYAML::ReadFunction(const YAML::Node& a, bool use_degrees) {
-    ChAssertAlways(a["type"]);
-    auto type = ToUpper(a["type"].as<std::string>());
-
-    bool repeat = false;
-    double repeat_start = 0;
-    double repeat_width = 0;
-    double repeat_shift = 0;
-    if (a["repeat"]) {
-        repeat = true;
-        repeat_start = a["repeat"]["start"].as<double>();
-        repeat_width = a["repeat"]["width"].as<double>();
-        repeat_shift = a["repeat"]["shift"].as<double>();
-    }
-
-    std::shared_ptr<ChFunction> f_base = nullptr;
-    bool is_controller = false;
-    if (type == "CONSTANT") {
-        ChAssertAlways(a["value"]);
-        auto value = a["value"].as<double>();
-        f_base = chrono_types::make_shared<ChFunctionConst>(value);
-    } else if (type == "POLYNOMIAL") {
-        ChAssertAlways(a["coefficients"]);
-        ChAssertAlways(a["coefficients"].IsSequence());
-        auto num_coeffs = a["coefficients"].size();
-        std::vector<double> coeffs;
-        for (size_t i = 0; i < num_coeffs; i++)
-            coeffs.push_back(a["coefficients"][i].as<double>());
-        auto f_poly = chrono_types::make_shared<ChFunctionPoly>();
-        f_poly->SetCoefficients(coeffs);
-        f_base = f_poly;
-    } else if (type == "SINE") {
-        ChAssertAlways(a["amplitude"]);
-        ChAssertAlways(a["frequency"]);
-        double amplitude = a["amplitude"].as<double>();
-        double frequency = a["frequency"].as<double>();
-        double phase = 0;
-        if (a["phase"])
-            phase = a["phase"].as<double>();
-        double shift = 0;
-        if (a["shift"])
-            shift = a["shift"].as<double>();
-        if (use_degrees)
-            phase *= CH_DEG_TO_RAD;
-        f_base = chrono_types::make_shared<ChFunctionSine>(amplitude, frequency, phase, shift);
-    } else if (type == "RAMP") {
-        ChAssertAlways(a["slope"]);
-        auto slope = a["slope"].as<double>();
-        double intercept = 0;
-        if (a["intercept"])
-            intercept = a["intercept"].as<double>();
-        f_base = chrono_types::make_shared<ChFunctionRamp>(intercept, slope);
-    } else if (type == "DATA") {
-        ChAssertAlways(a["data"]);                 // key 'data' must exist
-        ChAssertAlways(a["data"].IsSequence());    // 'data' must be an array
-        ChAssertAlways(a["data"][0].size() == 2);  // each entry in 'data' must have size 2
-        auto num_points = a["data"].size();
-        auto f_interp = chrono_types::make_shared<ChFunctionInterp>();
-        for (size_t i = 0; i < num_points; i++) {
-            double t = a["data"][i][0].as<double>();
-            double f = a["data"][i][1].as<double>();
-            f_interp->AddPoint(t, f);
-        }
-        f_base = f_interp;
-    } else if (type == "CONTROLLER") {
-        is_controller = true;
-        f_base = chrono_types::make_shared<ChFunctionSetpoint>();
-    } else {
-        cerr << "Incorrect function type: " << a["type"] << endl;
-        throw std::runtime_error("Incorrect function type");
-    }
-    //// TODO - more function types
-
-    // Check if base function must be repeated
-    if (repeat && !is_controller) {
-        // Yes: construct and return repeated function
-        auto f_repeat = chrono_types::make_shared<ChFunctionRepeat>(f_base, repeat_start, repeat_width, repeat_shift);
-        return f_repeat;
-    } else {
-        // No: return base underlying function
-        return f_base;
-    }
-}
-
-ChColor ChParserYAML::ReadColor(const YAML::Node& a) {
-    ChAssertAlways(a.IsSequence());
-    ChAssertAlways(a.size() == 3);
-    return ChColor(a[0].as<float>(), a[1].as<float>(), a[2].as<float>());
-}
-
-ChOutput::Type ChParserYAML::ReadOutputType(const YAML::Node& a) {
-    auto type = ToUpper(a.as<std::string>());
-    if (type == "ASCII")
-        return ChOutput::Type::ASCII;
-    if (type == "HDF5")
-        return ChOutput::Type::HDF5;
-    return ChOutput::Type::NONE;
-}
-
-ChOutput::Mode ChParserYAML::ReadOutputMode(const YAML::Node& a) {
-    auto mode = ToUpper(a.as<std::string>());
-    if (mode == "SERIES")
-        return ChOutput::Mode::SERIES;
-    if (mode == "FRAMES")
-        return ChOutput::Mode::FRAMES;
-    return ChOutput::Mode::FRAMES;
+    // Report an unrecognized value rather than letting it pass as a deliberate CUSTOM declaration:
+    // a misspelled type would otherwise be indistinguishable from a file meant for application code.
+    cerr << "Warning: unrecognized YAML file type '" << a.as<std::string>() << "'; treating it as CUSTOM." << endl;
+    return YamlFileType::CUSTOM;
 }
 
 // -----------------------------------------------------------------------------
 
-void ChParserYAML::PrintNodeType(const YAML::Node& node) {
-    switch (node.Type()) {
-        case YAML::NodeType::Null:
-            cout << " Null" << endl;
-            break;
-        case YAML::NodeType::Scalar:
-            cout << " Scalar" << endl;
-            break;
-        case YAML::NodeType::Sequence:
-            cout << " Sequence" << endl;
-            break;
-        case YAML::NodeType::Map:
-            cout << " Map" << endl;
-            break;
-        case YAML::NodeType::Undefined:
-            cout << " Undefined" << endl;
-            break;
-    }
+void ChParserYAML::LoadSimData(const YAML::Node& yaml) {
+    // Output (optional)
+    if (yaml["output"])
+        m_output_settings = ChOutput::Settings::Read(yaml["output"]);
+
+    // Run-time visualization (optional)
+    if (yaml["visualization"])
+        m_vis_settings = ChVisualSystem::Settings::Read(yaml["visualization"]);
 }
 
 // -----------------------------------------------------------------------------
-
-ChParserYAML::OutputParameters::OutputParameters()
-    : type(ChOutput::Type::NONE), mode(ChOutput::Mode::FRAMES), fps(100) {}
-
-void ChParserYAML::OutputParameters::PrintInfo() {
-    if (type == ChOutput::Type::NONE) {
-        cout << "no output" << endl;
-        return;
-    }
-
-    cout << "output" << endl;
-    cout << "  type:                 " << ChOutput::GetOutputTypeAsString(type) << endl;
-    cout << "  mode:                 " << ChOutput::GetOutputModeAsString(mode) << endl;
-    cout << "  output FPS:           " << fps << endl;
-}
-
-bool ChParserYAML::Output() const {
-    return m_output.type != ChOutput::Type::NONE;
-}
 
 void ChParserYAML::SetOutputDir(const std::string& out_dir) {
-    auto p = filesystem::path(out_dir);
-    if (!p.exists() || !p.is_directory()) {
-        std::cerr << "The specified path " << out_dir << " is not a valid directory." << std::endl;
-        throw std::runtime_error("Invalid directory");
+    m_output_dir = out_dir;
+    m_vis_settings.image_dir = out_dir + "/images";
+
+    if (m_output_settings.format != ChOutput::Format::NONE) {
+        auto p = std::filesystem::path(m_output_dir);
+        if (!exists(p) || !is_directory(p)) {
+            std::cerr << "The path " << m_output_dir << " is not a valid directory." << std::endl;
+            throw std::runtime_error("Invalid directory");
+        }
     }
 
-    m_output_dir = out_dir;
+    if (m_vis_settings.write_images) {
+        bool success = CreateOutputDirectory(std::filesystem::path(m_vis_settings.image_dir));
+        if (!success) {
+            std::cerr << "Error creating image output directory " << m_vis_settings.image_dir << std::endl;
+            throw std::runtime_error("Could not create image output directory");
+        }
+    }
 
     if (m_verbose) {
-        auto filename = m_output_dir + "/" + m_name;
-        switch (m_output.type) {
-            case ChOutput::Type::ASCII:
-                filename += ".txt";
-                break;
-            case ChOutput::Type::HDF5:
+        if (m_output_settings.format != ChOutput::Format::NONE) {
+            auto filename = m_output_dir + "/" + m_name + "." + ChOutput::GetModeAsString(m_output_settings.mode);
+            switch (m_output_settings.format) {
+                case ChOutput::Format::ASCII:
+                    cout << "Output file: " << filename << ".txt" << endl;
+                    break;
+                case ChOutput::Format::HDF5:
 #ifdef CHRONO_HAS_HDF5
-                filename += ".h5";
-                break;
+                    cout << "Output file: " << filename << ".h5" << endl;
+                    break;
 #else
-                return;
+                    cerr << "HDF5 not available. No output file will be generated" << endl;
 #endif
+            }
         }
-        cout << "Output file: " << filename << endl;
+
+        if (m_vis_settings.write_images) {
+            cout << "Image directory: " << m_vis_settings.image_dir << endl;
+        }
     }
 }
 
-void ChParserYAML::ReadOutputParams(const YAML::Node& a) {
-    ChAssertAlways(a["type"]);
-    m_output.type = ReadOutputType(a["type"]);
-#ifndef CHRONO_HAS_HDF5
-    if (m_output.type == ChOutput::Type::HDF5) {
-        std::cerr << "HDF5 output support not available.\nOutput disabled." << std::endl;
-        m_output.type = ChOutput::Type::NONE;
-        return;
-    }
-#endif
-
-    if (a["mode"])
-        m_output.mode = ReadOutputMode(a["mode"]);
-    if (a["fps"])
-        m_output.fps = a["fps"].as<double>();
-}
-
-void ChParserYAML::SaveOutput(int frame) {
-    if (m_output.type == ChOutput::Type::NONE)
+void ChParserYAML::WriteOutput(int frame, double time) {
+    if (m_output_settings.format == ChOutput::Format::NONE)
         return;
 
     // Create the output DB if needed
     if (!m_output_db) {
-        auto filename = m_output_dir + "/" + m_name;
-        switch (m_output.type) {
-            case ChOutput::Type::ASCII:
-                filename += ".txt";
-                m_output_db = chrono_types::make_shared<ChOutputASCII>(filename);
+        switch (m_output_settings.format) {
+            case ChOutput::Format::ASCII:
+                m_output_db = chrono_types::make_shared<ChOutputASCII>(m_output_dir, m_name, m_output_settings.mode);
                 break;
-            case ChOutput::Type::HDF5:
+            case ChOutput::Format::HDF5:
 #ifdef CHRONO_HAS_HDF5
-                filename += ".h5";
-                m_output_db = chrono_types::make_shared<ChOutputHDF5>(filename, m_output.mode);
+                m_output_db = chrono_types::make_shared<ChOutputHDF5>(m_output_dir, m_name, m_output_settings.mode);
                 break;
 #else
-                return;
+                break;
 #endif
         }
-
-        m_output_db->Initialize();
     }
+}
+
+// -----------------------------------------------------------------------------
+
+void ChParserYAML::Output(double time) {
+    static int output_frame = 0;
+    if (time >= output_frame / m_output_settings.fps) {
+        WriteOutput(output_frame, time);
+        output_frame++;
+    }
+}
+
+bool ChParserYAML::Render(ChVisualSystem& vis_sys, double time) {
+    if (!vis_sys.Run())
+        return false;
+
+    static int render_frame = 0;
+    if (time >= render_frame / m_vis_settings.render_fps) {
+        vis_sys.Render();
+        if (m_vis_settings.write_images) {
+            std::ostringstream filename;
+            filename << m_vis_settings.image_dir << "/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << "." << m_vis_settings.image_type;
+            vis_sys.WriteImageToFile(filename.str());
+        }
+        render_frame++;
+    }
+
+    return true;
 }
 
 }  // end namespace parsers

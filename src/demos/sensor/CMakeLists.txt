@@ -5,6 +5,20 @@ set(DEMOS
   demo_SEN_GPSIMU
 )
 
+if(CH_USE_SENSOR_VULKAN_RT)
+    set(DEMOS ${DEMOS}
+        demo_SEN_buildtest
+        demo_SEN_JSON
+        demo_SEN_camera
+        demo_SEN_cornell_box
+        demo_SEN_phys_cam
+        demo_SEN_lidar
+        demo_SEN_radar
+        demo_SEN_radar1
+        demo_SEN_tachometer
+    )
+endif()
+
 if(CH_USE_SENSOR_OPTIX)
 
   set(DEMOS ${DEMOS}
@@ -29,27 +43,91 @@ if(CH_USE_SENSOR_OPTIX)
         demo_SEN_deformableSoil
       )
   endif()
-  
+
+  # Quarter-panel reflection comparison scene (no Irrlicht needed; uses the sensor viewer)
+  if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
+      set(DEMOS ${DEMOS}
+        demo_SEN_metal_quarterpanel
+      )
+  endif()
+
+  if(CH_ENABLE_MODULE_FSI_SPH AND CH_ENABLE_MODULE_VEHICLE)
+      set(DEMOS ${DEMOS}
+        demo_SEN_CRM_Rendering
+      )
+  endif()
+
 endif()
+
+if(CH_USE_SENSOR_METAL_RT)
+    set(DEMOS ${DEMOS}
+        demo_SEN_buildtest
+        demo_SEN_JSON
+        demo_SEN_camera
+        demo_SEN_lidar
+        demo_SEN_radar
+        demo_SEN_phys_cam
+        demo_SEN_tachometer
+        demo_SEN_cornell_box
+        demo_SEN_radar1
+    )
+
+    if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
+        set(DEMOS ${DEMOS}
+          demo_SEN_metal_quarterpanel
+        )
+    endif()
+
+    # Sensor + vehicle dynamics demos (need the Irrlicht run-time visualization)
+    if(CH_ENABLE_MODULE_IRRLICHT AND CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
+        set(DEMOS ${DEMOS}
+          demo_SEN_HMMWV
+          demo_SEN_Gator
+          demo_SEN_deformableSoil
+        )
+    endif()
+endif()
+
+
+# 1:1 Vulkan-vs-OptiX camera validation. Needs Vulkan RT; with OptiX also enabled it does the
+# in-process comparison, with Vulkan alone it captures the Vulkan image for a cross-GPU diff.
+if(CH_USE_SENSOR_VULKAN_RT)
+    set(DEMOS ${DEMOS}
+        demo_SEN_vulkan_validation
+    )
+endif()
+
+list(REMOVE_DUPLICATES DEMOS)
 
 #--------------------------------------------------------------
-# Include directories, compiler flags, libraries
+# Dependency libraries
 
 list(APPEND LIBRARIES Chrono_core)
-list(APPEND LIBRARIES "Chrono_sensor")
-
-if(CH_ENABLE_MODULE_IRRLICHT)
-    list(APPEND LIBRARIES "Chrono_irrlicht")
-endif()
+list(APPEND LIBRARIES ChronoModels_robot)
+list(APPEND LIBRARIES Chrono_sensor)
 
 if(CH_ENABLE_MODULE_VEHICLE) 
-   if(CH_ENABLE_MODULE_IRRLICHT)
-      list(APPEND LIBRARIES "Chrono_vehicle")
-      list(APPEND LIBRARIES "Chrono_vehicle_irrlicht")
-   endif()
+   list(APPEND LIBRARIES Chrono_vehicle)
    if(CH_ENABLE_MODULE_VEHICLE_MODELS)
-      list(APPEND LIBRARIES "ChronoModels_vehicle")
+      list(APPEND LIBRARIES ChronoModels_vehicle)
    endif()
+endif()
+
+if(CH_ENABLE_MODULE_IRRLICHT)
+   list(APPEND LIBRARIES Chrono_irrlicht)
+   if(CH_ENABLE_MODULE_VEHICLE) 
+      list(APPEND LIBRARIES Chrono_vehicle_irrlicht)
+   endif()
+endif()
+
+if(CH_ENABLE_MODULE_VSG)
+    list(APPEND LIBRARIES Chrono_vsg)
+    if(CH_ENABLE_MODULE_VEHICLE) 
+       list(APPEND LIBRARIES Chrono_vehicle_vsg)
+    endif()
+    if(CH_ENABLE_MODULE_FSI_SPH)
+       list(APPEND LIBRARIES Chrono_fsisph_vsg)
+    endif()
 endif()
 
 #--------------------------------------------------------------

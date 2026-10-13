@@ -12,6 +12,8 @@
 // Authors: Radu Serban
 // =============================================================================
 
+#include <filesystem>
+
 #include "chrono/utils/ChUtils.h"
 
 #include "chrono_parsers/yaml/ChParserFsiYAML.h"
@@ -21,8 +23,6 @@
 #ifdef CHRONO_FSI_TDPF
     #include "chrono_parsers/yaml/ChParserTdpfYAML.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using std::cout;
 using std::cerr;
@@ -40,80 +40,12 @@ ChParserFsiYAML::~ChParserFsiYAML() {}
 
 // -----------------------------------------------------------------------------
 
-std::shared_ptr<utils::ChBodyGeometry> ChParserFsiYAML::ReadCollisionGeometry(const YAML::Node& a) {
-    auto geometry = chrono_types::make_shared<utils::ChBodyGeometry>();
-
-    size_t num_shapes = a.size();
-
-    for (size_t i = 0; i < num_shapes; i++) {
-        const YAML::Node& shape = a[i];
-        ChAssertAlways(shape["type"]);
-        std::string type = ToUpper(shape["type"].as<std::string>());
-
-        if (type == "SPHERE") {
-            ChAssertAlways(shape["location"]);
-            ChAssertAlways(shape["radius"]);
-            ChVector3d pos = ReadVector(shape["location"]);
-            double radius = shape["radius"].as<double>();
-            geometry->coll_spheres.push_back(utils::ChBodyGeometry::SphereShape(pos, radius, -1));
-        } else if (type == "BOX") {
-            ChAssertAlways(shape["location"]);
-            ChAssertAlways(shape["orientation"]);
-            ChAssertAlways(shape["dimensions"]);
-            ChVector3d pos = ReadVector(shape["location"]);
-            ChQuaterniond rot = ReadRotation(shape["orientation"], m_use_degrees);
-            ChVector3d dims = ReadVector(shape["dimensions"]);
-            geometry->coll_boxes.push_back(utils::ChBodyGeometry::BoxShape(pos, rot, dims, -1));
-        } else if (type == "CYLINDER") {
-            ChAssertAlways(shape["location"]);
-            ChAssertAlways(shape["axis"]);
-            ChAssertAlways(shape["radius"]);
-            ChAssertAlways(shape["length"]);
-            ChVector3d pos = ReadVector(shape["location"]);
-            ChVector3d axis = ReadVector(shape["axis"]);
-            double radius = shape["radius"].as<double>();
-            double length = shape["length"].as<double>();
-            geometry->coll_cylinders.push_back(utils::ChBodyGeometry::CylinderShape(pos, axis, radius, length, -1));
-        } else if (type == "HULL") {
-            ChAssertAlways(shape["filename"]);
-            std::string filename = shape["filename"].as<std::string>();
-            geometry->coll_hulls.push_back(utils::ChBodyGeometry::ConvexHullsShape(GetDatafilePath(filename), -1));
-        } else if (type == "MESH") {
-            ChAssertAlways(shape["filename"]);
-            std::string filename = shape["filename"].as<std::string>();
-            ChVector3d pos = VNULL;
-            ChQuaterniond rot = QUNIT;
-            double scale = 1;
-            double radius = 0;
-            if (shape["location"])
-                pos = ReadVector(shape["location"]);
-            if (shape["orientation"])
-                rot = ReadRotation(shape["orientation"], m_use_degrees);
-            if (shape["scale"])
-                scale = shape["scale"].as<double>();
-            if (shape["contact_radius"])
-                radius = shape["contact_radius"].as<double>();
-            geometry->coll_meshes.push_back(
-                utils::ChBodyGeometry::TrimeshShape(pos, rot, GetDatafilePath(filename), scale, radius, -1));
-        }
-    }
-
-    return geometry;
-}
-
 void ChParserFsiYAML::LoadFile(const std::string& yaml_filename) {
     YAML::Node yaml;
 
     // Load FSI YAML file
-    {
-        auto path = filesystem::path(yaml_filename);
-        if (!path.exists() || !path.is_file()) {
-            cerr << "Error: file '" << yaml_filename << "' not found." << endl;
-            throw std::runtime_error("File not found");
-        }
-        m_script_directory = path.parent_path().str();
-        yaml = YAML::LoadFile(yaml_filename);
-    }
+    yaml = YAML::LoadFile(yaml_filename);
+    m_file_handler.SetReferenceDirectory(yaml_filename);
 
     // Check version compatibility
     ChAssertAlways(yaml["chrono-version"]);
@@ -129,8 +61,8 @@ void ChParserFsiYAML::LoadFile(const std::string& yaml_filename) {
     ChAssertAlways(yaml["fluid"]);
     auto mbs_fname = yaml["mbs"].as<std::string>();
     auto fluid_fname = yaml["fluid"].as<std::string>();
-    auto mbs_filename = m_script_directory + "/" + mbs_fname;
-    auto fluid_filename = m_script_directory + "/" + fluid_fname;
+    auto mbs_filename = m_file_handler.GetReferenceDirectory() + "/" + mbs_fname;
+    auto fluid_filename = m_file_handler.GetReferenceDirectory() + "/" + fluid_fname;
     if (m_verbose) {
         cout << "\n-------------------------------------------------" << endl;
         cout << "\n[ChParserFsiYAML] Loading Chrono::FSI specification from: " << yaml_filename << "\n" << endl;
@@ -177,12 +109,7 @@ void ChParserFsiYAML::LoadFsiData(const YAML::Node& yaml) {
     if (yaml["angle_degrees"])
         m_use_degrees = yaml["angle_degrees"].as<bool>();
 
-    if (yaml["data_path"]) {
-        ChAssertAlways(yaml["data_path"]["type"]);
-        m_data_path = ReadDataPathType(yaml["data_path"]["type"]);
-        if (yaml["data_path"]["root"])
-            m_rel_path = yaml["data_path"]["root"].as<std::string>();
-    }
+    m_file_handler.Read(yaml);
 
     // Read FSI bodies
     if (yaml["fsi_bodies"]) {
@@ -191,7 +118,7 @@ void ChParserFsiYAML::LoadFsiData(const YAML::Node& yaml) {
         for (int i = 0; i < fsi_bodies.size(); i++) {
             FsiBody fsi_body;
             fsi_body.name = fsi_bodies[i]["name"].as<std::string>();
-            fsi_body.geometry = ReadCollisionGeometry(fsi_bodies[i]["shapes"]);
+            fsi_body.geometry = ReadCollisionGeometry(fsi_bodies[i]["shapes"], m_file_handler, m_use_degrees);
             m_fsi_bodies.push_back(fsi_body);
         }
     }
@@ -199,18 +126,14 @@ void ChParserFsiYAML::LoadFsiData(const YAML::Node& yaml) {
     if (m_verbose) {
         cout << "model name: '" << m_name << "'" << endl;
         cout << "angles in degrees? " << (m_use_degrees ? "true" : "false") << endl;
-        switch (m_data_path) {
-            case ChParserYAML::DataPathType::ABS:
-                cout << "using absolute file paths" << endl;
-                break;
-            case ChParserYAML::DataPathType::REL:
-                cout << "using file paths relative to: '" << m_rel_path << "'" << endl;
-                break;
-        }
+        m_file_handler.PrintInfo();
     }
 }
 
 void ChParserFsiYAML::LoadSimData(const YAML::Node& yaml) {
+    // Read common simulation settings
+    ChParserYAML::LoadSimData(yaml);
+
     // Simulation settings
     ChAssertAlways(yaml["simulation"]);
     auto sim = yaml["simulation"];
@@ -221,40 +144,10 @@ void ChParserFsiYAML::LoadSimData(const YAML::Node& yaml) {
     if (sim["gravity"])
         m_sim.gravity = ReadVector(sim["gravity"]);
 
-    // Run-time visualization (optional)
-    if (yaml["visualization"]) {
-        m_vis.render = true;
-        auto vis = yaml["visualization"];
-        ChAssertAlways(vis["render_fps"]);
-        m_vis.render_fps = vis["render_fps"].as<double>();
-        if (vis["enable_shadows"])
-            m_vis.enable_shadows = vis["enable_shadows"].as<bool>();
-        if (vis["camera"]) {
-            if (vis["camera"]["vertical"]) {
-                auto camera_vertical = ToUpper(vis["camera"]["vertical"].as<std::string>());
-                if (camera_vertical == "Y")
-                    m_vis.camera_vertical = CameraVerticalDir::Y;
-                else if (camera_vertical == "Z")
-                    m_vis.camera_vertical = CameraVerticalDir::Z;
-                else {
-                    cerr << "Incorrect camera vertical " << vis["camera"]["vertical"].as<std::string>() << endl;
-                    throw std::runtime_error("Incorrect camera vertical");
-                }
-            }
-            if (vis["camera"]["location"])
-                m_vis.camera_location = ReadVector(vis["camera"]["location"]);
-            if (vis["camera"]["target"])
-                m_vis.camera_target = ReadVector(vis["camera"]["target"]);
-        }
-
-    } else {
-        m_vis.render = false;
-    }
-
     if (m_verbose) {
         m_sim.PrintInfo();
         cout << endl;
-        m_vis.PrintInfo();
+        m_vis_settings.PrintInfo();
     }
 }
 
@@ -328,7 +221,7 @@ void ChParserFsiYAML::CreateFsiSystem() {
                 if (bodies.empty())
                     cerr << "  Warning: No body with name '" << fsi_body.name << "' was found. Ignoring." << endl;
                 for (const auto& body : bodies)
-                    problemTDPF->AddFsiBody(body, fsi_body.geometry, true);
+                    problemTDPF->AddRigidBody(body, fsi_body.geometry, true);
             }
 
             // Initialize the FSI problem (now that an MBS system and FSI solids are specified)
@@ -356,9 +249,23 @@ void ChParserFsiYAML::CreateFsiSystem() {
 
 // -----------------------------------------------------------------------------
 
-bool ChParserFsiYAML::Output() const {
-    if (m_parserMBS && m_parserCFD)
-        return m_parserMBS->Output() || m_parserCFD->Output();
+bool ChParserFsiYAML::VisualizationEnabled() const {
+    if (m_parserMBS && m_parserMBS->VisualizationEnabled())
+        return true;
+
+    if (m_parserCFD && m_parserCFD->VisualizationEnabled())
+        return true;
+
+    return false;
+}
+
+bool ChParserFsiYAML::OutputEnabled() const {
+    if (m_parserMBS && m_parserMBS->OutputEnabled())
+        return true;
+
+    if (m_parserCFD && m_parserCFD->OutputEnabled())
+        return true;
+
     return false;
 }
 
@@ -367,7 +274,7 @@ void ChParserFsiYAML::SetOutputDir(const std::string& out_dir) {
 
     if (m_parserMBS) {
         std::string out_dir_MBS = out_dir + "/mbs";
-        if (filesystem::create_directory(filesystem::path(out_dir_MBS))) {
+        if (CreateOutputDirectory(std::filesystem::path(out_dir_MBS))) {
             m_parserMBS->SetOutputDir(out_dir_MBS);
         } else {
             std::cerr << "Error creating directory " << out_dir_MBS << std::endl;
@@ -377,7 +284,7 @@ void ChParserFsiYAML::SetOutputDir(const std::string& out_dir) {
 
     if (m_parserCFD) {
         std::string out_dir_CFD = out_dir + "/fluid";
-        if (filesystem::create_directory(filesystem::path(out_dir_CFD))) {
+        if (CreateOutputDirectory(std::filesystem::path(out_dir_CFD))) {
             m_parserCFD->SetOutputDir(out_dir_CFD);
         } else {
             std::cerr << "Error creating directory " << out_dir_CFD << std::endl;
@@ -386,37 +293,30 @@ void ChParserFsiYAML::SetOutputDir(const std::string& out_dir) {
     }
 }
 
+void ChParserFsiYAML::Output(double time) {
+    static int output_frame_MBS = 0;
+    static int output_frame_CFD = 0;
+
+    if (m_parserMBS->OutputEnabled() && time >= output_frame_MBS / m_parserMBS->GetOutputFPS()) {
+        m_parserMBS->WriteOutput(output_frame_MBS, time);
+        output_frame_MBS++;
+    }
+
+    if (m_parserCFD->OutputEnabled() && time >= output_frame_CFD / m_parserCFD->GetOutputFPS()) {
+        m_parserCFD->WriteOutput(output_frame_CFD, time);
+        output_frame_CFD++;
+    }
+}
+
 // -----------------------------------------------------------------------------
 
 ChParserFsiYAML::SimParams::SimParams() : end_time(-1), gravity({0, 0, -9.8}) {}
 
-void ChParserFsiYAML::SimParams::PrintInfo() {
+void ChParserFsiYAML::SimParams::PrintInfo() const {
     cout << "co-simulation parameters" << endl;
     cout << "   co-sim meta-step:  " << step << endl;
     cout << "   end time:          " << (end_time > 0 ? std::to_string(end_time) : "undefined") << endl;
     cout << "   gravitational acc: " << gravity << endl;
-}
-
-ChParserFsiYAML::VisParams::VisParams()
-    : render(false),
-      render_fps(120),
-      camera_vertical(CameraVerticalDir::Z),
-      camera_location({0, -1, 0}),
-      camera_target({0, 0, 0}),
-      enable_shadows(true) {}
-
-void ChParserFsiYAML::VisParams::PrintInfo() {
-    if (!render) {
-        cout << "no run-time visualization" << endl;
-        return;
-    }
-
-    cout << "run-time visualization" << endl;
-    cout << "  render FPS:           " << render_fps << endl;
-    cout << "  enable shadows?       " << std::boolalpha << enable_shadows << endl;
-    cout << "  camera vertical dir:  " << (camera_vertical == CameraVerticalDir::Y ? "Y" : "Z") << endl;
-    cout << "  camera location:      " << camera_location << endl;
-    cout << "  camera target:        " << camera_target << endl;
 }
 
 }  // namespace parsers

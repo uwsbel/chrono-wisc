@@ -27,11 +27,11 @@
 #include "chrono/fea/ChElementBeamEuler.h"
 #include "chrono/fea/ChBuilderBeam.h"
 #include "chrono/fea/ChMesh.h"
-#include "chrono/assets/ChVisualShapeFEA.h"
 #include "chrono/fea/ChLinkNodeFrame.h"
 #include "chrono/fea/ChLinkNodeSlopeFrame.h"
 #include "chrono/fea/ChContactSurfaceMesh.h"
 #include "chrono/fea/ChContactSurfaceNodeCloud.h"
+
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
 
 #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
@@ -236,7 +236,7 @@ int main(int argc, char* argv[]) {
     while (vis->Run()) {
         vis->BeginScene();
         vis->Render();
-        tools::drawGrid(vis.get(), 0.1, 0.1, 20, 20, CSYSNORM, ChColor(0.4f, 0.4f, 0.4f), true);
+        tools::DrawGrid(vis.get(), 0.1, 0.1, 20, 20, CSYSNORM, ChColor(0.4f, 0.4f, 0.4f), true);
 
         sys.DoStepDynamics(step);
 

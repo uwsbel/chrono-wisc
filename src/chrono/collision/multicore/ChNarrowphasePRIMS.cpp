@@ -16,6 +16,8 @@
 //
 // =============================================================================
 
+#include <cmath>
+
 #include "chrono/multicore_math/thrust.h"
 
 #include "chrono/collision/multicore/ChNarrowphase.h"
@@ -58,7 +60,7 @@ bool sphere_sphere(const real3& pos1,
         return false;
 
     // Generate contact information.
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     norm = delta / dist;
     pt1 = pos1 + norm * radius1;
     pt2 = pos2 - norm * radius2;
@@ -111,7 +113,7 @@ bool capsule_sphere(const real3& pos1,
         return false;
 
     // Generate contact information.
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     norm = delta / dist;
     pt1 = loc + norm * radius1;
     pt2 = pos2 - norm * radius2;
@@ -165,7 +167,7 @@ bool cylinder_sphere(const real3& pos1,
         return false;
 
     // Generate contact information
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     depth = dist - radius2;
     norm = Rotate(delta / dist, rot1);
     pt1 = TransformLocalToParent(pos1, rot1, cylPos);
@@ -191,7 +193,7 @@ bool cylinder_sphere(const real3& pos1,
 
 // RoundedCylinder-sphere narrow phase collision detection.
 // In:  roundedcyl at pos1, with orientation rot1
-//              roundedcyl has radius1 and half-length hlen1 (in Z direction)
+//              roundedcyl has (outer) radius1 and half-length hlen1 (in Z direction)
 //              radius of the sweeping sphere is srad1
 //      sphere centered at pos2 with radius2
 
@@ -212,8 +214,9 @@ bool roundedcyl_sphere(const real3& pos1,
     real3 spherePos = TransformParentToLocal(pos1, rot1, pos2);
 
     // Snap the sphere position to the surface of the skeleton cylinder.
+    // The skeleton cylinder is obtained by shrinking the outer dimensions by the sweeping sphere radius.
     real3 cylPos = spherePos;
-    uint code = snap_to_cylinder(radius1, hlen1, cylPos);
+    uint code = snap_to_cylinder(radius1 - srad1, hlen1 - srad1, cylPos);
 
     // Quick return: no contact if the sphere center is inside the skeleton
     // cylinder.
@@ -236,7 +239,7 @@ bool roundedcyl_sphere(const real3& pos1,
         return false;
 
     // Generate contact information.
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     depth = dist - radSum;
     norm = Rotate(delta / dist, rot1);
     pt2 = pos2 - norm * radius2;
@@ -295,7 +298,7 @@ bool box_sphere(const real3& pos1,
         return false;
 
     // Generate contact information
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     depth = dist - radius2;
     norm = Rotate(delta / dist, rot1);
     pt1 = TransformLocalToParent(pos1, rot1, boxPos);
@@ -314,7 +317,7 @@ bool box_sphere(const real3& pos1,
 
 // RoundedBox-sphere narrow phase collision detection.
 // In:  roundedbox at position pos1, with orientation rot1
-//              roundedbox has half-dimensions hdims1
+//              roundedbox has (outer) half-dimensions hdims1
 //              radius of the sweeping sphere is srad1
 //      sphere centered at pos2 and with radius2
 
@@ -334,8 +337,9 @@ bool roundedbox_sphere(const real3& pos1,
     real3 spherePos = TransformParentToLocal(pos1, rot1, pos2);
 
     // Snap the sphere position to the surface of the skeleton box.
+    // The skeleton box is obtained by shrinking the outer dimensions by the sweeping sphere radius.
     real3 boxPos = spherePos;
-    uint code = snap_to_box(hdims1, boxPos);
+    uint code = snap_to_box(hdims1 - srad1, boxPos);
 
     // Reduce the problem to the interaction between two spheres:
     //    (a) a sphere with radius srad1, centered at boxPos
@@ -353,7 +357,7 @@ bool roundedbox_sphere(const real3& pos1,
         return false;
 
     // Generate contact information.
-    real dist = Sqrt(dist2);
+    real dist = std::sqrt(dist2);
     depth = dist - radSum;
     norm = Rotate(delta / dist, rot1);
     pt2 = pos2 - norm * radius2;
@@ -414,7 +418,7 @@ bool triangle_sphere(const real3& A1,
         if (dist2 >= radius2_s * radius2_s || dist2 <= 1e-12f)
             return false;
 
-        real dist = Sqrt(dist2);
+        real dist = std::sqrt(dist2);
         norm = delta / dist;
         depth = dist - radius2;
         eff_radius = radius2 * edge_radius / (radius2 + edge_radius);
@@ -485,7 +489,7 @@ int capsule_capsule(const real3& pos1,
 
         // Find overlap of the two axes (as signed distances along the axis of
         // the first capsule).
-        real locs[2] = {Min(hlen1, pos.z + hlen2), Max(-hlen1, pos.z - hlen2)};
+        real locs[2] = {std::min(hlen1, pos.z + hlen2), std::max(-hlen1, pos.z - hlen2)};
 
         if (locs[0] > locs[1]) {
             // The two axes overlap. Both ends of the overlapping segment represent
@@ -547,7 +551,7 @@ int capsule_capsule(const real3& pos1,
             continue;
 
         // Generate contact information.
-        real dist = Sqrt(dist2);
+        real dist = std::sqrt(dist2);
         *(norm + j) = delta / dist;
         *(pt1 + j) = locs1[i] + (*(norm + j)) * radius1;
         *(pt2 + j) = locs2[i] - (*(norm + j)) * radius2;
@@ -596,49 +600,49 @@ int box_capsule(const real3& pos1,
     // this by clamping the capsule axis to the volume between two parallel
     // faces of the box, considering in turn the x, y, and z faces.
     real3 hdims1_exp = hdims1 + radius2_s;
-    real tMin = -C_REAL_MAX;
-    real tMax = C_REAL_MAX;
+    real tMin = -CH_REAL_MAX;
+    real tMax = CH_REAL_MAX;
 
-    if (Abs(W.x) < 1e-5) {
+    if (std::abs(W.x) < 1e-5) {
         // Capsule axis parallel to the box x-faces
-        if (Abs(pos.x) > hdims1_exp.x)
+        if (std::abs(pos.x) > hdims1_exp.x)
             return 0;
     } else {
         real t1 = (-hdims1_exp.x - pos.x) / W.x;
         real t2 = (hdims1_exp.x - pos.x) / W.x;
 
-        tMin = Max(tMin, Min(t1, t2));
-        tMax = Min(tMax, Max(t1, t2));
+        tMin = std::max(tMin, std::min(t1, t2));
+        tMax = std::min(tMax, std::max(t1, t2));
 
         if (tMin > tMax)
             return 0;
     }
 
-    if (Abs(W.y) < 1e-5) {
+    if (std::abs(W.y) < 1e-5) {
         // Capsule axis parallel to the box y-faces
-        if (Abs(pos.y) > hdims1_exp.y)
+        if (std::abs(pos.y) > hdims1_exp.y)
             return 0;
     } else {
         real t1 = (-hdims1_exp.y - pos.y) / W.y;
         real t2 = (hdims1_exp.y - pos.y) / W.y;
 
-        tMin = Max(tMin, Min(t1, t2));
-        tMax = Min(tMax, Max(t1, t2));
+        tMin = std::max(tMin, std::min(t1, t2));
+        tMax = std::min(tMax, std::max(t1, t2));
 
         if (tMin > tMax)
             return 0;
     }
 
-    if (Abs(W.z) < 1e-5) {
+    if (std::abs(W.z) < 1e-5) {
         // Capsule axis parallel to the box z-faces
-        if (Abs(pos.z) > hdims1_exp.z)
+        if (std::abs(pos.z) > hdims1_exp.z)
             return 0;
     } else {
         real t1 = (-hdims1_exp.z - pos.z) / W.z;
         real t2 = (hdims1_exp.z - pos.z) / W.z;
 
-        tMin = Max(tMin, Min(t1, t2));
-        tMax = Min(tMax, Max(t1, t2));
+        tMin = std::max(tMin, std::min(t1, t2));
+        tMax = std::min(tMax, std::max(t1, t2));
 
         if (tMin > tMax)
             return 0;
@@ -685,7 +689,7 @@ int box_capsule(const real3& pos1,
             continue;
 
         // Generate contact information.
-        real dist = Sqrt(dist2);
+        real dist = std::sqrt(dist2);
 
         *(depth + j) = dist - radius2;
         *(norm + j) = Rotate(delta / dist, rot1);
@@ -702,214 +706,6 @@ int box_capsule(const real3& pos1,
 
     // Return the number of actual contacts
     return j;
-}
-
-// =============================================================================
-//              BOX - CYLSHELL
-
-// Box-cylshell narrow phase collision detection.
-// In:  box at position pos1, with orientation rot1, and half-dimensions hdims
-//      cylshell at pos2, with orientation rot2, radius and half-length hlen (in Z direction)
-// Notes:
-// - only treat interactions when the cylinder axis is parallel to or perpendicular on a box face.
-// - for any other relative configuration report -1 contacts (which will trigger a fall-back onto MPR).
-// - a box-cylshell collision may return up to 8 contacts.
-int box_cylshell(const real3& pos1,
-                 const quaternion& rot1,
-                 const real3& hdims,
-                 const real3& pos2,
-                 const quaternion& rot2,
-                 const real& radius,
-                 const real& hlen,
-                 const real& separation,
-                 real3* norm,
-                 real* depth,
-                 real3* pt1,
-                 real3* pt2,
-                 real* eff_radius) {
-    // Express cylinder in the box frame
-    real3 c = RotateT(pos2 - pos1, rot1);    // cylinder center (expressed in box frame)
-    quaternion rot = Mult(Inv(rot1), rot2);  // cylinder orientation (w.r.t box frame)
-    real3 a = AMatW(rot);                    // cylinder axis (expressed in box frame)
-
-    real3 c_abs = Abs(c);
-    real3 a_abs = Abs(a);
-
-    static const real threshold_par = real(1e-4);   // threshold for axis parallel to face test
-    static const real threshold_perp = real(1e-4);  // threshold for axis perpendicular to face test
-
-    // Loop over the 3 box directions. Treat only the cases where the cylinder axis is almost parallel or almost
-    // perpendicular to a box face.
-    for (uint i1 = 0, i2 = 1, i3 = 2; i1 < 3; i2 = i3, i3 = i1++) {
-        // (1) Check if cylinder axis is parallel to the 'i1' box face
-        if (a_abs[i1] < threshold_par) {
-            // if cylinder too far from face, no collision
-            if (c_abs[i1] > hdims[i1] + radius + separation)
-                return 0;
-
-            // if cylinder too far into box, do nothing
-            if (c_abs[i1] < hdims[i1])
-                continue;
-
-            // clamp cylinder centerline to [i2,i3] box slabs
-            real tMin = -C_REAL_MAX;
-            real tMax = C_REAL_MAX;
-            if (a_abs[i2] > threshold_par) {
-                real t1 = (-hdims[i2] - c[i2]) / a[i2];
-                real t2 = (+hdims[i2] - c[i2]) / a[i2];
-                tMin = Max(tMin, Min(t1, t2));
-                tMax = Min(tMax, Max(t1, t2));
-                if (tMin > tMax)
-                    return 0;
-            }
-            if (a_abs[i3] > threshold_par) {
-                real t1 = (-hdims[i3] - c[i3]) / a[i3];
-                real t2 = (+hdims[i3] - c[i3]) / a[i3];
-                tMin = Max(tMin, Min(t1, t2));
-                tMax = Min(tMax, Max(t1, t2));
-                if (tMin > tMax)
-                    return 0;
-            }
-
-            // clamp tMin and tMax to cylinder axis
-            ClampValue(tMin, -hlen, +hlen);
-            ClampValue(tMax, -hlen, +hlen);
-
-            // generate two collisions (points on cylinder axis)
-            real3 locs[2] = {c + tMin * a, c + tMax * a};
-
-            for (int i = 0; i < 2; i++) {
-                // snap point to box
-                real3 boxPoint = locs[i];
-                uint code = snap_to_box(hdims, boxPoint);  // point on box (in box frame)
-                assert(code != 0);                         // point cannot be inside box
-                real3 u = locs[i] - boxPoint;              // collision direction (in box frame)
-                real u_nrm = Sqrt(Dot(u, u));              // distance between point on box and cylinder axis
-                assert(u_nrm > 0);                         // cylinder axis must be outside box
-                u = u / u_nrm;                             // collision normal (in box frame)
-                real3 cylPoint = locs[i] - radius * u;     // point on cylinder (in box frame)
-
-                *(depth + i) = u_nrm - radius;                              // depth (negative for penetration)
-                *(norm + i) = Rotate(u, rot1);                              // collision normal (in global frame)
-                *(pt1 + i) = TransformLocalToParent(pos1, rot1, boxPoint);  // point on box (in global frame)
-                *(pt2 + i) = TransformLocalToParent(pos1, rot1, cylPoint);  // point on cylinder (in global frame)
-                *(eff_radius + i) = radius;                                 // effective radius
-
-                ////std::cout << u_nrm - radius << std::endl;
-            }
-
-            return 2;
-        }
-
-        // (2) Check if cylinder axis is perpendicular to the 'i1' box face
-        if (a_abs[i1] > 1 - threshold_perp) {
-            // if cylinder too far from box, no collision
-            if (c_abs[i1] > hdims[i1] + hlen + separation)
-                return 0;
-
-            // if cylinder too far into box, do nothing
-            if (c_abs[i1] < hdims[i1])
-                continue;
-
-            // if cylinder too far to the "side", do nothing
-            if (c_abs[i2] > hdims[i2] || c_abs[i3] > hdims[i3]) {
-                continue;
-            }
-
-            // decide on "sign" of box face and set the normal direction for any resulting collisions
-            int sign = (c[i1] > 0) ? +1 : -1;
-            real3 u(0);
-            u[i1] = sign;
-
-            // working in the plane fo the 'i1' face, the circle center is at (c[i2], c[i3]).
-            // check circle intersection with each face edge (and clamp to edge length if needed).
-            // if circle does not intersect edge, create collision point on circle.
-            real discr;
-            real3 locs[8];  // collision points (expressed in box frame)
-            int nc = 0;     // keep track of number of circle-rectangle intersection points (at most 8)
-
-            // negative 'i2' edge
-            discr = radius * radius - (c[i2] + hdims[i2]) * (c[i2] + hdims[i2]);
-            if (discr > 0) {
-                real sqrt_discr = Sqrt(discr);
-                locs[nc][i2] = -hdims[i2];
-                locs[nc][i3] = Clamp(c[i2] + sqrt_discr, -hdims[i3], +hdims[i3]);
-                nc++;
-                locs[nc][i2] = -hdims[i2];
-                locs[nc][i3] = Clamp(c[i2] - sqrt_discr, -hdims[i3], +hdims[i3]);
-                nc++;
-            } else {
-                locs[nc][i2] = c[i2] - radius;
-                locs[nc][i3] = c[i3];
-                nc++;
-            }
-
-            // positive 'i2' edge
-            discr = radius * radius - (c[i2] - hdims[i2]) * (c[i2] - hdims[i2]);
-            if (discr > 0) {
-                real sqrt_discr = Sqrt(discr);
-                locs[nc][i2] = +hdims[i2];
-                locs[nc][i3] = Clamp(c[i2] + sqrt_discr, -hdims[i3], +hdims[i3]);
-                nc++;
-                locs[nc][i2] = +hdims[i2];
-                locs[nc][i3] = Clamp(c[i2] - sqrt_discr, -hdims[i3], +hdims[i3]);
-                nc++;
-            } else {
-                locs[nc][i2] = c[i2] + radius;
-                locs[nc][i3] = c[i3];
-                nc++;
-            }
-
-            // negative 'i3' edge
-            discr = radius * radius - (c[i3] + hdims[i3]) * (c[i3] + hdims[i3]);
-            if (discr > 0) {
-                real sqrt_discr = Sqrt(discr);
-                locs[nc][i3] = -hdims[i3];
-                locs[nc][i2] = Clamp(c[i3] + sqrt_discr, -hdims[i2], +hdims[i2]);
-                nc++;
-                locs[nc][i3] = -hdims[i3];
-                locs[nc][i2] = Clamp(c[i3] - sqrt_discr, -hdims[i2], +hdims[i2]);
-                nc++;
-            } else {
-                locs[nc][i3] = c[i3] - radius;
-                locs[nc][i2] = c[i2];
-                nc++;
-            }
-
-            // positive 'i3' edge
-            discr = radius * radius - (c[i3] - hdims[i3]) * (c[i3] - hdims[i3]);
-            if (discr > 0) {
-                real sqrt_discr = Sqrt(discr);
-                locs[nc][i3] = +hdims[i3];
-                locs[nc][i2] = Clamp(c[i3] + sqrt_discr, -hdims[i2], +hdims[i2]);
-                nc++;
-                locs[nc][i3] = +hdims[i3];
-                locs[nc][i2] = Clamp(c[i3] - sqrt_discr, -hdims[i2], +hdims[i2]);
-                nc++;
-            } else {
-                locs[nc][i3] = c[i3] + radius;
-                locs[nc][i2] = c[i2];
-                nc++;
-            }
-
-            // Generate collision geometric information for all interactions
-            for (int i = 0; i < nc; i++) {
-                locs[i][i1] = sign * hdims[i1];                            // point on box (in box frame)
-                *(pt1 + i) = TransformLocalToParent(pos1, rot1, locs[i]);  // point on box (in global frame)
-                locs[i][i1] = c[i1] - sign * hlen;                         // point on cylinder (in box frame)
-                *(pt2 + i) = TransformLocalToParent(pos1, rot1, locs[i]);  // point on cylinder (in global frame)
-                *(depth + i) = c[i1] - sign * hlen - sign * hdims[i1];     // depth (negative for penetration)
-                *(norm + i) = Rotate(u, rot1);                             // collision normal (in global frame)
-                *(eff_radius + i) = radius;                                // questionable as this is face-face contact
-            }
-
-            ////std::cout << "Axis perpendicular to face " << i1 << "    nc = " << nc << std::endl;
-            return nc;
-        }
-    }
-
-    // We were unable to compute collision analytically - signal fall-back to MPR
-    return -1;
 }
 
 // =============================================================================
@@ -990,7 +786,7 @@ int box_box(const real3& posT,
         *(ptT) = Rotate(cornerT, rotT) + posT;
         *(ptO) = Rotate(cornerO, rotO) + posO;
         real3 delta = penetrated * (*(ptO) - *(ptT));
-        real dist = Sqrt(Dot(delta, delta));
+        real dist = std::sqrt(Dot(delta, delta));
         *(norm) = delta / dist;
         *(depth) = penetrated * dist;
         *(eff_radius) = edge_radius / 2;
@@ -1014,7 +810,7 @@ int box_box(const real3& posT,
             locO = Rotate(locO, rotT) + posT;
 
             real3 delta = penetrated * (locO - locT);
-            real dist = Sqrt(Dot(delta, delta));
+            real dist = std::sqrt(Dot(delta, delta));
 
             if (penetrated == 1 && dist > separation)
                 return 0;
@@ -1084,7 +880,7 @@ int box_box(const real3& posT,
                     locO = Rotate(locO, rotT) + posT;
 
                     real3 delta = penetrated * (locO - locT);
-                    dist = Sqrt(Dot(delta, delta));
+                    dist = std::sqrt(Dot(delta, delta));
 
                     if (penetrated == 1 && dist > separation)
                         continue;
@@ -1142,7 +938,7 @@ int box_box(const real3& posT,
                 locO = Rotate(locO, rotO) + posO;
 
                 real3 delta = penetrated * (locO - locT);
-                dist = Sqrt(Dot(delta, delta));
+                dist = std::sqrt(Dot(delta, delta));
 
                 if (penetrated == 1 && dist > separation)
                     continue;
@@ -1198,7 +994,7 @@ int box_box(const real3& posT,
                 locO = Rotate(locO, rotT) + posT;
 
                 real3 delta = penetrated * (locO - locT);
-                dist = Sqrt(Dot(delta, delta));
+                dist = std::sqrt(Dot(delta, delta));
 
                 if (penetrated == 1 && dist > separation)
                     continue;
@@ -1301,18 +1097,18 @@ int triangle_box(const real3& pos1,
         real AB_len2 = Length2(AB);
 
         // Clamp triangle edge to extended box slabs i2 and i3
-        real tRange[2] = {-C_REAL_MAX, +C_REAL_MAX};
-        if (abs(AB[i2]) > threshold_par) {
+        real tRange[2] = {-CH_REAL_MAX, +CH_REAL_MAX};
+        if (std::abs(AB[i2]) > threshold_par) {
             real tA = (-hdims1s[i2] - A[i2]) / AB[i2];
             real tB = (+hdims1s[i2] - A[i2]) / AB[i2];
-            tRange[0] = Max(tRange[0], Min(tA, tB));
-            tRange[1] = Min(tRange[1], Max(tA, tB));
+            tRange[0] = std::max(tRange[0], std::min(tA, tB));
+            tRange[1] = std::min(tRange[1], std::max(tA, tB));
         }
-        if (abs(AB[i3]) > threshold_par) {
+        if (std::abs(AB[i3]) > threshold_par) {
             real tA = (-hdims1s[i3] - A[i3]) / AB[i3];
             real tB = (+hdims1s[i3] - A[i3]) / AB[i3];
-            tRange[0] = Max(tRange[0], Min(tA, tB));
-            tRange[1] = Min(tRange[1], Max(tA, tB));
+            tRange[0] = std::max(tRange[0], std::min(tA, tB));
+            tRange[1] = std::min(tRange[1], std::max(tA, tB));
         }
         if (tRange[0] > tRange[1])
             continue;
@@ -1333,8 +1129,8 @@ int triangle_box(const real3& pos1,
             real t = Clamp(Dot(tri_point - A, AB) / AB_len2, 0, 1);
             tri_point = A + t * AB;
 
-            if (abs(tri_point[i1]) > hdims1s[i1] || abs(tri_point[i2]) > hdims1s[i2] ||
-                abs(tri_point[i3]) > hdims1s[i3])
+            if (std::abs(tri_point[i1]) > hdims1s[i1] || std::abs(tri_point[i2]) > hdims1s[i2] ||
+                std::abs(tri_point[i3]) > hdims1s[i3])
                 continue;
 
             // Point on box
@@ -1458,18 +1254,16 @@ bool ChNarrowphase::PRIMSCollision(const ConvexBase* shapeA,  // first candidate
     }
 
     if (shapeA->Type() == ChCollisionShape::Type::ROUNDEDCYL && shapeB->Type() == ChCollisionShape::Type::SPHERE) {
-        if (roundedcyl_sphere(shapeA->A(), shapeA->R(), shapeA->Rbox().x, shapeA->Rbox().y, shapeA->Rbox().w,
-                              shapeB->A(), shapeB->Radius(), separation, *ct_norm, *ct_depth, *ct_pt1, *ct_pt2,
-                              *ct_eff_rad)) {
+        if (roundedcyl_sphere(shapeA->A(), shapeA->R(), shapeA->Rbox().x, shapeA->Rbox().z, shapeA->Rbox().w, shapeB->A(), shapeB->Radius(), separation, *ct_norm, *ct_depth,
+                              *ct_pt1, *ct_pt2, *ct_eff_rad)) {
             nC = 1;
         }
         return true;
     }
 
     if (shapeA->Type() == ChCollisionShape::Type::SPHERE && shapeB->Type() == ChCollisionShape::Type::ROUNDEDCYL) {
-        if (roundedcyl_sphere(shapeB->A(), shapeB->R(), shapeB->Rbox().x, shapeB->Rbox().y, shapeB->Rbox().w,
-                              shapeA->A(), shapeA->Radius(), separation, *ct_norm, *ct_depth, *ct_pt2, *ct_pt1,
-                              *ct_eff_rad)) {
+        if (roundedcyl_sphere(shapeB->A(), shapeB->R(), shapeB->Rbox().x, shapeB->Rbox().z, shapeB->Rbox().w, shapeA->A(), shapeA->Radius(), separation, *ct_norm, *ct_depth,
+                              *ct_pt2, *ct_pt1, *ct_eff_rad)) {
             *ct_norm = -(*ct_norm);
             nC = 1;
         }
@@ -1547,21 +1341,6 @@ bool ChNarrowphase::PRIMSCollision(const ConvexBase* shapeA,  // first candidate
             *(ct_norm + i) = -(*(ct_norm + i));
         }
         return true;
-    }
-
-    if (shapeA->Type() == ChCollisionShape::Type::BOX && shapeB->Type() == ChCollisionShape::Type::CYLSHELL) {
-        nC = box_cylshell(shapeA->A(), shapeA->R(), shapeA->Box(), shapeB->A(), shapeB->R(), shapeB->Cylshell().x,
-                          shapeB->Cylshell().y, separation, ct_norm, ct_depth, ct_pt1, ct_pt2, ct_eff_rad);
-        return (nC >= 0);
-    }
-
-    if (shapeA->Type() == ChCollisionShape::Type::CYLSHELL && shapeB->Type() == ChCollisionShape::Type::BOX) {
-        nC = box_cylshell(shapeB->A(), shapeB->R(), shapeB->Box(), shapeA->A(), shapeA->R(), shapeA->Cylshell().x,
-                          shapeA->Cylshell().y, separation, ct_norm, ct_depth, ct_pt2, ct_pt1, ct_eff_rad);
-        for (int i = 0; i < nC; i++) {
-            *(ct_norm + i) = -(*(ct_norm + i));
-        }
-        return (nC >= 0);
     }
 
     if (shapeA->Type() == ChCollisionShape::Type::BOX && shapeB->Type() == ChCollisionShape::Type::BOX) {

@@ -15,19 +15,11 @@
 #ifndef CH_PARSER_YAML_H
 #define CH_PARSER_YAML_H
 
-#include <string>
-
 #include "chrono_parsers/ChApiParsers.h"
 
-#include "chrono/ChConfig.h"
-#include "chrono/ChVersion.h"
-#include "chrono/core/ChCoordsys.h"
-#include "chrono/assets/ChColor.h"
+#include "chrono/assets/ChVisualSystem.h"
+#include "chrono/input_output/ChUtilsYAML.h"
 #include "chrono/physics/ChSystem.h"
-#include "chrono/input_output/ChOutput.h"
-
-#include "chrono_thirdparty/yaml-cpp/include/yaml-cpp/yaml.h"
-#include "chrono_thirdparty/filesystem/path.h"
 
 namespace chrono {
 namespace parsers {
@@ -38,8 +30,10 @@ namespace parsers {
 /// Base class for all YAML parsers.
 class ChApiParsers ChParserYAML {
   public:
-    /// Type of a Chrono YAML specification file.
-    enum class YamlFileType { MBS, SPH, TDPF, FSI, VEHICLE, UNKNOWN };
+    /// Type of a Chrono YAML specification file, as declared by its `type` key.
+    /// `CUSTOM` marks a file that is not consumed by any of the Chrono YAML parsers but is instead read
+    /// by application code. An unrecognized `type` value is also reported as `CUSTOM`, with a warning.
+    enum class YamlFileType { MBS, SPH, TDPF, FSI, VEHICLE, CUSTOM };
 
     ChParserYAML();
     virtual ~ChParserYAML() {}
@@ -50,100 +44,86 @@ class ChApiParsers ChParserYAML {
     /// Set root output directory (default: ".").
     /// The specified directory must exist.
     virtual void SetOutputDir(const std::string& out_dir);
-    
+
     /// Return the name of the YAML model.
     const std::string& GetName() const { return m_name; }
 
+    // Output settings
+
     /// Return true if generating output.
-    virtual bool Output() const;
+    virtual bool OutputEnabled() const { return m_output_settings.format != ChOutput::Format::NONE; }
+
+    /// Return all output settings.
+    const ChOutput::Settings& GetOutputSettings() const { return m_output_settings; }
 
     /// Return the output type.
-    ChOutput::Type GetOutputType() const { return m_output.type; }
+    ChOutput::Format GetOutputFormat() const { return m_output_settings.format; }
 
     /// Return the output mode.
-    ChOutput::Mode GetOutputMode() const { return m_output.mode; }
+    ChOutput::Mode GetOutputMode() const { return m_output_settings.mode; }
 
     /// Return the output frequency.
-    virtual double GetOutputFPS() const { return m_output.fps; }
+    virtual double GetOutputFPS() const { return m_output_settings.fps; }
 
-    /// Save simulation output results at the current time.
-    /// This base class implementation creates and initializes the output database. Derived classes must  
-    virtual void SaveOutput(int frame);
+    // Run-time visualization settings
 
-    /// Peek in specified YAML file and read the fluid system type.
-    /// Throws a runtime error if the type is unknown.
+    /// Return true if visualization is enabled.
+    virtual bool VisualizationEnabled() const { return m_vis_settings.render; }
+
+    /// Return all visualization settings.
+    const ChVisualSystem::Settings& GetVisualizationSettings() const { return m_vis_settings; }
+
+    double GetRenderFPS() const { return m_vis_settings.render_fps; }
+    CameraVerticalDir GetCameraVerticalDir() const { return m_vis_settings.camera_vertical; }
+    const ChVector3d& GetCameraLocation() const { return m_vis_settings.camera_location; }
+    const ChVector3d& GetCameraTarget() const { return m_vis_settings.camera_target; }
+    bool EnableShadows() const { return m_vis_settings.enable_shadows; }
+    bool WriteImages() const { return m_vis_settings.write_images; }
+    const std::string& GetImageDir() const { return m_vis_settings.image_dir; }
+
+    /// Load simulation settings for this parser from the specified YAML node.
+    /// This function reads settings common to all Chrono YAML parsers (run-time visualization and output).
+    /// A derived class must also read any additional parser-specific simulation settings.
+    virtual void LoadSimData(const YAML::Node& yaml);
+
+    /// Write simulation output results at the current time.
+    /// This base class implementation creates and initializes the output database. Derived classes must
+    virtual void WriteOutput(int frame, double time);
+
+    /// Peek in the specified YAML file and read the declared file type.
+    /// Throws a runtime error if the file does not exist or does not contain a `type` key. An unrecognized
+    /// `type` value is not an error: it is reported as YamlFileType::CUSTOM, with a warning.
     static YamlFileType ReadYamlFileType(const std::string& yaml_filename);
 
+    // Common utility functions
+
+    /// Generate output at the current frame.
+    /// This function ensures that output occurs at the specified frequency.
+    virtual void Output(double time);
+
+    /// Render the current frame using the specified visual system if run-time visualization is available and enabled.
+    /// Returns `false` if the visual system must shut down.
+    /// This function ensures that frames are rendered at the specified frequency.
+    /// If requested, snapshots are saved to disk.
+    virtual bool Render(ChVisualSystem& vis, double time);
+
   protected:
-    enum class DataPathType { ABS, REL };
-
-    /// Output parameters.
-    struct OutputParameters {
-        OutputParameters();
-        void PrintInfo();
-
-        ChOutput::Type type;
-        ChOutput::Mode mode;
-        double fps;
-    };
-
-    static void CheckVersion(const YAML::Node& a);
-
-    static std::string ToUpper(std::string in);
-
-    /// Read output settings from specified YAML node.
-    void ReadOutputParams(const YAML::Node& a);
-
-    /// Return the path to the specified data file.
-    std::string GetDatafilePath(const std::string& filename);
-
-    /// Read the YAML file type.
+    /// Read the YAML file type from the given node.
+    /// The value is matched case-insensitively against the recognized types. An unrecognized value is
+    /// reported as YamlFileType::CUSTOM, with a warning naming the offending value.
     static YamlFileType ReadYamlFileType(const YAML::Node& a);
 
-    /// Read the data path type (absolute or relative).
-    static DataPathType ReadDataPathType(const YAML::Node& a);
+    std::string m_name;  ///< name of the YAML model
+    bool m_verbose;      ///< verbose terminal output (default: false)
+    bool m_use_degrees;  ///< all angles given in degrees (default: true)
 
-    /// Load and return a ChVector3d from the specified node.
-    static ChVector3d ReadVector(const YAML::Node& a);
+    ChVisualSystem::Settings m_vis_settings;  ///< visualization settings
 
-    /// Load and return a ChQuaternion from the specified node.
-    static ChQuaterniond ReadQuaternion(const YAML::Node& a);
-
-    /// Load a Cardan angle sequence from the specified node and return as a quaternion.
-    /// The sequence is assumed to be extrinsic rotations X-Y-Z.
-    static ChQuaterniond ReadCardanAngles(const YAML::Node& a, bool use_degrees);
-
-    /// Return a quaternion loaded from the specified node.
-    /// Data is assumed to provide a quaternion or a Cardan extrinsic X-Y-Z angle set.
-    static ChQuaterniond ReadRotation(const YAML::Node& a, bool use_degrees);
-
-    /// Load and return a coordinate system from the specified node.
-    static ChCoordsysd ReadCoordinateSystem(const YAML::Node& a, bool use_degrees);
-
-    /// Load and return a ChFunction object from the specified node.
-    static std::shared_ptr<ChFunction> ReadFunction(const YAML::Node& a, bool use_degrees);
-
-    /// Load and return a ChColor from the specified node.
-    static ChColor ReadColor(const YAML::Node& a);
-
-    static ChOutput::Type ReadOutputType(const YAML::Node& a);
-    static ChOutput::Mode ReadOutputMode(const YAML::Node& a);
-
-    /// Print YAML node type.
-    static void PrintNodeType(const YAML::Node& node);
-
-    std::string m_name;    ///< name of the YAML model
-    bool m_verbose;        ///< verbose terminal output (default: false)
-    bool m_use_degrees;    ///< all angles given in degrees (default: true)
-
+    ChOutput::Settings m_output_settings;   ///< output settings
     std::string m_output_dir;               ///< root output directory
     std::shared_ptr<ChOutput> m_output_db;  ///< output database
 
-    DataPathType m_data_path;
-    std::string m_rel_path;
-    std::string m_script_directory;
-
-    OutputParameters m_output;
+    ChYamlFileHandler m_file_handler;  ///< handler for data file paths
 };
 
 /// @} parsers_module

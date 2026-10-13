@@ -30,9 +30,11 @@
 
 #include "chrono_vehicle/cosim/mbs/ChVehicleCosimRigNode.h"
 #include "chrono_vehicle/cosim/tire/ChVehicleCosimTireNodeRigid.h"
-#include "chrono_vehicle/cosim/tire/ChVehicleCosimTireNodeFlexible.h"
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeRigid.h"
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeSCM.h"
+#ifdef CHRONO_FEA
+    #include "chrono_vehicle/cosim/tire/ChVehicleCosimTireNodeFlexible.h"
+#endif
 #ifdef CHRONO_MULTICORE
     #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeGranularOMP.h"
 #endif
@@ -42,8 +44,6 @@
 #ifdef CHRONO_DEM
     #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeGranularDEM.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #undef CHRONO_MUMPS
 #include "demos/SetChronoSolver.h"
@@ -61,8 +61,8 @@ using namespace chrono::vehicle;
 bool GetProblemSpecs(int argc,
                      char** argv,
                      int rank,
-                     std::string& terrain_specfile,
-                     std::string& tire_specfile,
+                     std::string& terrain_file,
+                     std::string& tire_file,
                      int& nthreads_tire,
                      int& nthreads_terrain,
                      double& step_size,
@@ -215,12 +215,12 @@ int main(int argc, char** argv) {
                           ChVehicleCosimTireNode::GetTireTypeAsString(tire_type) + "_" +  //
                           ChVehicleCosimTerrainNodeChrono::GetTypeAsString(terrain_type);
     if (rank == 0) {
-        if (!filesystem::create_directory(filesystem::path(out_dir_top))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir_top))) {
             cout << "Error creating directory " << out_dir_top << endl;
             MPI_Abort(MPI_COMM_WORLD, 1);
             return 1;
         }
-        if (!filesystem::create_directory(filesystem::path(out_dir))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
             cout << "Error creating directory " << out_dir << endl;
             MPI_Abort(MPI_COMM_WORLD, 1);
             return 1;
@@ -276,6 +276,7 @@ int main(int argc, char** argv) {
                 node = tire;
                 break;
             }
+#ifdef CHRONO_FEA
             case ChVehicleCosimTireNode::TireType::FLEXIBLE: {
                 auto tire = new ChVehicleCosimTireNodeFlexible(0, tire_specfile);
                 tire->EnableTirePressure(true);
@@ -308,6 +309,7 @@ int main(int argc, char** argv) {
                 node = tire;
                 break;
             }
+#endif
             default:
                 break;
         }
@@ -505,8 +507,8 @@ int main(int argc, char** argv) {
 bool GetProblemSpecs(int argc,
                      char** argv,
                      int rank,
-                     std::string& terrain_specfile,
-                     std::string& tire_specfile,
+                     std::string& terrain_file,
+                     std::string& tire_file,
                      int& nthreads_tire,
                      int& nthreads_terrain,
                      double& step_size,
@@ -532,8 +534,8 @@ bool GetProblemSpecs(int argc,
                      std::string& suffix) {
     ChCLI cli(argv[0], "Single-wheel test rig simulation (run on 3 MPI ranks)");
 
-    cli.AddOption<std::string>("Experiment", "terrain_specfile", "Terrain specification file [JSON format]", terrain_specfile);
-    cli.AddOption<std::string>("Experiment", "tire_specfile", "Tire specification file [JSON format]", tire_specfile);
+    cli.AddOption<std::string>("Experiment", "terrain_specfile", "Terrain specification file [JSON format]", terrain_file);
+    cli.AddOption<std::string>("Experiment", "tire_specfile", "Tire specification file [JSON format]", tire_file);
 
     cli.AddOption<std::string>("Experiment", "actuation_type", "Actuation type (SET_LIN_VEL or SET_ANG_VEL)", ChVehicleCosimDBPRigImposedSlip::GetActuationTypeAsString(act_type));
     cli.AddOption<double>("Experiment", "base_vel", "Base velocity [m/s or rad/s]", std::to_string(base_vel));
@@ -570,7 +572,7 @@ bool GetProblemSpecs(int argc,
     }
 
     try {
-        terrain_specfile = cli.Get("terrain_specfile").as<std::string>();
+        terrain_file = cli.Get("terrain_specfile").as<std::string>();
     } catch (std::domain_error&) {
         if (rank == 0) {
             cout << "\nERROR: Missing terrain specification file!\n\n" << endl;
@@ -580,7 +582,7 @@ bool GetProblemSpecs(int argc,
     }
 
     try {
-        tire_specfile = cli.Get("tire_specfile").as<std::string>();
+        tire_file = cli.Get("tire_specfile").as<std::string>();
     } catch (std::domain_error&) {
         if (rank == 0) {
             cout << "\nERROR: Missing tire specification file!\n\n" << endl;

@@ -52,9 +52,6 @@ real3 SupportVertNoMargin(const chrono::ConvexBase* Shape, const real3& nv, cons
         case ChCollisionShape::Type::ROUNDEDCYL:
             localSupport = GetSupportPoint_RoundedCylinder(Shape->Rbox(), n);
             break;
-        case ChCollisionShape::Type::CYLSHELL:
-            localSupport = GetSupportPoint_CylindricalShell(Shape->Box(), n);
-            break;
         case ChCollisionShape::Type::CONVEXHULL:
             localSupport = GetSupportPoint_Convex(Shape->Size(), Shape->Convex(), n);
             break;
@@ -184,7 +181,7 @@ void FindTriIndex(const real3& P, const uvec4& T, const real3* pos_node, int& fa
     int l = T.w;
 
     real3 res, b;
-    real bestSqDist = C_REAL_MAX;
+    real bestSqDist = CH_REAL_MAX;
 
     snap_to_triangle_bary(pos_node[j], pos_node[k], pos_node[l], P, res, b);
     real sqDist = Dot(P - res);

@@ -26,8 +26,6 @@
 #include "chrono_vsg/ChVisualSystemVSG.h"
 #include "chrono_pardisomkl/ChSolverPardisoMKL.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::fea;
 using namespace chrono::vsg3d;
@@ -161,7 +159,7 @@ int main(int argc, char* argv[]) {
 
     // Create output directory
     std::string out_dir = GetChronoOutputPath() + "FEA_CHECKPOINT";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }
@@ -219,13 +217,13 @@ int main(int argc, char* argv[]) {
             if (!cp_created) {
                 {
                     ChCheckpointASCII cp(ChCheckpoint::Type::SYSTEM);
-                    cp.WriteState(&sys1);
+                    cp.Save(&sys1);
                     cp.WriteFile(cp_filename);
                 }
                 {
                     ChCheckpointASCII cp(ChCheckpoint::Type::SYSTEM);
-                    cp.OpenFile(cp_filename);
-                    cp.ReadState(&sys2);
+                    cp.ReadFile(cp_filename);
+                    cp.Load(&sys2);
                 }
                 cp_created = true;
             }

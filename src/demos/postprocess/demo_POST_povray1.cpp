@@ -17,19 +17,12 @@
 //
 // =============================================================================
 
-#include "chrono/assets/ChVisualShapeBox.h"
 #include "chrono/assets/ChCamera.h"
-#include "chrono/assets/ChVisualShapeCylinder.h"
-#include "chrono/assets/ChVisualShapeModelFile.h"
-#include "chrono/assets/ChVisualShapeSphere.h"
-#include "chrono/assets/ChTexture.h"
 #include "chrono/physics/ChParticleCloud.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/core/ChRandom.h"
 
 #include "chrono_postprocess/ChPovRay.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::postprocess;
@@ -39,7 +32,7 @@ int main(int argc, char* argv[]) {
 
     // Create output directory
     std::string out_dir = GetChronoOutputPath() + "POVRAY_1";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }

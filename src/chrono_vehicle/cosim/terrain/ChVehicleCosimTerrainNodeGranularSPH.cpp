@@ -31,8 +31,6 @@
 #include "chrono_vehicle/ChVehicleDataPath.h"
 #include "chrono_vehicle/cosim/terrain/ChVehicleCosimTerrainNodeGranularSPH.h"
 
-#include "chrono_fsi/sph/utils/SphUtilsPrint.cuh"
-
 #ifdef CHRONO_VSG
     #include "chrono_fsi/sph/visualization/ChSphVisualizationVSG.h"
 #endif
@@ -244,9 +242,9 @@ void ChVehicleCosimTerrainNodeGranularSPH::Construct() {
         auto trimesh = chrono_types::make_shared<ChTriangleMeshConnected>();
         trimesh->LoadWavefrontMesh(GetChronoDataFile(b.m_mesh_filename), true, true);
         double mass;
-        ChVector3d baricenter;
+        ChVector3d barycenter;
         ChMatrix33<> inertia;
-        trimesh->ComputeMassProperties(true, mass, baricenter, inertia);
+        trimesh->ComputeMassProperties(true, mass, barycenter, inertia);
 
         // Create obstacle body
         auto body = chrono_types::make_shared<ChBody>();
@@ -347,6 +345,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::GetForceRigidProxy(unsigned int i, Te
     rigid_contact.moment = m_terrain->GetFsiBodyTorque(proxy->bodies[0]);
 }
 
+#ifdef CHRONO_FEA
 // -----------------------------------------------------------------------------
 // Create bodies with triangular contact geometry as proxies for the mesh faces.
 // Used for flexible bodies.
@@ -447,6 +446,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::GetForceMeshProxy(unsigned int i, Mes
     ////    cout << " num contact nodes: " << mesh_contact.nv << endl;
     ////}
 }
+#endif
 
 // -----------------------------------------------------------------------------
 
@@ -469,7 +469,7 @@ void ChVehicleCosimTerrainNodeGranularSPH::OnInitialize(unsigned int num_objects
         visFSI->EnableFluidMarkers(true);
         visFSI->EnableBoundaryMarkers(false);
         visFSI->EnableRigidBodyMarkers(m_show_bce);
-        visFSI->EnableFlexBodyMarkers(m_show_bce);
+        visFSI->EnableFeaMeshMarkers(m_show_bce);
         visFSI->SetSPHColorCallback(col_callback, ChColormap::Type::BROWN);
 
         // VSG visual system (attach visFSI as plugin)
@@ -535,7 +535,9 @@ void ChVehicleCosimTerrainNodeGranularSPH::OutputVisualizationData(int frame) {
     }
 }
 
+#ifdef CHRONO_FEA
 void ChVehicleCosimTerrainNodeGranularSPH::PrintMeshProxiesUpdateData(unsigned int i, const MeshState& mesh_state) {}
+#endif
 
 }  // end namespace vehicle
 }  // end namespace chrono

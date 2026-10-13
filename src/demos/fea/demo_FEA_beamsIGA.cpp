@@ -28,15 +28,12 @@
 #include "chrono/fea/ChElementBeamIGA.h"
 #include "chrono/fea/ChBuilderBeam.h"
 #include "chrono/fea/ChMesh.h"
-#include "chrono/assets/ChVisualShapeFEA.h"
 #include "chrono/fea/ChLinkNodeFrame.h"
 #include "chrono/fea/ChLinkNodeSlopeFrame.h"
 #include "chrono/physics/ChLinkMotorRotationSpeed.h"
 #include "chrono/physics/ChLinkMotorRotationAngle.h"
 
 #include "chrono_irrlicht/ChVisualSystemIrrlicht.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #define USE_MKL
 
@@ -610,7 +607,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize output
     const std::string out_dir = GetChronoOutputPath() + "FEA_BEAMS_IGA";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }

@@ -28,7 +28,6 @@
 #include "chrono/physics/ChForce.h"
 #include "chrono/utils/ChUtilsSamplers.h"
 #include "chrono/utils/ChUtilsCreators.h"
-#include "chrono/assets/ChVisualShapeSphere.h"
 
 #include "chrono_dem/physics/ChSystemDem.h"
 #include "chrono_dem/utils/ChDemJsonParser.h"
@@ -37,8 +36,6 @@
 #ifdef CHRONO_VSG
     #include "chrono_dem/visualization/ChDemVisualizationVSG.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::dem;
@@ -105,9 +102,9 @@ void runBallDrop(ChSystemDemMesh& dem_sys, ChDemSimulationParameters& params) {
 #endif
 
     std::string out_dir = GetChronoOutputPath() + "DEM/";
-    filesystem::create_directory(filesystem::path(out_dir));
+    CreateOutputDirectory(std::filesystem::path(out_dir));
     out_dir = out_dir + params.output_dir;
-    filesystem::create_directory(filesystem::path(out_dir));
+    CreateOutputDirectory(std::filesystem::path(out_dir));
 
     float iteration_step = params.step_size;
     std::cout << "Output at    " << out_fps << " FPS" << std::endl;
@@ -186,9 +183,9 @@ int main(int argc, char* argv[]) {
 
     // Output directory
     std::string out_dir = GetChronoOutputPath() + "DEM/";
-    filesystem::create_directory(filesystem::path(out_dir));
+    CreateOutputDirectory(std::filesystem::path(out_dir));
     out_dir = out_dir + params.output_dir;
-    filesystem::create_directory(filesystem::path(out_dir));
+    CreateOutputDirectory(std::filesystem::path(out_dir));
 
     std::string checkpoint_file = out_dir + "/checkpoint.dat";
 

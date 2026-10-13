@@ -9,7 +9,7 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Radu Serban
+// Authors: Radu Serban, Davide Moricoli
 // =============================================================================
 //
 // Base class for a vehicle model.
@@ -29,11 +29,7 @@
 
 #include "chrono_vehicle/ChVehicleVisualSystem.h"
 
-#include "chrono/input_output/ChOutputASCII.h"
 #include "chrono/input_output/ChCheckpointASCII.h"
-#ifdef CHRONO_HAS_HDF5
-    #include "chrono/input_output/ChOutputHDF5.h"
-#endif
 
 namespace chrono {
 namespace vehicle {
@@ -45,10 +41,13 @@ namespace vehicle {
 ChVehicle::ChVehicle(const std::string& name, ChContactMethod contact_method)
     : m_name(name),
       m_ownsSystem(true),
-      m_output_db(nullptr),
-      m_output_step(0),
-      m_next_output_time(0),
-      m_output_frame(0),
+      m_output(false),
+      m_output_initialized(false),
+      m_out_format(ChOutput::Format::NONE),
+      m_out_mode(ChOutput::Mode::FRAMES),
+      m_out_step(0),
+      m_next_out_time(0),
+      m_out_frame(0),
       m_mass(0),
       m_inertia(0),
       m_realtime_force(false),
@@ -58,8 +57,7 @@ ChVehicle::ChVehicle(const std::string& name, ChContactMethod contact_method)
     SetVehicleTag();
 
     // Create and set containing Chrono system
-    m_system = (contact_method == ChContactMethod::NSC) ? static_cast<ChSystem*>(new ChSystemNSC)
-                                                        : static_cast<ChSystem*>(new ChSystemSMC);
+    m_system = (contact_method == ChContactMethod::NSC) ? static_cast<ChSystem*>(new ChSystemNSC) : static_cast<ChSystem*>(new ChSystemSMC);
     m_system->SetName(name + "_system");
     m_system->SetGravitationalAcceleration(-9.81 * ChWorldFrame::Vertical());
 
@@ -73,10 +71,13 @@ ChVehicle::ChVehicle(const std::string& name, ChSystem* system)
     : m_name(name),
       m_system(system),
       m_ownsSystem(false),
-      m_output_db(nullptr),
-      m_output_step(0),
-      m_next_output_time(0),
-      m_output_frame(0),
+      m_output(false),
+      m_output_initialized(false),
+      m_out_format(ChOutput::Format::NONE),
+      m_out_mode(ChOutput::Mode::FRAMES),
+      m_out_step(0),
+      m_next_out_time(0),
+      m_out_frame(0),
       m_mass(0),
       m_inertia(0),
       m_realtime_force(false),
@@ -91,7 +92,6 @@ ChVehicle::ChVehicle(const std::string& name, ChSystem* system)
 }
 
 ChVehicle::~ChVehicle() {
-    delete m_output_db;
     if (m_ownsSystem) {
         // Release references to the chassis, connectors, and powertrain
         m_powertrain_assembly = nullptr;
@@ -131,62 +131,31 @@ void ChVehicle::EnableRealtime(bool val) {
 // Enable output for this vehicle system.
 // -----------------------------------------------------------------------------
 
-void ChVehicle::SetOutput(ChOutput::Type type,
-                          ChOutput::Mode mode,
-                          const std::string& out_dir,
-                          const std::string& out_name,
-                          double output_step) {
-    if (type == ChOutput::Type::NONE)
-        return;
-
-    m_output_step = output_step;
-
-    switch (type) {
-        case ChOutput::Type::ASCII:
-            m_output_db = new ChOutputASCII(out_dir + "/" + out_name + ".txt");
-            break;
-        case ChOutput::Type::HDF5:
-#ifdef CHRONO_HAS_HDF5
-            m_output_db = new ChOutputHDF5(out_dir + "/" + out_name + ".h5", mode);
-#endif
-            break;
-    }
+void ChVehicle::SetOutput(ChOutput::Format format, ChOutput::Mode mode, const std::string& out_dir, const std::string& out_name, double output_step) {
+    m_output = (format != ChOutput::Format::NONE);
+    m_out_format = format;
+    m_out_mode = mode;
+    m_out_dir = out_dir;
+    m_out_name = out_name;
+    m_out_step = output_step;
 }
 
-void ChVehicle::SetOutput(ChOutput::Type type, ChOutput::Mode mode, std::ostream& out_stream, double output_step) {
-    if (type == ChOutput::Type::NONE)
-        return;
-
-    m_output_step = output_step;
-
-    switch (type) {
-        case ChOutput::Type::ASCII:
-            m_output_db = new ChOutputASCII(out_stream);
-            break;
-        case ChOutput::Type::HDF5:
-#ifdef CHRONO_HAS_HDF5
-            //// TODO
-#endif
-            break;
-    }
-}
-
-void ChVehicle::ExportCheckpoint(ChCheckpoint::Format format, const std::string& filename) const {
+void ChVehicle::WriteCheckpoint(ChCheckpoint::Format format, const std::string& filename) const {
     ChCheckpointASCII checkpoint_db(ChCheckpoint::Type::COMPONENT);
-    checkpoint_db.WriteTime(m_system->GetChTime());
-    WriteCheckpoint(checkpoint_db);
+
+    checkpoint_db.SetTime(m_system->GetChTime());
+
+    SaveCheckpoint(checkpoint_db);
     checkpoint_db.WriteFile(filename);
 }
 
-void ChVehicle::ImportCheckpoint(ChCheckpoint::Format format, const std::string& filename) {
-    double time;
-
+void ChVehicle::ReadCheckpoint(ChCheckpoint::Format format, const std::string& filename) {
     ChCheckpointASCII checkpoint_db(ChCheckpoint::Type::COMPONENT);
-    checkpoint_db.OpenFile(filename);
-    checkpoint_db.ReadTime(time);
-    ReadCheckpoint(checkpoint_db);
 
-    GetSystem()->SetChTime(time);
+    checkpoint_db.ReadFile(filename);
+    LoadCheckpoint(checkpoint_db);
+
+    GetSystem()->SetChTime(checkpoint_db.GetTime());
 }
 
 // -----------------------------------------------------------------------------
@@ -204,25 +173,68 @@ void ChVehicle::InitializePowertrain(std::shared_ptr<ChPowertrainAssembly> power
 }
 
 // -----------------------------------------------------------------------------
+
+void ChVehicle::Relocate(const ChVector2d& xy_pos, double yaw_angle) {
+    if (!ChWorldFrame::IsISO()) {
+        std::cerr << "ChVehicle::Relocate() can only be used with an ISO world reference frame" << std::endl;
+        throw std::runtime_error("Attempt to use ChVehicle::Relocate in a non-ISO world reference frame");
+    }
+
+    auto old_X_GV = GetRefFrame();
+    auto old_X_VG = old_X_GV.GetInverse();
+    auto old_veh_pos = old_X_GV.GetPos();
+    auto old_veh_rot = old_X_GV.GetRot();
+    auto old_veh_yaw = old_veh_rot.GetCardanAnglesZYX().z();
+
+    auto delta_rot = QuatFromAngleZ(yaw_angle - old_veh_yaw);
+    auto new_veh_pos = ChVector3d(xy_pos.x(), xy_pos.y(), old_veh_pos.z());
+    auto new_veh_rot = delta_rot * old_veh_rot;
+
+    auto new_X_GV = ChFrameMoving<>(new_veh_pos, new_veh_rot);
+
+    auto bodies = GetBodyList();
+    for (auto& body : bodies) {
+        auto old_X_GB = body->GetFrameCOMToAbs();          // (old) global -> body COM tranform
+        auto old_pos_dt = body->GetPosDt();                // (old) body linear velocity wrt global frame
+        auto old_ang_vel = body->GetAngVelParent();        // (old) body angular velocity wrt global frame
+        auto X_VB = old_X_VG * old_X_GB;                   // (constant) vehicle -> body COM transform
+        auto new_X_GB = new_X_GV * X_VB;                   // (new) global -> body COM transform
+        auto new_pos_dt = delta_rot.Rotate(old_pos_dt);    // (new) body linear velocity wrt global frame
+        auto new_ang_vel = delta_rot.Rotate(old_ang_vel);  // (new) body angular velocity wrt global frame
+
+        body->SetPos(new_X_GB.GetPos());
+        body->SetRot(new_X_GB.GetRot());
+
+        body->SetPosDt(new_pos_dt);
+        body->SetAngVelParent(new_ang_vel);
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Advance the state of the system.
 // -----------------------------------------------------------------------------
 
-void ChVehicle::Advance(double step) {
+void ChVehicle::Advance(double step, bool do_collision) {
     // Ensure the vehicle mass includes the mass of subsystems that may have been initialized after the vehicle
     if (!m_initialized) {
         InitializeInertiaProperties();
         m_initialized = true;
     }
 
-    if (m_output_db && m_system->GetChTime() >= m_next_output_time) {
-        m_output_db->Initialize();
-        Output(m_output_frame, *m_output_db);
-        m_next_output_time += m_output_step;
-        m_output_frame++;
+    // Initialize output first time it is needed
+    if (m_output && !m_output_initialized) {
+        InitializeOutput();
+        m_output_initialized = true;
+    }
+
+    if (m_output && m_system->GetChTime() >= m_next_out_time) {
+        WriteOutput(m_out_frame, m_system->GetChTime());
+        m_next_out_time += m_out_step;
+        m_out_frame++;
     }
 
     if (m_ownsSystem) {
-        m_system->DoStepDynamics(step);
+        m_system->DoStepDynamics(step, do_collision);
     }
 
     // Update inertia properties
@@ -335,7 +347,7 @@ double ChVehicle::GetPitch(const ChTerrain& terrain) const {
 }
 
 double ChVehicle::GetSlipAngle() const {
-    auto V_abs = m_chassis->GetBody()->GetFrameRefToAbs().GetPosDt();  // chassis velocity (expressed in absolute frame)
+    auto V_abs = m_chassis->GetBody()->GetFrameRefToAbs().GetPosDt();           // chassis velocity (expressed in absolute frame)
     auto V_loc = m_chassis->GetBody()->TransformDirectionParentToLocal(V_abs);  // chassis velocity in local frame
 
     // slip angle (positive sign = left turn, negative sign = right turn)

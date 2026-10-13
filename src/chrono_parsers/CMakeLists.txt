@@ -121,7 +121,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ChConfigParsers.h.in ${CV_CONFIG_FILE
 install(FILES ${CV_CONFIG_FILE} DESTINATION include/chrono_parsers)
 
 # ----------------------------------------------------------------------------
-# List the files in the Chrono_vehicle library
+# List the files in the Chrono_parsers library
 # ----------------------------------------------------------------------------
 
 set(Chrono_PARSERS_FILES 
@@ -131,15 +131,7 @@ set(Chrono_PARSERS_FILES
     ChParserAdamsTokenizer.yy.cpp
     ChParserOpenSim.h
     ChParserOpenSim.cpp
-    ChRobotActuation.h
-    ChRobotActuation.cpp
 )
-if(CH_USE_URDF)
-    set(Chrono_PARSERS_FILES ${Chrono_PARSERS_FILES}
-        ChParserURDF.h
-        ChParserURDF.cpp
-    )
-endif()
 if(CH_USE_PYTHON)
     set(Chrono_PARSERS_FILES ${Chrono_PARSERS_FILES}
         ChParserPython.h
@@ -148,72 +140,59 @@ if(CH_USE_PYTHON)
 endif()
 source_group("" FILES ${Chrono_PARSERS_FILES} ${CV_CONFIG_FILE})
 
-set(Chrono_PARSERS_YAML_FILES
-    yaml/ChParserYAML.h
-    yaml/ChParserYAML.cpp
-    yaml/ChParserMbsYAML.h
-    yaml/ChParserMbsYAML.cpp
-)
-if(CH_ENABLE_MODULE_FSI)
-    set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
-        yaml/ChParserFsiYAML.h
-        yaml/ChParserFsiYAML.cpp
-        yaml/ChParserCfdYAML.h
-        yaml/ChParserCfdYAML.cpp
+if(CH_USE_URDF)
+    set(Chrono_PARSERS_URDF_FILES
+        urdf/ChParserURDF.h
+        urdf/ChParserURDF.cpp
     )
-endif()
-if(CH_ENABLE_MODULE_FSI_SPH)
-    set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
-        yaml/ChParserSphYAML.h
-        yaml/ChParserSphYAML.cpp
-    )
-endif()
-if(CH_ENABLE_MODULE_FSI_TDPF)
-    set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
-        yaml/ChParserTdpfYAML.h
-        yaml/ChParserTdpfYAML.cpp
-    )
-endif()
-if(CH_ENABLE_MODULE_VEHICLE)
-    set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
-        yaml/ChParserVehicleYAML.h
-        yaml/ChParserVehicleYAML.cpp
-    )
-endif()
-source_group("yaml" FILES ${Chrono_PARSERS_YAML_FILES})
-
-# ------------------------------------------------------------------------------
-# Chrono YAML parser
-# ------------------------------------------------------------------------------
-
-# Check MSVC version - because of a bug 
-set(INCLUDE_YAML_PARSER YES)
-if(MSVC AND MSVC_VERSION LESS 1930)
-  # Due to a bug, yaml-cpp cannot be compiled with VS 2019 or older
-  message("WARNING: The Chrono YAML parser requires Visual Studio 2022 or newer.")
-  set(INCLUDE_YAML_PARSER NO)
-endif()
-
-if(INCLUDE_YAML_PARSER)
-    # Fetch yaml-cpp from third party directory
-    include(FetchContent)
-    
-    FetchContent_Declare(
-      yaml-cpp
-      SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/chrono_thirdparty/yaml-cpp"
-    )
-    FetchContent_MakeAvailable(yaml-cpp)
-    
-    mark_as_advanced(FORCE YAML_CPP_INSTALL)
-    mark_as_advanced(FORCE YAML_CPP_INSTALL_CMAKEDIR)
-    
-    # Disable warnings
-    if (MSVC)
-      target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4251>)
-      target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4275>)
-      target_compile_options(yaml-cpp PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/wd4267>)
+    if(CH_ENABLE_MODULE_VSG)
+        set(Chrono_PARSERS_URDF_FILES ${Chrono_PARSERS_URDF_FILES}
+            urdf/ChParserURDFVisualizationVSG.h
+            urdf/ChParserURDFVisualizationVSG.cpp 
+        )
     endif()
+    source_group("urdf" FILES ${Chrono_PARSERS_URDF_FILES})
 else()
+    message("WARNING: The Chrono URDF parser requires urdfdom. The Chrono URDF parser will NOT be built.")
+    set(Chrono_PARSERS_URDF_FILES "")
+endif()
+
+if(CHRONO_YAML_ENABLED)
+    set(Chrono_PARSERS_YAML_FILES
+        yaml/ChParserYAML.h
+        yaml/ChParserYAML.cpp
+        yaml/ChParserMbsYAML.h
+        yaml/ChParserMbsYAML.cpp
+    )
+    if(CH_ENABLE_MODULE_FSI)
+        set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
+            yaml/ChParserFsiYAML.h
+            yaml/ChParserFsiYAML.cpp
+            yaml/ChParserCfdYAML.h
+            yaml/ChParserCfdYAML.cpp
+        )
+    endif()
+    if(CH_ENABLE_MODULE_FSI_SPH)
+        set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
+            yaml/ChParserSphYAML.h
+            yaml/ChParserSphYAML.cpp
+        )
+    endif()
+    if(CH_ENABLE_MODULE_FSI_TDPF)
+        set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
+            yaml/ChParserTdpfYAML.h
+            yaml/ChParserTdpfYAML.cpp
+        )
+    endif()
+    if(CH_ENABLE_MODULE_VEHICLE)
+        set(Chrono_PARSERS_YAML_FILES ${Chrono_PARSERS_YAML_FILES}
+            yaml/ChParserVehicleYAML.h
+            yaml/ChParserVehicleYAML.cpp
+        )
+    endif()
+    source_group("yaml" FILES ${Chrono_PARSERS_YAML_FILES})
+else()
+    message("WARNING: The Chrono YAML parser requires yaml-cpp. The Chrono YAML parser will NOT be built.")
     set(Chrono_PARSERS_YAML_FILES "")
 endif()
 
@@ -254,7 +233,10 @@ set(DEPENDENCIES_PARSERS ${DEPENDENCIES_PARSERS} PARENT_SCOPE)
 # Create the Chrono_parsers library
 #-----------------------------------------------------------------------------
 
-add_library(Chrono_parsers ${Chrono_PARSERS_FILES} ${Chrono_PARSERS_YAML_FILES})
+add_library(Chrono_parsers
+            ${Chrono_PARSERS_FILES}
+            ${Chrono_PARSERS_URDF_FILES}
+            ${Chrono_PARSERS_YAML_FILES})
 add_library(Chrono::parsers ALIAS Chrono_parsers)
 
 set_target_properties(Chrono_parsers PROPERTIES DEBUG_POSTFIX ${CH_DEBUG_POSTFIX})
@@ -275,9 +257,6 @@ endif()
 target_compile_definitions(Chrono_parsers PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_PARSERS>)
 
 target_link_libraries(Chrono_parsers PRIVATE Chrono_core)
-if(INCLUDE_YAML_PARSER)
-  target_link_libraries(Chrono_parsers PUBLIC yaml-cpp::yaml-cpp)
-endif()
 
 if(CH_ENABLE_MODULE_PARDISO_MKL)
   target_link_libraries(Chrono_parsers PRIVATE Chrono_pardisomkl)
@@ -299,7 +278,6 @@ if(CH_ENABLE_MODULE_FSI_SPH)
 endif()
 
 if(CH_ENABLE_MODULE_FSI_TDPF)
-  target_include_directories(Chrono_parsers PRIVATE "${CH_HYDROCHRONO_DIR}/include")
   target_link_libraries(Chrono_parsers PRIVATE Chrono_fsitdpf)
   if(CH_ENABLE_MODULE_VSG)
     target_link_libraries(Chrono_parsers PRIVATE Chrono_fsitdpf_vsg)
@@ -340,14 +318,6 @@ install(TARGETS Chrono_parsers
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
         INCLUDES DESTINATION include/chrono_parsers)
-if(INCLUDE_YAML_PARSER)
-  install(TARGETS yaml-cpp
-          EXPORT ChronoTargets
-          RUNTIME DESTINATION bin
-          LIBRARY DESTINATION lib
-          ARCHIVE DESTINATION lib
-          INCLUDES DESTINATION include/chrono_parsers)
-endif()
 
 #-------------------------------------------------------------------------------
 # Install files
@@ -380,6 +350,6 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
 
 #-------------------------------------------------------------------------------
 
-if(INCLUDE_YAML_PARSER)
+if(CHRONO_YAML_ENABLED)
     add_subdirectory(yaml_app)
 endif()

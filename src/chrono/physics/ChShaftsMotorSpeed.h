@@ -28,7 +28,7 @@ namespace chrono {
 /// and the solver result can be unstable/unpredictable. Think at it as a servo drive with "infinitely stiff" control.
 /// This type of motor is very easy to use, stable and efficient, and should be used if the 'infinitely stiff' control
 /// assumption  is a good approximation of what you simulate (e.g., very good and reactive controllers). By default it
-/// is initialized with constant angular speed: df/dt = 1. Use SetSpeedFunction() to change to other speed functions.
+/// is initialized with constant angular speed: df/dt = 0. Use SetSpeedFunction() to change to other speed functions.
 class ChApi ChShaftsMotorSpeed : public ChShaftsMotor {
   public:
     ChShaftsMotorSpeed();
@@ -125,9 +125,10 @@ class ChApi ChShaftsMotorSpeed : public ChShaftsMotor {
     virtual void IntLoadConstraint_C(const unsigned int off,
                                      ChVectorDynamic<>& Qc,
                                      const double c,
+                                     const double c_vel,   
                                      bool do_clamp,
                                      double recovery_clamp) override;
-    virtual void IntLoadConstraint_Ct(const unsigned int off, ChVectorDynamic<>& Qc, const double c) override;
+    virtual void IntLoadConstraint_Ct(const unsigned int off, ChVectorDynamic<>& Qc, const double c, const double c_vel) override;
     virtual void IntToDescriptor(const unsigned int off_v,
                                  const ChStateDelta& v,
                                  const ChVectorDynamic<>& R,

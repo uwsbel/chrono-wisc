@@ -32,17 +32,45 @@
 #include "chrono/physics/ChLoadsBody.h"
 #include "chrono/physics/ChLoadsNodeXYZ.h"
 #include "chrono/physics/ChSystem.h"
-#include "chrono/fea/ChNodeFEAxyz.h"
+#ifdef CHRONO_FEA
+    #include "chrono/fea/ChNodeFEAxyz.h"
+#endif
 
 #include "chrono_vehicle/ChApiVehicle.h"
+#include "chrono_vehicle/ChConfigVehicle.h"
 #include "chrono_vehicle/ChSubsysDefs.h"
 #include "chrono_vehicle/ChTerrain.h"
 #include "chrono_vehicle/ChWorldFrame.h"
+
+#ifdef CHRONO_HAS_SCM_GPU
+    #include "chrono_vehicle/terrain/SCMGpu.h"
+    #include "chrono_vehicle/terrain/SCMRaycastGpu.h"
+#endif
 
 namespace chrono {
 namespace vehicle {
 
 class SCMLoader;
+
+#ifdef CHRONO_HAS_SCM_GPU
+namespace scm_gpu {
+struct ScmHitRecord {
+    ChContactable* contactable = nullptr;
+    ChVector3d abs_point;
+    int patch_id = -1;
+};
+void PrimeBuffers();
+}  // namespace scm_gpu
+#endif
+
+/// Raw ray-cast hit produced by the GPU ray-cast reference backend.
+/// Deliberately independent of CHRONO_HAS_SCM_GPU: this is plain data, no HIP dependency, and is
+/// consumed locally by SCMLoader::ComputeInternalForces() regardless of the contact-force GPU flag.
+struct RaycastHit {
+    ChVector2i ij;
+    ChContactable* contactable;
+    ChVector3d abs_point;
+};
 
 /// @addtogroup vehicle_terrain
 /// @{
@@ -104,26 +132,32 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
     /// These parameters are described in: "Parameter Identification of a Planetary Rover Wheel-Soil Contact Model via a
     /// Bayesian Approach", A.Gallina, R. Krenn et al. Note that the original SCM model does not include the K and R
     /// coefficients. A very large value of K and R=0 reproduce the original SCM.
-    void SetSoilParameters(
-        double Bekker_Kphi,    ///< Kphi, frictional modulus in Bekker model
-        double Bekker_Kc,      ///< Kc, cohesive modulus in Bekker model
-        double Bekker_n,       ///< n, exponent of sinkage in Bekker model (usually 0.6...1.8)
-        double Mohr_cohesion,  ///< Cohesion for shear failure [Pa]
-        double Mohr_friction,  ///< Friction angle for shear failure [degree]
-        double Janosi_shear,   ///< Shear parameter in Janosi-Hanamoto formula [m]
-        double elastic_K,      ///< elastic stiffness K per unit area, [Pa/m] (must be larger than Kphi)
-        double damping_R       ///< vertical damping R per unit area [Pa.s/m] (proportional to vertical speed)
+    void SetSoilParameters(double Bekker_Kphi,    ///< Kphi, frictional modulus in Bekker model
+                           double Bekker_Kc,      ///< Kc, cohesive modulus in Bekker model
+                           double Bekker_n,       ///< n, exponent of sinkage in Bekker model (usually 0.6...1.8)
+                           double Mohr_cohesion,  ///< Cohesion for shear failure [Pa]
+                           double Mohr_friction,  ///< Friction angle for shear failure [degree]
+                           double Janosi_shear,   ///< Shear parameter in Janosi-Hanamoto formula [m]
+                           double elastic_K,      ///< elastic stiffness K per unit area, [Pa/m] (must be larger than Kphi)
+                           double damping_R       ///< vertical damping R per unit area [Pa.s/m] (proportional to vertical speed)
     );
 
     /// Enable/disable the creation of soil inflation at the side of the ruts (bulldozing effects).
     void EnableBulldozing(bool mb);
 
+    /// Enable/disable the CPU reference implementation of the GPU ray-cast backend.
+    /// Replaces the ray-cast loop with an equivalent mesh-rasterization pass
+    /// over ChBody-derived contactables that have a triangle-mesh collision shape, producing the same
+    /// {contactable, abs_point} hit data as the default loop. Requires explicit per-body active domains
+    /// (AddActiveDomain). Intended for validating the HIP backend against an equivalent CPU
+    /// implementation; the default ray-cast loop remains the production CPU path.
+    void EnableRaycastGpuReference(bool val);
+
     /// Set parameters controlling the creation of side ruts (bulldozing effects).
-    void SetBulldozingParameters(
-        double erosion_angle,          ///< angle of erosion of the displaced material [degrees]
-        double flow_factor = 1.0,      ///< growth of lateral volume relative to pressed volume
-        int erosion_iterations = 3,    ///< number of erosion refinements per timestep
-        int erosion_propagations = 10  ///< number of concentric vertex selections subject to erosion
+    void SetBulldozingParameters(double erosion_angle,          ///< angle of erosion of the displaced material [degrees]
+                                 double flow_factor = 1.0,      ///< growth of lateral volume relative to pressed volume
+                                 int erosion_iterations = 3,    ///< number of erosion refinements per timestep
+                                 int erosion_propagations = 10  ///< number of concentric vertex selections subject to erosion
     );
 
     /// Set the vertical level up to which collision is tested (relative to the reference level at the sample point).
@@ -188,17 +222,16 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
 
         /// Set the soil properties at a given (x,y) location (below the given point).
         /// Attention: the location is assumed to be provided in the SCM reference frame!
-        virtual void Set(
-            const ChVector3d& loc,  ///< query location
-            double& Bekker_Kphi,    ///< frictional modulus in Bekker model
-            double& Bekker_Kc,      ///< cohesive modulus in Bekker model
-            double& Bekker_n,       ///< exponent of sinkage in Bekker model (usually 0.6...1.8)
-            double& Mohr_cohesion,  ///< cohesion for shear failure [Pa]
-            double& Mohr_friction,  ///< friction angle for shear failure [degree]
-            double& Janosi_shear,   ///< shear parameter in Janosi-Hanamoto formula [m]
-            double& elastic_K,      ///< elastic stiffness K per unit area, [Pa/m] (must be larger than Kphi)
-            double& damping_R       ///< vertical damping R per unit area [Pa.s/m] (proportional to vertical speed)
-            ) = 0;
+        virtual void Set(const ChVector3d& loc,  ///< query location
+                         double& Bekker_Kphi,    ///< frictional modulus in Bekker model
+                         double& Bekker_Kc,      ///< cohesive modulus in Bekker model
+                         double& Bekker_n,       ///< exponent of sinkage in Bekker model (usually 0.6...1.8)
+                         double& Mohr_cohesion,  ///< cohesion for shear failure [Pa]
+                         double& Mohr_friction,  ///< friction angle for shear failure [degree]
+                         double& Janosi_shear,   ///< shear parameter in Janosi-Hanamoto formula [m]
+                         double& elastic_K,      ///< elastic stiffness K per unit area, [Pa/m] (must be larger than Kphi)
+                         double& damping_R       ///< vertical damping R per unit area [Pa.s/m] (proportional to vertical speed)
+                         ) = 0;
     };
 
     /// Specify the callback object to set the soil parameters at given (x,y) locations.
@@ -247,6 +280,27 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
     /// Instead, contact forces are accumulated and available for extraction using GetContactForceBody and
     /// GetContactForceNode for rigid bodies and FEA nodes, respectively.
     void SetCosimulationMode(bool val);
+
+#ifdef CHRONO_HAS_SCM_GPU
+    /// Enable/disable the HIP contact-force backend (default: enabled when built with SCM GPU support).
+    void SetScmGpuEnabled(bool enable);
+
+    /// Return whether the HIP contact-force backend is enabled.
+    bool IsScmGpuEnabled() const;
+
+    /// Set runtime tuning parameters for the SCM GPU backend.
+    void SetScmGpuConfig(const scm_gpu::Config& config);
+
+    /// Get the current SCM GPU backend configuration.
+    scm_gpu::Config GetScmGpuConfig() const;
+
+    /// Enable/disable the HIP ray-cast backend.
+    ///
+    /// Default: enabled, in builds configured with the SCM GPU backend. The backend additionally
+    /// requires explicit per-body active domains (AddActiveDomain); without them ray-casting silently
+    /// uses the CPU path, so leaving this on is always safe. Call with false to force the CPU path.
+    void EnableRaycastGpuHip(bool val);
+#endif
 
     /// Initialize the terrain system (flat).
     /// This version creates a flat array of points.
@@ -304,14 +358,26 @@ class CH_VEHICLE_API SCMTerrain : public ChTerrain {
     /// Modify the level of grid nodes from the given list.
     void SetModifiedNodes(const std::vector<NodeLevel>& nodes);
 
+    /// Number of steps where the GPU ray-cast backend actually produced the hits.
+    /// The backend falls back to the CPU per step when a model or a step does not qualify, and that fallback is deliberately silent.
+    /// Calls to this function check if the GPU backend was used.
+    int GetNumRaycastGpuSteps() const;
+
+    /// Number of steps where the GPU contact-force backend actually computed the forces.
+    /// The backend falls back to the CPU per step when a model or a step does not qualify, and that fallback is deliberately silent.
+    /// Calls to this function check if the GPU backend was used.
+    int GetNumContactForceGpuSteps() const;
+
     /// Return the cumulative contact force on the specified body  (due to interaction with the SCM terrain).
     /// The return value is true if the specified body experiences contact forces and false otherwise.
     /// If contact forces are applied to the body, they are reduced to the body center of mass.
     bool GetContactForceBody(std::shared_ptr<ChBody> body, ChVector3d& force, ChVector3d& torque) const;
 
+#ifdef CHRONO_FEA
     /// Return the cumulative contact force on the specified mesh node (due to interaction with the SCM terrain).
     /// The return value is true if the specified node experiences contact forces and false otherwise.
     bool GetContactForceNode(std::shared_ptr<fea::ChNodeFEAxyz> node, ChVector3d& force) const;
+#endif
 
     /// Return the number of rays cast at last step.
     int GetNumRayCasts() const;
@@ -535,9 +601,37 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     // Ray-OBB intersection test
     bool RayOBBtest(const ActiveDomainInfo& ad, const ChVector3d& from, const ChVector3d& Z);
 
+    // Candidate discovery shared by the CPU reference and HIP ray-cast backends (see SCMTerrain.cpp).
+    void DiscoverRaycastCandidates(std::vector<ChBody*>& candidates);
+
+    // GPU ray-cast reference backend (CPU stand-in).
+    // Requires m_user_domains (explicit per-body active domains); caller checks this before invoking.
+    void ComputeRayCastGpuReference(std::vector<RaycastHit>& out_hits, int& num_ray_casts);
+
     // Reset the list of forces and fill it with forces from the soil contact model.
     // This is called automatically during timestepping (only at the beginning of each step).
     void ComputeInternalForces();
+
+#ifdef CHRONO_HAS_SCM_GPU
+    bool ComputeContactForcesGpu(const std::unordered_map<ChVector2i, scm_gpu::ScmHitRecord, CoordHash>& hits, const std::vector<double>& patch_oob);
+    scm_gpu::Config m_scm_gpu_config;
+
+    // GPU ray-cast HIP backend. Same I/O contract as
+    // ComputeRayCastGpuReference; requires m_user_domains, caller checks this before invoking.
+    // Uses a process-wide singleton GPU context (scm_gpu::RaycastGpuContext()), same pattern as the
+    // contact-force backend's GpuContext() in SCMTerrainGpu.cpp.
+    //
+    // Returns false if this backend cannot produce the step's hits -- no candidate bodies, none of
+    // them carrying triangle-mesh collision geometry (the only shape type these kernels represent),
+    // or a GPU call failing. The caller must then run the CPU path: reporting zero hits instead
+    // would leave the terrain undeformed and the model unsupported, with no error anywhere.
+    bool ComputeRayCastGpuHip(std::vector<RaycastHit>& out_hits, int& num_ray_casts);
+
+    // On by default: if the build has the GPU backend and the model supplies active domains, existing
+    // code should get the GPU without being rewritten to ask for it. The dispatch site guards on
+    // m_user_domains, so a model without active domains just keeps using the CPU path.
+    bool m_raycast_gpu_hip_enabled = true;
+#endif
 
     // Override the ChLoadContainer method for computing the generalized force F term:
     virtual void IntLoadResidual_F(const unsigned int off,  // offset in R residual
@@ -590,6 +684,10 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
     double m_test_offset_down;  ///< offset for ray start
     double m_test_offset_up;    ///< offset for ray end
 
+    int m_num_raycast_gpu_steps = 0;        ///< steps whose ray casting was actually done on the GPU
+    int m_num_contact_force_gpu_steps = 0;  ///< steps whose contact forces were actually done on the GPU
+    bool m_raycast_gpu_ref_enabled;         ///< use the GPU ray-cast reference backend
+
     std::shared_ptr<ChVisualShapeTriangleMesh> m_trimesh_shape;  ///< mesh visualization asset
     std::unique_ptr<ChColormap> m_colormap;                      ///< colormap for mesh false coloring
     ChColormap::Type m_colormap_type;                            ///< colormap type
@@ -611,7 +709,9 @@ class CH_VEHICLE_API SCMLoader : public ChLoadContainer {
 
     // Contact forces on contactable objects interacting with the SCM terrain
     std::unordered_map<ChBody*, std::pair<ChVector3d, ChVector3d>> m_body_forces;
+#ifdef CHRONO_FEA
     std::unordered_map<std::shared_ptr<fea::ChNodeFEAxyz>, ChVector3d> m_node_forces;
+#endif
 
     // Bulldozing effects
     bool m_bulldozing;

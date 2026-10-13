@@ -47,8 +47,6 @@
     #include "chrono_postprocess/ChGnuPlot.h"
 #endif
 
-#include "chrono_thirdparty/filesystem/path.h"
-
 using namespace chrono;
 using namespace chrono::fsi;
 using namespace chrono::fsi::sph;
@@ -203,8 +201,7 @@ int main(int argc, char* argv[]) {
                                                         inner_cylinder_radius - initial_spacing / 2,  //
                                                         cylinder_height,                              //
                                                         use_polar_coords);
-    const auto& fsi_inner_cylinder =
-        sysFSI.AddFsiBody(inner_cylinder, bce_inner, ChFrame<>(cylinder_center, Q_ROTATE_Z_TO_Y), false);
+    const auto& fsi_inner_cylinder = sysFSI.AddRigidBody(inner_cylinder, bce_inner, ChFrame<>(cylinder_center, Q_ROTATE_Z_TO_Y), false);
     auto inner_cylinder_index = fsi_inner_cylinder->index;
 
     // Create outer cylinder, spinning
@@ -220,8 +217,7 @@ int main(int argc, char* argv[]) {
                                                         outer_cylinder_radius + 3 * initial_spacing,  //
                                                         cylinder_height,                              //
                                                         true);
-    const auto& fsi_outer_cylinder =
-        sysFSI.AddFsiBody(outer_cylinder, bce_outer, ChFrame<>(cylinder_center, Q_ROTATE_Z_TO_Y), false);
+    const auto& fsi_outer_cylinder = sysFSI.AddRigidBody(outer_cylinder, bce_outer, ChFrame<>(cylinder_center, Q_ROTATE_Z_TO_Y), false);
     auto outer_cylinder_index = fsi_outer_cylinder->index;
 
     // Add motor between outer cylinder and plate
@@ -233,40 +229,40 @@ int main(int argc, char* argv[]) {
     // Construction of the FSI system must be finalized before running
     sysFSI.Initialize();
 
-    // Create oputput directories
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    // Create output directories
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
     out_dir = out_dir + "/" + sysSPH.GetPhysicsProblemString() + "_" + sysSPH.GetSphIntegrationSchemeString();
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
 
     if (output) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/particles"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/particles"))) {
             cerr << "Error creating directory " << out_dir + "/particles" << endl;
             return 1;
         }
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/fsi"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/fsi"))) {
             cerr << "Error creating directory " << out_dir + "/fsi" << endl;
             return 1;
         }
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/vtk"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/vtk"))) {
             cerr << "Error creating directory " << out_dir + "/vtk" << endl;
             return 1;
         }
     }
 
     if (snapshots) {
-        if (!filesystem::create_directory(filesystem::path(out_dir + "/snapshots"))) {
+        if (!CreateOutputDirectory(std::filesystem::path(out_dir + "/snapshots"))) {
             cerr << "Error creating directory " << out_dir + "/snapshots" << endl;
             return 1;
         }
     }
 
-    // Create a run-tme visualizer
+    // Create a run-time visualizer
     std::shared_ptr<ChVisualSystem> vis;
 
 #ifdef CHRONO_VSG
@@ -320,7 +316,7 @@ int main(int argc, char* argv[]) {
     ChTimer timer;
     timer.start();
     while (time < time_end) {
-        // Get the infomation of the spinning cylinder
+        // Get the information of the spinning cylinder
         auto torque_motor = -motor->GetMotorTorque();
         auto angvel_outer = outer_cylinder->GetAngVelParent().y();
         auto torque_inner = sysFSI.GetFsiBodyTorque(inner_cylinder_index).y();
@@ -355,8 +351,7 @@ int main(int argc, char* argv[]) {
                 if (verbose)
                     cout << " -- Snapshot frame " << render_frame << " at t = " << time << endl;
                 std::ostringstream filename;
-                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1
-                         << ".bmp";
+                filename << out_dir << "/snapshots/img_" << std::setw(5) << std::setfill('0') << render_frame + 1 << ".bmp";
                 vis->WriteImageToFile(filename.str());
             }
 
@@ -372,7 +367,7 @@ int main(int argc, char* argv[]) {
         timer_FSI += sysFSI.GetTimerFSI();
         timer_step += sysFSI.GetTimerStep();
         if (verbose && sim_frame == 2000) {
-            cout << "Cummulative timers at time: " << time << endl;
+            cout << "Cumulative timers at time: " << time << endl;
             cout << "   timer CFD:  " << timer_CFD << endl;
             cout << "   timer MBD:  " << timer_MBD << endl;
             cout << "   timer FSI:  " << timer_FSI << endl;

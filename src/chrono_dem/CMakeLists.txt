@@ -14,10 +14,25 @@ endif()
 
 message(STATUS "\n==== Chrono DEM module ====\n")
 
-# Return now if CUDA is not available
-if(NOT CHRONO_CUDA_FOUND)
-    message("Chrono::DEM requires CUDA, but CUDA was not found; disabling Chrono::DEM")
-    set(CH_ENABLE_MODULE_DEM OFF CACHE BOOL "Enable the Chrono::DEM module" FORCE)
+# Select the GPU backend for this module.
+#
+# Chrono::DEM is not dual-source: it ships one set of .cu kernels that are
+# compiled either as CUDA or as HIP. PREFER CUDA therefore means "use the
+# vendor-native SDK for these sources" and not "pick between two source trees".
+# HIP_PLATFORMS AMD NVIDIA: the kernels use hipCUB on ROCm and plain CUB when
+# HIP targets NVIDIA (see ChDemSMC.cuh), so neither platform is excluded.
+chrono_select_gpu_backend(CHRONO_DEM_BACKEND
+                          FEATURE  "Chrono::DEM"
+                          NAME     DEM
+                          REQUIRES CUDA_OR_HIP
+                          PREFER   CUDA
+                          HIP_PLATFORMS amd nvidia)
+
+if(CHRONO_DEM_BACKEND STREQUAL "NONE")
+    chrono_gpu_feature_unavailable(FEATURE  "Chrono::DEM"
+                                   REQUIRES "CUDA or HIP"
+                                   OPTION   CH_ENABLE_MODULE_DEM
+                                   CLASS    EXPLICIT)
     return()
 endif()
 
@@ -28,7 +43,12 @@ if(EIGEN3_VERSION VERSION_LESS "3.3.6")
     return()
 endif()
 
-message(STATUS "Chrono CUDA architectures: ${CHRONO_CUDA_ARCHITECTURES}")
+message(STATUS "Chrono::DEM GPU backend: ${CHRONO_DEM_BACKEND}")
+if(CHRONO_DEM_BACKEND STREQUAL "HIP")
+  message(STATUS "Chrono HIP architectures: ${CHRONO_HIP_ARCHITECTURES}")
+else()
+  message(STATUS "Chrono CUDA architectures: ${CHRONO_CUDA_ARCHITECTURES}")
+endif()
 
 # ----------------------------------------------------------------------------
 # Generate and install configuration header file.
@@ -67,19 +87,31 @@ set(DEM_PHYSICS_FILES
     )
 source_group(physics FILES ${DEM_PHYSICS_FILES})
 
-set(DEM_CUDA_FILES
-    cuda/ChDem_SMC.cu
-    cuda/ChDem_SMC.cuh
-    cuda/ChDem_SMC_trimesh.cu
-    cuda/ChDem_SMC_trimesh.cuh
-    cuda/ChDemCollision.cuh
-    cuda/ChDemBoundaryConditions.cuh
-    cuda/ChDemHelpers.cuh
-    cuda/ChDemBoxTriangle.cuh
-    cuda/ChDemCUDAalloc.hpp
-    cuda/ChCudaMathUtils.cuh
+set(DEM_GPU_FILES
+    gpu/ChDemSMC.cu
+    gpu/ChDemSMC.cuh
+    gpu/ChDemSMCtrimesh.cu
+    gpu/ChDemSMCtrimesh.cuh
+    gpu/ChDemCollision.cuh
+    gpu/ChDemBoundaryConditions.cuh
+    gpu/ChDemHelpers.cuh
+    gpu/ChDemBoxTriangle.cuh
+    gpu/ChDemGpuAlloc.h
+    gpu/ChDemGpuMathUtils.cuh
+    ../chrono/gpu/ChGpuRuntime.h
+    ../chrono/gpu/ChGpuPrimitives.h
     )
-source_group(cuda FILES ${DEM_CUDA_FILES})
+source_group(gpu FILES ${DEM_GPU_FILES})
+
+# ------------------------------------------
+
+set(DEM_GPU_SOURCE_FILES
+    gpu/ChDemSMC.cu
+    gpu/ChDemSMCtrimesh.cu
+    )
+chrono_set_gpu_source_language(${CHRONO_DEM_BACKEND} ${DEM_GPU_SOURCE_FILES})
+
+# --------------- DEM UTILITIES
 
 set(DEM_UTILITY_FILES
     utils/ChDemUtilities.h
@@ -111,6 +143,9 @@ endif()
 
 set(DEPENDENCIES_DEM ${DEPENDENCIES_DEM} PARENT_SCOPE)
 
+# Export the resolved backend for ChronoConfig.cmake (see cmake/ChronoConfig.cmake.in).
+set(CHRONO_DEM_BACKEND ${CHRONO_DEM_BACKEND} PARENT_SCOPE)
+
 # ------------------------------------------------------------------------------
 # Add the Chrono_dem library
 # ------------------------------------------------------------------------------
@@ -120,7 +155,7 @@ message(STATUS "Add Chrono_dem library")
 add_library(Chrono_dem
             ${DEM_BASE_FILES}
             ${DEM_PHYSICS_FILES}
-            ${DEM_CUDA_FILES}
+            ${DEM_GPU_FILES}
             ${DEM_UTILITY_FILES}
             ${DEM_CONFIG_FILE}
 )
@@ -138,24 +173,16 @@ if(MSVC)
 endif()
 
 if(MSVC)
-  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4996>)  # deprecated function or class member
-  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4996>) # CUDA Deprecation: The type will be removed in the next major release
-  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4100>) # CUDA unreferenced formal parameter
+  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4996>)
+  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4996>)
+  target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4100>)
 endif()
-
-target_compile_options(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Wno-deprecated-gpu-targets>)
 
 target_compile_definitions(Chrono_dem PRIVATE $<$<COMPILE_LANGUAGE:CXX>:CH_API_COMPILE_DEM>)
 
 target_link_libraries(Chrono_dem PRIVATE Chrono_core)
 
-target_link_libraries(Chrono_dem PUBLIC CUDA::cudart_static)
-target_link_libraries(Chrono_dem PUBLIC CUDA::nvrtc)
-target_link_libraries(Chrono_dem PUBLIC CUDA::cuda_driver)
-target_link_libraries(Chrono_dem PUBLIC CUDA::cublas)
-target_link_libraries(Chrono_dem PUBLIC CUDA::cusparse)
-
-set_target_properties(Chrono_dem PROPERTIES CUDA_ARCHITECTURES ${CHRONO_CUDA_ARCHITECTURES})
+chrono_apply_gpu_backend(Chrono_dem ${CHRONO_DEM_BACKEND})
 
 install(TARGETS Chrono_dem
         EXPORT ChronoTargets
@@ -192,11 +219,11 @@ if(CH_ENABLE_MODULE_VSG)
     target_link_libraries(Chrono_dem_vsg PRIVATE Chrono_core Chrono_dem)
     target_link_libraries(Chrono_dem_vsg PUBLIC Chrono_vsg)
 
-    target_link_libraries(Chrono_dem_vsg PRIVATE CUDA::cudart_static)
-    target_link_libraries(Chrono_dem_vsg PRIVATE CUDA::nvrtc)
-    target_link_libraries(Chrono_dem_vsg PRIVATE CUDA::cuda_driver)
-    target_link_libraries(Chrono_dem_vsg PRIVATE CUDA::cublas)
-    target_link_libraries(Chrono_dem_vsg PRIVATE CUDA::cusparse)
+    # Keyed on the backend Chrono_dem actually resolved to, not on "a CUDA
+    # toolkit exists somewhere": those are no longer the same statement.
+    chrono_apply_gpu_backend(Chrono_dem_vsg ${CHRONO_DEM_BACKEND}
+                             DEFINE_VISIBILITY PRIVATE
+                             LINK_VISIBILITY   PRIVATE)
 
     install(TARGETS Chrono_dem_vsg
             EXPORT ChronoTargets

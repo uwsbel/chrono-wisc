@@ -1,9 +1,10 @@
-chrono-version: 9.0
+chrono-version: 10.0
 type: MBS
 
 model:  "model_inverted_pendulum_load.yaml"
 #model:  "model_inverted_pendulum_motor.yaml"
-solver: "solver_mbs.yaml"
+
+solver: "solver_nonstiff.yaml"
 
 simulation:
   time_step: 1e-4
@@ -11,7 +12,8 @@ simulation:
   enforce_realtime: true
   
 output:
-  type: HDF5
+  format: HDF5
+  mode: FRAMES
   fps: 20
 
 visualization:
@@ -22,3 +24,6 @@ visualization:
     vertical: Z
     location: [9, -4, 1]
     target: [2, 0, 0]
+  output:
+    save_images: false
+    image_type: "bmp"

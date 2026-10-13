@@ -8,7 +8,7 @@ The Chrono source code can be obtained from the Chrono GitHub [repository](https
 ------------------------------------------------------------
 ## Prerequisites {#prerequisites}
 
-Building Chrono from sources requires a C++ compiler and the [CMake](https://cmake.org/) build system.
+Building Chrono from sources requires a C++ compiler (which supports at least the **C++17** standard) and the [CMake](https://cmake.org/) build system.
 
 #### Recommended compilers {#compilers}
 
@@ -45,25 +45,45 @@ Note that most modern IDEs have git integration (e.g. the free [Visual Studio Co
 ------------------------------------------------------------
 ## Optional support {#optional}
 
-During CMake configuration, Chrono also checks availability of additional support in terms of compiler capabilities (e.g., SIMD-level support, OpenMP availability) and environments (e.g., availability of MPI and CUDA). If any of these is not found, specific optimizations in building Chrono and some modules is disabled (e.g., no multi-threaded support in FEA, Bullet collision, and Eigen if the C++ compiler is not OpenMP capable), some features are disabled (e.g., no multi-core collision detectino algorithm if OpenMP or Thrust), or entire modules are disabled (e.g., Chrono::FSI-SPH, Chrono::DEM, and Chrono::Sensor cannot be built without CUDA, Chrono::Multicore cannot be built without OpenMP and Thrust, and Chrono::Synchrono and the Chrono::Vehicle co-simulation module cannot be built without MPI).
+During CMake configuration, Chrono also checks availability of additional support in terms of compiler capabilities (e.g., SIMD-level support, OpenMP availability) and environments (e.g., availability of MPI and GPU toolchains). If any of these is not found, specific optimizations in building Chrono and some modules are disabled (e.g., no multi-threaded support in FEA, Bullet collision, and Eigen if the C++ compiler is not OpenMP capable), some features are disabled (e.g., no multi-core collision detection algorithm if OpenMP or Thrust), or entire modules are disabled (e.g., Chrono::FSI-SPH and Chrono::DEM require a GPU backend (**CUDA** or **HIP**); Chrono::Sensor ray-tracing paths require **CUDA** and NVIDIA OptiX; Chrono::Multicore cannot be built without OpenMP and Thrust; Chrono::Synchrono and the Chrono::Vehicle co-simulation module cannot be built without MPI).
 
-Additional support is checked if enabling specific Chrono modules. For example, a Fortran compiler is required to enable the Chrono::MUMPS module.
+Additional support is checked when enabling specific Chrono modules. For example, a Fortran compiler is required to enable the Chrono::MUMPS module.
 
-#### CUDA support {#cuda}
+#### GPU accelerator support {#gpu}
 
-Chrono can be configured and built with CUDA versions newer than 12.3 (**note** that CCUDA 13.0 is not yet supported). Use of CUDA and therefore of the CUDA-based Chrono modules (Chrono::FSI-SPH, Chrono::DEM, and Chrono::Sensor) require an NVIDIA GPU. Consult the [NVIDIA website](https://developer.nvidia.com/cuda-downloads) for instructions on installing CUDA and the necessary NVIDIA drivers for your machine and operating system.
+Chrono now supports both NVIDIA and AMD GPUs (via CUDA and HIP, respectively). Use of GPU acceleration is required for the GPU-based Chrono modules (Chrono::FSI-SPH and Chrono::DEM). Note that the ray-tracing sensor models in Chrono::Sensor rely on the OptiX library and, as such, can only used with CUDA and an NVIDIA GPU.
 
-If using a CMake version newer than 3.23, the Chrono configuration sets the CUDA architectures to `all-major` (this can be changed to `native` or any other specific architecture). For older CMake versions, it is the user's responsibility to properly set `CHRONO_CUDA_ARCHITECTURES` to a value appropriate for their GPU card (note that a compute capability of "8.9" must be entered as `89`).
+The target GPU backend can be set via the CMake variable `CHRONO_GPU_BACKEND`, which can be one of `AUTO`, `CUDA`, or `HIP`. By default, this variable is initially set to `AUTO` which will trigger a search for a supported GPU. If AMD HIP or NVIDIA CUDA are found, `CHRONO_GPU_BACKEND` is set to the resolved GPU backend architecture (`CUDA` or `HIP`).
+
+##### CUDA support {#cuda}
+
+Chrono can be configured and built with CUDA versions 12.8 or newer. Consult the [NVIDIA website](https://developer.nvidia.com/cuda-downloads) for instructions on installing CUDA and the necessary NVIDIA drivers for your machine and operating system.
+
+If using a CMake version newer than 3.23, the Chrono configuration sets the CUDA architectures to `all-major` (this can be changed to `native` or any other specific architecture). 
+__Note__: CUDA versions older than 13.0 include architecture 5.0 in `all-major`. That architecture is automatically excluded since it does not support `atomicAdd` in double precision. CUDA version 13.0 and newer have dropped support for architecture 5.0 and do not require any special treatment.
+
+For older CMake versions, it is the user's responsibility to properly set `CHRONO_CUDA_ARCHITECTURES` to a value appropriate for their GPU card (note that a compute capability of "8.9" must be entered as `89`).
 
 For users with multiple side-by-side CUDA installations, the desired version can be selected by specifying the appropriate toolchain in CMake (e.g., `-T cuda=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8`). On Linux, multiple CUDA environments can also be managed using environment modules (see for example this [GitHub Gist](https://gist.github.com/garg-aayush/156ec6ddda3d62e2c0ddad00b7e66956)).
 
+
+##### HIP support {#hip}
+
+The minimum HIP version required by Chrono is 5.7.0.
+
+Install the [AMD ROCm](https://rocm.docs.amd.com/) stack for your distribution so that `hipcc` and the HIP runtime are available. Set `CHRONO_GPU_BACKEND=HIP` during CMake configuration (or use `AUTO` on a machine where ROCm is detected before CUDA). Set `CHRONO_HIP_ARCHITECTURES` to your GPU ISA (for example `gfx942` on AMD Instinct MI300-class accelerators, or `gfx90a` on MI200-class); alternatively set `CMAKE_HIP_ARCHITECTURES` as appropriate for your CMake version.
+
+The HIP backend can also be built **natively on Windows** using the AMD HIP SDK; see the Windows section of the repository guide [docs/README_AMD_GPU.md](../../../docs/README_AMD_GPU.md) for the required toolchain configuration.
+
+For **CPU-only PyChrono** next to a ROCm PyTorch stack, you do **not** need the NVIDIA CUDA toolkit; see the repository guide [docs/README_AMD_GPU.md](../../../docs/README_AMD_GPU.md) (workflow summaries, Eigen3/SWIG notes, and `ROCR_VISIBLE_DEVICES` for multi-GPU hosts).
+
 #### Thrust support {#thrust}
 
-The Thrust library is used, with different back-ends, in various Chrono features and modules. For example, the multicore collision detection library (alternative to the default Bullet-based collision detection), as well as the Chrono::Multicore module require Thrust with the OpenMP back-end. The Chrono::FSI module requires Thrust with the CUDA-backend.
+The Thrust library is used, with different back-ends, in various Chrono features and modules. For example, the multicore collision detection library (alternative to the default Bullet-based collision detection), as well as the Chrono::Multicore module require Thrust with the OpenMP back-end. The Chrono::FSI GPU solver uses Thrust with the **CUDA** back-end when `CHRONO_GPU_BACKEND=CUDA`, and with the **HIP** port (rocThrust) when `CHRONO_GPU_BACKEND=HIP`.
 
-The easiest way to obtain the Thrust (headers-only) library is as part of a recent CUDA distribution. This allows using the latest Thrust version (e.g., 2.8.2 in CUDA 12.9.0).
+The easiest way to obtain the Thrust (headers-only) library is as part of a recent CUDA distribution. This allows using the latest Thrust version (e.g., 2.8.2 in CUDA 12.9.0). For **`CHRONO_GPU_BACKEND=HIP`**, the ROCm installation supplies **rocThrust** headers compatible with the HIP toolchain.
 
-It is possible to use Thrust stand-alone (e.g., for use on machines without an NVIDIA GPU to enable the Chrono::Multicore module). However, that requires using an older version of Thrust from its [GitHub repository](https://github.com/NVIDIA/thrust). Note that the latest version available there is 2.1.0, but the latest version that works with Chrono without any modifications is **1.7.1**.
+It is possible to use Thrust stand-alone (e.g., for use on machines without an NVIDIA GPU to enable the Chrono::Multicore module). However, that requires using an older version of Thrust from its [GitHub repository](https://github.com/NVIDIA/thrust). Note that the latest version available there is 2.1.0, but the latest version that works with Chrono without any modifications is **1.17.1**.
 
 #### MPI support {#mpi}
 
@@ -104,7 +124,6 @@ The Chrono distribution includes, in the directory `contrib/build-scripts` a set
 
 Currently, scripts are provided for the following packages:
 - Eigen3 -- the only external dependency of the core Chrono module
-- Blaze -- a linear algebra package required by Chrono::Multicore
 - GL and GLEW -- OpenGL packages (optionally) used in Chrono::Sensor
 - MUMPS -- a direct sparse linear solver required by Chrono::Mumps
 - OpenCRG -- a file format for road description used (optionally) in Chrono::Vehicle
@@ -127,7 +146,6 @@ With the exception of OpenCRG, all packages built and installed by these scripts
 An example of `CMAKE_PREFIX_PATH` (on a Windows machine) is:
 ```cpp
 E:\Packages\eigen\share\eigen3\cmake;
-E:\Packages\blaze\share\blaze\cmake;
 E:\Packages\vsg\lib\cmake;
 E:\Packages\urdf\lib\urdfdom\cmake;
 E:\Packages\urdf\CMake;
@@ -268,7 +286,7 @@ Each Chrono module adds its own set of demos and tests and these are built only 
 
 Executables are available under a subdirectory `bin/<config>/` (e.g., `bin/Release/` or `bin/Debug/`) for a multi-config generator or directly under `bin/` otherwise. 
 
-Unit tests do not use run-time visualization and are based on googletest. Running any of the Chrono unit tests will generate a standard report, indicating whether the test succeeded or failed. You can run all unit tests at once using `ctest`. For example, o run all unit tests for a Release build (mult-config generator), execute the following command from the top-level build directory:<br>
+Unit tests do not use run-time visualization and are based on googletest. Running any of the Chrono unit tests will generate a standard report, indicating whether the test succeeded or failed. You can run all unit tests at once using `ctest`. For example, to run all unit tests for a Release build (multi-config generator), execute the following command from the top-level build directory:<br>
 `ctest -C Release`
 
 -----------------------------------------------------------

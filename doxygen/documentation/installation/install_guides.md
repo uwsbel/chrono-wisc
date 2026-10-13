@@ -19,8 +19,6 @@ Additional Chrono functionality is provided through optional modules, enabled du
 
 -   [IRRLICHT module](@ref module_irrlicht_installation)
 
--   [MATLAB module](@ref module_matlab_installation)
-
 -   [MODAL module](@ref module_modal_installation)
 
 -   [MULTICORE module](@ref module_multicore_installation)
@@ -32,6 +30,8 @@ Additional Chrono functionality is provided through optional modules, enabled du
 -   [PARSERS module](@ref module_parsers_installation)
 
 -   [POSTPROCESS module](@ref module_postprocess_installation)
+
+-   [PRECICE module](@ref module_precice_installation)
 
 -   [PYTHON module](@ref module_python_installation)
 
@@ -47,14 +47,13 @@ Additional Chrono functionality is provided through optional modules, enabled du
 
 #### Providing 3rd-party dependencies
 
-The core Chrono module (and hence all of Chrono) required the Eigen3 linear algebra (headers-only) library.
+The core Chrono module (and hence all of Chrono) requires the Eigen3 linear algebra (headers-only) library.
 
 Chrono optional modules often rely on third-party libraries that might require additional installation steps, as described in each module installation page.
 
 For some of these dependencies, we provide utility scripts that will download, configure, build, and install versions that are known to work with the current Chrono distribution. In each case, we provide both batch scripts (for Windows users) and bash scripts (for Linux/Mac users). Currently, utility scripts for the following dependencies are available (under the `contrib/build-scripts` subdirectory of the Chrono source tree, organized by OS):
 
 - Eigen3, required for the core Chrono module
-- Blaze, required for the Chrono::Multicore module
 - Spectra, required for the Chrono::Modal module 
 - VSG libraries, required for the Chrono::VSG module
 - URDF libraries, required for the URDF parser in the Chrono::Parsers module
@@ -78,6 +77,8 @@ For more details, see the relevant [section](@ref scripts) in the Chrono core mo
 ### Installing PyChrono
 
 - @subpage pychrono_installation
+
+- **AMD GPU hosts (ROCm):** see [`docs/README_AMD_GPU.md`](../../../docs/README_AMD_GPU.md) for CPU PyChrono next to PyTorch ROCm, optional HIP/FSI, and device selection (`ROCR_VISIBLE_DEVICES`).
 
 
 ### Chrono::Solidworks add-in

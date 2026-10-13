@@ -22,7 +22,6 @@
 #include "chrono/collision/ChCollisionShapeCone.h"
 #include "chrono/collision/ChCollisionShapeConvexHull.h"
 #include "chrono/collision/ChCollisionShapeCylinder.h"
-#include "chrono/collision/ChCollisionShapeCylindricalShell.h"
 #include "chrono/collision/ChCollisionShapeEllipsoid.h"
 #include "chrono/collision/ChCollisionShapePath2D.h"
 #include "chrono/collision/ChCollisionShapePoint.h"
@@ -32,7 +31,7 @@
 #include "chrono/collision/ChCollisionShapeSegment2D.h"
 #include "chrono/collision/ChCollisionShapeSphere.h"
 #include "chrono/collision/ChCollisionShapeTriangle.h"
-#include "chrono/collision/ChCollisionShapeMeshTriangle.h"
+#include "chrono/collision/ChCollisionShapeConnectedTriangle.h"
 #include "chrono/collision/ChCollisionShapeTriangleMesh.h"
 
 #endif

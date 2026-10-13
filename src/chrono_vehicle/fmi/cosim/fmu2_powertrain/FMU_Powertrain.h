@@ -38,7 +38,7 @@
 #include "chrono_vehicle/ChTransmission.h"
 #include "chrono_vehicle/ChPowertrainAssembly.h"
 
-#include "chrono_fmi/fmi2/ChFmuToolsExport.h"
+#include "chrono_fmi/fmi2/ChFmuForgeExport.h"
 
 class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
   public:
@@ -52,9 +52,7 @@ class FmuComponent : public chrono::fmi2::FmuChronoComponentBase {
     ~FmuComponent() {}
 
     /// Advance dynamics.
-    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint,
-                                  fmi2Real communicationStepSize,
-                                  fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
+    virtual fmi2Status doStepIMPL(fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) override;
 
   private:
     virtual fmi2Status enterInitializationModeIMPL() override;

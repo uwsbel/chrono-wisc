@@ -18,7 +18,7 @@
 // =============================================================================
 
 #include "chrono_fmi/ChConfigFMI.h"
-#include "chrono_fmi/fmi2/ChFmuToolsImport.h"
+#include "chrono_fmi/fmi2/ChFmuForgeImport.h"
 
 #include "chrono/core/ChDataPath.h"
 #include "chrono/core/ChTimer.h"
@@ -28,8 +28,6 @@
 #ifdef CHRONO_POSTPROCESS
     #include "chrono_postprocess/ChGnuPlot.h"
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 using namespace chrono;
 using namespace chrono::fmi2;
@@ -167,7 +165,7 @@ int main(int argc, char* argv[]) {
     // Create (if needed) output directory
     std::string out_dir = GetChronoOutputPath() + "./DEMO_FMI2_HYDRAULIC_CRANE_COSIM";
 
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         std::cout << "Error creating directory " << out_dir << std::endl;
         return 1;
     }

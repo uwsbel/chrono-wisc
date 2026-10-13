@@ -31,13 +31,11 @@
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/RigidTerrain.h"
 #include "chrono_vehicle/utils/ChVehiclePath.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/tracked_vehicle/track_shoe/ChTrackShoeDoublePin.h"
 #include "chrono_vehicle/tracked_vehicle/vehicle/TrackedVehicle.h"
 
 #include "chrono_vehicle/tracked_vehicle/ChTrackedVehicleVisualSystemVSG.h"
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #include "demos/SetChronoSolver.h"
 
@@ -261,10 +259,6 @@ int main(int argc, char* argv[]) {
     // Create the vehicle system
     cout << "VEHICLE: " << vehicle_model.ModelName() << endl;
     TrackedVehicle vehicle(GetVehicleDataFile(vehicle_model.VehicleJSON()), contact_method);
-
-    // Change collision shape for road wheels and idlers (true: cylinder; false: cylshell)
-    ////vehicle.GetTrackAssembly(LEFT)->SetWheelCollisionType(false, false, false);
-    ////vehicle.GetTrackAssembly(RIGHT)->SetWheelCollisionType(false, false, false);
 
     // Control steering type (enable crossdrive capability).
     ////vehicle.GetDriveline()->SetGyrationMode(true);

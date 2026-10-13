@@ -73,6 +73,15 @@ if(SWIG_FOUND)
   message(STATUS "  SWIG executable:   ${SWIG_EXECUTABLE}")
 endif()
 
+# Have SWIG report its own dependencies - the %include'd interface files and the
+# C++ headers it parses - so that editing any of them regenerates the bindings.
+# By default swig_add_library() tracks only the top-level .i file, and UseSWIG's
+# IMPLICIT_DEPENDS fallback works only with Makefile generators, so with Visual
+# Studio or Ninja an edit to an included interface file is silently ignored until
+# the wrapper output is deleted by hand.
+# Requires CMake 3.20 or newer; older versions keep the previous behavior.
+set(SWIG_USE_SWIG_DEPENDENCIES TRUE)
+
 include(${SWIG_USE_FILE})
 
 # Set location of SWIG-generated files.
@@ -97,6 +106,10 @@ if(Python3_NumPy_FOUND)
   set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_PYTHON_NUMPY")
 endif()
 
+if(CH_ENABLE_MODULE_FEA)
+  set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_FEA")
+endif()
+
 if(CH_ENABLE_MODULE_VSG)
   set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_VSG")
 endif()
@@ -107,6 +120,7 @@ endif()
 
 if(CH_ENABLE_MODULE_FSI_SPH)
   set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_FSI_SPH")
+  set(CMAKE_SWIG_FLAGS "${CMAKE_SWIG_FLAGS};-DCHRONO_CRM")
 endif()
 
 if(CH_ENABLE_MODULE_PARSERS)
@@ -260,7 +274,7 @@ add_custom_command(TARGET ${CHPY_CORE}
                    POST_BUILD
                    COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_CORE_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-# Install .pyd binary module (.so on linux)
+# Install .pyd binary module (.so on Linux)
 install(TARGETS ${CHPY_CORE}
         EXPORT ChronoTargets
         RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -270,7 +284,7 @@ install(TARGETS ${CHPY_CORE}
 # Install .py module wrapper
 install(FILES "${CHPY_CORE_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-if (DBG_SCRIPT)
+if(DBG_SCRIPT)
   message("Module name:     ${CHPY_CORE}")
   message("PY file:         ${CHPY_CORE_PY_FILE}")
 endif()
@@ -279,70 +293,74 @@ endif()
 # MODULE for the fea python wrapper.
 #-----------------------------------------------------------------------------
 
-message(STATUS "Add python FEA module")
+if(CH_ENABLE_MODULE_FEA)
 
-# Python module name
-set(CHPY_FEA fea)
+  message(STATUS "Add python FEA module")
+  
+  # Python module name
+  set(CHPY_FEA fea)
+  
+  # Interface files
+  set(CHPY_FEA_MODULE_FILE ChModuleFea_python.i)
+  
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES COMPILE_FLAGS "-D_WIN32")
+  endif()
+  set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES CPLUSPLUS ON)
+  if(MSVC)
+    set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES COMPILE_OPTIONS ${CHRONO_SWIG_FLAGS})
+  endif()
+  
+  swig_add_library(${CHPY_FEA} LANGUAGE python SOURCES ${CHPY_FEA_MODULE_FILE})
+  target_link_libraries(${CHPY_FEA} PRIVATE Python3::Python Chrono_core)
+  
+  # Disable additional warnings for generated C++ code TODO: are they all really needed for all targets?
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  elseif(MSVC)
+    target_compile_options(${CHPY_FEA} PRIVATE "/wd4189")  # local variable is initialized but not referenced
+    target_compile_options(${CHPY_FEA} PRIVATE "/wd4275")  # non-DLL-interface class used as base for DLL-interface class
+    target_compile_options(${CHPY_FEA} PRIVATE "/wd4456")  # declaration hides previous local declaration
+    target_compile_options(${CHPY_FEA} PRIVATE "/wd4702")  # unreachable code
+    target_compile_options(${CHPY_FEA} PRIVATE "/wd4706")  # assignment within conditional expression
+  else()
+    target_compile_options(${CHPY_FEA} PRIVATE "-Wno-unused-variable")
+  endif()
+  
+  if(APPLE)
+    # See https://github.com/swig/swig/issues/3278
+    target_link_options(${CHPY_FEA} PRIVATE -flat_namespace -undefined dynamic_lookup)
+  endif()
+  
+  # Ensure that the PYD library file is generated in the bin/ directory.
+  set_target_properties(${CHPY_FEA} PROPERTIES
+                        PROJECT_LABEL "Chrono_python_fea"
+                        LIBRARY_OUTPUT_DIRECTORY "${CHPY_LIBRARY_OUTPUT_DIRECTORY}"
+                        SWIG_USE_TARGET_INCLUDE_DIRECTORIES TRUE
+                        )
+  
+  add_dependencies(${CHPY_FEA} Chrono_core)
+  add_dependencies(${CHPY_FEA} core)
+  
+  # Copy PY file in a package dir
+  set(CHPY_FEA_PY_FILE "${CMAKE_SWIG_OUTDIR}/${CHPY_FEA}.py")
+  add_custom_command(TARGET ${CHPY_FEA}
+                     POST_BUILD
+                     COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_FEA_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
+  
+  # Install .pyd binary module (.so on Linux)
+  install(TARGETS ${CHPY_FEA}
+          EXPORT ChronoTargets
+          RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
+          LIBRARY DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
+          ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
+  # Install .py module wrapper
+  install(FILES "${CHPY_FEA_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
+  
+  if(DBG_SCRIPT)
+    message("Module name:     ${CHPY_FEA}")
+    message("PY file:         ${CHPY_FEA_PY_FILE}")
+  endif()
 
-# Interface files
-set(CHPY_FEA_MODULE_FILE ChModuleFea_python.i)
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES COMPILE_FLAGS "-D_WIN32")
-endif()
-set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES CPLUSPLUS ON)
-if(MSVC)
-  set_source_files_properties(${CHPY_FEA_MODULE_FILE} PROPERTIES COMPILE_OPTIONS ${CHRONO_SWIG_FLAGS})
-endif()
-
-swig_add_library(${CHPY_FEA} LANGUAGE python SOURCES ${CHPY_FEA_MODULE_FILE})
-target_link_libraries(${CHPY_FEA} PRIVATE Python3::Python Chrono_core)
-
-# Disable additional warnings for generated C++ code TODO: are they all really needed for all targets?
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-elseif(MSVC)
-  target_compile_options(${CHPY_FEA} PRIVATE "/wd4189")  # local variable is initialized but not referenced
-  target_compile_options(${CHPY_FEA} PRIVATE "/wd4275")  # non-DLL-interface class used as base for DLL-interface class
-  target_compile_options(${CHPY_FEA} PRIVATE "/wd4456")  # declaration hides previous local declaration
-  target_compile_options(${CHPY_FEA} PRIVATE "/wd4702")  # unreachable code
-  target_compile_options(${CHPY_FEA} PRIVATE "/wd4706")  # assignment within conditional expression
-else()
-  target_compile_options(${CHPY_FEA} PRIVATE "-Wno-unused-variable")
-endif()
-
-if(APPLE)
-  # See https://github.com/swig/swig/issues/3278
-  target_link_options(${CHPY_FEA} PRIVATE -flat_namespace -undefined dynamic_lookup)
-endif()
-
-# Ensure that the PYD library file is generated in the bin/ directory.
-set_target_properties(${CHPY_FEA} PROPERTIES
-                      PROJECT_LABEL "Chrono_python_fea"
-                      LIBRARY_OUTPUT_DIRECTORY "${CHPY_LIBRARY_OUTPUT_DIRECTORY}"
-                      SWIG_USE_TARGET_INCLUDE_DIRECTORIES TRUE
-                      )
-
-add_dependencies(${CHPY_FEA} Chrono_core)
-add_dependencies(${CHPY_FEA} core)
-
-# Copy PY file in a package dir
-set(CHPY_FEA_PY_FILE "${CMAKE_SWIG_OUTDIR}/${CHPY_FEA}.py")
-add_custom_command(TARGET ${CHPY_FEA}
-                   POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_FEA_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
-
-# Install .pyd binary module (.so on linux)
-install(TARGETS ${CHPY_FEA}
-        EXPORT ChronoTargets
-        RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
-        LIBRARY DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
-        ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
-# Install .py module wrapper
-install(FILES "${CHPY_FEA_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
-
-if (DBG_SCRIPT)
-  message("Module name:     ${CHPY_FEA}")
-  message("PY file:         ${CHPY_FEA_PY_FILE}")
 endif()
 
 #-----------------------------------------------------------------------------
@@ -422,7 +440,7 @@ if(CH_ENABLE_MODULE_POSTPROCESS)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_POSTPROCESS_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_POSTPROCESS}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -431,7 +449,7 @@ if(CH_ENABLE_MODULE_POSTPROCESS)
   # Install .py module wrapper
   install(FILES "${CHPY_POSTPROCESS_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_POSTPROCESS}")
     message("PY file:         ${CHPY_POSTPROCESS_PY_FILE}")
   endif()
@@ -499,7 +517,7 @@ if(CH_ENABLE_MODULE_VSG)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_VSG_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_VSG}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -508,7 +526,7 @@ if(CH_ENABLE_MODULE_VSG)
   # Install .py module wrapper
   install(FILES "${CHPY_VSG_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_VSG}")
     message("PY file:         ${CHPY_VSG_PY_FILE}")
   endif()
@@ -589,7 +607,7 @@ if(CH_ENABLE_MODULE_FSI_SPH)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_FSI_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_FSI}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -598,7 +616,7 @@ if(CH_ENABLE_MODULE_FSI_SPH)
   # Install .py module wrapper
   install(FILES "${CHPY_FSI_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_FSI}")
     message("PY file:         ${CHPY_FSI_PY_FILE}")
   endif()
@@ -668,7 +686,7 @@ if(CH_ENABLE_MODULE_IRRLICHT)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_IRRLICHT_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_IRRLICHT}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -677,7 +695,7 @@ if(CH_ENABLE_MODULE_IRRLICHT)
   # Install .py module wrapper
   install(FILES "${CHPY_IRRLICHT_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_IRRLICHT}")
     message("PY file:         ${CHPY_IRRLICHT_PY_FILE}")
   endif()
@@ -743,7 +761,7 @@ if(CH_ENABLE_MODULE_PARDISO_MKL)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_MKL_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_MKL}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -752,7 +770,7 @@ if(CH_ENABLE_MODULE_PARDISO_MKL)
   # Install .py module wrapper
   install(FILES "${CHPY_MKL_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_MKL}")
     message("PY file:         ${CHPY_MKL_PY_FILE}")
   endif()
@@ -782,7 +800,7 @@ if(CH_ENABLE_MODULE_CASCADE)
 
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_compile_definitions(cascade PRIVATE "/DWNT")
+    target_compile_definitions(cascade PRIVATE "WNT")
   ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_compile_definitions(cascade PRIVATE "-DHAVE_IOSTREAM")
     target_compile_definitions(cascade PRIVATE "-DHAVE_LIMITS_H")
@@ -826,7 +844,7 @@ if(CH_ENABLE_MODULE_CASCADE)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_CASCADE_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS cascade
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -835,7 +853,7 @@ if(CH_ENABLE_MODULE_CASCADE)
   # Install .py module wrapper
   install(FILES "${CHPY_CASCADE_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Cascade includes:  ${OpenCASCADE_INCLUDE_DIR}")
     message("Module name:     cascade")
     message("PY file:         ${CHPY_CASCADE_PY_FILE}")
@@ -879,7 +897,7 @@ if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
   endif()
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_compile_definitions(${CHPY_VEHICLE} PRIVATE "/DWNT")
+    target_compile_definitions(${CHPY_VEHICLE} PRIVATE "WNT")
   ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_compile_definitions(${CHPY_VEHICLE} PRIVATE "-DHAVE_IOSTREAM")
     target_compile_definitions(${CHPY_VEHICLE} PRIVATE "-DHAVE_LIMITS_H")
@@ -928,7 +946,7 @@ if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_VEHICLE_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_VEHICLE}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -937,7 +955,7 @@ if(CH_ENABLE_MODULE_VEHICLE AND CH_ENABLE_MODULE_VEHICLE_MODELS)
   # Install .py module wrapper
   install(FILES "${CHPY_VEHICLE_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_VEHICLE}")
     message("PY file:         ${CHPY_VEHICLE_PY_FILE}")
   endif()
@@ -986,9 +1004,9 @@ if(CH_ENABLE_MODULE_SENSOR)
     target_compile_options(${CHPY_SENSOR} PRIVATE "-Wno-unused-variable")
   endif()
 
-  if (CH_USE_SENSOR_OPTIX)
-    target_compile_definitions(${CHPY_SENSOR} PRIVATE "CHRONO_HAS_OPTIX")
-  endif()
+  # CHRONO_HAS_OPTIX is defined by the generated chrono_sensor/ChConfigSensor.h.
+  # Do not define it here as well: the command line would define it as 1 while the
+  # header defines it empty, which MSVC reports as a macro redefinition (C4005).
 
   if(APPLE)
     # See https://github.com/swig/swig/issues/3278
@@ -1012,7 +1030,7 @@ if(CH_ENABLE_MODULE_SENSOR)
           POST_BUILD
           COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_SENSOR_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_SENSOR}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -1021,7 +1039,7 @@ if(CH_ENABLE_MODULE_SENSOR)
   # Install .py module wrapper
   install(FILES "${CHPY_SENSOR_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ${CHPY_SENSOR}")
     message("PY file:         ${CHPY_SENSOR_PY_FILE}")
   endif()
@@ -1031,6 +1049,7 @@ endif()
 # Module for the robot models
 #-----------------------------------------------------------------------------
 
+if(CH_ENABLE_MODULE_ROBOT_MODELS)
   message(STATUS "Add python ROBOT module")
 
   # Python module name
@@ -1048,7 +1067,7 @@ endif()
   target_link_libraries(${CHPY_RS} PRIVATE Python3::Python Chrono_core ChronoModels_robot)
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_compile_definitions(${CHPY_RS} PRIVATE "/DWNT")
+    target_compile_definitions(${CHPY_RS} PRIVATE "WNT")
   ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_compile_definitions(${CHPY_RS} PRIVATE "-DHAVE_IOSTREAM")
     target_compile_definitions(${CHPY_RS} PRIVATE "-DHAVE_LIMITS_H")
@@ -1092,7 +1111,7 @@ endif()
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_ROBOT_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ${CHPY_RS}
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -1100,6 +1119,7 @@ endif()
           ARCHIVE DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
   # Install .py module wrapper
   install(FILES "${CHPY_ROBOT_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
+endif()
 
 #-----------------------------------------------------------------------------
 # MODULE for the parser python wrapper.
@@ -1121,7 +1141,7 @@ if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF)
   target_link_libraries(parsers PRIVATE Python3::Python Chrono_core Chrono_parsers)
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_compile_definitions(parsers PRIVATE "/DWNT")
+    target_compile_definitions(parsers PRIVATE "WNT")
   ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_compile_definitions(parsers PRIVATE "-DHAVE_IOSTREAM")
     target_compile_definitions(parsers PRIVATE "-DHAVE_LIMITS_H")
@@ -1161,7 +1181,7 @@ if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_PARSERS_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS parsers
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -1170,7 +1190,7 @@ if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF)
   # Install .py module wrapper
   install(FILES "${CHPY_PARSERS_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     parsers")
     message("PY file:         ${CHPY_PARSERS_PY_FILE}")
   endif()
@@ -1184,7 +1204,7 @@ endif()
 if(CH_ENABLE_MODULE_ROS)
   message(STATUS "Add python ROS module")
 
-  # Force C++17, required by ROS Humble
+  # Force C++17 (rclcpp minimum; used throughout Chrono::ROS)
   set(CMAKE_CXX_STANDARD 17)
 
   # Interface files
@@ -1199,11 +1219,29 @@ if(CH_ENABLE_MODULE_ROS)
     set_source_files_properties(${CHPY_ROS_MODULE_FILE} PROPERTIES COMPILE_OPTIONS ${CHRONO_SWIG_FLAGS})
   endif()
 
+  # The ros module additionally wraps the vehicle (DriverInputs) and robot (Viper)
+  # handlers when those pychrono modules are built - their Chrono-type ctor args
+  # (ChDriver / ViperDCMotorControl) cross the module boundary at runtime. Tell
+  # SWIG to emit those wrap blocks (the matching C++ compile-defs are set on the
+  # target below). ros is the last swig module, so appending here is local.
+  if(TARGET vehicle)
+    list(APPEND CMAKE_SWIG_FLAGS "-DCHRONO_ROS_HAS_VEHICLE")
+  endif()
+  if(TARGET robot)
+    list(APPEND CMAKE_SWIG_FLAGS "-DCHRONO_ROS_HAS_ROBOT")
+  endif()
+  # RobotModel's ChParserURDF ctor + TF AddURDF (gated CHRONO_HAS_URDF in the
+  # headers) wrap when the parsers module + URDF are present; -DCHRONO_HAS_URDF
+  # lets SWIG see them. The C++ compile-time macro comes from ChConfigROS.h.
+  if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF AND TARGET parsers)
+    list(APPEND CMAKE_SWIG_FLAGS "-DCHRONO_HAS_URDF")
+  endif()
+
   swig_add_library(ros LANGUAGE python SOURCES ${CHPY_ROS_MODULE_FILE})
   target_link_libraries(ros PRIVATE Python3::Python Chrono_core Chrono_ros)
 
   IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_compile_definitions(ros PRIVATE "/DWNT")
+    target_compile_definitions(ros PRIVATE "WNT")
   ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_compile_definitions(ros PRIVATE "-DHAVE_IOSTREAM")
     target_compile_definitions(ros PRIVATE "-DHAVE_LIMITS_H")
@@ -1221,8 +1259,34 @@ if(CH_ENABLE_MODULE_ROS)
     target_compile_options(ros PRIVATE "-Wno-unused-variable")
   endif()
 
-  if (CH_USE_SENSOR_OPTIX)
-    target_compile_definitions(ros PRIVATE "CHRONO_HAS_OPTIX")
+  # CHRONO_HAS_OPTIX is defined by the generated chrono_sensor/ChConfigSensor.h.
+  # Do not define it here as well: the command line would define it as 1 while the
+  # header defines it empty, which MSVC reports as a macro redefinition (C4005).
+
+  # The ros module conditionally wraps the sensor handlers (guarded by
+  # CHRONO_SENSOR in ChModuleROS.i). SWIG sees -DCHRONO_SENSOR via the global
+  # CMAKE_SWIG_FLAGS; the generated wrapper's verbatim "#ifdef CHRONO_SENSOR"
+  # block gets the same define at C++ compile time from Chrono's ChConfig.h
+  # (pulled in via the ChSystem header the wrapper includes before the guard) -
+  # no explicit compile-definition needed (adding one only triggers a
+  # "CHRONO_SENSOR redefined" warning against ChConfig.h).
+  if(CH_ENABLE_MODULE_SENSOR)
+    target_link_libraries(ros PRIVATE Chrono_sensor)
+  endif()
+
+  # Vehicle/robot handler wrap: the generated wrapper's verbatim #ifdef blocks
+  # need the same define at C++ compile time, and the ChDriver/Viper headers it
+  # includes need the Chrono_vehicle / ChronoModels_robot include dirs + symbols.
+  if(TARGET vehicle)
+    target_compile_definitions(ros PRIVATE "CHRONO_ROS_HAS_VEHICLE")
+    target_link_libraries(ros PRIVATE Chrono_vehicle)
+  endif()
+  if(TARGET robot)
+    target_compile_definitions(ros PRIVATE "CHRONO_ROS_HAS_ROBOT")
+    target_link_libraries(ros PRIVATE ChronoModels_robot)
+  endif()
+  if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF AND TARGET parsers)
+    target_link_libraries(ros PRIVATE Chrono_parsers)
   endif()
 
   if(APPLE)
@@ -1240,6 +1304,18 @@ if(CH_ENABLE_MODULE_ROS)
   add_dependencies(ros Chrono_core)
   add_dependencies(ros Chrono_ros)
   add_dependencies(ros core)
+  if(CH_ENABLE_MODULE_SENSOR)
+    add_dependencies(ros sensor)  # pychrono.sensor must exist for the runtime %import
+  endif()
+  if(TARGET vehicle)
+    add_dependencies(ros vehicle)  # pychrono.vehicle must exist for the runtime ChDriver type sharing
+  endif()
+  if(TARGET robot)
+    add_dependencies(ros robot)  # pychrono.robot must exist for the runtime ViperDCMotorControl type sharing
+  endif()
+  if(CH_ENABLE_MODULE_PARSERS AND CH_USE_URDF AND TARGET parsers)
+    add_dependencies(ros parsers)  # pychrono.parsers must exist for the runtime ChParserURDF type sharing
+  endif()
 
   # Copy PY file in a package dir
   set(CHPY_ROS_PY_FILE "${CMAKE_SWIG_OUTDIR}/ros.py")
@@ -1247,7 +1323,7 @@ if(CH_ENABLE_MODULE_ROS)
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy ${CHPY_ROS_PY_FILE} ${CHPY_LIBRARY_OUTPUT_DIRECTORY})
 
-  # Install .pyd binary module (.so on linux)
+  # Install .pyd binary module (.so on Linux)
   install(TARGETS ros
           EXPORT ChronoTargets
           RUNTIME DESTINATION "${CH_INSTALL_PYTHON}/pychrono"
@@ -1256,7 +1332,7 @@ if(CH_ENABLE_MODULE_ROS)
   # Install .py module wrapper
   install(FILES "${CHPY_ROS_PY_FILE}" DESTINATION "${CH_INSTALL_PYTHON}/pychrono")
 
-  if (DBG_SCRIPT)
+  if(DBG_SCRIPT)
     message("Module name:     ros")
     message("PY file:         ${CHPY_ROS_PY_FILE}")
     message("PYD file:        ${CHPY_ROS_PYD_FILE}")
@@ -1269,6 +1345,11 @@ endif()
 #-----------------------------------------------------------------------------
 
 cmake_path(GET CHPY_LIBRARY_OUTPUT_DIRECTORY PARENT_PATH PYTHONPATH_BUILD)
+
+# Cache the build-tree PYTHONPATH so that it is also visible in other directories
+# (in particular, in src/tests/unit_tests/python, which uses it to run the PyChrono unit tests).
+set(PYTHONPATH_BUILD "${PYTHONPATH_BUILD}" CACHE INTERNAL
+    "Path to be added to PYTHONPATH for the Chrono::Python modules in the build tree")
 
 message(STATUS "")
 message(STATUS "To have access to the Chrono::Python wrapper modules, after building and (optionally) installing,")

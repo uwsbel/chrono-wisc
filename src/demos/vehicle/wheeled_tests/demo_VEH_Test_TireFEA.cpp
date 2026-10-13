@@ -21,7 +21,7 @@
 #include "chrono/utils/ChUtilsCreators.h"
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
-#include "chrono_vehicle/utils/ChUtilsJSON.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/wheeled_vehicle/ChWheel.h"
 #include "chrono_vehicle/wheeled_vehicle/tire/ChDeformableTire.h"
 
@@ -47,8 +47,6 @@ using namespace chrono::vsg3d;
     #include "chrono_postprocess/ChBlender.h"
 using namespace chrono::postprocess;
 #endif
-
-#include "chrono_thirdparty/filesystem/path.h"
 
 #include "demos/SetChronoSolver.h"
 
@@ -209,8 +207,7 @@ int main(int argc, char* argv[]) {
             auto mat = mat_data.CreateMaterial(ChContactMethod::SMC);
 
             auto terrain_rigid = chrono_types::make_shared<RigidTerrain>(&sys);
-            auto patch = terrain_rigid->AddPatch(mat, ChCoordsys<>(ChVector3d(0, 0, -radius - 0.01), QUNIT), 4 * radius,
-                                                 4 * radius);
+            auto patch = terrain_rigid->AddPatch(mat, ChCoordsys<>(ChVector3d(0, 0, -radius - 0.01), QUNIT), 4 * radius, 4 * radius);
             patch->SetTexture(GetVehicleDataFile("terrain/textures/concrete.jpg"), 10, 5);
             terrain_rigid->Initialize();
 
@@ -228,7 +225,7 @@ int main(int argc, char* argv[]) {
                                            30,     // Mohr friction limit (degrees)
                                            0.01,   // Janosi shear coefficient (m)
                                            4e7,    // Elastic stiffness (Pa/m), before plastic yield, must be > Kphi
-                                           3e4  // Damping (Pa s/m), proportional to negative vertical speed (optional)
+                                           3e4     // Damping (Pa s/m), proportional to negative vertical speed (optional)
             );
             terrain_scm->SetPlotType(vehicle::SCMTerrain::PLOT_PRESSURE, 0, 30000.2);
             terrain_scm->SetMeshWireframe(true);
@@ -253,7 +250,7 @@ int main(int argc, char* argv[]) {
             ////double cohesion = 1000;
             ////double friction = 0.9;
 
-            ChFsiFluidSystemSPH::ElasticMaterialProperties mat_props;
+            ChFsiFluidSystemSPH::SoilProperties mat_props;
             mat_props.density = density;
             mat_props.Young_modulus = 1e6;
             mat_props.Poisson_ratio = 0.3;
@@ -262,7 +259,7 @@ int main(int argc, char* argv[]) {
             mat_props.mu_fric_2 = friction;
             mat_props.average_diam = 0.005;
             mat_props.cohesion_coeff = cohesion;
-            terrain_crm->SetElasticSPH(mat_props);
+            terrain_crm->SetCrmSPH(mat_props);
 
             // Set SPH solver parameters
             ChFsiFluidSystemSPH::SPHParameters sph_params;
@@ -270,7 +267,7 @@ int main(int argc, char* argv[]) {
             sph_params.initial_spacing = spacing;
             sph_params.shifting_method = ShiftingMethod::PPST_XSPH;
             sph_params.d0_multiplier = 1;
-            sph_params.free_surface_threshold = 2.0;
+            sph_params.free_surface_threshold = 2.4;
             sph_params.artificial_viscosity = 0.5;
             sph_params.use_consistent_gradient_discretization = false;
             sph_params.use_consistent_laplacian_discretization = false;
@@ -330,7 +327,7 @@ int main(int argc, char* argv[]) {
 
     // Set up output
     std::string out_dir = GetChronoOutputPath() + "FEAtire_TEST";
-    if (!filesystem::create_directory(filesystem::path(out_dir))) {
+    if (!CreateOutputDirectory(std::filesystem::path(out_dir))) {
         cerr << "Error creating directory " << out_dir << endl;
         return 1;
     }
@@ -370,8 +367,7 @@ int main(int argc, char* argv[]) {
         csv << sys.GetTimerJacobian() << sys.GetTimerLSsetup() << sys.GetTimerLSsolve();
         csv << mesh->GetTimeInternalForces() << mesh->GetTimeJacobianLoad();
         if (ls_direct) {
-            csv << ls_direct->GetTimeSetup_Assembly() << ls_direct->GetTimeSetup_SolverCall()
-                << ls_direct->GetTimeSolve_Assembly() << ls_direct->GetTimeSolve_SolverCall();
+            csv << ls_direct->GetTimeSetup_Assembly() << ls_direct->GetTimeSetup_SolverCall() << ls_direct->GetTimeSolve_Assembly() << ls_direct->GetTimeSolve_SolverCall();
         }
         double spindle_pos = spindle->GetPos().z();
         double spindle_diff = radius - spindle_pos;

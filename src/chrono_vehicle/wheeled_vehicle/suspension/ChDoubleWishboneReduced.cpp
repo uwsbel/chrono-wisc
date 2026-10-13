@@ -119,8 +119,7 @@ void ChDoubleWishboneReduced::InitializeSide(VehicleSide side,
     m_revolute[side] = chrono_types::make_shared<ChLinkLockRevolute>();
     m_revolute[side]->SetName(m_name + "_revolute" + suffix);
     m_revolute[side]->SetTag(m_obj_tag);
-    m_revolute[side]->Initialize(m_spindle[side], m_upright[side],
-                                 ChFrame<>(points[SPINDLE], spindleRot * QuatFromAngleX(CH_PI_2)));
+    m_revolute[side]->Initialize(m_spindle[side], m_upright[side], ChFrame<>(points[SPINDLE], spindleRot * QuatFromAngleX(CH_PI_2)));
     chassis->GetSystem()->AddLink(m_revolute[side]);
 
     m_distUCA_F[side] = chrono_types::make_shared<ChLinkDistance>();
@@ -214,8 +213,7 @@ double ChDoubleWishboneReduced::GetTrack() {
 std::vector<ChSuspension::ForceTSDA> ChDoubleWishboneReduced::ReportSuspensionForce(VehicleSide side) const {
     std::vector<ChSuspension::ForceTSDA> forces(1);
 
-    forces[0] = ChSuspension::ForceTSDA("Shock", m_shock[side]->GetForce(), m_shock[side]->GetLength(),
-                                        m_shock[side]->GetVelocity());
+    forces[0] = ChSuspension::ForceTSDA("Shock", m_shock[side]->GetForce(), m_shock[side]->GetLength(), m_shock[side]->GetVelocity());
 
     return forces;
 }
@@ -229,10 +227,8 @@ void ChDoubleWishboneReduced::AddVisualizationAssets(VisualizationType vis) {
         return;
 
     // Add visualization for uprights
-    AddVisualizationUpright(m_upright[LEFT], 0.5 * (m_pointsL[SPINDLE] + m_pointsL[UPRIGHT]), m_pointsL[UCA_U],
-                            m_pointsL[LCA_U], m_pointsL[TIEROD_U], getUprightRadius());
-    AddVisualizationUpright(m_upright[RIGHT], 0.5 * (m_pointsR[SPINDLE] + m_pointsR[UPRIGHT]), m_pointsR[UCA_U],
-                            m_pointsR[LCA_U], m_pointsR[TIEROD_U], getUprightRadius());
+    AddVisualizationUpright(m_upright[LEFT], 0.5 * (m_pointsL[SPINDLE] + m_pointsL[UPRIGHT]), m_pointsL[UCA_U], m_pointsL[LCA_U], m_pointsL[TIEROD_U], getUprightRadius());
+    AddVisualizationUpright(m_upright[RIGHT], 0.5 * (m_pointsR[SPINDLE] + m_pointsR[UPRIGHT]), m_pointsR[UCA_U], m_pointsR[LCA_U], m_pointsR[TIEROD_U], getUprightRadius());
 
     // Add visualization for the spring-dampers
     m_shock[LEFT]->AddVisualShape(chrono_types::make_shared<ChVisualShapeSpring>(0.06, 150, 15));
@@ -343,29 +339,32 @@ void ChDoubleWishboneReduced::LogConstraintViolations(VehicleSide side) {
 // -----------------------------------------------------------------------------
 
 void ChDoubleWishboneReduced::PopulateComponentList() {
-    m_bodies.push_back(m_spindle[0]);
-    m_bodies.push_back(m_spindle[1]);
-    m_bodies.push_back(m_upright[0]);
-    m_bodies.push_back(m_upright[1]);
+    m_components.bodies.push_back(m_spindle[0]);
+    m_components.bodies.push_back(m_spindle[1]);
+    m_components.bodies.push_back(m_upright[0]);
+    m_components.bodies.push_back(m_upright[1]);
 
-    m_shafts.push_back(m_axle[0]);
-    m_shafts.push_back(m_axle[1]);
+    m_components.shafts.push_back(m_axle[0]);
+    m_components.shafts.push_back(m_axle[1]);
 
-    m_joints.push_back(m_revolute[0]);
-    m_joints.push_back(m_revolute[1]);
-    m_joints.push_back(m_distUCA_F[0]);
-    m_joints.push_back(m_distUCA_F[1]);
-    m_joints.push_back(m_distUCA_B[0]);
-    m_joints.push_back(m_distUCA_B[1]);
-    m_joints.push_back(m_distLCA_F[0]);
-    m_joints.push_back(m_distLCA_F[1]);
-    m_joints.push_back(m_distLCA_B[0]);
-    m_joints.push_back(m_distLCA_B[1]);
-    m_joints.push_back(m_distTierod[0]);
-    m_joints.push_back(m_distTierod[1]);
+    m_components.shaft_body_rot.push_back(m_axle_to_spindle[0]);
+    m_components.shaft_body_rot.push_back(m_axle_to_spindle[1]);
 
-    m_tsdas.push_back(m_shock[0]);
-    m_tsdas.push_back(m_shock[1]);
+    m_components.joints.push_back(m_revolute[0]);
+    m_components.joints.push_back(m_revolute[1]);
+    m_components.joints.push_back(m_distUCA_F[0]);
+    m_components.joints.push_back(m_distUCA_F[1]);
+    m_components.joints.push_back(m_distUCA_B[0]);
+    m_components.joints.push_back(m_distUCA_B[1]);
+    m_components.joints.push_back(m_distLCA_F[0]);
+    m_components.joints.push_back(m_distLCA_F[1]);
+    m_components.joints.push_back(m_distLCA_B[0]);
+    m_components.joints.push_back(m_distLCA_B[1]);
+    m_components.joints.push_back(m_distTierod[0]);
+    m_components.joints.push_back(m_distTierod[1]);
+
+    m_components.tsdas.push_back(m_shock[0]);
+    m_components.tsdas.push_back(m_shock[1]);
 }
 
 }  // end namespace vehicle

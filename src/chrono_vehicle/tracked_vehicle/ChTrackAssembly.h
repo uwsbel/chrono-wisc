@@ -32,6 +32,7 @@
 #include "chrono_vehicle/tracked_vehicle/ChTrackSuspension.h"
 #include "chrono_vehicle/tracked_vehicle/ChTrackWheel.h"
 #include "chrono_vehicle/tracked_vehicle/ChTrackShoe.h"
+#include "chrono_vehicle/ChVehicleOutput.h"
 
 namespace chrono {
 namespace vehicle {
@@ -175,9 +176,6 @@ class CH_VEHICLE_API ChTrackAssembly : public ChPart {
     /// Set visualization type for the track shoe subsystems.
     void SetTrackShoeVisualizationType(VisualizationType vis);
 
-    /// Set collision shape type for wheels.
-    void SetWheelCollisionType(bool roadwheel_as_cylinder, bool idler_as_cylinder, bool roller_as_cylinder);
-
     /// Update the state of this track assembly at the current time.
     void Synchronize(double time,    ///< [in] current time
                      double braking  ///< [in] braking driver input
@@ -200,10 +198,6 @@ class CH_VEHICLE_API ChTrackAssembly : public ChPart {
     /// Log current constraint violations.
     void LogConstraintViolations();
 
-    bool IsRoadwheelCylinder() const { return m_roadwheel_as_cylinder; }
-    bool IsIdlerCylinder() const { return m_idler_as_cylinder; }
-    bool IsRolerCylinder() const { return m_roller_as_cylinder; }
-
   protected:
     ChTrackAssembly(const std::string& name,  ///< [in] name of the subsystem
                     VehicleSide side          ///< [in] assembly on left/right vehicle side
@@ -220,10 +214,18 @@ class CH_VEHICLE_API ChTrackAssembly : public ChPart {
     /// Remove all track shoes from assembly.
     virtual void RemoveTrackShoes() = 0;
 
+    void InitializeOutput(ChOutput::Format out_format,  ///< [in] format of output DB
+                          ChOutput::Mode out_mode,      ///< [in] output mode
+                          const std::string& out_dir,   ///< [in] output directory name
+                          const std::string& out_name   ///< [in] rootname of output files
+    );
+
+    void WriteOutput(int frame, double time) const;
+
+    virtual std::vector<std::shared_ptr<ChBody>> GetBodyList() const override;
     virtual void ExportComponentList(rapidjson::Document& jsonDocument) const override;
-    virtual void Output(ChOutput& database) const override;
-    virtual void WriteCheckpoint(ChCheckpoint& database) const override;
-    virtual void ReadCheckpoint(ChCheckpoint& database) override;
+    virtual void SaveCheckpoint(ChCheckpoint& database) const override;
+    virtual void LoadCheckpoint(ChCheckpoint& database) override;
 
     VehicleSide m_side;                     ///< assembly on left/right vehicle side
     ChVector3d m_rel_loc;                   ///< assembly location relative to chassis
@@ -232,13 +234,16 @@ class CH_VEHICLE_API ChTrackAssembly : public ChPart {
     ChTrackSuspensionList m_suspensions;    ///< road-wheel assemblies
     ChTrackWheelList m_rollers;             ///< roller subsystems
 
-    bool m_roadwheel_as_cylinder;
-    bool m_idler_as_cylinder;
-    bool m_roller_as_cylinder;
-
     // Used only in a co-simulation framework
     std::vector<std::shared_ptr<ChLoadBodyForce>> m_shoe_terrain_forces;    ///< terrain force loads on track shoes
     std::vector<std::shared_ptr<ChLoadBodyTorque>> m_shoe_terrain_torques;  ///< terrain torque loads on track shoes
+
+    OutputData m_out_sprocket;
+    OutputData m_out_brake;
+    OutputData m_out_idler;
+    OutputData m_out_shoe;
+    std::vector<OutputData> m_out_suspensions;
+    std::vector<OutputData> m_out_rollers;
 
     friend class ChTrackedVehicle;
     friend class ChTrackTestRig;

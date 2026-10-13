@@ -32,7 +32,7 @@ namespace chrono {
 CH_FACTORY_REGISTER(ChCollisionModelMulticore)
 CH_UPCASTING(ChCollisionModelMulticore, ChCollisionModelImpl)
 
-ChCollisionModelMulticore::ChCollisionModelMulticore(ChCollisionModel* collision_model) : ChCollisionModelImpl(collision_model), aabb_min(C_REAL_MAX), aabb_max(-C_REAL_MAX) {
+ChCollisionModelMulticore::ChCollisionModelMulticore(ChCollisionModel* collision_model) : ChCollisionModelImpl(collision_model), aabb_min(CH_REAL_MAX), aabb_max(-CH_REAL_MAX) {
     collision_model->SetSafeMargin(0);
 
     assert(collision_model->GetContactable());
@@ -133,21 +133,6 @@ void ChCollisionModelMulticore::Populate() {
                 m_ct_shapes.push_back(ct_shape);
                 break;
             }
-            case ChCollisionShape::Type::CYLSHELL: {
-                auto shape_cylshell = std::static_pointer_cast<ChCollisionShapeCylindricalShell>(shape);
-                auto height = shape_cylshell->GetHeight();
-                auto radius = shape_cylshell->GetRadius();
-
-                auto ct_shape = chrono_types::make_shared<ctCollisionShape>();
-                ct_shape->A = real3(position.x(), position.y(), position.z());
-                ct_shape->B = real3(radius, radius, height / 2);
-                ct_shape->C = real3(0, 0, 0);
-                ct_shape->R = quaternion(rotation.e0(), rotation.e1(), rotation.e2(), rotation.e3());
-
-                m_shapes.push_back(shape);
-                m_ct_shapes.push_back(ct_shape);
-                break;
-            }
             case ChCollisionShape::CONE: {
                 auto shape_cone = std::static_pointer_cast<ChCollisionShapeCone>(shape);
                 auto height = shape_cone->GetHeight();
@@ -169,7 +154,7 @@ void ChCollisionModelMulticore::Populate() {
 
                 auto ct_shape = chrono_types::make_shared<ctCollisionShape>();
                 ct_shape->A = real3(position.x(), position.y(), position.z());
-                ct_shape->B = real3((chrono::real)points.size(), (chrono::real)local_convex_data.size(), 0);
+                ct_shape->B = real3((real)points.size(), (real)local_convex_data.size(), 0);
                 ct_shape->C = real3(0, 0, 0);
                 ct_shape->R = quaternion(rotation.e0(), rotation.e1(), rotation.e2(), rotation.e3());
                 for (const auto& p : points) {

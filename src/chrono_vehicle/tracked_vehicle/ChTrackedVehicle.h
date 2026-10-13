@@ -59,16 +59,12 @@ class CH_VEHICLE_API ChTrackedVehicle : public ChVehicle {
     size_t GetNumTrackShoes(VehicleSide side) const { return m_tracks[side]->GetNumTrackShoes(); }
 
     /// Get a handle to the specified track shoe.
-    std::shared_ptr<ChTrackShoe> GetTrackShoe(VehicleSide side, size_t id) const {
-        return m_tracks[side]->GetTrackShoe(id);
-    }
+    std::shared_ptr<ChTrackShoe> GetTrackShoe(VehicleSide side, size_t id) const { return m_tracks[side]->GetTrackShoe(id); }
 
     /// Get the complete state for the specified track shoe.
     /// This includes the location, orientation, linear and angular velocities,
     /// all expressed in the global reference frame.
-    BodyState GetTrackShoeState(VehicleSide side, size_t shoe_id) const {
-        return m_tracks[side]->GetTrackShoeState(shoe_id);
-    }
+    BodyState GetTrackShoeState(VehicleSide side, size_t shoe_id) const { return m_tracks[side]->GetTrackShoeState(shoe_id); }
 
     /// Get the complete states for all track shoes of the specified track assembly.
     /// It is assumed that the vector of body states was properly sized.
@@ -148,9 +144,7 @@ class CH_VEHICLE_API ChTrackedVehicle : public ChVehicle {
 
     /// Return estimated resistive torque on the specified sprocket.
     /// This torque is available only if monitoring of contacts for that sprocket is enabled.
-    ChVector3d GetSprocketResistiveTorque(VehicleSide side) const {
-        return m_contact_manager->GetSprocketResistiveTorque(side);
-    }
+    ChVector3d GetSprocketResistiveTorque(VehicleSide side) const { return m_contact_manager->GetSprocketResistiveTorque(side); }
 
     /// Write contact information to file.
     /// If data collection was enabled and at least one subsystem is monitored,
@@ -200,7 +194,7 @@ class CH_VEHICLE_API ChTrackedVehicle : public ChVehicle {
     /// Advance the state of this vehicle by the specified time step.
     /// In addition to advancing the state of the multibody system (if the vehicle owns the underlying system), this
     /// function also advances the state of the associated powertrain.
-    virtual void Advance(double step) override final;
+    virtual void Advance(double step, bool do_collision = true) override final;
 
     /// Lock/unlock the differential (if available).
     void LockDifferential(bool lock);
@@ -214,6 +208,9 @@ class CH_VEHICLE_API ChTrackedVehicle : public ChVehicle {
 
     /// Log the types (template names) of current vehicle subsystems.
     void LogSubsystemTypes(std::ostream& os = std::cout);
+
+    /// Return a list with all bodies in the vehicle system.
+    virtual std::vector<std::shared_ptr<ChBody>> GetBodyList() const override;
 
     /// Return a JSON string with information on all modeling components in the vehicle system.
     /// These include bodies, shafts, joints, spring-damper elements, markers, etc.
@@ -238,20 +235,32 @@ class CH_VEHICLE_API ChTrackedVehicle : public ChVehicle {
     /// This function is called at the end of each vehicle state advance.
     virtual void UpdateInertiaProperties() override final;
 
-    /// Output data for all modeling components in the vehicle system.
-    virtual void Output(int frame, ChOutput& database) const override;
+    /// Initialize output for the tracked vehicle subsystems.
+    virtual void InitializeOutput() override;
 
-    /// Checkpoint states of all modeling components in the wheeled vehicle system.
-    virtual void WriteCheckpoint(ChCheckpoint& database) const override;
+    /// Write output data for all modeling components in the tracked vehicle system.
+    virtual void WriteOutput(int frame, double time) const override;
 
-    /// Read states of all modeling components in the vehicle system from the specified checkpoint database.
-    virtual void ReadCheckpoint(ChCheckpoint& database) override;
+    /// Checkpoint states of all modeling components in the tracked vehicle system.
+    virtual void SaveCheckpoint(ChCheckpoint& database) const override;
+
+    /// Load states of all modeling components in the vehicle system from the specified checkpoint database.
+    virtual void LoadCheckpoint(ChCheckpoint& database) override;
 
     std::shared_ptr<ChTrackAssembly> m_tracks[2];  ///< track assemblies (left/right)
     std::shared_ptr<ChDrivelineTV> m_driveline;    ///< driveline subsystem
 
     std::shared_ptr<ChTrackCollisionManager> m_collision_manager;  ///< manager for internal collisions
     std::shared_ptr<ChTrackContactManager> m_contact_manager;      ///< manager for internal contacts
+
+    OutputData m_out_chassis;
+    OutputData m_out_driveline;
+    std::vector<OutputData> m_out_chassis_rear;
+
+
+    std::unique_ptr<ChOutput> m_out_db_chassis;
+    std::unique_ptr<ChOutput> m_out_db_driveline;
+    std::vector<std::unique_ptr<ChOutput>> m_out_db_chassis_rear;
 
     friend class ChTrackedVehicleVisualSystemIrrlicht;
 };
