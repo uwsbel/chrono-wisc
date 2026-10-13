@@ -15,16 +15,13 @@
 //
 // =============================================================================
 
+#include <filesystem>
+
 #include "chrono_sensor/optix/ChOptixPipeline.h"
 #include "chrono_sensor/optix/ChOptixUtils.h"
 
 #include "chrono/core/ChDataPath.h"
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_sensor/utils/ChOpenExrUtils.h"
-
-#ifdef CHRONO_HAS_CXX17
-    #include <filesystem>
-#endif
 
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
@@ -290,10 +287,8 @@ void ChOptixPipeline::CleanMaterials() {
 
 void ChOptixPipeline::CompileBaseShaders() {
     if (m_debug) {
-#ifdef CHRONO_HAS_CXX17
         std::cout << "Current directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Shader directory:  " << GetSensorShaderDir() << std::endl;
-#endif
     }
 
     OptixModuleCompileOptions module_compile_options = {};
@@ -791,128 +786,113 @@ CUdeviceptr ChOptixPipeline::GetMaterialPool() {
     return md_material_pool;
 }
 
+MaterialParameters ChOptixPipeline::MakeMaterialParameters(const ChVisualMaterial& mat) {
+    // Value-initialized. MaterialParameters has no default member initializers, so a bare
+    // local leaves any field this function does not assign holding whatever was on the stack,
+    // and the struct is memcpy'd straight into the device material pool. With `{}` an omission
+    // costs a zero instead of a random number. The old hardcoded default branch omitted
+    // anisotropy and theta_p exactly this way.
+    MaterialParameters material{};
+    material.Kd = {mat.GetDiffuseColor().R, mat.GetDiffuseColor().G, mat.GetDiffuseColor().B};
+    material.Ks = {mat.GetSpecularColor().R, mat.GetSpecularColor().G, mat.GetSpecularColor().B};
+    material.Ke = {mat.GetEmissiveColor().R, mat.GetEmissiveColor().G, mat.GetEmissiveColor().B};
+    material.fresnel_exp = mat.GetFresnelExp();
+    material.fresnel_min = mat.GetFresnelMin();
+    material.fresnel_max = mat.GetFresnelMax();
+    material.transparency = mat.GetOpacity();
+    material.roughness = mat.GetRoughness();
+    material.metallic = mat.GetMetallic();
+    material.anisotropy = mat.GetAnisotropy();
+    material.use_specular_workflow = mat.GetUseSpecularWorkflow();
+    material.lidar_intensity = 1.f;    // TODO: allow setting of this in the visual material chrono-side
+    material.radar_backscatter = 1.f;  // TODO: allow setting of this in the visual material chrono-side
+    material.kn_tex = 0;               // explicitely null as default
+    material.kd_tex = 0;               // explicitely null as default
+    material.ks_tex = 0;               // explicitely null as default
+    material.ke_tex = 0;               // explicitely null as default
+    material.metallic_tex = 0;         // explicitely null as default
+    material.roughness_tex = 0;        // explicitely null as default
+    material.opacity_tex = 0;          // explicitely null as default
+    material.weight_tex = 0;
+    material.class_id = mat.GetClassID();
+    material.instance_id = mat.GetInstanceID();
+
+    material.w = mat.GetHapkeW();
+    material.b = mat.GetHapkeB();
+    material.c = mat.GetHapkeC();
+    material.B_s0 = mat.GetHapkeBs0();
+    material.h_s = mat.GetHapkeHs();
+    material.phi = mat.GetHapkePhi();
+    material.theta_p = mat.GetHapkeRoughness();
+
+    material.tex_scale = {mat.GetTextureScale().x(), mat.GetTextureScale().y()};
+    material.emissive_power = mat.GetEmissivePower();
+    material.bsdf_type = mat.GetBSDF();
+
+    // normal texture
+    if (mat.GetNormalMapTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.kn_tex, d_img_array, mat.GetNormalMapTexture());
+    }
+    // diffuse texture
+    if (mat.GetKdTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.kd_tex, d_img_array, mat.GetKdTexture());
+    }
+    // specular texture
+    if (mat.GetKsTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.ks_tex, d_img_array, mat.GetKsTexture());
+    }
+
+    // metallic texture
+    if (mat.GetMetallicTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.metallic_tex, d_img_array, mat.GetMetallicTexture());
+    }
+    // roughness texture
+    if (mat.GetRoughnessTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.roughness_tex, d_img_array, mat.GetRoughnessTexture());
+    }
+    // opacity texture
+    if (mat.GetOpacityTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.opacity_tex, d_img_array, mat.GetOpacityTexture());
+    }
+    // weight texture
+    if (mat.GetWeightTexture() != "") {
+        cudaArray_t d_img_array;
+        CreateDeviceTexture(material.weight_tex, d_img_array, mat.GetWeightTexture());
+    }
+    return material;
+}
+
 unsigned int ChOptixPipeline::GetMaterial(std::shared_ptr<ChVisualMaterial> mat) {
-    if (mat) {
-        MaterialParameters material;
-        material.Kd = {mat->GetDiffuseColor().R, mat->GetDiffuseColor().G, mat->GetDiffuseColor().B};
-        material.Ks = {mat->GetSpecularColor().R, mat->GetSpecularColor().G, mat->GetSpecularColor().B};
-        material.Ke = {mat->GetEmissiveColor().R, mat->GetEmissiveColor().G, mat->GetEmissiveColor().B};
-        material.fresnel_exp = mat->GetFresnelExp();
-        material.fresnel_min = mat->GetFresnelMin();
-        material.fresnel_max = mat->GetFresnelMax();
-        material.transparency = mat->GetOpacity();
-        material.roughness = mat->GetRoughness();
-        material.metallic = mat->GetMetallic();
-        material.anisotropy = mat->GetAnisotropy();
-        material.use_specular_workflow = mat->GetUseSpecularWorkflow();
-        material.lidar_intensity = 1.f;    // TODO: allow setting of this in the visual material chrono-side
-        material.radar_backscatter = 1.f;  // TODO: allow setting of this in the visual material chrono-side
-        material.kn_tex = 0;               // explicitely null as default
-        material.kd_tex = 0;               // explicitely null as default
-        material.ks_tex = 0;               // explicitely null as default
-        material.ke_tex = 0;               // explicitely null as default
-        material.metallic_tex = 0;         // explicitely null as default
-        material.roughness_tex = 0;        // explicitely null as default
-        material.opacity_tex = 0;          // explicitely null as default
-        material.weight_tex = 0;
-        material.class_id = mat->GetClassID();
-        material.instance_id = mat->GetInstanceID();
-
-        material.w = mat->GetHapkeW();
-        material.b = mat->GetHapkeB();
-        material.c = mat->GetHapkeC();
-        material.B_s0 = mat->GetHapkeBs0();
-        material.h_s = mat->GetHapkeHs();
-        material.phi = mat->GetHapkePhi();
-        material.theta_p = mat->GetHapkeRoughness();
-
-        material.tex_scale = {mat->GetTextureScale().x(), mat->GetTextureScale().y()};
-        material.emissive_power = mat->GetEmissivePower();
-        material.bsdf_type = mat->GetBSDF();
-
-        // normal texture
-        if (mat->GetNormalMapTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.kn_tex, d_img_array, mat->GetNormalMapTexture());
-        }
-        // diffuse texture
-        if (mat->GetKdTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.kd_tex, d_img_array, mat->GetKdTexture());
-        }
-        // specular texture
-        if (mat->GetKsTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.ks_tex, d_img_array, mat->GetKsTexture());
-        }
-        
-        // metallic texture
-        if (mat->GetMetallicTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.metallic_tex, d_img_array, mat->GetMetallicTexture());
-        }
-        // roughness texture
-        if (mat->GetRoughnessTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.roughness_tex, d_img_array, mat->GetRoughnessTexture());
-        }
-        // opacity texture
-        if (mat->GetOpacityTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.opacity_tex, d_img_array, mat->GetOpacityTexture());
-        }
-        // weight texture
-        if (mat->GetWeightTexture() != "") {
-            cudaArray_t d_img_array;
-            CreateDeviceTexture(material.weight_tex, d_img_array, mat->GetWeightTexture());
-        }
-
-        m_material_pool.push_back(material);
-        return static_cast<unsigned int>(m_material_pool.size() - 1);
-
-    } else {
+    if (!mat) {
+        // A shape with no material of its own is shaded with Chrono's default material: the
+        // one ChVisualShape::GetColor() reports for an empty material list, and the one the
+        // Irrlicht and VSG backends already use. This branch used to build a separate default
+        // from literals (Kd 0.5 grey, roughness 1). That was a deliberate choice in 2021, when
+        // the core default was an unusable Kd = (1.0, 2.0, 2.0); core was corrected to white in
+        // 2022 and this copy was never revisited, so the two silently drifted apart. Going
+        // through the same conversion as an explicit material is what keeps them from drifting
+        // again.
+        //
+        // This is a snapshot, not a live reference: the pool holds values, and the default
+        // material is treated as immutable (ChVisualShape's setters copy it rather than mutate
+        // it). The guard matters because the conversion appends a pool entry every call, so
+        // without it a scene of N material-less shapes would push N identical copies.
         if (!m_default_material_inst) {
-            MaterialParameters material;
-            material.Kd = {.5f, .5f, .5f};
-            material.Ks = {.2f, .2f, .2f};
-            material.Ke = {.0f, .0f, .0f};
-            material.fresnel_exp = 5.f;
-            material.fresnel_min = 0.f;
-            material.fresnel_max = 1.f;
-            material.transparency = 1.f;
-            material.roughness = 1.f;
-            material.metallic = 0.0f;
-            material.lidar_intensity = 1.f;
-            material.radar_backscatter = 1.f;
-            material.kd_tex = 0;
-            material.ks_tex = 0;
-            material.kn_tex = 0;
-            material.ke_tex = 0;
-            material.roughness_tex = 0;
-            material.metallic_tex = 0;
-            material.opacity_tex = 0;
-            material.weight_tex = 0;
-            material.use_specular_workflow = 0;
-            material.w = 0.0f;
-            material.b = 0.0f;
-            material.c = 0.0f;
-            material.B_s0 = 0.0f;
-            material.h_s = 0.0f;
-            material.phi = 0.0f;
-            material.class_id = 0;
-            material.instance_id = 0;
-            material.tex_scale = {1.f, 1.f};
-            material.emissive_power = 0.f;
-            material.pad = {0.f, 0.f, 0.f};
-            material.bsdf_type = BSDFType::PRINCIPLED;
-
-            m_material_pool.push_back(material);
+            m_material_pool.push_back(MakeMaterialParameters(*ChVisualMaterial::Default()));
             m_default_material_id = static_cast<unsigned int>(m_material_pool.size() - 1);
             m_default_material_inst = true;
         }
-
         return m_default_material_id;
     }
+
+    m_material_pool.push_back(MakeMaterialParameters(*mat));
+    return static_cast<unsigned int>(m_material_pool.size() - 1);
 }
 
 unsigned int ChOptixPipeline::GetBoxMaterial(std::vector<std::shared_ptr<ChVisualMaterial>> mat_list) {
@@ -934,7 +914,8 @@ unsigned int ChOptixPipeline::GetBoxMaterial(std::vector<std::shared_ptr<ChVisua
     Record<MaterialRecordParameters> mat_record;
     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_hit_box_group, &mat_record));
     mat_record.data.material_pool_id = material_id;
-    mat_record.data.num_blended_materials = (unsigned int)mat_list.size();
+    // Empty list means GetMaterial() supplied one default material; a 0 count would shade nothing.
+    mat_record.data.num_blended_materials = mat_list.empty() ? 1u : static_cast<unsigned int>(mat_list.size());
     m_material_records.push_back(mat_record);
 
     return static_cast<unsigned int>(m_material_records.size() - 1);
@@ -959,7 +940,8 @@ unsigned int ChOptixPipeline::GetSphereMaterial(std::vector<std::shared_ptr<ChVi
     Record<MaterialRecordParameters> mat_record;
     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_hit_sphere_group, &mat_record));
     mat_record.data.material_pool_id = material_id;
-    mat_record.data.num_blended_materials = (unsigned int)mat_list.size();
+    // Empty list means GetMaterial() supplied one default material; a 0 count would shade nothing.
+    mat_record.data.num_blended_materials = mat_list.empty() ? 1u : static_cast<unsigned int>(mat_list.size());
     m_material_records.push_back(mat_record);
 
     return static_cast<unsigned int>(m_material_records.size() - 1);
@@ -1013,11 +995,11 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
     if (!mesh_found) {
         // make sure chrono mesh is setup as expected
         if (mesh->GetIndicesMaterials().size() == 0) {
-            mesh->GetIndicesMaterials() = std::vector<int>(mesh->GetIndicesVertexes().size(), 0);
+            mesh->GetIndicesMaterials() = std::vector<int>(mesh->GetIndicesVertices().size(), 0);
         }
 
         // move the chrono data to contiguous data structures to be copied to gpu
-        std::vector<uint4> vertex_index_buffer = std::vector<uint4>(mesh->GetIndicesVertexes().size());
+        std::vector<uint4> vertex_index_buffer = std::vector<uint4>(mesh->GetIndicesVertices().size());
         std::vector<uint4> normal_index_buffer = std::vector<uint4>(mesh->GetIndicesNormals().size());
         std::vector<uint4> uv_index_buffer = std::vector<uint4>(mesh->GetIndicesUV().size());
         std::vector<unsigned int> mat_index_buffer;
@@ -1026,10 +1008,10 @@ unsigned int ChOptixPipeline::GetRigidMeshMaterial(CUdeviceptr& d_vertices,
         std::vector<float2> uv_buffer = std::vector<float2>(mesh->GetCoordsUV().size());
 
         // not optional for vertex indices
-        for (int i = 0; i < mesh->GetIndicesVertexes().size(); i++) {
-            vertex_index_buffer[i] = make_uint4((unsigned int)mesh->GetIndicesVertexes()[i].x(),  //
-                                                (unsigned int)mesh->GetIndicesVertexes()[i].y(),  //
-                                                (unsigned int)mesh->GetIndicesVertexes()[i].z(), 0);
+        for (int i = 0; i < mesh->GetIndicesVertices().size(); i++) {
+            vertex_index_buffer[i] = make_uint4((unsigned int)mesh->GetIndicesVertices()[i].x(),  //
+                                                (unsigned int)mesh->GetIndicesVertices()[i].y(),  //
+                                                (unsigned int)mesh->GetIndicesVertices()[i].z(), 0);
         }
 
         uint4* d_vertex_index_buffer = {};
@@ -1190,7 +1172,8 @@ unsigned int ChOptixPipeline::GetNVDBMaterial(std::vector<std::shared_ptr<ChVisu
     Record<MaterialRecordParameters> mat_record;
     OPTIX_ERROR_CHECK(optixSbtRecordPackHeader(m_nvdb_vol_group, &mat_record));
     mat_record.data.material_pool_id = material_id;
-    mat_record.data.num_blended_materials = (unsigned int)mat_list.size();
+    // Empty list means GetMaterial() supplied one default material; a 0 count would shade nothing.
+    mat_record.data.num_blended_materials = mat_list.empty() ? 1u : static_cast<unsigned int>(mat_list.size());
     m_material_records.push_back(mat_record);
 
     return static_cast<unsigned int>(m_material_records.size() - 1);
@@ -1204,7 +1187,7 @@ unsigned int ChOptixPipeline::GetDeformableMeshMaterial(CUdeviceptr& d_vertices,
 
     unsigned int mesh_id = m_material_records[mat_id].data.mesh_pool_id;
     CUdeviceptr d_normals = reinterpret_cast<CUdeviceptr>(m_mesh_pool[mesh_id].normal_buffer);
-    unsigned int num_triangles = static_cast<unsigned int>(mesh_shape->GetMesh()->GetIndicesVertexes().size());
+    unsigned int num_triangles = static_cast<unsigned int>(mesh_shape->GetMesh()->GetIndicesVertices().size());
     m_deformable_meshes.push_back(std::make_tuple(mesh_shape, d_vertices, d_normals, num_triangles));
 
     return mat_id;
@@ -1220,7 +1203,7 @@ void ChOptixPipeline::UpdateDeformableMeshes() {
         auto mesh = mesh_shape->GetMesh();
 
         // if the mesh has changed size, we need to recreate the entire mesh (not very nice)
-        if (num_prev_triangles != mesh_shape->GetMesh()->GetIndicesVertexes().size()) {
+        if (num_prev_triangles != mesh_shape->GetMesh()->GetIndicesVertices().size()) {
             throw std::runtime_error("Error: changing mesh size not supported by Chrono::Sensor");
         }
 
@@ -1382,12 +1365,12 @@ void CreateDeviceTextureTyped(cudaTextureObject_t& d_tex_sampler,
 /// @param file_name The file name of the image to be loaded as a texture
 /// @param mirror Whether to mirror the image vertically when loading (to match typical UV coordinate system)
 /// @param exclude_from_material_cleanup Whether to exclude this texture from being cleaned up when materials are cleaned up (used for shared textures, like background environment map)
-void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
+void ChOptixPipeline::CreateDeviceTextureTyped(cudaTextureObject_t& d_tex_sampler,
                                           cudaArray_t& d_img_array,
                                           std::string file_name,
                                           bool mirror,
                                           bool exclude_from_material_cleanup) {
-    if (!filesystem::path(file_name).exists()) {
+    if (!exists(std::filesystem::path(file_name))) {
         throw std::runtime_error("Error, file not found: " + file_name);
     }
 

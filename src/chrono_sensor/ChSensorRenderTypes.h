@@ -122,12 +122,13 @@ struct PhysCameraNoiseParams {
 namespace chrono {
 namespace sensor {
 
-/// Information about the background of a rendered Sensor scene.
+/// Information about the background of a rendered Sensor scene. Determines the color, gradient, or image that is spherically mapped
+/// to camera ray misses
 struct Background {
-    BackgroundMode mode = BackgroundMode::SOLID_COLOR;
-    ChVector3f color_zenith = ChVector3f(0.f, 0.f, 0.f);
-    ChVector3f color_horizon = ChVector3f(0.f, 0.f, 0.f);
-    std::string env_tex;
+    BackgroundMode mode = BackgroundMode::SOLID_COLOR;      ///< 0=solid zenith color, 1=gradient, 2=environment map
+    ChVector3f color_zenith = ChVector3f(0.f, 0.f, 0.f);    ///< color at zenith
+    ChVector3f color_horizon = ChVector3f(0.f, 0.f, 0.f);   ///< color at horizon (for gradient)
+    std::string env_tex;                                    ///< full path name of the texture
 };
 
 }  // namespace sensor
