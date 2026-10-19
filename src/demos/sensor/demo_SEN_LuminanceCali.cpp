@@ -28,7 +28,6 @@
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/utils/ChUtilsCreators.h"
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono/assets/ChVisualShapeModelFile.h"
 
 #include "chrono_sensor/ChSensorManager.h"
@@ -157,7 +156,7 @@ int main(int argc, char* argv[]) {
 	auto village_mesh_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(village_mesh_dir + "mesh.obj", true, true);
 	village_mesh_loader->Transform({0., 0., 0.}, ChMatrix33<>(1.0)); // scale to a different size
 	
-	village_mesh_loader->RepairDuplicateVertexes(1e-9); // if meshes are not watertight
+	village_mesh_loader->RepairDuplicateVertices(1e-9); // if meshes are not watertight
 	village_mesh->SetMesh(village_mesh_loader);
 	village_mesh->SetBackfaceCull(true);
 	

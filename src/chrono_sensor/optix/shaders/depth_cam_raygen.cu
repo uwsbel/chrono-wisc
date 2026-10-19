@@ -39,10 +39,12 @@ extern "C" __global__ void __raygen__depth_camera() {
     const unsigned int pixel_idx = img_size.x * px_2D_idx.y + px_2D_idx.x;
     float t_frac = 0.f;
     float2 jitter = make_float2(0.5f, 0.5f);
-    curandState_t rng = depth_cam.rng_buffer[pixel_idx];
     float3 ray_origin, ray_direction;
     float3 cam_forward, cam_left, cam_up;
-    t_frac = curand_uniform(&rng);              // 0-1 between start and end time of the camera (chosen here)
+    // Random states are allocated only when the camera has a nonzero collection window.
+    if (depth_cam.rng_buffer) {
+        t_frac = curand_uniform(&depth_cam.rng_buffer[pixel_idx]);
+    }
     const float t_traverse = raygen->t0 + t_frac * (raygen->t1 - raygen->t0);  // simulation time when ray is sent
 
     get_cam_ray_direction(ray_origin, ray_direction, cam_forward, cam_left, cam_up, raygen, depth_cam.lens_model,

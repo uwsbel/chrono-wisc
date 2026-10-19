@@ -1365,7 +1365,7 @@ void CreateDeviceTextureTyped(cudaTextureObject_t& d_tex_sampler,
 /// @param file_name The file name of the image to be loaded as a texture
 /// @param mirror Whether to mirror the image vertically when loading (to match typical UV coordinate system)
 /// @param exclude_from_material_cleanup Whether to exclude this texture from being cleaned up when materials are cleaned up (used for shared textures, like background environment map)
-void ChOptixPipeline::CreateDeviceTextureTyped(cudaTextureObject_t& d_tex_sampler,
+void ChOptixPipeline::CreateDeviceTexture(cudaTextureObject_t& d_tex_sampler,
                                           cudaArray_t& d_img_array,
                                           std::string file_name,
                                           bool mirror,

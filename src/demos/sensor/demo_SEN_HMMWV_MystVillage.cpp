@@ -52,7 +52,6 @@
 #include "chrono_sensor/filters/ChFilterVisualize.h"
 #include "chrono_sensor/filters/ChFilterImageOps.h"
 
-#include "chrono_thirdparty/filesystem/path.h"
 #include "chrono_thirdparty/rapidjson/document.h"
 #include "chrono_thirdparty/rapidjson/filereadstream.h"
 #include "chrono_thirdparty/rapidjson/istreamwrapper.h"
@@ -287,7 +286,7 @@ int main(int argc, char* argv[]) {
 	auto village_mesh_loader = ChTriangleMeshConnected::CreateFromWavefrontFile(village_mesh_dir + "mesh.obj", true, true);
 	village_mesh_loader->Transform({0., 0., 0.}, ChMatrix33<>(terrain_scale)); // scale to a different size
 	
-	village_mesh_loader->RepairDuplicateVertexes(1e-9); // if meshes are not watertight
+	village_mesh_loader->RepairDuplicateVertices(1e-9); // if meshes are not watertight
 	village_mesh->SetMesh(village_mesh_loader);
 	village_mesh->SetBackfaceCull(true);
 	
